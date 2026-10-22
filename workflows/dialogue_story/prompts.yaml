@@ -186,6 +186,18 @@ context_end: |
   Now continue the transcript in your own turn: write only the next spoken
   line of {companion_name}, in their voice, and close the quotation mark.
 
+continue_directive: |
+  Continue directly with {companion_name}'s next spoken line.
+  Write only the new words of that line. Do not write {partner_name}'s line,
+  a stage direction, a thought, or a narrator note.
+
+story_instruction: |
+  Write the next line of {companion_name} in the story with {partner_name}.
+  The assistant turns hold the dialogue of both characters. The user turns
+  between them hold background material that is true in the story world but
+  is never speech: memories, facts, feelings, and what {companion_name}
+  is aware of right now.
+
 regeneration_title: "## Avoid this"
 
 speaker_line: '{speaker} says: "{text}"'

@@ -175,7 +175,9 @@ class StorySingleGenerationTests(unittest.TestCase):
 
         async def generate(messages, **generation):
             calls.append(messages)
-            return calls[0][-1].content.text
+            # Echo the assistant turn content (the dialogue block).
+            assistant = [m for m in messages if m.role.value == "assistant"]
+            return assistant[-1].content.text if assistant else ""
 
         async def review(messages, **generation):
             self.fail("An unchanged transcript is not a draft reply.")
@@ -205,8 +207,8 @@ class StorySingleGenerationTests(unittest.TestCase):
                 attempts, chosen = generate_reviewed(self.request(), load_prompts(), generate, review)
                 self.assertEqual(len(attempts), 2)
                 self.assertTrue(attempts[0].generation_error)
-                self.assertEqual(calls[1][:3], calls[0])
-                self.assertEqual(chosen.message_roles, ["system", "user", "assistant", "user"])
+                self.assertEqual(calls[1][:len(calls[0])], calls[0])
+                self.assertEqual(chosen.message_roles, ["system", "user", "assistant", "user", "user"])
                 self.assertEqual(chosen.candidate, "I was sulking, obviously.")
                 self.assertEqual(len(reviews), 1)
 

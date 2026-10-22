@@ -39,6 +39,10 @@ class PublicDialogue(CognitiveWorkflow):
     # without it, planning scores lexically.
     context_embeddings = None
 
+    # Input token budget from the model's serving context * context_input_fraction.
+    # The assembly sets it once at startup. Without it, the plan YAML value is used.
+    context_budget: int | None = None
+
     def partner_stimuli(self, request: ActionRequest) -> list[Stimulus]:
         """Return the spoken lines of the request's stimuli, with their accepted text.
 
@@ -79,17 +83,67 @@ class PublicDialogue(CognitiveWorkflow):
         return self._public_context
 
     def reply_context(self, request: ActionRequest, late_ids: list[int] = ()):
-        """Return the reply context from the workspace shards of the request.
+        """Return the reply context: shard dialogue plus planned retrieval from memory.
 
-        The context holds the verbatim transcript with the partner, the shard
-        story, and the evidence (:func:`~workflows.public_speech.shard_context.shard_context`).
+        The shard tail provides the verbatim transcript with the partner.
+        The lane planner fills the remaining context with embedding-scored
+        memories, facts, narratives, and hierarchical summaries from the
+        broader store. The focus query comes from the workspace text, the
+        current stimuli, and the active goals.
+
+        When no embedding service is available, the planner scores lexically.
         The shard tail stops at the cycle that chose the action. Partner lines
-        that arrived after that cycle are read from the live store and added,
-        so the writer sees the newest line. No other memory is retrieved.
+        that arrived after that cycle are read from the live store and added.
         """
+        import asyncio
         with self.ghost.lock:
             view = self.ghost.snapshot()
-        return shard_context(view, request, self.ghost.get_companion_name(), late_ids=list(late_ids))
+        shard = shard_context(view, request, self.ghost.get_companion_name(), late_ids=list(late_ids))
+        if self.context_embeddings is None:
+            return shard
+        # Build the focus from the workspace, stimuli, and goals.
+        from workflows.public_speech.context_planning import FocusInput, plan_reply_context
+        stimulus_texts = [s.text for s in request.stimuli if s.text]
+        focus = FocusInput(
+            workspace=request.workspace or "",
+            current_message=" ".join(stimulus_texts),
+            attention_texts=[request.content] if request.content else [],
+            exclude_ids=[s.knoxel_id for s in request.stimuli if s.knoxel_id],
+        )
+        # Exclude records already shown in the shard transcript.
+        shard_ids = {t.knoxel_id for t in shard.dialogue if t.knoxel_id}
+        focus.exclude_ids = list(set(focus.exclude_ids) | shard_ids)
+        try:
+            planned = asyncio.run(plan_reply_context(
+                view, "story", focus, self.context_embeddings,
+                total_tokens=self.context_budget,
+            ))
+        except Exception:
+            return shard
+        # Merge: shard dialogue stays, planned evidence fills the rest.
+        existing_ids = {item.knoxel_id for item in shard.evidence if item.knoxel_id}
+        merged_evidence = list(shard.evidence)
+        for item in planned.evidence:
+            if item.knoxel_id not in existing_ids:
+                merged_evidence.append(item)
+                existing_ids.add(item.knoxel_id)
+        shard.evidence = merged_evidence
+        # Merge planned utterances into the spoken transcript. The shard tail
+        # holds the recent window; the planner adds older real utterances. Keep
+        # one copy per record and order by world time so the assistant turn
+        # reads chronologically. Thoughts never reach here (they stay evidence).
+        seen = {t.knoxel_id for t in shard.dialogue if t.knoxel_id}
+        merged_dialogue = list(shard.dialogue)
+        for turn in planned.dialogue:
+            if turn.knoxel_id and turn.knoxel_id in seen:
+                continue
+            merged_dialogue.append(turn)
+            if turn.knoxel_id:
+                seen.add(turn.knoxel_id)
+        merged_dialogue.sort(key=lambda t: (t.timestamp or "", t.knoxel_id or 0))
+        shard.dialogue = merged_dialogue
+        shard.trace["planned_lanes"] = planned.trace.get("lanes", [])
+        return shard
 
     def prepare_reply(self, request: ActionRequest) -> tuple[list[Stimulus], object, object]:
         """Return the partner lines, the shard context, and the public context of one action.

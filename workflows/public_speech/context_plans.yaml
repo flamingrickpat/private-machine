@@ -8,6 +8,22 @@
 # newest contiguous records; "focus" lanes take the required ids; "score"
 # lanes rank their records against the focus texts.
 # Record types use the serialized names, for example MemoryClusterKnoxel.
+# Cluster and feature type values use the enum .value strings.
+#
+# Lane classification by record kind:
+#   dialogue   - verbatim speech and thoughts (Feature: Dialogue, Thought, InnerMonologue)
+#   focus      - GWT attention targets (required ids)
+#   history    - full timeline coverage: temporal summaries + raw features (DP solver)
+#   facts      - stable world knowledge: facts, preferences, traits, relationships, capabilities
+#   inner      - companion's own mental model: beliefs, active goals
+#   rules      - learned causal patterns: cause-effect, behavioral rules, hazards
+#   narratives - interpretive self-model stories: self-image, relations, psychology
+#
+# The history lane uses the temporal DP solver to cover 100% of the timeline.
+# It mixes raw dialogue features with hierarchical temporal summaries at the
+# configured raw_ratio. Level-1 summaries (first meeting, major epochs) appear
+# at the front. Level-6 summaries fill recent gaps. Raw features fill the most
+# relevant gaps. The solver optimizes total timeline span under the token budget.
 #
 # story: the companion writes prose for the other character to read.
 #   Verbatim dialogue and the companion's own earlier thoughts form the
@@ -16,34 +32,56 @@
 story:
   total_tokens: 9000
   redistribution_rounds: 3
-  priority: [dialogue, history, facts, narratives]
+  priority: [dialogue, history, facts, inner, narratives, rules]
   lanes:
     - name: dialogue
-      budget_share: 0.45
+      budget_share: 0.30
+      max_tokens: 10000
       select: recent
       record_types: [Feature]
       feature_types: [Dialogue, Thought, InnerMonologue]
     - name: focus
-      budget_share: 0.12
+      budget_share: 0.05
       select: focus
-      record_types: [Feature, MemoryClusterKnoxel, DeclarativeFactKnoxel, Narrative, CauseEffectKnoxel, BeliefKnoxel]
+      record_types: [Feature, MemoryClusterKnoxel, DeclarativeFactKnoxel, Narrative, CauseEffectKnoxel, SemanticRecordKnoxel]
     - name: history
-      budget_share: 0.20
+      budget_share: 0.40
       select: score
       order: time
-      record_types: [MemoryClusterKnoxel]
+      record_types: [MemoryClusterKnoxel, Feature]
+      cluster_types: [temporal, topical, graph_episode]
+      feature_types: [Dialogue, Thought, InnerMonologue, WorldEvent, StateUpdate]
       before_lane: dialogue
       max_similarity: 0.93
+      temporal_mode: preserve_history
+      raw_ratio: 0.5
       weights: {semantic: 1.0, lexical: 0.35}
     - name: facts
-      budget_share: 0.10
+      budget_share: 0.08
       select: score
       order: score
-      record_types: [DeclarativeFactKnoxel, BeliefKnoxel]
-      max_similarity: 0.88
+      record_types: [DeclarativeFactKnoxel, SemanticRecordKnoxel]
+      semantic_types: [fact, preference, trait, relationship, capability, location, resource]
+      max_similarity: 0.95
       weights: {semantic: 1.0, lexical: 0.35, importance: 0.3}
+    - name: inner
+      budget_share: 0.05
+      select: score
+      order: score
+      record_types: [SemanticRecordKnoxel]
+      semantic_types: [belief, goal]
+      max_similarity: 0.95
+      weights: {semantic: 1.0, lexical: 0.3, importance: 0.4}
+    - name: rules
+      budget_share: 0.04
+      select: score
+      order: score
+      record_types: [CauseEffectKnoxel, SemanticRecordKnoxel]
+      semantic_types: [rule, hazard, procedure, event_outcome]
+      max_similarity: 0.95
+      weights: {semantic: 1.0, lexical: 0.3, importance: 0.2}
     - name: narratives
-      budget_share: 0.13
+      budget_share: 0.08
       select: score
       order: score
       record_types: [Narrative]

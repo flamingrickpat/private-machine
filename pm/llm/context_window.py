@@ -85,22 +85,21 @@ def estimate_tokens(model: str, messages: Sequence[TurnInput]) -> tuple[int, str
     The provider remains authoritative. Chat framing adds an estimated token
     allowance; the configured response reserve does not cap generation.
     """
-    try:
-        encoding = tiktoken.encoding_for_model(model)
-    except KeyError:
-        encoding = tiktoken.get_encoding("o200k_base")
+    from pm.llm.token_estimate import (
+        MESSAGES_BASE_OVERHEAD, PROMPT_IMAGE_TOKENS, TURN_OVERHEAD, text_tokens,
+    )
     turns = normalize_turns(messages)
     images = prompt_image_count(turns)
     media = any(any(not isinstance(part, Text) for part in turn.content.parts) for turn in turns)
     # Each image part (a resolved tag or a direct image) adds a fixed planning
     # estimate. Image tags outside the last-N rule are text and count as text.
-    count = 24 + images * PROMPT_IMAGE_TOKENS
+    count = MESSAGES_BASE_OVERHEAD + images * PROMPT_IMAGE_TOKENS
     for turn in turns:
         values = [turn.role.value, *turn.content.notes, *(part.text for part in turn.content.parts if isinstance(part, Text))]
         values.extend(str(value) for value in (turn.tool_calls, turn.tool_call_id, turn.name) if value)
-        count += 12 + sum(len(encoding.encode(value, disallowed_special=())) for value in values)
+        count += TURN_OVERHEAD + sum(text_tokens(str(v)) for v in values)
     # Binary size cannot establish image or audio token usage. Images use the
     # constant estimate above; other media stay unmeasured and are labelled.
     label = ("estimated.text_only.media_unmeasured." if media and not images else
              "estimated.images_by_constant." if images else "estimated.tiktoken.")
-    return count, label + encoding.name
+    return count, label + "o200k_base"

@@ -247,7 +247,7 @@ TOOL_DISCOVERY_RETRY_SECONDS = 60.0  # A server that did not answer is asked aga
 # Images in records (pm.records.media, pm.llm.multimodal, pm.memory.media_alt).
 MEDIA_MAX_IMAGE_BYTES = 8 * 1024 * 1024  # Largest decoded image that a record accepts, in bytes.
 PROMPT_MAX_IMAGES = 8  # Only the last this-many image tags of one prompt become real image parts; earlier tags become alt text.
-PROMPT_IMAGE_TOKENS = 1024  # Token estimate for one image part in context measurement. Providers bill images by tiles; this is a planning bound, not a count.
+PROMPT_IMAGE_TOKENS = 100  # Token estimate for one image part in context measurement. The vision model encodes each image tile as roughly 100 tokens.
 ALT_TEXT_MAX_CHARS = 400  # Longest accepted alt text. A longer answer counts as invalid output and is retried.
 ALT_TEXT_ATTEMPTS = 4  # Model calls for one alt text before the error propagates (provider errors and invalid output).
 ALT_TEXT_TEMPERATURE = 0.2  # Sampling temperature of the alt-text call.

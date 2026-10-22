@@ -552,6 +552,18 @@ def build_app(
         # its disk cache. Construction makes no network request.
         dialogue.context_embeddings = context_embeddings
         assistant.context_embeddings = context_embeddings
+        # Compute the input token budget from the model's serving context.
+        if stage_model is not None:
+            import asyncio as _aio
+            from threading import Event as _Evt
+            from pm.llm.workflow_sessions import serving_context as _serving
+            try:
+                _ctx, _ = _aio.run(_serving(stage_model.connection, _Evt()))
+                _budget = int(_ctx * stage_model.connection.context_input_fraction)
+                dialogue.context_budget = _budget
+                assistant.context_budget = _budget
+            except Exception:
+                pass
         recovery = ReplyRecovery("reply_recovery", bus, on_error, clock, None, ghost=ghost, supervisor=supervisor)
         recovery.paused_source_ids = control.paused_source_ids
         modules.append(recovery)

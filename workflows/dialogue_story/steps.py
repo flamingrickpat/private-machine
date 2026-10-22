@@ -1,19 +1,22 @@
 """Story dialogue role.
 
-Entry point: ``run(context)``. The role builds the three Story messages,
+Entry point: ``run(context)``. The role builds interleaved Story messages,
 generates one companion line, reviews it once with the agentic persona-aware
 review, and writes a full report to ``outbox/report.yaml``.
 
-The message roles are a contract:
+The message layout is a contract:
 
-  1. system    - the story-writer instruction
-  2. user      - all derived material: character card, inner architecture,
-                 abilities, time, memories, goals, current feelings, intent
-  3. assistant - only verbatim prose: prior dialogue exactly as spoken, the
-                 current user line, and the open prefill ``<name> says: "``
+  1. system    - the story-writer instruction + architecture description
+  2. user      - opening directive + character card + time
+  3. assistant - dialogue block (both speakers, verbatim)
+  4. user      - artifact block (memories, facts, narratives)
+  ...          - alternating dialogue and artifact blocks in world-time order
+  last user    - GWT state + feelings + action + continue directive
 
-Verbatim speech and derived prose never share a message. The voice is
-anchored only by real dialogue, and summary wording cannot leak into it.
+Dialogue lines (both speakers) always land in assistant turns. Derived
+artifacts (memories, summaries, feelings) always land in user turns. The
+voice is anchored only by real dialogue in assistant turns; summary wording
+in user turns cannot leak into it. There is no assistant prefill.
 
 The review (``speech_review.yaml``):
 
@@ -40,9 +43,12 @@ from pm.llm.http_client import EmptyCompletionError
 from pm.utils import yaml_util
 from pm.memory.retrieval import utc_time
 from workflows.public_speech.public_context import (
-    ability_lines, memory_sections, plain_memory_text, task_lines, time_lines,
+    ability_lines, memory_lines, memory_sections, plain_memory_text, task_lines, time_lines,
 )
 from workflows.public_speech.public_context import Presentation, PublicContext
+from workflows.public_speech.story_rendering import (
+    ArtifactLine, dialogue_lines, render_interleaved_story,
+)
 from workflows.public_speech.speech_text import SpeechOutputError, strip_narrator_setup
 from workflows.public_speech.speech_review import (
     finding_summary, is_blocked, load_prompts as load_review_prompts, review_speech,
@@ -176,17 +182,129 @@ def build_context_message(request: StoryRequest, prompts: dict, *, avoid: str = 
 
 
 def build_story_messages(request: StoryRequest, prompts: dict, *, avoid: str = "") -> list[Turn]:
-    """Return the three contract messages: system, derived context, verbatim story."""
+    """Return the interleaved Story turns: system, opening, alternating blocks, directive."""
+    speech, thoughts = _split_dialogue(request, prompts)
+    artifacts = _artifact_lines(request, prompts) + _thought_lines(thoughts, prompts)
+    return render_interleaved_story(
+        system_text=build_system_text(request, prompts),
+        opening_text=build_opening_text(request, prompts),
+        dialogue=speech,
+        artifacts=artifacts,
+        directive_text=build_directive_text(request, prompts, avoid=avoid),
+    )
+
+
+def build_system_text(request: StoryRequest, prompts: dict) -> str:
+    """System turn: story-writer instruction + architecture + abilities + ontology."""
     names = {"companion_name": request.companion_name, "partner_name": request.partner_name}
-    transcript = render_prior_dialogue(request.prior_dialogue, prompts)
-    current = (prompts["speaker_line"].format(speaker=request.partner_name, text=request.current_user_message)
-               if request.current_user_message else "")
-    story = "\n".join(part for part in [transcript, current, prompts["reply_prefix"].format(**names)] if part)
-    return [
-        Turn(Role.System, prompts["system_prompt"].strip()),
-        Turn(Role.User, build_context_message(request, prompts, avoid=avoid)),
-        Turn(Role.Assistant, story),
+    parts = [prompts["system_prompt"].strip()]
+    parts.append(_section(prompts["architecture_title"].format(**names),
+                          [prompts["architecture_text"].format(**names).strip()]))
+    context = request.public_context
+    if context is not None:
+        abilities = ability_lines(context)
+        from workflows.public_speech.ontology import term_lines
+        ontology_terms = term_lines(context)
+    else:
+        abilities = [f"- {item}" for item in request.supported_capabilities]
+        abilities += [f"- Cannot: {item}" for item in request.unsupported_capabilities]
+        abilities += [f"- Note: {item}" for item in request.capability_notes]
+        ontology_terms = []
+    parts.append(_section(prompts["abilities_title"].format(**names), abilities))
+    parts.append(_section(prompts["ontology_title"].format(**names), ontology_terms))
+    return "\n\n".join(part for part in parts if part)
+
+
+def build_opening_text(request: StoryRequest, prompts: dict) -> str:
+    """Opening user turn: story instruction + character card + time."""
+    names = {"companion_name": request.companion_name, "partner_name": request.partner_name}
+    parts = [
+        prompts["story_instruction"].format(**names).strip(),
+        _section(prompts["character_title"], [request.character_card_story.strip()]),
+        _section(prompts["time_title"], time_lines(request.now, request.prior_dialogue, prompts, names)),
     ]
+    return "\n\n".join(part for part in parts if part)
+
+
+def build_directive_text(request: StoryRequest, prompts: dict, *, avoid: str = "") -> str:
+    """Final user turn: shards + goals + tasks + inner state + continue directive."""
+    names = {"companion_name": request.companion_name, "partner_name": request.partner_name}
+    context = request.public_context
+    shard_story = context.shard_story.strip() if context is not None else ""
+    parts = []
+    if shard_story:
+        parts.append(_section(prompts["shards_title"].format(**names),
+                              [prompts["shards_note"].format(**names).strip(), shard_story]))
+    if context is not None:
+        tasks = task_lines(context)
+    else:
+        tasks = []
+    parts.append(_section(prompts["goals_title"].format(**names), [f"- {goal}" for goal in request.goals]))
+    parts.append(_section(prompts["tasks_title"], tasks))
+    parts.append(_section(prompts["inner_title"].format(**names), _inner_lines(request, prompts, names)))
+    if avoid:
+        parts.append(_section(prompts["regeneration_title"], [avoid]))
+    parts.append(prompts["continue_directive"].format(**names).strip())
+    return "\n\n".join(part for part in parts if part)
+
+
+def _split_dialogue(request: StoryRequest, prompts: dict) -> tuple[list, list]:
+    """Return (speech dialogue lines, thought turns) from prior dialogue + current message.
+
+    Only real spoken utterances become assistant dialogue lines. The companion's
+    own earlier thoughts stay out of the spoken transcript; the caller renders
+    them as user artifacts. The current user message is always speech.
+    """
+    turns = list(request.prior_dialogue)
+    if request.current_user_message:
+        turns.append(DialogueTurn(speaker=request.partner_name, text=request.current_user_message,
+                                  knoxel_id=request.current_message_id))
+    speech_turns = [t for t in turns if t.kind != "thought"]
+    thought_turns = [t for t in turns if t.kind == "thought"]
+    return dialogue_lines(speech_turns, prompts), thought_turns
+
+
+def _thought_lines(thought_turns: list, prompts: dict) -> list[ArtifactLine]:
+    """Render the companion's earlier thoughts as user artifact lines."""
+    template = prompts.get("thought_line", "{speaker} thinks: *{text}*")
+    lines: list[ArtifactLine] = []
+    for turn in thought_turns:
+        ts = None
+        if turn.timestamp:
+            try:
+                ts = utc_time(turn.timestamp)
+            except (ValueError, TypeError):
+                pass
+        lines.append(ArtifactLine(timestamp=ts, record_id=turn.knoxel_id or 0, lane="thought",
+                                  text=f"- {template.format(speaker=turn.speaker, text=turn.text)}"))
+    return lines
+
+
+def _artifact_lines(request: StoryRequest, prompts: dict) -> list[ArtifactLine]:
+    """Evidence records as ArtifactLine items, excluding verbatim transcript lines."""
+    context = request.public_context
+    if context is None:
+        return []
+    shown = {turn.knoxel_id for turn in request.prior_dialogue if turn.knoxel_id is not None}
+    if request.current_message_id is not None:
+        shown.add(request.current_message_id)
+    transcript_texts = [turn.text for turn in request.prior_dialogue] + [request.current_user_message]
+    lines: list[ArtifactLine] = []
+    for item in context.evidence:
+        if item.knoxel_id in shown:
+            continue
+        body = plain_memory_text(item.text)
+        if not body or body in {" ".join(t.split()) for t in transcript_texts}:
+            continue
+        ts = None
+        if item.timestamp:
+            try:
+                ts = utc_time(item.timestamp)
+            except (ValueError, TypeError):
+                pass
+        lines.append(ArtifactLine(timestamp=ts, record_id=item.knoxel_id,
+                                  lane=item.lane or "focus", text=f"- {body}"))
+    return lines
 
 
 def clean_reply(raw: str, companion_name: str, partner_name: str, *, prefill: str = "") -> str:
@@ -290,7 +408,7 @@ def generate_reviewed(request: StoryRequest, prompts: dict, generate: AsyncTextC
     review_prompts = review_deps.get("review_prompts") or load_review_prompts()
     conversation = review_deps.get("conversation") or review_conversation(request)
     messages = build_story_messages(request, prompts)
-    prefill = messages[-1].content.text
+    prefill = ""  # The interleaved layout has no assistant prefill.
     on_attempt = review_deps.get("on_attempt")
     attempts = []
     for index in range(2):
@@ -353,7 +471,7 @@ def run(context) -> dict:
     report = StoryReport(
         companion_name=request.companion_name,
         message_roles=chosen.message_roles,
-        reply_prefix=prompts["reply_prefix"].format(companion_name=request.companion_name),
+        reply_prefix="",
         raw_completion=chosen.raw_completion,
         candidate=chosen.candidate,
         accepted=accepted,
@@ -375,8 +493,10 @@ def run(context) -> dict:
 
 
 __all__ = [
-    "build_context_message",
+    "build_directive_text",
+    "build_opening_text",
     "build_story_messages",
+    "build_system_text",
     "clean_reply",
     "generate_reviewed",
     "load_prompts",

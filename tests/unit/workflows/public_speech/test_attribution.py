@@ -44,9 +44,11 @@ class AttributionTests(unittest.TestCase):
             self.assertEqual(module.partner_stimuli(ActionRequest(stimuli=payload.stimuli[1:])), [])
         request = StoryRequest(companion_name="Spamuel", partner_name="Jesse", character_card_story="",
                                current_user_message="", selected_action="Reach out about the unfinished story.")
-        transcript = build_story_messages(request, load_prompts())[-1].content.text
-        self.assertNotIn("Jesse says:", transcript)
-        self.assertTrue(transcript.endswith('Spamuel says: "'))
+        messages = build_story_messages(request, load_prompts())
+        assistant_text = "\n".join(m.content.text for m in messages if m.role.value == "assistant")
+        self.assertNotIn("Jesse says:", assistant_text)
+        for m in messages:
+            self.assertFalse(m.content.text.endswith('Spamuel says: "'))
 
     def test_delivery_bookkeeping_does_not_invalidate_another_draft(self):
         correlation = self.proxy.submit("first message")

@@ -31,7 +31,7 @@ from pm.llm.http_client import ModelError
 from pm.records.base import RecordBase
 from pm.records.memory_records import Feature
 from pm.memory.context_plan import ContextPlan, Focus, PlanSpec, plan_context
-from pm.memory.retrieval import candidate, record_text, scoped_records
+from pm.memory.retrieval import candidate, memory_kind, record_text, scoped_records
 from workflows.public_speech.public_context import DialogueTurn, EvidenceItem
 
 PLANS_FILE = Path(__file__).resolve().parent / "context_plans.yaml"
@@ -107,7 +107,8 @@ async def _embed_focus(embeddings, queries, cancel) -> tuple[list[tuple[float, l
 
 
 async def plan_reply_context(view, plan_name: str, focus: FocusInput, embeddings=None, *,
-                             now: datetime | None = None, cancel=None) -> PlannedContext:
+                             now: datetime | None = None, cancel=None,
+                             total_tokens: int | None = None) -> PlannedContext:
     """Plan one reply's context from a frozen MemoryStore view.
 
     Scope comes from the current stimuli, so imagined or other-reality records
@@ -120,7 +121,8 @@ async def plan_reply_context(view, plan_name: str, focus: FocusInput, embeddings
 
     def tokens_of(key: int) -> int:
         if key not in token_cache:
-            token_cache[key] = 12 + len(_ENCODING.encode(record_text(records[key]), disallowed_special=()))
+            from pm.llm.token_estimate import record_tokens
+            token_cache[key] = record_tokens(record_text(records[key]))
         return token_cache[key]
 
     def vector_of(key: int):
@@ -130,7 +132,8 @@ async def plan_reply_context(view, plan_name: str, focus: FocusInput, embeddings
     vectors, semantic = await _embed_focus(embeddings, queries, cancel)
     focus_model = Focus(texts=queries, vectors=vectors, required_ids=focus.required_ids, exclude_ids=focus.exclude_ids)
     now = now or datetime.utcnow()
-    plan = plan_context(records, spec, focus_model, vector_of=vector_of, tokens_of=tokens_of, now=now)
+    plan = plan_context(records, spec, focus_model, vector_of=vector_of, tokens_of=tokens_of, now=now,
+                        total_tokens=total_tokens)
     embedded = 0
     dialogue_lanes = [lane for lane in spec.lanes if lane.select == "recent"]
     dialogue_names = {lane.name for lane in dialogue_lanes}
@@ -140,9 +143,19 @@ async def plan_reply_context(view, plan_name: str, focus: FocusInput, embeddings
         if lane.name in dialogue_names:
             continue
         for key in lane.ids:
-            item = EvidenceItem.model_validate(candidate(view, key, records[key], score=lane.scores.get(key, 0.0)))
+            rec = records[key]
+            # A real spoken utterance belongs in the assistant dialogue, not as
+            # a memory artifact. Thoughts, summaries, facts, and narratives stay
+            # in evidence (the user turns). memory_kind separates them cleanly:
+            # only Dialogue features are "utterance"; Thought/InnerMonologue are
+            # "speculation" and never join the spoken transcript.
+            if memory_kind(rec) == "utterance":
+                dialogue.append(_turn(view, key, rec))
+                continue
+            item = EvidenceItem.model_validate(candidate(view, key, rec, score=lane.scores.get(key, 0.0)))
             item.lane = lane.name
             evidence.append(item)
+    dialogue.sort(key=lambda t: (t.timestamp or "", t.knoxel_id or 0))
     return PlannedContext(dialogue=dialogue, evidence=evidence, trace=_trace(plan, semantic, embedded))
 
 

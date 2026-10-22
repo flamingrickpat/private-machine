@@ -51,23 +51,28 @@ def example_request(**overrides) -> StoryRequest:
 
 
 class MessageContractTests(unittest.TestCase):
-    def test_three_roles_and_the_open_prefill_ends_the_story(self):
+    def test_interleaved_roles_and_no_prefill(self):
         messages = build_story_messages(example_request(), load_prompts())
-        self.assertEqual([message.role.value for message in messages], ["system", "user", "assistant"])
-        self.assertTrue(messages[-1].content.text.endswith('Spamuel says: "'))
+        roles = [message.role.value for message in messages]
+        self.assertEqual(roles[0], "system")
+        self.assertEqual(roles[-1], "user")
+        self.assertIn("assistant", roles)
+        # Opening text is in the first user turn.
         self.assertIn("story writer", messages[0].content.text)
+        self.assertIn("Character card", messages[1].content.text)
+        for message in messages:
+            self.assertFalse(message.content.text.endswith('Spamuel says: "'))
 
-    def test_verbatim_speech_lives_only_in_the_assistant_turn(self):
+    def test_verbatim_speech_lives_only_in_assistant_turns(self):
         messages = build_story_messages(example_request(), load_prompts())
-        story = messages[2].content.text
-        self.assertEqual(story.splitlines()[:4], [
-            "*(28 September 2026)*",
-            'Jesse says: "my sink is judging me"',
-            'Spamuel says: "then you owe it a dish"',
-            'Jesse says: "ok dish is done"',
-        ])
+        assistant_text = "\n".join(m.content.text for m in messages if m.role.value == "assistant")
+        self.assertIn('Jesse says: "my sink is judging me"', assistant_text)
+        self.assertIn('Spamuel says: "then you owe it a dish"', assistant_text)
+        self.assertIn('Jesse says: "ok dish is done"', assistant_text)
+        user_text = "\n".join(m.content.text for m in messages if m.role.value == "user")
         for line in ("my sink is judging me", "then you owe it a dish", "ok dish is done"):
-            self.assertNotIn(line, messages[0].content.text + messages[1].content.text)
+            self.assertNotIn(line, user_text)
+            self.assertNotIn(line, messages[0].content.text)
 
     def test_thoughts_and_day_changes_render_as_story_elements(self):
         rendered = render_prior_dialogue([
@@ -80,14 +85,23 @@ class MessageContractTests(unittest.TestCase):
             "*(22 May 2026)*", 'Spamuel says: "b"'])
         self.assertEqual(clean_reply('Fine."\n*(23 May 2026)*\nJesse says: "x"', "Spamuel", "Jesse"), "Fine.")
 
-    def test_derived_context_lives_only_in_the_user_turn(self):
+    def test_derived_context_lives_in_system_and_user_turns(self):
         messages = build_story_messages(example_request(), load_prompts())
-        context = messages[1].content.text
+        system_text = messages[0].content.text
+        user_text = "\n".join(m.content.text for m in messages if m.role.value == "user")
+        assistant_text = "\n".join(m.content.text for m in messages if m.role.value == "assistant")
+        # Abilities and architecture in system turn.
+        self.assertIn("I cannot directly act in the physical world.", system_text)
+        # Character card and time in user turns.
+        self.assertIn("Spamuel is a brash, theatrical companion.", user_text)
+        self.assertIn("29 September 2026, 12:00", user_text)
+        self.assertIn("about 16 hours ago", user_text)
+        # Feelings in user turns (directive).
+        self.assertIn("clear pride and mild tenderness", user_text)
+        # Derived text never in assistant turns.
         for text in ("Spamuel is a brash, theatrical companion.", "I cannot directly act in the physical world.",
-                     "Jesse has a sink.", "clear pride and mild tenderness", "29 September 2026, 12:00",
-                     "about 16 hours ago"):
-            self.assertIn(text, context)
-            self.assertNotIn(text, messages[2].content.text)
+                     "clear pride and mild tenderness"):
+            self.assertNotIn(text, assistant_text)
 
 class CleanReplyTests(unittest.TestCase):
     def test_echoed_prefix_is_removed(self):
@@ -174,8 +188,8 @@ class KernelContractTests(unittest.TestCase):
         )
         self.assertEqual(result.status, WorkflowStatus.Completed)
         report = engine.StoryReport.model_validate(result.report)
-        self.assertEqual(captured["roles"], ["system", "user", "assistant"])
-        self.assertTrue(captured["story"].endswith('Spamuel says: "'))
+        self.assertEqual(captured["roles"], ["system", "user", "assistant", "user"])
+        self.assertFalse(captured["story"].endswith('Spamuel says: "'))
         self.assertEqual(report.candidate, "Pathetic. Bed.")
         self.assertTrue(report.accepted)
         self.assertEqual(report.review_reason, "in character")
