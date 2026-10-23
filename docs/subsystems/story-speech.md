@@ -4,12 +4,8 @@
 
 Story generation writes the companion's next spoken line as a story writer.
 The prompt keeps verbatim speech and derived context in separate messages.
-One agentic review judges the draft against the persona, the accepted state,
-the abilities, the private ontology, and the task results.
-It returns a judgment, a reason, and advisory findings.
-Only a false task result blocks a reviewed draft.
-Invalid output can receive repair. No quality score selects the draft.
-This design replaced the A09 claim-by-claim review and the weighted hallucination policy.
+The agentic review reports a judgment, a reason, and advisory findings.
+Story retries false task results indefinitely, with a context reset after ten follow-ups.
 
 Parent: [public dialogue](public-dialogue.md).
 Entry points: [`workflows.dialogue_story.steps.run`][], [`workflows.dialogue_story.steps.build_story_messages`][], and [`workflows.public_speech.speech_review.review_speech`][].
@@ -94,7 +90,7 @@ The [focused local checks](context-planning.md#empty-history-records) cover norm
 
 [`review_speech`][workflows.public_speech.speech_review.review_speech] makes one model call with thinking off and temperature 0.2.
 The previous local gate returned empty text at zero temperature. The tested setting stays in use.
-A retry repeats the same review when JSON or required fields are invalid. The reply is never regenerated.
+A review retry repairs invalid JSON or required fields with the draft unchanged.
 The model receives the character card, the accepted feelings, the abilities, the private ontology terms and active bindings, the task results, the memories, the recent conversation, the chosen presentation, and the draft.
 Tool results reach review in full. A 400-character excerpt previously removed valid inventory and world facts from a Minecraft observation.
 The generator and the reviewer now receive the same tool result.
@@ -125,15 +121,26 @@ Ordinary cognitive stages also request `enable_thinking: false` through the shar
 Native specialist sessions choose their own reasoning setting.
 The [prompt logs](prompt-log.md) show the actual request settings and provider usage.
 
-## One generation
+## Generation and correction
 
-[`generate_reviewed`][workflows.dialogue_story.steps.generate_reviewed] generates one draft and reviews it once.
-It normally returns one attempt. Only unusable output permits the recovery described above.
-A valid draft receives one review and is never regenerated because of a finding or judgment.
-The accepted draft is published unless it holds a false task result.
-A blocked draft reaches the host's rejection path. The host retains rejection telemetry and raises without public speech.
+[`generate_reviewed`][workflows.dialogue_story.steps.generate_reviewed] generates and reviews drafts until one passes.
+The normal path still uses one generation and one review.
+A false task result appends the rejected draft and review reason to the generation context.
+The next completion requests corrected speech in the companion's voice.
+
+After ten follow-ups fail, the loop discards the repair turns and starts again with the original context.
+This cycle has no total retry limit. Completion cancellation still stops it.
+Rejections, correction numbers, context resets, and eventual acceptance print to stdout.
+
+Advisory findings never trigger another generation.
+Each draft retains the [empty-output recovery](#completion-echoes) described above.
+The workflow repeats speech generation only. It does not repeat tool actions or commit rejected speech.
 The report keeps every attempt, its actual message roles, its generation error, and its raw completion.
 It also keeps the chosen draft, its review, its reason, and its blocked flag.
+
+The focused checks in `tests/unit/workflows/public_speech/test_speech_review.py` cover feedback, repeated resets, cancellation, and attempt records.
+`tests/unit/workflows/public_speech/test_speech_recovery.py` checks that only the revised reply reaches the user and the application continues.
+These deterministic checks establish control flow, not real model quality or eventual acceptance.
 
 Assistant replies use the same review once, with their tool receipts and no regeneration loop.
 The Assistant prompt uses the same shard context: the transcript as ordinary chat messages, then the shard story, then tool calls.

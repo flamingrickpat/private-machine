@@ -24,8 +24,10 @@ phases:
 
 The role builds three messages: the writer instruction, derived context, and
 the verbatim transcript with an open companion prefill. Empty output permits
-one recovery instruction after the full context. A valid draft receives one
-review and is never regenerated. The review returns a judgment, a reason,
+one recovery instruction after the full context. Each valid draft receives one
+review. A false task result receives correction feedback until a draft passes.
+After ten follow-ups, generation starts again from the original context.
+Retries and resets print to stdout. The review returns a judgment, a reason,
 and advisory findings. Only a false task result blocks the draft. The model
 receives no tools. The workflow writes no memory. The caller handles the
 accepted draft or the declared model-output error.

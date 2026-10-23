@@ -88,7 +88,7 @@ class StoryReport(BaseModel):
     accepted: bool
     ontology: OntologyVerdict
     attempts: list[StoryAttempt] = Field(default_factory=list)
-    # The one agentic review and the reason it recorded.
+    # The accepted draft's review and its reason.
     speech_review: SpeechReview | None = None
     review_reason: str = ""
 

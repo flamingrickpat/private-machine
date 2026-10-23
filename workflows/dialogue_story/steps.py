@@ -1,8 +1,8 @@
 """Story dialogue role.
 
 Entry point: ``run(context)``. The role builds interleaved Story messages,
-generates one companion line, reviews it once with the agentic persona-aware
-review, and writes a full report to ``outbox/report.yaml``.
+generates and reviews companion lines until one passes the agentic review.
+It writes a full report to ``outbox/report.yaml``.
 
 The message layout is a contract:
 
@@ -21,8 +21,10 @@ in user turns cannot leak into it. There is no assistant prefill.
 The review (``speech_review.yaml``):
 
 - Empty output permits one recovery with the full original context.
-- A valid companion line receives one review and is never regenerated.
-- The one review returns a judgment, a reason, and advisory findings.
+- Each valid companion line receives one review.
+- A false task result receives correction feedback until a reply passes.
+- After ten follow-ups, generation starts again from the original context.
+- Each review returns a judgment, a reason, and advisory findings.
 - Only ``false_task_result`` blocks the reply. A finding such as an invented
   ability or an invented event stays in the receipt for review.
 - The reason of the accepted review is recorded in the report and in the
@@ -51,7 +53,7 @@ from workflows.public_speech.story_rendering import (
 )
 from workflows.public_speech.speech_text import SpeechOutputError, strip_narrator_setup
 from workflows.public_speech.speech_review import (
-    finding_summary, is_blocked, load_prompts as load_review_prompts, review_speech,
+    block_reason, finding_summary, is_blocked, load_prompts as load_review_prompts, review_speech,
     select_spoken_text,
 )
 
@@ -396,54 +398,71 @@ def review_conversation(request: StoryRequest) -> list[DialogueTurn]:
 
 def generate_reviewed(request: StoryRequest, prompts: dict, generate: AsyncTextCompletion, review_complete: AsyncTextCompletion,
                       **review_deps) -> tuple[list[StoryAttempt], StoryAttempt]:
-    """Generate speech with one empty-output recovery, then review it once.
+    """Revise rejected speech until the review accepts a draft.
 
-    Recovery appends a user instruction to the full original context. It avoids
-    another assistant prefill. Invalid output never becomes accepted speech.
-    Exhaustion raises SpeechOutputError. Transport, cancellation, recording,
-    and programming errors propagate. A reviewed draft is never regenerated.
+    Each rejection adds the draft and review reason to the generation context.
+    After ten follow-ups, discard repair turns and start from the original context.
+    Retries print their progress to stdout. No tool actions or memory commits occur.
+    Each draft permits one empty-output recovery. Exhaustion raises SpeechOutputError.
+    Transport, cancellation, recording, and programming errors propagate.
     ``on_attempt`` records each attempt before review and after its result.
     """
     context = review_deps.get("context") or request.public_context or review_context(request)
     review_prompts = review_deps.get("review_prompts") or load_review_prompts()
     conversation = review_deps.get("conversation") or review_conversation(request)
-    messages = build_story_messages(request, prompts)
+    original_messages = build_story_messages(request, prompts)
+    messages = original_messages
     prefill = ""  # The interleaved layout has no assistant prefill.
     on_attempt = review_deps.get("on_attempt")
     attempts = []
-    for index in range(2):
-        error = ""
-        try:
-            raw = asyncio.run(generate(messages, **prompts.get("generation", {})))
-        except EmptyCompletionError as failure:
-            raw, error = "", str(failure)
-        if not isinstance(raw, str):
-            raise TypeError("story_complete must return the completion text as a string.")
-        candidate = clean_reply(raw, request.companion_name, request.partner_name, prefill=prefill)
-        attempt = StoryAttempt(raw_completion=raw, candidate=candidate,
-            message_roles=[message.role.value for message in messages],
-            generation_error=error or ("" if candidate else "The completion contains no new public speech."))
-        attempts.append(attempt)
+    followups = 0
+    while True:
+        for index in range(2):
+            error = ""
+            try:
+                raw = asyncio.run(generate(messages, **prompts.get("generation", {})))
+            except EmptyCompletionError as failure:
+                raw, error = "", str(failure)
+            if not isinstance(raw, str):
+                raise TypeError("story_complete must return the completion text as a string.")
+            candidate = clean_reply(raw, request.companion_name, request.partner_name, prefill=prefill)
+            attempt = StoryAttempt(raw_completion=raw, candidate=candidate,
+                message_roles=[message.role.value for message in messages],
+                generation_error=error or ("" if candidate else "The completion contains no new public speech."))
+            attempts.append(attempt)
+            if on_attempt is not None:
+                on_attempt(len(attempts), attempt)
+            if candidate:
+                break
+            if index == 0:
+                # Keep the full context and request only new speech after empty output.
+                messages = [*messages, Turn(Role.User, prompts["empty_completion_recovery"].format(
+                    companion_name=request.companion_name, partner_name=request.partner_name))]
+        else:
+            raise SpeechOutputError("The Story completion returned no new speech after two generation attempts.")
+        review = asyncio.run(review_speech(review_complete, candidate, context, conversation=conversation,
+                                           prompts=review_prompts))
+        candidate = select_spoken_text(candidate, review)
+        attempt.candidate = candidate
+        attempt.review = review
+        attempt.blocked = is_blocked(review)
         if on_attempt is not None:
-            on_attempt(index + 1, attempt)
-        if candidate:
-            break
-        if index == 0:
-            # Only unusable output reaches recovery. Keep the original context
-            # intact and use a normal chat turn instead of another prefill.
-            messages = [*messages, Turn(Role.User, prompts["empty_completion_recovery"].format(
-                companion_name=request.companion_name, partner_name=request.partner_name))]
-    else:
-        raise SpeechOutputError("The Story completion returned no new speech after two generation attempts.")
-    review = asyncio.run(review_speech(review_complete, candidate, context, conversation=conversation,
-                                       prompts=review_prompts))
-    candidate = select_spoken_text(candidate, review)
-    attempt.candidate = candidate
-    attempt.review = review
-    attempt.blocked = is_blocked(review)
-    if on_attempt is not None:
-        on_attempt(len(attempts), attempt)
-    return attempts, attempt
+            on_attempt(len(attempts), attempt)
+        if not attempt.blocked:
+            if len(attempts) > 1:
+                print(f"[dialogue_story] Reply accepted after {len(attempts)} attempts.", flush=True)
+            return attempts, attempt
+        reason = block_reason(review)
+        print(f"[dialogue_story] Reply rejected (attempt {len(attempts)}): {reason}", flush=True)
+        if followups >= 10:
+            print("[dialogue_story] Ten follow-ups failed. Restarting from the original context.", flush=True)
+            messages = original_messages
+            followups = 0
+        else:
+            print(f"[dialogue_story] Requesting correction {followups + 1}/10.", flush=True)
+            messages = [*messages, Turn(Role.Assistant, raw),
+                        Turn(Role.User, prompts["rejected_reply_recovery"].format(reason=reason))]
+            followups += 1
 
 
 def run(context) -> dict:

@@ -1,4 +1,4 @@
-"""Agentic review parsing and the single-generation Story path.
+"""Agentic review parsing and Story correction retries.
 
 No model endpoint. A deterministic completion stands in for the reviewer and
 the generator. These tests fix the A09R rules: one review returns a judgment
@@ -9,6 +9,8 @@ live speech check does that.
 from __future__ import annotations
 
 import asyncio
+from contextlib import redirect_stdout
+from io import StringIO
 import json
 import unittest
 
@@ -139,7 +141,7 @@ class ReviewMessageTests(unittest.TestCase):
         self.assertIn("Known facts kept: [4]", messages[1].content.text)
 
 
-class StorySingleGenerationTests(unittest.TestCase):
+class StoryGenerationTests(unittest.TestCase):
     def request(self) -> StoryRequest:
         return StoryRequest(companion_name="Spamuel", partner_name="Jesse", character_card_story="Brash.",
                             prior_dialogue=[DialogueTurn(speaker="Jesse", text="hi")],
@@ -237,11 +239,52 @@ class StorySingleGenerationTests(unittest.TestCase):
         self.assertEqual(len(attempts), 1)
         self.assertFalse(chosen.blocked)
 
-    def test_a_false_task_result_blocks(self):
-        attempts, chosen, _ = self.run_once(
-            'I saved the note already."',
-            {"judgment": "block", "reason": "no note receipt", "false_task_result": True})
-        self.assertTrue(chosen.blocked)
+    def test_rejected_drafts_receive_feedback_and_reset_after_ten_followups(self):
+        calls, recorded = [], []
+
+        async def generate(messages, **generation):
+            calls.append(messages)
+            return "I saved the note already." if len(calls) <= 25 else "The note is not saved yet."
+
+        async def review(messages, **generation):
+            return json.dumps({"reason": "no note receipt" if len(calls) <= 25 else "supported",
+                               "false_task_result": len(calls) <= 25})
+
+        output = StringIO()
+        with redirect_stdout(output):
+            attempts, chosen = generate_reviewed(self.request(), load_prompts(), generate, review,
+                on_attempt=lambda number, attempt: recorded.append((number, attempt.model_copy(deep=True))))
+        self.assertEqual(len(attempts), 26)
+        self.assertTrue(all(attempt.blocked for attempt in attempts[:-1]))
+        self.assertFalse(chosen.blocked)
+        self.assertEqual(chosen.candidate, "The note is not saved yet.")
+        self.assertEqual(calls[1][:-2], calls[0])
+        self.assertEqual(calls[1][-2].content.text, "I saved the note already.")
+        self.assertIn("no note receipt", calls[1][-1].content.text)
+        self.assertEqual(calls[11], calls[0])
+        self.assertEqual(calls[22], calls[0])
+        self.assertEqual(max(map(len, calls)), len(calls[0]) + 20)
+        self.assertEqual([number for number, attempt in recorded if attempt.review is not None], list(range(1, 27)))
+        self.assertIn("Requesting correction 10/10", output.getvalue())
+        self.assertEqual(output.getvalue().count("Restarting from the original context"), 2)
+        self.assertIn("Reply accepted after 26 attempts", output.getvalue())
+
+    def test_continuous_rejection_still_allows_cancellation_after_a_reset(self):
+        calls = []
+
+        async def generate(messages, **generation):
+            calls.append(messages)
+            if len(calls) == 14:
+                raise asyncio.CancelledError
+            return "I saved the note already."
+
+        async def review(messages, **generation):
+            return '{"reason": "no note receipt", "false_task_result": true}'
+
+        with redirect_stdout(StringIO()), self.assertRaises(asyncio.CancelledError):
+            generate_reviewed(self.request(), load_prompts(), generate, review)
+        self.assertEqual(len(calls), 14)
+        self.assertEqual(calls[11], calls[0])
 
 
 class NoContextReviewTests(unittest.TestCase):

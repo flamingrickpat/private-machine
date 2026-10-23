@@ -211,6 +211,11 @@ empty_completion_recovery: |
   Keep all facts, task results, and uncertainty from the full context above.
   Return only the new spoken words. Do not repeat the transcript or add another speaker's turn.
 
+rejected_reply_recovery: |
+  The previous draft failed review: {reason}
+  Try again. Correct the reported problem and keep the supported facts and uncertainty.
+  Return only the revised spoken words in your own voice.
+
 generation:
   # Matches Sampler.TempInstruct: thinking is off for this line.
   temperature: 0.7

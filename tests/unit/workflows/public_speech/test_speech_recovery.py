@@ -99,6 +99,31 @@ class SpeechRecoveryTests(unittest.TestCase):
                 self.assertFalse(self.app.shutdown_event.is_set())
                 self.assertEqual(exchange_record(self.ghost, correlation).metadata["exchange_status"], "pending")
 
+    def test_rejected_draft_is_revised_without_stopping_the_application(self):
+        calls, reviews = [], []
+
+        async def generate(messages, **generation):
+            calls.append(messages)
+            return "I saved the note." if len(calls) == 1 else "The note is not saved yet."
+
+        async def review(messages, **generation):
+            reviews.append(messages)
+            return json.dumps({"reason": "no note receipt" if len(reviews) == 1 else "supported",
+                               "false_task_result": len(reviews) == 1})
+
+        module = self.module(generate, review)
+        correlation = self.enqueue("Did you save the note?")
+        self.assertTrue(module.step(block=False))
+        self.proxy.step(block=False)
+        self.app.raise_if_error()
+        self.assertFalse(self.app.shutdown_event.is_set())
+        self.assertEqual(self.delivered, ["The note is not saved yet."])
+        self.assertEqual(exchange_record(self.ghost, correlation).metadata["exchange_status"], "resolved")
+        self.assertFalse(any(record.content == "I saved the note." for record in self.ghost.all_features))
+        report = json.loads(module.last_environment.read_text("scratch/story-attempt-01.json"))
+        self.assertTrue(report["blocked"])
+        self.assertFalse(json.loads(module.last_environment.read_text("scratch/story-attempt-02.json"))["blocked"])
+
     def test_programming_and_filesystem_errors_still_stop_the_app(self):
         for error in (TypeError("completion bug"), KeyError("missing internal key"),
                       ValueError("bad internal state"), OSError("disk failed")):

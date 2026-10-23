@@ -147,6 +147,9 @@ Public speech remains an attributed communicative event and cannot automatically
 ## Agentic review
 
 Both public paths review a draft once with [`workflows.public_speech.speech_review.review_speech`][].
+Story [revises false task results](story-speech.md#generation-and-correction) until a draft passes.
+After ten follow-ups fail, it starts again with the original generation context.
+There is no total retry limit. Retry progress prints to stdout.
 The review is one model call with a persona-aware prompt.
 It judges the draft against the accepted state, the character card, the abilities, the private ontology, and the task results.
 It returns a short `judgment`, a `reason`, and advisory `findings`.
@@ -200,7 +203,8 @@ The host does not publish an invented explanation as companion speech.
 This boundary does not catch ordinary `TypeError`, `KeyError`, `ValueError`, or filesystem errors.
 Faulty source lookup, broken callbacks, and failed evidence writes still stop the application with their original tracebacks.
 Cancellation also retains its existing signal boundary.
-A valid review that reports a false task result keeps the existing rejection policy.
+A valid review that reports a false task result enters Story's correction loop.
+Assistant keeps its existing rejection policy.
 
 Focused checks:
 

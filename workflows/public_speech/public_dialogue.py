@@ -1,8 +1,8 @@
 """``PublicDialogue``: the shared bus module of Story and Assistant replies.
 
 It validates evidence and commits each utterance before publication. Story
-and Assistant subclass it. Each workflow reviews its draft once. Declared
-model-output exhaustion leaves the exchange pending. Other errors reach the
+and Assistant subclass it. Each draft receives one review. Story revises rejected
+drafts. Declared model-output exhaustion leaves the exchange pending. Other errors reach the
 application. Host failure strings never become companion speech.
 """
 from __future__ import annotations
