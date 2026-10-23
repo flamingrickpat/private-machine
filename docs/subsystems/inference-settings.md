@@ -115,6 +115,28 @@ This implementation does not start or modify that external server.
 Development uses `config.alpha.openrouter.yaml`.
 Local wire translation has deterministic boundary checks; local inference remains outside this delivery's acceptance evidence.
 
+## Wait through an endpoint outage
+
+The program does not fail when a model endpoint is down. It waits.
+
+Every endpoint contact repeats until the endpoint answers. The wait covers model
+activation, serving-context discovery on `/props`, the tokenizer probes, and chat
+and embedding requests. Each failed attempt prints one line to standard error and
+waits 30 seconds. The attempt count has no limit.
+
+Start the endpoint again, and the paused call continues on its own. The wait holds
+no store lock and commits nothing, so the run resumes where it stopped.
+
+Cancellation still ends the wait. An application stop or a run stop sets the
+cancellation signal, and the waiting call raises `WorkflowTerminated` or
+`asyncio.CancelledError`. See
+[`pm.llm.http_client.wait_until_ready`][] and
+[`pm.llm.activation.ModelActivation.activate`][].
+
+The `live_test` mode keeps the first-error behavior. Unit tests, development
+gates, and the startup context-budget probe use that mode, so the terminal
+session opens even before the model server is up. Later inference waits.
+
 ## Parallel execution and cancellation
 
 `CODELET_WORKERS` and `ATTENTION_WORKERS` each default to two.

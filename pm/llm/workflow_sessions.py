@@ -3,6 +3,8 @@
 Construction resolves configuration without network calls. Each model session
 owns activation and serving context discovery. The caller retains redacted
 service events beside its kernel journal. This module never selects Laya.
+An endpoint that is down pauses the caller until it answers again; it does not
+end the session.
 """
 from __future__ import annotations
 
@@ -11,6 +13,7 @@ from contextlib import contextmanager
 from dataclasses import replace
 import json
 from pathlib import Path
+import sys
 from threading import Event, Lock
 import time
 from typing import Iterator
@@ -21,11 +24,20 @@ from pm_workflows.inputs import InputError
 from pm_workflows.runtime import AgentModel, WorkflowRuntime, WorkflowTerminated
 
 from pm.llm.activation import ModelActivation
-from pm.llm.http_client import JsonClient, ModelError, cancellable
+from pm.llm.http_client import JsonClient, ModelError, cancellable, wait_until_ready
 from pm.llm.config import Connection, LlmPreset, ModelConfig, resolve_connection
 
 
-async def serving_context(connection: Connection, cancel: Event) -> tuple[int, str]:
+def wait_before_retry(cancel: Event, delay_seconds: float = 30) -> None:
+    """Sleep between retries on this thread. Cancellation ends the sleep early."""
+    deadline = time.monotonic() + delay_seconds
+    while time.monotonic() < deadline:
+        if cancel.is_set():
+            raise WorkflowTerminated()
+        time.sleep(0.1)
+
+
+async def serving_context(connection: Connection, cancel: Event, *, live_test: bool = False) -> tuple[int, str]:
     """Read a configured bound or llama.cpp's actual serving context.
 
     OpenRouter supplies its catalog bound. Other remote endpoints need
@@ -33,9 +45,20 @@ async def serving_context(connection: Connection, cancel: Event) -> tuple[int, s
     ``override_context`` can reduce the resolved window.
     Local training context metadata cannot establish serving limits.
     Cancellation closes the discovery request. No source context is clipped.
+
+    An endpoint that is down, or that has not finished loading, is waited
+    out. The discovery call repeats every 30 seconds until the endpoint
+    answers, so the caller pauses instead of failing. ``live_test=True``
+    returns the first error instead, for startup probes, tests, and gates.
     """
     if connection.context_window is not None:
         return min(connection.context_window, connection.override_context or connection.context_window), "configuration"
+    return await wait_until_ready(lambda: _discover_serving_context(connection, cancel), cancel,
+                                  live_test=live_test, label=f"Serving context at {connection.base_url}")
+
+
+async def _discover_serving_context(connection: Connection, cancel: Event) -> tuple[int, str]:
+    """Ask the endpoint for its serving context once. See :func:`serving_context`."""
     parts = urlsplit(connection.base_url)
     if parts.hostname == "openrouter.ai":
         # OpenRouter owns provider routing. Its catalog supplies the context
@@ -111,7 +134,11 @@ class WorkflowModels:
     ) -> Iterator[AgentModel]:
         """Activate, lease, and release one normal LLM connection.
 
-        Configuration and readiness errors become scoped INVALID causes.
+        A dead endpoint holds this call open. Readiness, the lease, and
+        context discovery are repeated every 30 seconds until the endpoint
+        serves the configured model, so the caller pauses instead of failing
+        and the session opens when the server is back. Only ``live_test``
+        mode turns a readiness failure into a scoped INVALID cause.
         Cancellation raises ``WorkflowTerminated`` and releases active ownership.
         Unexpected code errors retain their traceback. Receipts omit credentials.
         The lease covers discovery, inference, and the full recovery session.
@@ -128,24 +155,42 @@ class WorkflowModels:
         event.update({"base_url": connection.base_url, "model": connection.model})
         started = time.monotonic()
         leased = False
-        lease = self.owner.use(connection)
+        lease = None
         try:
             # Hold this lock only through readiness and lease acquisition.
-            # Calls can then overlap, but activation cannot switch an active model.
+            # Calls can then overlap, but activation cannot switch an active
+            # model. A dead endpoint holds the lock through its retries, which
+            # is correct: no other session can use that endpoint either.
             while not self._lock.acquire(timeout=0.1):
                 if cancel.is_set():
                     raise WorkflowTerminated()
             try:
-                if cancel.is_set():
-                    raise WorkflowTerminated()
-                reused = self.owner.is_ready(connection)
-                if not reused:
-                    asyncio.run(self.owner.activate(connection, cancel=cancel, live_test=self.live_test))
-                lease.__enter__()
-                leased = True
+                attempts = 0
+                while True:
+                    if cancel.is_set():
+                        raise WorkflowTerminated()
+                    reused = self.owner.is_ready(connection)
+                    # Build a fresh lease each pass. A rejected lease cannot be re-entered.
+                    lease = self.owner.use(connection)
+                    try:
+                        if not reused:
+                            asyncio.run(self.owner.activate(connection, cancel=cancel, live_test=self.live_test))
+                        lease.__enter__()
+                    except ModelError as error:
+                        # Another thread can switch the active model between
+                        # readiness and the lease. Wait and start over, forever.
+                        if self.live_test:
+                            raise
+                        attempts += 1
+                        print(f"Cannot use model {connection.model}: {error} Retrying in 30 seconds "
+                              f"(attempt {attempts}; this wait has no limit).", file=sys.stderr)
+                        wait_before_retry(cancel)
+                        continue
+                    leased = True
+                    break
             finally:
                 self._lock.release()
-            context, source = asyncio.run(serving_context(connection, cancel))
+            context, source = asyncio.run(serving_context(connection, cancel, live_test=self.live_test))
             self._record(receipt_path, {**event, "event": "ready", "reused_activation": reused,
                                        "startup_script_ran": not reused and connection.startup_script is not None,
                                        "context_window": context, "context_source": source,

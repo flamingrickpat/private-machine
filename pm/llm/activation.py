@@ -1,8 +1,10 @@
 """Explicit model activation and active-call ownership.
 
-Finite startup scripts run only during activate(). A failed script or wrong
-served alias raises ModelError. Production readiness waits are cancellable.
-Live tests fail on unavailable endpoints. Logic errors retain tracebacks.
+Finite startup scripts run only during activate(). Production activation keeps
+retrying until the endpoint serves the configured alias, so a stopped server
+pauses the caller instead of raising ModelError. A failed script and a wrong
+served alias follow the same wait. Cancellation ends every wait, and live
+tests still fail on the first error. Logic errors retain their tracebacks.
 The owner covers clients in this process, not unrelated external model users.
 """
 from __future__ import annotations
@@ -20,7 +22,7 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from pm.llm.http_client import EmptyCompletionError, JsonClient, ModelError, cancellable
+from pm.llm.http_client import EmptyCompletionError, JsonClient, ModelError, cancellable, wait_until_ready
 from pm.llm.config import Connection
 from collections.abc import Sequence
 from pm.llm.multimodal import encode_messages
@@ -74,6 +76,22 @@ class ModelActivation:
             return not self._switching and self._ready.get(connection.base_url) == connection.model
 
     async def activate(self, connection: Connection, *, cancel: Event | None = None, live_test: bool = False):
+        """Activate the connection. Wait as long as the endpoint is not ready.
+
+        A closed port, a model that is still loading, and a failed startup
+        script are repeated until the endpoint serves the configured alias.
+        The caller waits instead of failing, so an endpoint restart resumes
+        the paused work. A wait for a busy model also clears, because the
+        active calls finish. ``cancel`` ends the wait with
+        ``asyncio.CancelledError``. ``live_test=True`` fails on the first
+        error, which is what tests and diagnostic gates need.
+        """
+        return await wait_until_ready(
+            lambda: self._activate(connection, cancel=cancel, live_test=live_test), cancel,
+            live_test=live_test, label=f"Model {connection.model} at {connection.base_url}")
+
+    async def _activate(self, connection: Connection, *, cancel: Event | None = None, live_test: bool = False):
+        """Try activation once. Readiness and errors follow the old contract."""
         logger = logging.getLogger(__name__)
         logger.info("Model activation start model=%s endpoint=%s", connection.model, connection.base_url)
         with self._lock:

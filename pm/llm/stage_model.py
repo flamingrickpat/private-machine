@@ -9,7 +9,8 @@ model switch can happen while another completion is in flight.
 Visible completions have no automatic ``max_tokens`` cap. Workflows can budget
 hidden reasoning separately. The application shares admission slots across
 module threads. Cancellation releases a slot after the request finishes
-cleanup. An empty response is retried at most once.
+cleanup. An empty response is retried at most once. An endpoint that is down
+pauses activation and requests until it returns; it never ends the session.
 """
 from __future__ import annotations
 
@@ -98,7 +99,12 @@ class LazyStageModel:
         return client.client.request_count if client is not None else 0
 
     def ensure_client(self, *, cancel=None) -> ChatClient:
-        """Activate and cache the client. Cancellation also stops readiness waits."""
+        """Activate and cache the client. Cancellation also stops readiness waits.
+
+        Activation waits as long as the endpoint is down, so the first
+        completion pauses rather than failing. See
+        :meth:`pm.llm.activation.ModelActivation.activate`.
+        """
         with self._lock:
             # Classification can already own this same ready connection.
             # Reuse it so the first cognitive call does not request a switch.
@@ -128,12 +134,17 @@ class LazyStageModel:
         return asyncio.run(complete())
 
     def measure_context(self, messages: Sequence[TurnInput], *, cancel=None, **generation: object) -> dict:
-        """Measure tokens using the same activated connection as inference."""
+        """Measure tokens using the same activated connection as inference.
+
+        A dead endpoint pauses this call until the endpoint returns. It does
+        not raise for an unavailable endpoint.
+        """
         from threading import Event
         from pm.llm.context_window import measure_context
         self.ensure_client(cancel=cancel)
         with self.owner.use(self.connection):
-            return asyncio.run(measure_context(self.connection, messages, cancel if cancel is not None else Event(), **generation))
+            return asyncio.run(measure_context(self.connection, messages, cancel if cancel is not None else Event(),
+                                               live_test=self.live_test, **generation))
 
     def build_async_tool(self, *, cancel: Event | None = None) -> AsyncTextCompletion:
         """Return an async completion callable for roles that run their own loop.

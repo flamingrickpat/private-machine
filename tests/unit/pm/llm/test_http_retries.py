@@ -11,9 +11,10 @@ from threading import Event, Thread
 import unittest
 
 from pm.llm.config import resolve_connection
-from pm.llm.http_client import JsonClient, ModelError, ProviderCompletionError
+from pm.llm.http_client import JsonClient, ModelError, ProviderCompletionError, wait_until_ready
 from pm.llm.activation import ModelActivation
 from pm.llm.stage_model import LazyStageModel
+from pm.llm.workflow_sessions import serving_context
 
 
 class HttpRetryTests(unittest.IsolatedAsyncioTestCase):
@@ -95,6 +96,46 @@ class HttpRetryTests(unittest.IsolatedAsyncioTestCase):
         connection, requests = self.serve([200], body)
         self.assertEqual(await JsonClient(connection, transient_retries=0).request("POST", "chat/completions", payload={}), body)
         self.assertEqual(len(requests), 1)
+
+    async def test_wait_until_ready_repeats_until_the_step_succeeds(self):
+        """A dead endpoint is retried forever. The first good answer wins."""
+        calls = []
+
+        async def step():
+            calls.append(1)
+            if len(calls) < 3:
+                raise ModelError("The endpoint has no serving context.")
+            return "ready"
+
+        self.assertEqual(await wait_until_ready(step, Event(), delay_seconds=0), "ready")
+        self.assertEqual(len(calls), 3)
+
+    async def test_wait_until_ready_stops_on_cancellation(self):
+        cancel = Event()
+
+        async def step():
+            cancel.set()
+            raise ModelError("The endpoint connection failed.")
+
+        with self.assertRaises(asyncio.CancelledError):
+            await wait_until_ready(step, cancel, delay_seconds=30)
+
+    async def test_live_test_mode_returns_the_first_probe_error(self):
+        calls = []
+
+        async def step():
+            calls.append(1)
+            raise ModelError("Serving context discovery failed.")
+
+        with self.assertRaises(ModelError):
+            await wait_until_ready(step, Event(), live_test=True, delay_seconds=0)
+        self.assertEqual(len(calls), 1)
+
+    async def test_serving_context_waits_for_the_props_route(self):
+        """A props route that answers too early is asked again, not reported as missing."""
+        connection, requests = self.serve([503, 200], {"default_generation_settings": {"n_ctx": 4096}})
+        self.assertEqual(await serving_context(connection, Event()), (4096, "server.props.default_generation_settings.n_ctx"))
+        self.assertEqual(requests, ["/props"] * 2)
 
     async def test_lazy_activation_wait_is_cancellable(self):
         gate = Event()

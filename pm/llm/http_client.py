@@ -7,6 +7,9 @@ Neither response bodies nor credentials appear in transport error messages.
 
 Chat responses use a per-prompt response sequence. Seeds are random and do
 not affect cache keys. A cache hit does not establish endpoint readiness.
+
+:func:`wait_until_ready` extends the same endless wait to the readiness and
+tokenizer probes that do not go through :class:`JsonClient`.
 """
 from __future__ import annotations
 
@@ -106,6 +109,40 @@ async def cancellable(awaitable, cancel: Event | None):
         if not task.done():
             task.cancel()
         await asyncio.gather(task, return_exceptions=True)
+
+
+async def wait_until_ready(step, cancel: Event | None = None, *, live_test: bool = False,
+                           delay_seconds: float = 30, label: str = "Model endpoint") -> object:
+    """Call ``step`` again and again until it succeeds. This wait has no limit.
+
+    ``step`` is an async callable that talks to a model endpoint. A closed
+    port, a model that is still loading, and a broken endpoint answer all mean
+    "not ready yet". Print one line, sleep, and call ``step`` again. The
+    program never fails here. The operator can restart the server and the
+    paused call continues on its own, so no work is lost.
+
+    ``cancel`` ends the wait with ``asyncio.CancelledError``.
+    ``live_test=True`` raises the first error instead of waiting. Tests,
+    startup probes, and one-shot diagnostics use that mode. Any other
+    exception type is a code fault and propagates unchanged.
+    """
+    attempts = 0
+    while True:
+        try:
+            return await step()
+        except (ModelError, httpx.HTTPError) as error:
+            if live_test:
+                raise
+            # Never put response bodies or credentials in this reason.
+            reason = str(error) if isinstance(error, ModelError) else "The connection failed."
+        # The endpoint is not ready. Wait, then repeat the same call.
+        if cancel is not None and cancel.is_set():
+            raise asyncio.CancelledError
+        attempts += 1
+        logging.getLogger(__name__).warning("Endpoint wait label=%s attempt=%s reason=%s", label, attempts, reason)
+        print(f"{label} is not ready: {reason} Retrying in {delay_seconds:g} seconds "
+              f"(attempt {attempts}; this wait has no limit).", file=sys.stderr)
+        await cancellable(asyncio.sleep(delay_seconds), cancel)
 
 
 class JsonClient:

@@ -39,8 +39,10 @@ class ModelContextTests(unittest.TestCase):
             reserved.bind(("127.0.0.1", 0))
             connection = ConnectionConfig(base_url=f"http://127.0.0.1:{reserved.getsockname()[1]}/v1",
                                           model="qwen", context_window=98304).resolve()
+            # live_test keeps this diagnostic fail-fast. Production waits for
+            # the endpoint instead of raising.
             with self.assertRaisesRegex(ModelError, "Context measurement failed"):
-                asyncio.run(measure_context(connection, [], Event()))
+                asyncio.run(measure_context(connection, [], Event(), live_test=True))
 
     def test_cancelled_measurement_does_not_wait_for_the_endpoint(self):
         cancel = Event()

@@ -560,7 +560,10 @@ def build_app(
             from threading import Event as _Evt
             from pm.llm.workflow_sessions import serving_context as _serving
             try:
-                _ctx, _ = _aio.run(_serving(stage_model.connection, _Evt()))
+                # Ask once and move on. The session must open before the model
+                # server is up. Later inference waits for the endpoint instead
+                # of giving up, so a missing budget is not worth a blocked start.
+                _ctx, _ = _aio.run(_serving(stage_model.connection, _Evt(), live_test=True))
                 _budget = int(_ctx * stage_model.connection.context_input_fraction)
                 dialogue.context_budget = _budget
                 assistant.context_budget = _budget

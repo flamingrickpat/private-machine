@@ -15,7 +15,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 
-from pm.llm.http_client import JsonClient, ModelError, cancellable
+from pm.llm.http_client import JsonClient, ModelError, cancellable, wait_until_ready
 from pm.llm.config import Connection, EmbeddingConfig
 from pm.llm.workflow_sessions import serving_context
 from pm.records.media import alt_text_view, image_ids, media_lookup
@@ -54,7 +54,8 @@ def cosine_similarity(left: list[float], right: list[float]) -> float:
     return math.fsum((a / left_norm) * (b / right_norm) for a, b in zip(left, right))
 
 
-async def fit_embedding_text(connection: Connection, text: str, cancel: Event | None = None) -> tuple[str, dict]:
+async def fit_embedding_text(connection: Connection, text: str, cancel: Event | None = None, *,
+                             live_test: bool = False) -> tuple[str, dict]:
     """Cut text to the serving context before an embedding request.
 
     llama.cpp rejects an embedding when the tokenized input is larger than
@@ -66,9 +67,12 @@ async def fit_embedding_text(connection: Connection, text: str, cancel: Event | 
     context, original count, sent count, and truncation flag. If the endpoint
     has no serving context or tokenizer route, the text stays unchanged. A
     transport or protocol failure raises ModelError without prompt text.
+    A silent endpoint is waited out: the tokenizer requests repeat every 30
+    seconds until the endpoint answers. ``live_test=True`` keeps the fail-fast
+    error for diagnostics and tests.
     """
     try:
-        context, source = await serving_context(connection, cancel)
+        context, source = await serving_context(connection, cancel, live_test=live_test)
     except ModelError:
         return text, {"context_window": None, "context_source": None,
                       "original_tokens": None, "input_tokens": None, "truncated": False}
@@ -76,40 +80,45 @@ async def fit_embedding_text(connection: Connection, text: str, cancel: Event | 
     root = urlunsplit((parts.scheme, parts.netloc, parts.path.removesuffix("/v1"), "", ""))
     key = connection.api_key.get_secret_value()
     headers = {"Authorization": "Bearer " + key} if key else {}
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            special = await cancellable(client.post(root + "/tokenize", headers=headers, json={
-                "content": text, "add_special": True, "parse_special": True}), cancel)
-            if special.status_code in {404, 405, 501}:
-                return text, {"context_window": context, "context_source": source,
-                              "original_tokens": None, "input_tokens": None, "truncated": False}
-            special.raise_for_status()
-            special_tokens = special.json()["tokens"]
-            if not isinstance(special_tokens, list):
-                raise ValueError("Invalid token sequence.")
-            if len(special_tokens) <= context:
-                return text, {"context_window": context, "context_source": source,
-                              "original_tokens": len(special_tokens),
-                              "input_tokens": len(special_tokens), "truncated": False}
-            raw = await cancellable(client.post(root + "/tokenize", headers=headers, json={
-                "content": text, "add_special": False, "parse_special": True}), cancel)
-            raw.raise_for_status()
-            raw_tokens = raw.json()["tokens"]
-            if not isinstance(raw_tokens, list) or any(type(token) is not int for token in raw_tokens):
-                raise ValueError("Invalid token sequence.")
-            keep = context - (len(special_tokens) - len(raw_tokens))
-            if keep <= 0:
-                raise ValueError("The serving context cannot hold embedding input.")
-            response = await cancellable(client.post(root + "/detokenize", headers=headers,
-                json={"tokens": raw_tokens[:keep]}), cancel)
-            response.raise_for_status()
-            clipped = response.json()["content"]
-            if not isinstance(clipped, str):
-                raise ValueError("Invalid detokenized text.")
-    except (httpx.HTTPError, ValueError, KeyError, TypeError):
-        raise ModelError("Embedding context fit failed. Check the selected embedding endpoint and tokenizer.") from None
-    return clipped, {"context_window": context, "context_source": source,
-                     "original_tokens": len(special_tokens), "input_tokens": keep, "truncated": True}
+    async def count_with_server() -> tuple[str, dict]:
+        """Ask the endpoint for its own token count and clipped text. Retried until it answers."""
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                special = await cancellable(client.post(root + "/tokenize", headers=headers, json={
+                    "content": text, "add_special": True, "parse_special": True}), cancel)
+                if special.status_code in {404, 405, 501}:
+                    return text, {"context_window": context, "context_source": source,
+                                  "original_tokens": None, "input_tokens": None, "truncated": False}
+                special.raise_for_status()
+                special_tokens = special.json()["tokens"]
+                if not isinstance(special_tokens, list):
+                    raise ValueError("Invalid token sequence.")
+                if len(special_tokens) <= context:
+                    return text, {"context_window": context, "context_source": source,
+                                  "original_tokens": len(special_tokens),
+                                  "input_tokens": len(special_tokens), "truncated": False}
+                raw = await cancellable(client.post(root + "/tokenize", headers=headers, json={
+                    "content": text, "add_special": False, "parse_special": True}), cancel)
+                raw.raise_for_status()
+                raw_tokens = raw.json()["tokens"]
+                if not isinstance(raw_tokens, list) or any(type(token) is not int for token in raw_tokens):
+                    raise ValueError("Invalid token sequence.")
+                keep = context - (len(special_tokens) - len(raw_tokens))
+                if keep <= 0:
+                    raise ValueError("The serving context cannot hold embedding input.")
+                response = await cancellable(client.post(root + "/detokenize", headers=headers,
+                    json={"tokens": raw_tokens[:keep]}), cancel)
+                response.raise_for_status()
+                clipped = response.json()["content"]
+                if not isinstance(clipped, str):
+                    raise ValueError("Invalid detokenized text.")
+        except (httpx.HTTPError, ValueError, KeyError, TypeError):
+            raise ModelError("Embedding context fit failed. Check the selected embedding endpoint and tokenizer.") from None
+        return clipped, {"context_window": context, "context_source": source,
+                         "original_tokens": len(special_tokens), "input_tokens": keep, "truncated": True}
+
+    return await wait_until_ready(count_with_server, cancel, live_test=live_test,
+                                  label=f"Embedding token count at {connection.base_url}")
 
 
 def parse_embedding_response(response: dict, config: EmbeddingConfig) -> list[float]:
@@ -164,7 +173,8 @@ class EmbeddingService:
         inputs = []
         for text in texts:
             if len(text.encode("utf-8")) > _SHORT_TEXT_BYTES:
-                text, _ = await fit_embedding_text(self.client.connection, text, cancel)
+                text, _ = await fit_embedding_text(self.client.connection, text, cancel,
+                                                   live_test=self.client.live_test)
             inputs.append(text)
         response = await self.client.request("POST", "embeddings", payload={
             "model": self.client.connection.model, "input": inputs[0] if len(inputs) == 1 else inputs,

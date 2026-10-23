@@ -48,6 +48,7 @@ The cache key stays the full record text. The stored vector represents the fitte
 [`pm.llm.context_window.measure_context`][] measures the selected connection before each Minecraft project decision.
 The serving window comes from configured `context_window`, OpenRouter's selected model catalog entry, or a compatible endpoint's current `/props` response.
 Training-context metadata cannot establish the serving window.
+Discovery waits for an endpoint that has not answered yet. See [Wait through an endpoint outage](inference-settings.md#wait-through-an-endpoint-outage).
 `context_input_fraction` defaults to `0.8` and accepts a number strictly between zero and one.
 The input budget equals that fraction of the serving window, in tokens.
 The remainder reserves room for the response; it does not impose a generation cap.
