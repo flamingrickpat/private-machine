@@ -241,6 +241,7 @@ class ChatClient:
                 context = self.connection.context_window or metadata.get("context_length") or metadata["meta"]["n_ctx"]
                 if type(context) is not int or context <= 0:
                     raise ModelError("A reasoning budget needs a configured or advertised context window.")
+                context = min(context, self.connection.override_context or context)
                 maximum = (metadata.get("top_provider") or {}).get("max_completion_tokens") or context
                 maximum = min(maximum, generation.get("max_tokens", maximum), generation.get("max_completion_tokens", maximum))
                 if "tools" in generation:

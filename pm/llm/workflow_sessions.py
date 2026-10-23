@@ -30,11 +30,12 @@ async def serving_context(connection: Connection, cancel: Event) -> tuple[int, s
 
     OpenRouter supplies its catalog bound. Other remote endpoints need
     ``context_window`` when they have no compatible ``/props`` route.
+    ``override_context`` can reduce the resolved window.
     Local training context metadata cannot establish serving limits.
     Cancellation closes the discovery request. No source context is clipped.
     """
     if connection.context_window is not None:
-        return connection.context_window, "configuration"
+        return min(connection.context_window, connection.override_context or connection.context_window), "configuration"
     parts = urlsplit(connection.base_url)
     if parts.hostname == "openrouter.ai":
         # OpenRouter owns provider routing. Its catalog supplies the context
@@ -45,7 +46,7 @@ async def serving_context(connection: Connection, cancel: Event) -> tuple[int, s
         value = selected.get("context_length") if selected else None
         if type(value) is not int or value <= 0:
             raise ModelError("OpenRouter has no context bound for the configured model.")
-        return value, "openrouter.models.context_length"
+        return min(value, connection.override_context or value), "openrouter.models.context_length"
     props_url = urlunsplit((parts.scheme, parts.netloc, parts.path.removesuffix("/v1") + "/props", "", ""))
     key = connection.api_key.get_secret_value()
     headers = {"Authorization": "Bearer " + key} if key else {}
@@ -61,7 +62,7 @@ async def serving_context(connection: Connection, cancel: Event) -> tuple[int, s
         raise ModelError("The endpoint has no serving context. Configure chat.context_window.") from None
     if type(value) is not int or value <= 0:
         raise ModelError("The serving context must be a positive integer.")
-    return value, "server.props.default_generation_settings.n_ctx"
+    return min(value, connection.override_context or value), "server.props.default_generation_settings.n_ctx"
 
 
 class WorkflowModels:

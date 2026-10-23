@@ -8,6 +8,7 @@ chat:
     # Discover serving tokens from /props. Remote services can set context_window.
     # Use 80% for project input; reserve the remainder for the response.
     context_input_fraction: 0.8
+    override_context: 98000
   UnitTestEvaluator:
     base_url: http://127.0.0.1:8080/v1
     model: qwen

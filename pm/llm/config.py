@@ -36,6 +36,8 @@ class Connection(BaseModel):
     context_window: StrictInt | None = Field(default=None, gt=0)
     # Reserve the remainder for chat framing, response, and estimation error.
     context_input_fraction: float = Field(default=0.8, gt=0, lt=1, strict=True)
+    # Cap the resolved serving context without increasing the model's limit.
+    override_context: StrictInt | None = Field(default=None, gt=0)
 
     @field_validator("base_url")
     @classmethod
@@ -73,7 +75,8 @@ class ConnectionConfig(Connection):
                 raise ValueError(f"Set the credential environment variable {self.api_key_env} or add it to .env.")
             key = SecretStr(value)
         return Connection(base_url=self.base_url, model=self.model, api_key=key, startup_script=self.startup_script,
-                          context_window=self.context_window, context_input_fraction=self.context_input_fraction)
+                          context_window=self.context_window, context_input_fraction=self.context_input_fraction,
+                          override_context=self.override_context)
 
 
 class EmbeddingConfig(ConnectionConfig):
