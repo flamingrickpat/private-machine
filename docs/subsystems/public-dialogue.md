@@ -203,8 +203,8 @@ The host does not publish an invented explanation as companion speech.
 This boundary does not catch ordinary `TypeError`, `KeyError`, `ValueError`, or filesystem errors.
 Faulty source lookup, broken callbacks, and failed evidence writes still stop the application with their original tracebacks.
 Cancellation also retains its existing signal boundary.
-A valid review that reports a false task result enters Story's correction loop.
-Assistant keeps its existing rejection policy.
+A valid review that reports a false task result enters a correction loop.
+Story and Assistant each revise their own draft there until one draft passes.
 
 Focused checks:
 

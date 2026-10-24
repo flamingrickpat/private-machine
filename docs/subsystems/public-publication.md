@@ -65,7 +65,8 @@ The bus does not guarantee exactly-once delivery.
 [`workflows.public_speech.public_dialogue.PublicDialogue.reject_reply`][] records rejection telemetry and raises a runtime error.
 It does not create companion speech or resolve a pending user request.
 A blocked false task result stays outside public memory.
-Story [revises rejected drafts](story-speech.md#generation-and-correction) before the host receives an accepted reply.
+[Story](story-speech.md#generation-and-correction) and Assistant each revise a rejected draft, so a blocked draft normally never reaches this method.
+The two host guards still call it for a draft that arrives unaccepted or unsupported, and a changed public snapshot calls it with status `stale`.
 Unexpected Python failures retain their traceback and reach application shutdown.
 Model protocol failures also reach the application.
 No host string substitutes for an unsuccessful conversational generation.

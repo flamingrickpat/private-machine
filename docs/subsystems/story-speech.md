@@ -142,12 +142,14 @@ The focused checks in `tests/unit/workflows/public_speech/test_speech_review.py`
 `tests/unit/workflows/public_speech/test_speech_recovery.py` checks that only the revised reply reaches the user and the application continues.
 These deterministic checks establish control flow, not real model quality or eventual acceptance.
 
-Assistant replies use the same review once, with their tool receipts and no regeneration loop.
+Assistant replies use the same review and the same correction loop, with their tool receipts.
 The Assistant prompt uses the same shard context: the transcript as ordinary chat messages, then the shard story, then tool calls.
 Derived context has its own user turn. The final user turn carries the current message verbatim.
 An earlier drink question previously displaced a task request that appeared only inside the derived context.
-A second tool run could change the world. Only a false task result rejects an Assistant reply.
-The durable management-claim guard still rejects an operation claim with no executed receipt.
+The Assistant tool budget runs once, and every correction call carries no tools, so a repair changes the words and cannot change the world.
+Two checks block an Assistant draft: a false task result from the review, and the durable management-claim guard for an operation claim with no executed receipt.
+Its prompt adds the block reason and asks for one revised reply: `rejected_reply_recovery` in `workflows/dialogue_assistant/prompts.yaml`.
+The focused checks in `tests/unit/workflows/dialogue_assistant/test_assistant_dialogue.py` cover that feedback, the ten follow-up reset, and the empty tool grant.
 
 ## Evidence
 

@@ -93,6 +93,15 @@ memory_lanes:
   - lane: private_state
     title: "## What you privately noticed and chose to share"
 
+# Sent after the evidence review blocks a draft. The repair call carries no
+# tools, so it can only restate what the results already support.
+rejected_reply_recovery: |
+  Your last reply failed the evidence check: {reason}
+  Say it again in your own voice. Fix only the reported problem. Keep every
+  fact, task result, and uncertainty that the results above already support.
+  Report a failure or an unknown result honestly instead of claiming success.
+  Do not call a tool. Return only the revised spoken words.
+
 generation:
   # Matches Sampler.TempInstruct: thinking is off for this reply.
   temperature: 0.7

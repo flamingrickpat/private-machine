@@ -39,3 +39,9 @@ message sequence, runs the model's tool calls, appends their real results, and
 returns one final assistant utterance. A tool receipt, not the model's memory,
 supports any claim that a management operation happened. It writes no memory;
 the caller decides what to do with an accepted reply.
+
+The tool budget runs once. The final utterance then passes an evidence review.
+A draft that reports work the results do not support returns for correction
+until one draft passes. A correction call carries no tools, so a repair can
+change the words and cannot change the world. The role keeps every rejected
+draft and its correction request in ``scratch/report.yaml``.

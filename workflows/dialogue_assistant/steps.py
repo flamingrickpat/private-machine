@@ -6,6 +6,9 @@ tools, appends their real results, and returns one final assistant utterance.
 A denied tool never runs. A tool receipt is the only support for a claim that
 a management operation happened.
 
+One final utterance then passes an evidence review. A blocked draft returns
+for correction until one draft passes. See ``review_and_revise``.
+
 ``build_messages`` and the tool-call parsing are pure and tested without a
 kernel, model, or MemoryStore.
 """
@@ -16,7 +19,7 @@ import json
 from pathlib import Path
 from typing import Any
 from pm.llm.activation import ChatResult
-from pm.llm.completion import Completion
+from pm.llm.completion import AsyncTextCompletion, Completion
 from pm.llm.prompt_encoding import OpenAIChatEncoder, normalize_turns
 from pm.context_render.turns import Turn
 
@@ -25,7 +28,7 @@ import httpx
 from workflows.public_speech.public_context import DialogueTurn, memory_sections, task_lines
 from workflows.public_speech.speech_text import SpeechOutputError, strip_narrator_setup
 from workflows.public_speech.speech_review import (
-    block_reason, is_blocked, load_prompts as load_review_prompts, review_speech,
+    SpeechReview, block_reason, is_blocked, load_prompts as load_review_prompts, review_speech,
     select_spoken_text,
 )
 
@@ -37,6 +40,9 @@ from workflows.dialogue_assistant.schemas import (
 )
 
 WORKFLOW_DIR = Path(__file__).resolve().parent
+
+#: Corrections asked for on one conversation before generation restarts cold.
+REPAIR_FOLLOWUPS = 10
 
 
 class ToolExecutionError(RuntimeError):
@@ -277,6 +283,20 @@ def validate_public_speech(text: str) -> None:
         raise SpeechOutputError("The model returned tool protocol instead of public speech.")
 
 
+def final_public_speech(text: str, request: AssistantRequest) -> str:
+    """Return one candidate utterance after the public-speech guards.
+
+    Raw tool protocol never becomes speech. Narrator framing is removed. An
+    empty candidate raises ``SpeechOutputError``, so the host keeps the
+    exchange pending instead of publishing an invented line.
+    """
+    validate_public_speech(text)
+    speech = strip_narrator_setup(text, request.partner_name)
+    if not speech:
+        raise SpeechOutputError("The Assistant completion returned no public speech after its final text attempt.")
+    return speech
+
+
 def review_conversation(request: AssistantRequest) -> list[DialogueTurn]:
     """Give the reviewer the same spoken history and current request as generation.
 
@@ -289,6 +309,71 @@ def review_conversation(request: AssistantRequest) -> list[DialogueTurn]:
     if request.current_user_message.strip():
         turns.append(DialogueTurn(speaker=request.partner_name, text=request.current_user_message))
     return turns
+
+
+def review_and_revise(request: AssistantRequest, candidate: str, messages: list[AssistantMessage],
+                      receipts: list[ToolReceipt], prompts: dict,
+                      complete: AsyncTextCompletion,
+                      review_complete: AsyncTextCompletion) -> tuple[str, SpeechReview, list[AssistantMessage]]:
+    """Revise a blocked reply until one draft passes the evidence review.
+
+    Two checks block a draft. The agentic review blocks a false task result.
+    ``unsupported_management_claims`` blocks a management claim with no
+    executed tool receipt behind it; a supplied task receipt already carries
+    that support, so the claim check stands aside there. Every other review
+    finding stays advisory.
+
+    Each block appends the rejected words and the block reason to the
+    conversation and asks for one new completion. That follow-up call carries
+    no tools: the tool budget ran once in the caller, so a repair can change
+    the words and can never change the world. After ``REPAIR_FOLLOWUPS``
+    corrections on one conversation, the next call reads the retained
+    transcript alone. A long repair chain repeats its own wrong claims, so the
+    chain is dropped rather than extended. There is no total limit; the loop
+    stops only on an accepted draft, on cancellation, or on empty output.
+
+    Return the accepted utterance, its review, and every rejected draft with
+    its correction request, oldest first, for the report transcript.
+    """
+    context = request.public_context
+    review_prompts = load_review_prompts()
+    conversation = review_conversation(request)
+    receipt_payloads = [item.model_dump(mode="json") for item in receipts]
+    retained = list(messages)
+    trail: list[AssistantMessage] = []
+    repairs: list[AssistantMessage] = []
+    text = candidate
+    followups = 0
+    attempts = 0
+    while True:
+        attempts += 1
+        review = asyncio.run(review_speech(review_complete, text, context, prompts=review_prompts,
+                                           conversation=conversation, receipts=receipt_payloads))
+        text = select_spoken_text(text, review)
+        claims = [] if context.task_receipt else unsupported_management_claims(text, receipts)
+        reason = (block_reason(review) if is_blocked(review)
+                  else "unsupported management claim: " + ", ".join(claims) if claims else "")
+        if not reason:
+            if attempts > 1:
+                print(f"[dialogue_assistant] Reply accepted after {attempts} attempts.", flush=True)
+            return text, review, trail
+        print(f"[dialogue_assistant] Reply rejected (attempt {attempts}): {reason}", flush=True)
+        correction = [AssistantMessage(role="assistant", content=text),
+                      AssistantMessage(role="user",
+                                       content=prompts["rejected_reply_recovery"].format(reason=reason))]
+        trail = [*trail, *correction]
+        if followups >= REPAIR_FOLLOWUPS:
+            print("[dialogue_assistant] Ten follow-ups failed. Restarting from the retained transcript.",
+                  flush=True)
+            repairs = []
+            followups = 0
+        else:
+            print(f"[dialogue_assistant] Requesting correction {followups + 1}/{REPAIR_FOLLOWUPS}.", flush=True)
+            repairs = [*repairs, *correction]
+            followups += 1
+        message = parse_completion(asyncio.run(
+            complete(completion_turns([*retained, *repairs]), tools=[], **prompts.get("generation", {}))))
+        text = final_public_speech(str(message.get("content") or "").strip(), request)
 
 
 def run(context) -> dict:
@@ -340,7 +425,6 @@ def run(context) -> dict:
             continue
         final_text = str(message.get("content") or "").strip()
         if final_text:
-            messages.append(AssistantMessage(role="assistant", content=final_text))
             break
     if not final_text:
         # The tool budget is done and the model returned no text. Force one
@@ -349,34 +433,24 @@ def run(context) -> dict:
         raw = asyncio.run(completion(payload, tools=[], **prompts.get("generation", {})))
         message = parse_completion(raw)
         final_text = str(message.get("content") or "").strip()
-        messages.append(AssistantMessage(role="assistant", content=final_text))
 
-    validate_public_speech(final_text)
-    final_text = strip_narrator_setup(final_text, request.partner_name)
-    if not final_text.strip():
-        raise SpeechOutputError("The Assistant completion returned no public speech after its final text attempt.")
-    accepted = bool(final_text)
+    final_text = final_public_speech(final_text, request)
     review = None
-    if request.public_context is not None and final_text:
-        # Tool replies get one agentic review and no regeneration loop: a
-        # second tool run could change the world. Only a false task result
-        # rejects the reply. Advisory findings stay in the report.
-        review_prompts = load_review_prompts()
-        review = asyncio.run(review_speech(context.runtime.tools["public_complete"], final_text,
-                                           request.public_context, prompts=review_prompts,
-                                           conversation=review_conversation(request),
-                                           receipts=[item.model_dump(mode="json") for item in receipts]))
-        accepted = accepted and not is_blocked(review)
-        final_text = select_spoken_text(final_text, review)
+    if request.public_context is not None:
+        # A blocked draft returns for correction until one draft passes, so
+        # only an accepted reply ever reaches the report and the host guard.
+        final_text, review, trail = review_and_revise(
+            request, final_text, messages, receipts, prompts, completion,
+            context.runtime.tools["public_complete"])
+        messages.extend(trail)
+    messages.append(AssistantMessage(role="assistant", content=final_text))
     report = AssistantReport(
         companion_name=request.companion_name,
         message_roles=[message.role for message in messages],
         messages=messages,
         final_text=final_text,
         tool_receipts=receipts,
-        accepted=accepted,
-        rejection_reason="" if accepted else (block_reason(review)
-                                             if review is not None else "The model returned an empty reply."),
+        accepted=True,
         speech_review=review,
         review_reason=review.reason if review is not None else "",
     )
@@ -394,9 +468,11 @@ def run(context) -> dict:
 __all__ = [
     "build_messages",
     "execute_tool_calls",
+    "final_public_speech",
     "load_prompts",
     "parse_completion",
     "render_memories",
+    "review_and_revise",
     "review_conversation",
     "run",
     "tool_schemas",
