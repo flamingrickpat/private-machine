@@ -47,6 +47,7 @@ from pm.constants import (
     THREAT_APPRAISAL_THRESHOLD,
     WORKSPACE_HOME_BONUS,
 )
+from pm.context_render.story import shard_focus
 from pm.context_render.turns import format_content
 from pm.llm.concurrency import ordered_parallel_map
 from pm.records.situational_model import SituationalItem
@@ -224,13 +225,10 @@ def shard_job(work: CycleWork, prefix: StoryPrefix, prompts: PhasePrompts, shard
               structures: list[StructureDraft]) -> ShardJob:
     """Return the rating call of one shard."""
     name = shard_label(shard.key, work.request)
-    labels = prompts.shard_labels
-    focus = {"self": labels.self_focus, "entity": labels.entity_focus, "workflow": labels.workflow_focus}[shard.key.kind]
-    values = {"companion_name": prefix.companion, "entity_name": name, "workflow_name": name}
     instruction = format_content(prefix.fill(prompts.user_template),
         attention_narrative=attention_narrative(work),
         mental_state=work.affect.felt or work.state_summary or "(no feeling recorded)",
-        shard_focus=focus.format(**values),
+        shard_focus=shard_focus(shard.key, name, prefix.companion, prompts.shard_labels),
         structures=render_structures(work, structures),
         aperture=prefix.fill(aperture_text(work, prompts)),
         winners=str(winner_count(work)),

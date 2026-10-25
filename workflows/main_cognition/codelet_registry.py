@@ -51,6 +51,7 @@ from pm.constants import (
     PATHWAY_BOOST_SCALE,
     PATHWAY_SKIP_DECAY,
 )
+from pm.context_render.story import fill_story_names
 from pm.records.codelet_records import CodeletRegistryState, CodeletRuntimeState
 from pm.records.mental_state import FullMentalState
 from pm.utils import yaml_util
@@ -134,8 +135,8 @@ def load_definitions(path: str | Path | None = None) -> LoadedDefinitions:
 
 
 def fill(text: str, companion_name: str, entity_name: str) -> str:
-    """Replace the two name placeholders. Other braces stay unchanged."""
-    return text.replace("{companion_name}", companion_name).replace("{entity_name}", entity_name)
+    """Replace the two name placeholders. See ``pm.context_render.story.fill_story_names``."""
+    return fill_story_names(text, companion_name, entity_name)
 
 
 # ---- state match ----------------------------------------------------------

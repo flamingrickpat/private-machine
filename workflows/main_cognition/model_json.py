@@ -14,7 +14,7 @@ import json
 from pathlib import Path
 
 from pm.utils import yaml_util
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 from collections.abc import Callable, Sequence
 from pm.llm.prompt_encoding import TurnInput, normalize_turns
 from pm.context_render.turns import Role, Turn
@@ -23,35 +23,12 @@ from pm.llm.structured import (
     JsonOutputError as StageOutputError, ModelFormatError,
     complete_json as validated_json, extract_json, context_measure,
 )
+# The shard labels belong to the shard layout, which lives in pm.context_render.story.
+from pm.context_render.story import ShardLabels
 
 
 def load_yaml(path: str | Path) -> dict:
     return yaml_util.safe_load(Path(path).read_text(encoding="utf-8"))
-
-
-class ShardLabels(BaseModel):
-    """The words that the shared story prefix uses for the workspace shards.
-
-    The texts can hold ``{companion_name}``, ``{entity_name}``, and
-    ``{workflow_name}``.
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    self_title: str = ""
-    self_tail: str = ""
-    entity_title: str = ""
-    entity_tail: str = ""
-    workflow_title: str = ""
-    workflow_tail: str = ""
-    empty_items: str = ""
-    empty_tail: str = ""
-    # A public reply shows the verbatim lines of a tail in its transcript.
-    verbatim_tail: str = ""
-    # The attention phase: what the awareness of each shard kind is about.
-    self_focus: str = ""
-    entity_focus: str = ""
-    workflow_focus: str = ""
 
 
 class PhasePrompts(BaseModel):

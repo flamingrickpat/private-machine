@@ -189,6 +189,11 @@ WEB_CHAT_POLL_MS = 1500  # Milliseconds between two browser polls for new messag
 WEB_CHAT_MAX_BODY_BYTES = 64_000  # Largest accepted POST body, in bytes.
 WEB_CHAT_MAX_NAME_CHARS = 64  # Longest accepted login name, in characters.
 
+# Memory inspector (pm.tools.inspector). Read-only, and it binds to loopback only.
+INSPECTOR_HOST = "127.0.0.1"  # Bind address. The inspector never serves the network.
+INSPECTOR_PORT = 8771  # Default TCP port. `--inspector-port` changes it.
+INSPECTOR_PAGE_SIZE = 200  # Records, cycles, or relations that one API page returns.
+
 # Character import (pm.app.chat_import). Times are naive UTC.
 IMPORT_MESSAGE_SPACING_SECONDS = 120  # Synthetic gap between two messages of a log without timestamps.
 IMPORT_SESSION_GAP_SECONDS = 3600  # The synthetic history ends this long before the import time, so live chat starts a new session.

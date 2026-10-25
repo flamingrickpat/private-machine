@@ -23,6 +23,9 @@ record ids and no embeddings.
 """
 from __future__ import annotations
 
+from pm.context_render.story import (
+    RecordView, shard_block_text, shard_name, story_entity_names, story_shards,
+)
 from pm.context_render.turns import Role, Turn, format_content
 from pm.records.workspace import SELF_SHARD, ShardKey, WorkspaceShard
 
@@ -31,7 +34,6 @@ from workflows.main_cognition.csm_view import render_story
 from workflows.main_cognition.cycle_work import CycleRequest, CycleWork
 from workflows.main_cognition.model_json import PhasePrompts
 from workflows.main_cognition.phases.model import phase_prompts
-from workflows.main_cognition.schemas import RecordView
 
 
 def shard_label(key: ShardKey, request: CycleRequest) -> str:
@@ -39,16 +41,12 @@ def shard_label(key: ShardKey, request: CycleRequest) -> str:
 
     The host supplies the names of the group entities in
     ``request.entity_names``. The user is named by ``request.user_name``.
-    An entity without a known name is ``entity <id>``.
+    An entity without a known name is ``entity <id>``. The naming itself
+    lives in :func:`pm.context_render.story.shard_name`, which the memory
+    inspector calls with the names of the checkpoint.
     """
-    if key.kind == "self":
-        return "self"
-    if key.kind == "entity":
-        if key.ref == str(request.user_entity_id):
-            return request.user_name
-        entity_id = int(key.ref)
-        return request.entity_names[entity_id] if entity_id in request.entity_names else f"entity {key.ref}"
-    return key.ref
+    return shard_name(key, user_entity_id=request.user_entity_id, user_name=request.user_name,
+                      entity_names=request.entity_names)
 
 
 def resolve_target(value: str, targets: dict[str, ShardKey]) -> tuple[str, str]:
@@ -78,11 +76,12 @@ def story_entities(work: CycleWork) -> str:
     """Return the names of the other characters of this moment, for ``{entity_name}``.
 
     These are the entities of the current stimulus groups, in group order.
-    Without an entity group, the other character is the user.
+    Without an entity group, the other character is the user. The naming is
+    :func:`pm.context_render.story.story_entity_names`.
     """
-    names = [shard_label(group.key, work.request) for group in work.state.stimulus_groups
-             if group.key.kind == "entity"]
-    return " and ".join(dict.fromkeys(names)) or work.request.user_name
+    return story_entity_names([group.key for group in work.state.stimulus_groups],
+                              user_entity_id=work.request.user_entity_id, user_name=work.request.user_name,
+                              entity_names=work.request.entity_names)
 
 
 def shown_shards(work: CycleWork, group: ShardKey | None = None) -> list[WorkspaceShard]:
@@ -91,12 +90,10 @@ def shown_shards(work: CycleWork, group: ShardKey | None = None) -> list[Workspa
     The group shards keep the order of the stimulus groups. A self group
     adds no second self shard. With ``group``, only the self shard and the
     shard of that group remain: the calls for one group read only their own
-    part of the story.
+    part of the story. The selection is
+    :func:`pm.context_render.story.story_shards`, which the inspector shares.
     """
-    workspace = work.state.workspace
-    keys = list(dict.fromkeys(item.key for item in work.state.stimulus_groups if item.key != SELF_SHARD
-                              and (group is None or item.key == group)))
-    return [workspace.self_shard, *(workspace.shard(key) for key in keys)]
+    return story_shards(work.state.workspace, [item.key for item in work.state.stimulus_groups], group=group)
 
 
 def conscious_percepts(work: CycleWork) -> list[str]:
@@ -117,28 +114,19 @@ def shard_block(prompts: PhasePrompts, key: ShardKey, name: str, companion: str,
                 *, verbatim_tail: bool = False) -> str:
     """Render one shard as a story block: its title, its items, and its tail.
 
-    ``name`` is the shard label (see :func:`shard_label`). ``records`` holds
-    a view of each item and tail record. Items and tail render in world-time
-    order, without record ids. The public dialogue workflows call this
-    function too, so the reply reads the shard in the same words as the
-    cycle that chose it. A reply shows the dialogue of a tail verbatim in
-    its transcript. With ``verbatim_tail``, an empty ``tail_ids`` then says
-    so, instead of saying that nothing happened yet.
+    ``name`` is the shard label (see :func:`shard_label`). This adapter only
+    supplies the shard template and the shard labels of the story prompts.
+    The layout is :func:`pm.context_render.story.shard_block_text`.
+
+    The public dialogue workflows call this function too, so the reply reads
+    the shard in the same words as the cycle that chose it. A reply shows the
+    dialogue of a tail verbatim in its transcript. With ``verbatim_tail``, an
+    empty ``tail_ids`` then says so, instead of saying that nothing happened
+    yet.
     """
-    labels = prompts.shard_labels
-    if key.kind == "self":
-        title, tail_label = labels.self_title, labels.self_tail
-    elif key.kind == "entity":
-        title, tail_label = labels.entity_title, labels.entity_tail
-    else:
-        title, tail_label = labels.workflow_title, labels.workflow_tail
-    values = {"companion_name": companion, "entity_name": name, "workflow_name": name}
-    return format_content(prompts.shard_template,
-        title=title.format(**values), tail_label=tail_label.format(**values),
-        items=render_story(records, item_ids, with_id=False) or labels.empty_items,
-        tail=(render_story(records, tail_ids, with_id=False)
-              or (labels.verbatim_tail if verbatim_tail else labels.empty_tail)),
-    ).text.strip()
+    return shard_block_text(key, name, companion, records, item_ids, tail_ids,
+                            template=prompts.shard_template, labels=prompts.shard_labels,
+                            verbatim_tail=verbatim_tail)
 
 
 class StoryPrefix:

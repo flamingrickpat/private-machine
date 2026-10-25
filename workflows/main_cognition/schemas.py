@@ -17,6 +17,7 @@ from pm.constants import CODELET_BUDGET_DEFAULT, CODELET_BUDGET_MAX, DECISION_VA
 from pm.records.mental_state import AppraisalGeneral, AppraisalSocial, FullMentalState, StateEmotions, StateNeeds
 from pm.records.codelet_records import StructureRelation
 from pm.records.global_workspace import ShardChange
+from pm.context_render.story import RecordView
 from pm.records.workspace import ShardKey, WorkspaceShard
 from workflows.cognitive_control.schemas import FocusProposal, FocusState, WaitRequest
 from workflows.public_speech.public_context import Presentation
@@ -376,49 +377,6 @@ class ContextResult(BaseModel):
     capabilities: list[str] = Field(default_factory=list)
     candidate_ids: list[int] = Field(default_factory=list)
     belief_updates: list[BeliefUpdate] = Field(default_factory=list)
-
-
-class RecordView(BaseModel):
-    """One record that the CSM can hold, as the codelet prompts render it.
-
-    The host builds a view from the memory store for every record that the
-    CSM of the previous cycle holds and for every stimulus, dialogue turn, and
-    memory candidate of this cycle. The codelets phase adds views for new
-    percepts. ``kind`` is the persisted record type or the memory kind.
-    ``source`` is the speaker of a dialogue turn or the codelet of a percept.
-    ``timestamp`` is the world time (naive UTC), or None when unknown.
-
-    The workspace requirements read the last four fields
-    (``workflows/main_cognition/workspace.yaml``). ``record_class`` is the
-    Python record class name, for example ``Narrative``. ``entity_ids`` are
-    the entities that the record is about. ``category`` is the narrative
-    type, the claim kind, or the belief kind. ``feature_type`` is the
-    ``FeatureType`` value of a ``Feature`` record and empty otherwise.
-    ``addressee_entity_id`` is the listener of a dialogue line (0 for the
-    user or unknown). Attention uses it to find the shard of a companion
-    line.
-    """
-
-    record_id: int = 0
-    kind: str = ""
-    source: str = ""
-    content: str = ""
-    timestamp: datetime | None = None
-    record_class: str = ""
-    entity_ids: list[int] = Field(default_factory=list)
-    category: str = ""
-    feature_type: str = ""
-    addressee_entity_id: int = 0
-    embedding: list[float] = Field(default_factory=list, repr=False)
-
-    def story_line(self) -> str:
-        """Return the record as one line of story text.
-
-        The codelets phase also embeds this text, so it never contains the
-        record id or the time. The same record therefore gets the same
-        embedding in every cycle.
-        """
-        return f"{self.source or self.kind}: {self.content}"
 
 
 class VariantPercept(BaseModel):

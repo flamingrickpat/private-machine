@@ -5,14 +5,16 @@ budgets in the context planner, temporal solver, and context window
 measurement use this module so counts stay consistent.
 
 Image tokens use the constant from pm.constants.PROMPT_IMAGE_TOKENS.
+
+Plain text counting belongs to ``pm.context_render.tokens``, because the
+context budgets and the memory inspector count story text with it. This module
+adds the chat framing on top of that one counter.
 """
 from __future__ import annotations
 
-import tiktoken
-
 from pm.constants import PROMPT_IMAGE_TOKENS
-
-_ENCODING = tiktoken.get_encoding("o200k_base")
+# One text counter for the whole runtime. pm.llm may import pm.context_render.
+from pm.context_render.tokens import text_tokens
 
 #: Per-record framing overhead in tokens (role tag, separators, name).
 RECORD_OVERHEAD = 12
@@ -22,13 +24,6 @@ TURN_OVERHEAD = 12
 
 #: Base overhead for a full message list (system framing, generation prompt).
 MESSAGES_BASE_OVERHEAD = 24
-
-
-def text_tokens(text: str) -> int:
-    """Return the tiktoken token count for one text string."""
-    if not text:
-        return 0
-    return len(_ENCODING.encode(text, disallowed_special=()))
 
 
 def image_tokens(count: int = 1) -> int:

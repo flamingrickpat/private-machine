@@ -3,13 +3,17 @@
 The caller passes the assembly that builds the application, so this module
 never imports ``workflows``.
 
-Two ways to start:
+Three ways to start:
 
 - ``--seed`` / ``--checkpoint`` / ``--ephemeral``: the terminal session as
   before. The runtime root defaults to ``./.runtime``.
 - ``--home DIR``: the character home folder. Memory loads from and saves to
   ``DIR/ghost.pickle``, which must exist. The runtime root is ``DIR/runtime``.
   The persona comes from the home files. The web chat starts by default.
+- ``--inspector`` with ``--home`` or ``--checkpoint``: no session at all. The
+  memory store is read and served in a browser by
+  :mod:`pm.tools.inspector`. No cycle runs, no model is called, and nothing
+  is saved. See ``--inspector-port``.
 
 ``--web`` starts the web chat in the terminal mode too.
 """
@@ -25,7 +29,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from pm.constants import WEB_CHAT_PORT
+from pm.constants import INSPECTOR_PORT, WEB_CHAT_PORT
 
 
 class LaunchPlan(BaseModel):
@@ -35,7 +39,9 @@ class LaunchPlan(BaseModel):
     ``seed`` is the seed file of the terminal mode; it is None with a home.
     ``checkpoint`` is the accepted Ghost checkpoint; None means an explicit
     in-memory session without persistence (``--ephemeral``). With a home,
-    the checkpoint is ``home/ghost.pickle``.
+    the checkpoint is ``home/ghost.pickle``. ``inspector`` serves that
+    checkpoint read-only instead of running a session, so ``cognition``,
+    ``config``, and ``web`` carry no meaning in that mode.
     """
 
     home: Path | None
@@ -46,6 +52,8 @@ class LaunchPlan(BaseModel):
     config: str | None
     web: bool
     web_port: int
+    inspector: bool = False
+    inspector_port: int = INSPECTOR_PORT
 
 
 def build_parser(default_seed: Path) -> argparse.ArgumentParser:
@@ -62,6 +70,10 @@ def build_parser(default_seed: Path) -> argparse.ArgumentParser:
     persistence.add_argument("--ephemeral", action="store_true", help="Run without Ghost persistence")
     parser.add_argument("--web", action="store_true", help="Start the web chat. Always on with --home.")
     parser.add_argument("--web-port", type=int, default=WEB_CHAT_PORT, help=f"Web chat port. Default: {WEB_CHAT_PORT}")
+    parser.add_argument("--inspector", action="store_true",
+                        help="Serve the checkpoint in a browser. Reads only: no cycle, no model, no save.")
+    parser.add_argument("--inspector-port", type=int, default=INSPECTOR_PORT,
+                        help=f"Inspector port. Default: {INSPECTOR_PORT}")
     return parser
 
 
@@ -81,13 +93,15 @@ def launch_plan(argv, default_seed: Path) -> LaunchPlan:
             parser.error("--home excludes --runtime-root: the runtime root is <home>/runtime.")
         home = args.home.resolve()
         return LaunchPlan(home=home, seed=None, runtime_root=home / "runtime", checkpoint=home / "ghost.pickle",
-                          cognition=args.cognition, config=args.config, web=True, web_port=args.web_port)
+                          cognition=args.cognition, config=args.config, web=True, web_port=args.web_port,
+                          inspector=args.inspector, inspector_port=args.inspector_port)
     runtime_root = Path(args.runtime_root) if args.runtime_root is not None else Path.cwd() / ".runtime"
     return LaunchPlan(
         home=None, seed=Path(args.seed) if args.seed is not None else Path(default_seed),
         runtime_root=runtime_root,
         checkpoint=None if args.ephemeral else (args.checkpoint or runtime_root / "ghost.pickle"),
         cognition=args.cognition, config=args.config, web=args.web, web_port=args.web_port,
+        inspector=args.inspector, inspector_port=args.inspector_port,
     )
 
 
@@ -113,11 +127,20 @@ def build_from_plan(plan: LaunchPlan, *, assembly):
 
 
 def main(argv=None, *, assembly) -> int:
-    """Own diagnostics and child cleanup for the full terminal session."""
+    """Own diagnostics and child cleanup for the full terminal session.
+
+    ``--inspector`` leaves before any of that: the inspector writes no log,
+    starts no child process, and opens no session, so it needs none of the
+    session machinery.
+    """
     from pm.host.diagnostics import configure_logging, close_logging
     from pm.host.processes import ensure_process_cleanup
 
     plan = launch_plan(argv, assembly.DEFAULT_SEED)
+    if plan.inspector:
+        from pm.tools.inspector import run_inspector
+
+        return run_inspector(home=plan.home, checkpoint=plan.checkpoint, port=plan.inspector_port)
     configure_logging(plan.home or plan.runtime_root)
     ensure_process_cleanup()
     try:

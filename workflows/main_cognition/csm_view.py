@@ -2,7 +2,9 @@
 
 The CSM holds record ids. The phases render those records as story lines
 and embed them through the ``embed_texts`` tool of the run. The host grants
-that tool. Loaded record views carry the vectors of their central knoxels.
+that tool. The story line itself comes from
+:mod:`pm.context_render.story`, which the memory inspector shares.
+ Loaded record views carry the vectors of their central knoxels.
 Prompts never show embeddings.
 
 The retrieve phase calls :func:`enter_retrieval`. It adds the current
@@ -25,15 +27,15 @@ from pm.constants import (
     CSM_SELECTED_MEMORY_ACTIVATION,
     CSM_STIMULUS_ACTIVATION,
 )
-from pm.context_render.turns import Role, Turn
-from pm.llm.context_window import estimate_tokens
-from pm.records.base import persisted_type_name
-from pm.records.enums import FeatureType
+# The story rendering lives in pm, so the memory inspector renders with it.
+# These names stay importable from here for the phases.
+from pm.context_render.story import (
+    RecordView, record_tokens, record_view, render_story, story_line, story_tokens,
+)
 from pm.records.situational_model import SituationalItem
 from pm.records.workspace import WorkspaceRequirementConfig, load_workspace_requirements
 
 from workflows.main_cognition.cycle_work import CycleWork, provisional_tick
-from workflows.main_cognition.schemas import RecordView
 from workflows.main_cognition.workspace_selection import MatchContext, protected_ids
 
 #: The endorser name of retrieval entries.
@@ -42,8 +44,6 @@ RETRIEVAL = "retrieval"
 EXPECTATION = "expectation"
 #: The content requirements of the shards and the CSM.
 WORKSPACE_FILE = Path(__file__).resolve().with_name("workspace.yaml")
-
-_EMPTY_TOKENS = estimate_tokens("", [Turn(Role.User, "")])[0]
 
 
 class Embedder:
@@ -84,71 +84,6 @@ class Embedder:
                 record.embedding = vector
 
 
-def _entity_facts(record, record_class: str) -> tuple[list[int], str]:
-    """Return the entity ids that a record is about and its category label.
-
-    The record classes name their entity in different fields. A class that
-    names no entity returns an empty list. Entity id 0 means "unknown" in
-    every class, so it never counts.
-    """
-    if record_class == "Narrative":
-        return [record.entity_id] if record.entity_id else [], record.narrative_type.value
-    if record_class in {"SemanticRecord", "DeclarativeFactRecord"}:
-        return [record.subject_entity_id] if record.subject_entity_id else [], record.record_type.value
-    if record_class == "BeliefRecord":
-        return list(record.about_entity_ids), record.belief_kind
-    if record_class in {"Feature", "Stimulus", "Intention"}:
-        return [record.entity_id] if record.entity_id else [], ""
-    if record_class == "ExpectationRecord":
-        return list(record.about_entity_ids), record.status
-    return [], ""
-
-
-def record_view(record) -> RecordView:
-    """Return the view of one memory store record. The host and the agent tool call it.
-
-    A dialogue turn names its speaker. Another feature names its source and
-    its feature type, so a private thought never reads like speech. A
-    codelet percept names its codelet. A narrative names its type and the
-    entity it is about. An expectation names its status. Other records name
-    their type. The view also holds
-    the facts that the workspace requirements match (see ``RecordView``).
-    """
-    kind = persisted_type_name(type(record))
-    record_class = type(record).__name__
-    entity_ids, category = _entity_facts(record, record_class)
-    source = ""
-    feature_type = ""
-    addressee = 0
-    if record_class == "Feature":
-        feature_type = record.feature_type.value
-        addressee = record.addressee_entity_id
-        source = record.source if record.feature_type == FeatureType.Dialogue else f"{record.source} ({feature_type})"
-    elif record_class == "CodeletPercept":
-        source = record.codelet_name
-    elif record_class == "Narrative":
-        source = f"narrative ({category}) about {record.target_name}"
-    elif record_class == "ExpectationRecord":
-        source = f"expectation ({category})"
-    return RecordView(record_id=record.id, kind=kind, source=source, content=record.content,
-                      timestamp=record.timestamp_world_begin, record_class=record_class,
-                      entity_ids=entity_ids, category=category, feature_type=feature_type,
-                      addressee_entity_id=addressee, embedding=record.embedding)
-
-
-def story_tokens(text: str) -> int:
-    """Return the estimated token count of one story text, without chat framing."""
-    return estimate_tokens("", [Turn(Role.User, text)])[0] - _EMPTY_TOKENS
-
-
-def record_tokens(records: dict[int, RecordView], record_id: int) -> int:
-    """Return the token count of the story line of one record, without its id.
-
-    The workspace budgets and the tails count tokens with this function.
-    """
-    return story_tokens(story_line(records[record_id], with_id=False))
-
-
 def workspace_requirements() -> WorkspaceRequirementConfig:
     """Read the content requirements of ``workspace.yaml``. An invalid file raises."""
     return load_workspace_requirements(WORKSPACE_FILE)
@@ -169,24 +104,6 @@ def csm_protected(work: CycleWork) -> set[int]:
     narratives of the group entities stay (plan "CSM requirements").
     """
     return protected_ids(work.state.csm, workspace_requirements().csm, work.records, match_context(work))
-
-
-def story_line(view: RecordView, *, with_id: bool) -> str:
-    """Render one record as a story line: time, speaker or kind, and content.
-
-    ``with_id`` puts ``[id N]`` in front, so a model can cite the record.
-    """
-    when = f"({view.timestamp:%Y-%m-%d %H:%M}) " if view.timestamp is not None else ""
-    prefix = f"[id {view.record_id}] " if with_id else ""
-    return f"{prefix}{when}{view.story_line()}"
-
-
-def render_story(records: dict[int, RecordView], record_ids: Iterable[int], *, with_id: bool) -> str:
-    """Render records in world-time order. Records without a time come last, in input order."""
-    views = [records[record_id] for record_id in dict.fromkeys(record_ids)]
-    timed = sorted((view for view in views if view.timestamp is not None), key=lambda view: view.timestamp)
-    untimed = [view for view in views if view.timestamp is None]
-    return "\n".join(story_line(view, with_id=with_id) for view in [*timed, *untimed])
 
 
 def enter_retrieval(work: CycleWork, embedder: Embedder, expectation_ids: Iterable[int] = ()) -> list[int]:

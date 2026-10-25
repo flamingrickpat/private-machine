@@ -59,6 +59,7 @@ first. Even with 2 Qwen 3.6 35B3A instances with combined 400tps, it's barely us
 - **Tools:** Through [MCP tools](workflows/tool_call/), the character can carry out tasks, remember the outcome, and tell you about it in its own voice.
 
 - **Inspection:** The [review desk](dev/review/README.md) shows conversations alongside private thoughts, appraisals, codelet output, and the memories behind later decisions.
+  The [memory inspector](#inspect-a-memory-without-the-character) shows the stored records, the workspace shards of each cycle, and the text each record adds to a prompt.
 
 You choose the [character](docs/subsystems/character-import.md) and the [models](docs/models.md).
 With local model servers, the character's memory and conversation stay on your machine.
@@ -90,7 +91,8 @@ uv run --locked python main.py --home .runtime/characters/sunny --config config.
 ```
 
 Open the web address printed by the launcher.
-The character home holds its accepted memory in `ghost.json` and saves later changes there.
+The character home holds its accepted memory in `ghost.pickle` and saves later changes there.
+An older home that holds only `ghost.json` still loads.
 Use separate homes for separate characters.
 
 ## Bring your own character
@@ -101,6 +103,38 @@ The [character import guide](docs/subsystems/character-import.md) explains the f
 An empty history works without an import.
 
 Spamuel is the synthetic development persona. Bare startup still selects it; use `--home` for your own character.
+
+## Inspect a memory without the character
+
+The memory inspector serves one character checkpoint in a browser. It reads one `ghost.pickle` and starts no
+session. It runs no cycle, calls no model, and saves nothing. Use it to look at stored records and the workspace
+shards of each cycle. It also shows the text that each record adds to a prompt.
+
+```powershell
+uv run --locked python main.py --home .runtime/characters/sunny --config config.example.yaml --inspector
+```
+
+`--config` has no effect in this mode, because the inspector needs no model server.
+Open the address that the launcher prints, for example `http://127.0.0.1:8771`.
+The launcher prints the record and cycle counts, then waits. Press `Ctrl-C` to stop.
+To read one checkpoint file instead of a whole home, pass `--checkpoint path\to\ghost.pickle`.
+If the port is busy, pass `--inspector-port` with a free port.
+
+The pages build on each other. Every id in a table opens the page of that id:
+
+- **Cycles** lists each accepted cycle with the prompt cost it recorded. One click opens that cycle.
+- **A cycle** shows its shards, its situational model, its new stimuli, and its repeated content.
+- **A shard** shows the rendered block, the token cost of every line, and the token counts the cycle stored.
+- **The story prefix** shows the whole text that the cycle put in front of the model.
+- **Records** and **Types** list every stored record. Each one links to its story line, its relations, and the cycles that held it.
+- **Clusters** shows the episodic hierarchy: member events, child clusters, and parents.
+- **Prompts** shows the templates that these pages render with.
+
+The inspector uses the same code that builds the story lines and the shard blocks of a real cycle. The text in
+the browser is the text the model receives. It reports the cost of the labels and headers around those lines, and
+it marks content that several shards pay for twice. A checkpoint from an older revision can miss a record or a
+field. The pages mark those gaps. They do not hide them. The inspector loads no embeddings, so it shows no
+similarity results.
 
 ## Connect a character to Minecraft
 
