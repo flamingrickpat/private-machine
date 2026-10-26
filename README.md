@@ -1,30 +1,54 @@
 # private-machine
 
-private-machine (pm) is a highly experimental **AI companion** harness with persistent memory, internal thought, and a 
-configurable persona.
+private-machine (pm) is a cognitive runtime for **persistent characters**.
 
-You can create a new character or import a character card and an old chatlog.
+A character in pm is not a system prompt and a chat log. It is inspectable internal state: a persistent mental-state
+vector, episodic memory with emotional consequences, needs and goals the character can defer or refuse, parallel
+single-concern appraisers, and an attention mechanism that decides what occupies its workspace this cycle. Every
+spoken reply is downstream of that state.
 
-The ultimate goal is to make an extremely **immersive** and **functionally self-aware** AI companion you can run with local models
-and interact via text or in Minecraft. 
+The design goal is **auditability**. Behaviour is determined by records you can open, diff, and tune, rather than by
+prompt text you hope the model still attends to. A character is therefore debuggable like a program, and it can stay
+consistent over weeks of interaction instead of over one context window. Both the [review desk](dev/review/README.md)
+and the [memory inspector](#inspect-a-memory-without-the-character) read this state without running a cycle.
 
-I don't claim to have invented machine-consciousness, I'm not that crazy (yet). It should just be a really immersive 
-simulation where the illusion is never broken. It goes against the design to regenerate replies, and you can't do it.
+Nothing in the runtime is specific to any one use. Build a companion you talk to daily, a non-player character that
+remembers you 200 hours later, a character with a body that plays Minecraft, or a persona behind a game's dialogue
+line. Character creation and [character-card import](docs/subsystems/character-import.md) are built in, including an
+existing chatlog as starting history. Personas, model selection, and prompt templates are yours; the runtime is
+neutral about what the character is for.
 
-Due to the crazy amount of agents and background services this project is **SLOW AF**. Still working on that, quality 
-first. Even with 2 Qwen 3.6 35B3A instances with combined 400tps, it's barely useable.
+Two design decisions are load-bearing and worth knowing before you read further:
 
-### Requirements
+- **Replies are not regenerated.** A character said what it said. It can notice the effect and revise its beliefs, but
+  a turn is never rolled back. State advances monotonically.
+- **Cognition is separated from presentation.** Thinking happens in cycles that run whether or not anyone is
+  speaking. The character keeps thinking between your messages.
 
-- OpenAI compatible endpoint for the LLM
-- Qwen 3.6 35B3A is the absolute minimum, Qwen 3.8 27B or Next work better
-- At least 98k context
-- OpenAI compatible endpoint for the embedding model
-- At least 2048 input tokens
-- EmbeddingGemma 300M is fine
-- Patience
+## How one cycle works
+
+A cycle takes pending stimuli and produces at most one action per stimulus group.
+
+1. **Appraisal.** [Appraisals](workflows/main_cognition/affect.py) read the stimuli against current state and move the
+   [mental-state vector](pm/records/mental_state.py).
+2. **Codelets.** The registered [codelets](workflows/main_cognition/codelets.yaml) that match the stimulus run in
+   parallel. Each holds one concern at full strength and offers its own recommendation. None of them balances itself.
+3. **Workspace.** Those recommendations, plus retrieved episodes, current worries, and the
+   [situational model](docs/concepts/architecture.md), land as shards in the [global workspace](workflows/main_cognition/phases/attention.py).
+4. **Attention.** Shards compete. Selection stops at a capacity limit, so what the character is aware of right now is
+   a chosen subset, not everything relevant. Conflicts can survive selection.
+5. **Goals and decision.** [Goals](workflows/main_cognition/phases/goals.py) are formed, reprioritized, deferred, or
+   refused against needs, then one action per stimulus group is selected.
+6. **Speech.** [Public speech](workflows/public_speech/) renders the action using the character's
+   [private ontology](workflows/public_speech/ontology.py), so its words for feelings and relationships track its
+   actual recorded state instead of drifting.
+
+Between messages, the [inner-thought loop](workflows/inner_thought/) runs the same workspace with no new stimulus, and
+[focus management](workflows/focus_management/) can recall an episode and propose a new subject of its own accord.
 
 ## Features
+
+Everything below is state with a record type behind it, not a prompt section.
 
 - **Emotions:** Joy, jealousy, boredom, tenderness, and trust live in a persistent [mental-state vector](pm/records/mental_state.py).
   [Appraisals](workflows/main_cognition/affect.py) change that state, and those changes shape attention and expression.
@@ -47,7 +71,7 @@ first. Even with 2 Qwen 3.6 35B3A instances with combined 400tps, it's barely us
 - **Expectations:** It [records what it expects](workflows/main_cognition/expectations.py) to happen after an action.
   Later events can fulfill those expectations or surprise it, with consequences for its emotional state.
 
-- **Metacognition** The character can [inspect parts of its own code and records](pm/introspection/) to revise its beliefs about itself.
+- **Metacognition:** The character can [inspect parts of its own code and records](pm/introspection/) to revise its beliefs about itself.
   Experimental [reflection](workflows/reflection/) tests changes to attention and subjective beliefs against later choices.
 
 - **Consistent Vocabulary** A [private ontology](workflows/public_speech/ontology.py) connects words for emotions, relationships, and mental actions to recorded state.
@@ -64,8 +88,108 @@ first. Even with 2 Qwen 3.6 35B3A instances with combined 400tps, it's barely us
 You choose the [character](docs/subsystems/character-import.md) and the [models](docs/models.md).
 With local model servers, the character's memory and conversation stay on your machine.
 
-The project is in alpha. Model output can still need repair, and companion quality depends on your model and prompts.
-Minecraft and other MCP tools are optional. They require their own running services.
+## Requirements
+
+**As of the current revision.** The runtime is a client of two OpenAI-compatible endpoints and hosts nothing itself.
+
+| Need | Minimum |
+| --- | --- |
+| Chat endpoint | OpenAI-compatible `/v1`, at least 98k context |
+| Chat model | Qwen 3.6 35B3A. Qwen 3.8 27B and Next work better |
+| Embedding endpoint | OpenAI-compatible, at least 2048 input tokens. EmbeddingGemma 300M is fine |
+| Python | 3.12, with [uv](https://docs.astral.sh/uv/) and Git |
+| Windows only | Git Bash on `PATH` for tool workflows |
+| Optional: Minecraft body | Java 1.19.4 server, Node.js 20+, RCON access, and a running [`pm-minecraft`](https://github.com/flamingrickpat/pm-minecraft) MCP service |
+| Optional: other tools | Their own running MCP servers |
+
+You also need patience. See [Status and performance](#status-and-performance).
+
+## Status and performance
+
+This is **alpha**. Be accurate about what that costs you:
+
+- **It is slow, and the reason is architectural, not a bug.** Twelve registered codelets run per cycle. Eight execute
+  as two-call chains, four as tool-using [pm-coder](https://github.com/flamingrickpat/pm-coder) sessions with memory
+  access, and the codelet phase sits on top of the appraisal, attention, goal, decision, and speech phases. Context
+  assembly fills up to `context_input_fraction` of the window (0.8 by default), so per-cycle token volume, not model
+  price, is the dominant cost. On two 35B-A3B instances delivering about 400 tok/s combined, a single character is at
+  the edge of usable.
+- **Per-cycle token cost is currently unmeasured.** The [inspector](#inspect-a-memory-without-the-character) reports
+  the prompt cost of every shard and flags content several shards pay for twice. Making that number the headline of a
+  cycle is a prerequisite for the performance work below, not a side effect of it.
+- **Model output still needs repair sometimes.** Character quality depends heavily on your model and prompts.
+- **Long-run consistency is the open research problem, not latency.** Several characters running for weeks against
+  each other is the failure mode to expect: retrieval contamination, persona bleed, self-contradiction, and a
+  character acting on information it was never present for. Latency is an engineering task. This is not.
+- **Multiple characters means multiple processes today.** Each gets its own character home, `--web-port`, MCP
+  configuration, and (for simultaneous bodies) distinct MCP, body, and viewer ports. There is no world-level arbiter
+  yet; see [Roadmap](#roadmap).
+
+The tradeoff is deliberate. Quality of the internal model came before throughput, and the throughput work is now
+constrained by measurements rather than by taste.
+
+## Roadmap
+
+Roughly in the order it is planned. Items below the line are not implemented.
+
+- **Knobs for the cognitive simulation.** The codelet registry already takes `execution`, `families`, and
+  `stimulus_kinds` per codelet, and `cognitive_control` bounds deliberate waits. Planned: per-role model assignment
+  (small models for narrow appraisers, a strong one for attention and speech), magnitude gating so a codelet only
+  wakes when the relevant state variable actually crossed a threshold, and a step cap on agent-mode codelets.
+- **Prefix caching.** The persona, trait, and stable-memory prefix is nearly identical across a character's calls.
+  Cached input is several times cheaper, and this is expected to be the largest single cost lever available.
+- **Async tier split.** Separate a reflex path that answers quickly with no memory writes, a conversational path that
+  produces the spoken reply, an asynchronous cognition path for the full codelet swarm, and an offline consolidation
+  pass. Only the reflex path needs to meet a latency budget. This is what makes real-time response affordable.
+- **Thin codelet contexts.** Give each codelet a distinct few-k-token slice of relevant records instead of a filled
+  workspace.
+
+---
+
+- **OpenAI-compatible server endpoint.** pm currently *consumes* such endpoints. The plan is also to *serve* one, so
+  an existing mod or client that already points at a chat-completions URL can swap pm in and get long-horizon memory
+  and persona state for free.
+
+  This is harder than it looks, and the difficulty is the API contract rather than the plumbing. `messages` alone is
+  not enough for a persistent character: the runtime needs **who is speaking** (a stable entity id, or every
+  interlocutor collapses into one relationship), **world and scene state**, and **time passing** with no message. The
+  host's own system prompt will also fight the character's persona, so the endpoint needs an explicit precedence mode
+  rather than a concatenation. Design notes land under `docs/subsystems/` as they are settled.
+
+- **Multi-character world arbitration.** A scheduler that decides which character acts when two want the same thing,
+  and resolves contention over shared world state. This is the prerequisite for factions rather than for
+  parallel-and-unaware characters.
+
+- **Belief gating in retrieval.** A character must be unable to recall what it was not present for. Requires an
+  explicit per-entity model of what others know, applied as a retrieval filter. Without this, everything downstream
+  reads as fake to anyone paying attention.
+
+- **A long-horizon interaction benchmark.** This builds on an existing base rather than starting from nothing:
+  [A18B cognitive believability evaluation](docs/subsystems/cognitive-evaluation.md) runs complete conversations over
+  a versioned 16-scenario repertoire, freezes its cases, criteria, and thresholds per run, and calibrates its
+  reviewers against planted defects. Scenario authoring is in
+  [cognitive-evaluation-authoring](docs/subsystems/cognitive-evaluation-authoring.md).
+
+  What A18B does not do is time. The planned benchmark adds multi-month simulated interaction and reports **drift
+  curves rather than a single score**, plus negative metrics that belief-oriented suites omit: confabulated memories,
+  contradictions, persona bleed across characters, and correct *refusal* to know something the character was not
+  present for. Scoring recall alone rewards retrieval and ignores invented pasts, which is the failure that actually
+  breaks a long-running character. Cost and token volume per interaction go on the same chart. Competing open
+  projects run at pinned versions with their defaults documented, and transcripts plus judge prompts ship with the
+  results so any number can be checked. Until those numbers exist, statements about how pm compares to other projects
+  are opinion, and this README will not make them.
+
+## Related projects
+
+[Project AIRI](https://github.com/moeru-ai/airi) and the Neuro-sama-shaped projects listed in
+[awesome-ai-vtubers](https://github.com/proj-airi/awesome-ai-vtubers) optimize presentation: Live2D and VRM avatars,
+voice and ASR latency, and game integration. AIRI is far more widely deployed than this project and already does
+realtime voice chat, Minecraft, and Factorio. pm has none of that and does not compete with it.
+
+pm works on the other axis: persistent state, and whether a character is still itself after a hundred hours.
+
+The two are complementary, and the axis they differ on is one worth measuring rather than asserting. That is what the
+benchmark above is for.
 
 ## Start locally
 
