@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import math
 from dataclasses import dataclass
+from itertools import combinations
 from collections.abc import Callable, Coroutine
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, TypeVar
@@ -25,6 +26,38 @@ from pm.records.media import alt_text_view, image_ids, media_lookup
 # length cannot fill a practical serving context, so they skip the tokenizer
 # probe. Servers with a context below this size are not supported targets.
 _SHORT_TEXT_BYTES = 128
+
+# The startup probe. Five plain sentences separate a working encoder from a
+# broken one. The first two say the same thing, so a real encoder must score
+# that pair far above the unrelated pairs.
+SMOKE_TEST_TEXTS: tuple[str, ...] = (
+    "The cat sat on the mat near the window.",
+    "A small feline rested beside the open window.",
+    "Quantum chromodynamics binds quarks inside a proton.",
+    "She folded the laundry and put it away.",
+    "The referee sent off the striker in the sixty-third minute.",
+)
+SMOKE_PARAPHRASE_PAIR = (0, 1)
+# Unrelated sentences must not look alike. A mean above this bound means the
+# endpoint returns one shared direction for every text. The failed run of
+# 2026-10-24 measured 0.93 here.
+SMOKE_MAX_UNRELATED_MEAN = 0.60
+SMOKE_MAX_UNRELATED_SINGLE = 0.85
+# A real encoder must also separate the paraphrase pair. A small margin is the
+# random-vector case: the vectors carry no meaning.
+SMOKE_MIN_PARAPHRASE_MARGIN = 0.05
+# The length of the mean of the unit probe vectors. One shared component keeps
+# this near 1.0, because all the vectors point the same way. The failed run of
+# 2026-10-24 measured 0.97 here. Qwen3-Embedding-0.6B measures 0.68.
+SMOKE_MAX_MEAN_VECTOR_NORM = 0.90
+
+
+class EmbeddingQualityError(RuntimeError):
+    """The endpoint returns vectors that cannot support similarity work.
+
+    Store vectors are durable and every similarity rule reads them, so the
+    runtime stops before it writes one.
+    """
 
 
 def embedding_text(text: str) -> str:
@@ -52,6 +85,77 @@ def cosine_similarity(left: list[float], right: list[float]) -> float:
     valid_vector(right, len(left))
     left_norm, right_norm = math.hypot(*left), math.hypot(*right)
     return math.fsum((a / left_norm) * (b / right_norm) for a, b in zip(left, right))
+
+
+def embedding_quality_report(vectors: list[list[float]]) -> dict[str, float]:
+    """Measure how far apart the vectors of one :data:`SMOKE_TEST_TEXTS` batch are.
+
+    ``unrelated_mean``, ``unrelated_min``, and ``unrelated_max`` cover every
+    pair except the paraphrase pair. ``margin`` is the paraphrase cosine minus
+    the unrelated mean. ``mean_vector_norm`` is the length of the mean of the
+    unit vectors, so it measures one shared direction rather than length.
+    """
+    if len(vectors) != len(SMOKE_TEST_TEXTS):
+        raise ValueError(f"the quality probe needs {len(SMOKE_TEST_TEXTS)} vectors, got {len(vectors)}")
+    unrelated: list[float] = []
+    paraphrase = 0.0
+    for left, right in combinations(range(len(vectors)), 2):
+        score = cosine_similarity(vectors[left], vectors[right])
+        if (left, right) == SMOKE_PARAPHRASE_PAIR:
+            paraphrase = score
+        else:
+            unrelated.append(score)
+    mean = math.fsum(unrelated) / len(unrelated)
+    # Cosine ignores length, so the shared-direction measure must too. It runs
+    # on unit vectors, and stays comparable across servers that do not return
+    # normalized vectors.
+    units = [[value / math.hypot(*vector) for value in vector] for vector in vectors]
+    average = [math.fsum(column) / len(units) for column in zip(*units, strict=True)]
+    return {
+        "unrelated_mean": mean,
+        "unrelated_min": min(unrelated),
+        "unrelated_max": max(unrelated),
+        "paraphrase": paraphrase,
+        "margin": paraphrase - mean,
+        "mean_vector_norm": math.hypot(*average),
+    }
+
+
+def check_embedding_quality(vectors: list[list[float]], *, model: str = "", dimensions: int = 0) -> dict[str, float]:
+    """Return :func:`embedding_quality_report`, or raise :class:`EmbeddingQualityError`.
+
+    The failure this catches is a degenerate endpoint: every text scores about
+    0.9 against every other text, so all memories look alike and every merge,
+    retrieval, and clustering rule quietly misfires. The error text carries
+    the numbers and the settings, because the operator has to fix the server.
+    """
+    report = embedding_quality_report(vectors)
+    problems = []
+    if report["unrelated_mean"] > SMOKE_MAX_UNRELATED_MEAN:
+        problems.append(f"unrelated sentences average {report['unrelated_mean']:.3f} cosine, over the "
+                        f"{SMOKE_MAX_UNRELATED_MEAN:.2f} limit: every text looks like every other text")
+    if report["unrelated_max"] > SMOKE_MAX_UNRELATED_SINGLE:
+        problems.append(f"one unrelated pair reaches {report['unrelated_max']:.3f} cosine, over the "
+                        f"{SMOKE_MAX_UNRELATED_SINGLE:.2f} limit")
+    if report["margin"] < SMOKE_MIN_PARAPHRASE_MARGIN:
+        problems.append(f"the paraphrase pair scores {report['paraphrase']:.3f}, only "
+                        f"{report['margin']:.3f} above the unrelated mean, under the "
+                        f"{SMOKE_MIN_PARAPHRASE_MARGIN:.2f} margin: the vectors carry no meaning")
+    if report["mean_vector_norm"] > SMOKE_MAX_MEAN_VECTOR_NORM:
+        problems.append(f"the batch mean vector keeps {report['mean_vector_norm']:.3f} of unit length, over "
+                        f"the {SMOKE_MAX_MEAN_VECTOR_NORM:.2f} limit: one shared direction dominates")
+    if not problems:
+        return report
+    raise EmbeddingQualityError(
+        f"Embedding quality check failed for model '{model}' at {dimensions} dimensions with "
+        f"{len(SMOKE_TEST_TEXTS)} probe sentences:\n"
+        + "\n".join(f"  - {problem}" for problem in problems)
+        + "\n  report: " + ", ".join(f"{key}={value:.4f}" for key, value in report.items())
+        + "\nThe embedding endpoint must be fixed before this runtime starts. Store vectors are"
+        " durable, so it refuses to write them. Usual causes: the served checkpoint lost its"
+        " sentence-embedding head (a GGUF converted without --sentence-transformers-dense-modules),"
+        " or a --pooling setting that does not match the model."
+    )
 
 
 async def fit_embedding_text(connection: Connection, text: str, cancel: Event | None = None, *,
@@ -187,6 +291,17 @@ class EmbeddingService:
                    for row in rows]
         self.last_response_model = response["model"]
         return vectors
+
+    async def smoke_test(self) -> dict[str, float]:
+        """Embed the fixed probe sentences and check that they stay separable.
+
+        Returns the quality report. Raises :class:`EmbeddingQualityError` when
+        the endpoint returns vectors that cannot support retrieval, merging,
+        or clustering. Each call sends real requests, so callers run it once
+        per process, before any stored vector is written.
+        """
+        vectors = await self.embed_many(list(SMOKE_TEST_TEXTS))
+        return check_embedding_quality(vectors, model=self.config.model, dimensions=self.dimensions)
 
     def inspect_index(self, records: dict[int, RecordBase]) -> IndexPlan:
         """Inspect vectors on records. This method performs no disk or network work."""

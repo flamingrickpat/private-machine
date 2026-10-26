@@ -34,10 +34,15 @@ Use the environment variable on one machine and the `.env` file on another.
 ### Local models
 
 The example configuration uses chat on `http://127.0.0.1:8080/v1` and embeddings on `http://127.0.0.1:8081/v1`.
-Its aliases are `qwen` and `embeddinggemma-300m`, with 768 embedding dimensions.
+Its aliases are `qwen` and `qwen3-embedding-0.6b`, with 1024 embedding dimensions.
 Set those values to match your servers.
 The example requires no remote API credential.
 Existing local configuration takes precedence unless you select a file explicitly.
+
+The embedding endpoint must serve a trained embedding model.
+A plain decoder checkpoint, or a conversion that drops the pooling head of an embedding model,
+returns vectors that point in one shared direction.
+Check a new endpoint before you point a character at it. See [the embedding probe](#check-an-embedding-endpoint).
 
 The embedding service validates dimensions, finite values, nonzero length, and the response model.
 A server with another response alias needs an explicit `response_model`.
@@ -227,6 +232,60 @@ Retrieval can report a lexical fallback. Cancellation propagates through the sha
 The client retries temporary transport failures until cancellation. Permanent failures, including HTTP 401, raise `ModelError`.
 Read [memory ownership and persistence](ghost.md) for startup and restart behavior.
 
+### One text length follows the server
+
+Embedding text has no fixed character limit in the code.
+[`pm.memory.embeddings.EmbeddingService.embed`][] asks the server for its context size once, through `/props`.
+It then asks the server's own tokenizer, through `/tokenize`, whether one text fits, and clips the text at token
+boundaries when it does not. A clip records the original length, the used tokens, and the server context.
+The request keeps a margin below the advertised context, so the server's own control tokens also fit.
+The same request carries `truncate=true`, so a server that ignores the token budget cannot answer with an error.
+
+### Check an embedding endpoint
+
+Five fixed sentences test an endpoint. Two are paraphrases, and three are unrelated to each other.
+[`pm.memory.embeddings.embedding_quality_report`][] returns the mean similarity of the unrelated pairs, the
+similarity of the paraphrase pair, the gap between them, and the length of the mean unit vector.
+A working encoder keeps unrelated sentences far apart and puts paraphrases well above them.
+
+[`pm.memory.embeddings.EmbeddingService.smoke_test`][] applies that check and raises
+[`pm.memory.embeddings.EmbeddingQualityError`][] with the numbers when the endpoint fails.
+The application runs it before it embeds or re-embeds anything, so a bad endpoint stops the run instead of
+quietly filling memory with unusable vectors.
+
+On 2026-10-24 a live store showed why this check exists. Its serving file was a converted Gemma embedding
+checkpoint that carried no projection head, and the server overrode its declared mean pooling with last-token
+pooling. The store held 8,290 vectors, all 768 wide and unit length. Every pair of them scored between 0.898
+and 0.981. The situational model merge rule at 0.86 therefore merged every incoming record into the single
+item it already held, structure selection had one candidate, and attention could place only that one record in
+any shard. The store's mean unit vector measured 0.959 long: one shared direction held almost all the signal.
+The replacement Qwen3-Embedding endpoint scores 0.28 between unrelated sentences and 0.77 between paraphrases.
+
+`dev/tools/embedding_probe.py` checks an endpoint on its own, with no character and no session:
+
+```powershell
+uv run --locked python dev/tools/embedding_probe.py --url http://127.0.0.1:8081/v1 --model qwen3-embedding-0.6b --dimensions 1024
+```
+
+The tool reports the served model file, alias, quantization, build, and serving context, then prints `PASS` or
+`FAIL` with the same numbers the application checks. It exits nonzero on `FAIL`.
+
+### Re-embed after a model change
+
+Vectors from two models never share a space, and their widths usually differ.
+The `--embed` mode embeds the whole memory again and saves the result. It runs no cycle, no dialogue, and no
+workflow, and it refuses an inspector or an ephemeral run:
+
+```powershell
+uv run --locked python main.py --home <character-home> --config <model.yaml> --embed
+```
+
+The mode copies the checkpoint to a timestamped backup first, then clears every stored vector, embeds every
+record with the configured model, writes the new model name into `previous_emb_model`, and saves. The report
+prints the sampled mean similarity, the sampled maximum, and the share of pairs at or above the situational
+model merge threshold, before and after the change. A healthy store shows a small share. A degenerate store
+shows a share near one. See [workspace and the situational model](subsystems/workspace.md).
+
 ## Tests
 
 ### Foundation checks
@@ -234,7 +293,7 @@ Read [memory ownership and persistence](ghost.md) for startup and restart behavi
 Run these direct tests without a model endpoint:
 
 ```powershell
-uv run --locked python -m unittest tests.unit.pm.llm.test_config tests.unit.pm.memory.test_embeddings tests.unit.pm.llm.test_activation -v -b
+uv run --locked python -m unittest tests.unit.pm.llm.test_config tests.unit.pm.memory.test_embeddings tests.unit.pm.memory.test_embedding_quality tests.unit.pm.app.test_embed_cli tests.unit.pm.llm.test_activation -v -b
 ```
 
 These tests use the installed FAISS index, typed records, and real finite subprocesses.

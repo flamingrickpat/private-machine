@@ -16,9 +16,9 @@ chat:
     startup_script: ""
 embedding:
   base_url: http://127.0.0.1:8081/v1
-  model: embeddinggemma-300m
+  model: qwen3-embedding-0.6b
   api_key: ""
-  dimensions: 768
+  dimensions: 1024
 # Optional Minecraft body (docs/subsystems/body-leases.md). Without this section the
 # character has no body. With it pm probes the endpoint once at startup.
 # minecraft:

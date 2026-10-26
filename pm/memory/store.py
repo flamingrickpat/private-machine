@@ -9,6 +9,7 @@ from __future__ import annotations
 
 
 import hashlib
+from collections.abc import Callable
 from pathlib import Path
 import json
 import pickle
@@ -163,9 +164,49 @@ class MemoryStore(RecordIndex):
             if self._all_knoxels.get(record.id) is record:
                 self.embedding_index.update(record)
 
-    def initialize_embeddings(self, embeddings: EmbeddingService) -> None:
-        """Embed all missing records on load. Save once when vectors or the format change."""
+    def check_embeddings(self, embeddings: EmbeddingService) -> dict[str, float]:
+        """Probe the embedding endpoint before this store writes any vector.
+
+        Returns the quality report. A degenerate endpoint returns vectors that
+        all point nearly the same way. Those vectors are durable, and every
+        merge, retrieval, coalition, and expectation rule reads them, so the
+        damage is silent and permanent. This method raises
+        ``EmbeddingQualityError`` instead. Record embeddings are the shared
+        vector space of the whole store, so one probe per service is enough.
+        """
+        return run_embedding_work(embeddings.smoke_test())
+
+    def rebuild_embeddings(self, embeddings: EmbeddingService,
+                           progress: Callable[[int, int], None] | None = None) -> int:
+        """Recompute every stored vector with the current model, then save.
+
+        This is the ``--embed`` path. It drops all vectors first, so no vector
+        from the old model survives the run. The endpoint probe runs before
+        anything is dropped: a bad endpoint leaves the checkpoint untouched.
+        Records keep their IDs, so links, states, and story text do not change.
+        Returns the number of records that carry a vector afterwards.
+        """
         self.embeddings = embeddings
+        self.check_embeddings(embeddings)
+        records = self.snapshot().all_knoxels
+        for record in records.values():
+            record.embedding = []
+        run_embedding_work(embeddings.prepare_index(records, progress=progress))
+        self.previous_emb_model = embeddings.config.model
+        embedded = sum(1 for record in records.values() if record.embedding)
+        if self.checkpoint is not None:
+            self.save()
+        return embedded
+
+    def initialize_embeddings(self, embeddings: EmbeddingService) -> None:
+        """Embed all missing records on load. Save once when vectors or the format change.
+
+        The endpoint probe runs first, so a store never absorbs vectors from a
+        broken encoder. A model change or a dimension change drops the old
+        vectors, and the vector index rebuilds itself at the new size.
+        """
+        self.embeddings = embeddings
+        self.check_embeddings(embeddings)
         records = self.snapshot().all_knoxels
         changed_model = bool(self.previous_emb_model and self.previous_emb_model != embeddings.config.model)
         for record in records.values():

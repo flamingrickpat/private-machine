@@ -23,7 +23,11 @@ class ExampleCharacterTests(unittest.TestCase):
                     init_home(home, companion_name=name.title(), user_name="Alex", card=source / "card.md",
                               personality=source / "personality.json")
                     self.assertEqual(home.open_store().states, [])
-                    models = (SimpleNamespace(request_count=0), SimpleNamespace(embed=AsyncMock(return_value=[1.0])))
+                    embeddings = SimpleNamespace(embed=AsyncMock(return_value=[1.0]), dimensions=8,
+                                                 config=SimpleNamespace(model="test-embeddings"),
+                                                 smoke_test=AsyncMock(return_value={}),
+                                                 prepare_index=AsyncMock(return_value=None))
+                    models = (SimpleNamespace(request_count=0), embeddings)
                     with patch("pm.app.character_cli.build_models", return_value=models), \
                          patch("pm.app.character_cli._print"):
                         receipt = import_chat(home, source / "chat.csv", "unused", do_reconsolidate=False,

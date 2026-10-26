@@ -14,6 +14,10 @@ Three ways to start:
   memory store is read and served in a browser by
   :mod:`pm.tools.inspector`. No cycle runs, no model is called, and nothing
   is saved. See ``--inspector-port``.
+- ``--embed`` with ``--home`` or ``--checkpoint``: no session at all. Every
+  stored embedding vector is recomputed with the configured embedding model
+  and saved, after an endpoint quality check. See
+  :mod:`pm.app.embed_cli`.
 
 ``--web`` starts the web chat in the terminal mode too.
 """
@@ -41,7 +45,8 @@ class LaunchPlan(BaseModel):
     in-memory session without persistence (``--ephemeral``). With a home,
     the checkpoint is ``home/ghost.pickle``. ``inspector`` serves that
     checkpoint read-only instead of running a session, so ``cognition``,
-    ``config``, and ``web`` carry no meaning in that mode.
+    ``config``, and ``web`` carry no meaning in that mode. ``embed`` instead
+    recomputes every stored vector of that checkpoint and saves it.
     """
 
     home: Path | None
@@ -54,6 +59,11 @@ class LaunchPlan(BaseModel):
     web_port: int
     inspector: bool = False
     inspector_port: int = INSPECTOR_PORT
+    # One embedding model at a time. ``previous_emb_model`` records which model
+    # the stored vectors came from, and a store with foreign vectors is embedded
+    # again at startup. ``--embed`` is the deliberate way to run that rebuild
+    # when the operator changes the model in the config.
+    embed: bool = False
 
 
 def build_parser(default_seed: Path) -> argparse.ArgumentParser:
@@ -74,6 +84,9 @@ def build_parser(default_seed: Path) -> argparse.ArgumentParser:
                         help="Serve the checkpoint in a browser. Reads only: no cycle, no model, no save.")
     parser.add_argument("--inspector-port", type=int, default=INSPECTOR_PORT,
                         help=f"Inspector port. Default: {INSPECTOR_PORT}")
+    parser.add_argument("--embed", action="store_true",
+                        help="Rebuild every stored embedding vector with the configured model, then save."
+                             " Needs --home or --checkpoint. No cycle and no chat model run.")
     return parser
 
 
@@ -82,10 +95,15 @@ def launch_plan(argv, default_seed: Path) -> LaunchPlan:
 
     ``--home`` excludes ``--seed`` and ``--runtime-root``, because the home
     folder supplies the persona and the runtime root. The parser group
-    already excludes ``--checkpoint`` and ``--ephemeral``.
+    already excludes ``--checkpoint`` and ``--ephemeral``. ``--embed`` needs a
+    checkpoint file, because it rewrites the vectors stored inside one.
     """
     parser = build_parser(default_seed)
     args = parser.parse_args(argv)
+    if args.embed and args.ephemeral:
+        parser.error("--embed rewrites the vectors stored in a checkpoint; it cannot run with --ephemeral")
+    if args.embed and args.inspector:
+        parser.error("--embed writes memory and --inspector reads it. Run one at a time.")
     if args.home is not None:
         if args.seed is not None:
             parser.error("--home excludes --seed: the persona comes from the home folder.")
@@ -94,14 +112,17 @@ def launch_plan(argv, default_seed: Path) -> LaunchPlan:
         home = args.home.resolve()
         return LaunchPlan(home=home, seed=None, runtime_root=home / "runtime", checkpoint=home / "ghost.pickle",
                           cognition=args.cognition, config=args.config, web=True, web_port=args.web_port,
-                          inspector=args.inspector, inspector_port=args.inspector_port)
+                          inspector=args.inspector, inspector_port=args.inspector_port, embed=args.embed)
     runtime_root = Path(args.runtime_root) if args.runtime_root is not None else Path.cwd() / ".runtime"
+    checkpoint = None if args.ephemeral else (args.checkpoint or runtime_root / "ghost.pickle")
+    if args.embed and checkpoint is None:
+        parser.error("--embed needs --home or --checkpoint: it rewrites the vectors stored in one checkpoint file.")
     return LaunchPlan(
         home=None, seed=Path(args.seed) if args.seed is not None else Path(default_seed),
         runtime_root=runtime_root,
-        checkpoint=None if args.ephemeral else (args.checkpoint or runtime_root / "ghost.pickle"),
+        checkpoint=checkpoint,
         cognition=args.cognition, config=args.config, web=args.web, web_port=args.web_port,
-        inspector=args.inspector, inspector_port=args.inspector_port,
+        inspector=args.inspector, inspector_port=args.inspector_port, embed=args.embed,
     )
 
 
@@ -129,9 +150,9 @@ def build_from_plan(plan: LaunchPlan, *, assembly):
 def main(argv=None, *, assembly) -> int:
     """Own diagnostics and child cleanup for the full terminal session.
 
-    ``--inspector`` leaves before any of that: the inspector writes no log,
-    starts no child process, and opens no session, so it needs none of the
-    session machinery.
+    ``--inspector`` and ``--embed`` leave before any of that: neither starts a
+    child process or opens a session, so neither needs the session machinery.
+    ``--embed`` is the one place that writes memory outside a session.
     """
     from pm.host.diagnostics import configure_logging, close_logging
     from pm.host.processes import ensure_process_cleanup
@@ -141,6 +162,10 @@ def main(argv=None, *, assembly) -> int:
         from pm.tools.inspector import run_inspector
 
         return run_inspector(home=plan.home, checkpoint=plan.checkpoint, port=plan.inspector_port)
+    if plan.embed:
+        from pm.app.embed_cli import run_embedding_rebuild
+
+        return run_embedding_rebuild(plan)
     configure_logging(plan.home or plan.runtime_root)
     ensure_process_cleanup()
     try:

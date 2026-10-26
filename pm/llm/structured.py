@@ -167,22 +167,25 @@ def complete_json(complete: Callable, messages: Sequence[TurnInput], schema: typ
     measure = measure or context_measure(complete)
     cnt = 0
     while True:
-        state.check_cancelled()
-        if state.attempt:
-            if measure is None:
-                raise ValueError("JSON repair requires context measurement from the selected model.")
-            state.check_budget(measure(state.turns, cancel=cancel, **generation))
-        raw = (initial if isinstance(initial, str) else json.dumps(initial, ensure_ascii=False)) if initial is not _MISSING else complete(
-            state.turns, cancel=cancel, **generation)
-        initial = _MISSING
-        result = state.accept(raw)
-        if result is not None:
-            return result
-        cnt += 1
-        if cnt > RESET_STATE_LIMIT:
+        try:
+            state.check_cancelled()
+            if state.attempt:
+                if measure is None:
+                    raise ValueError("JSON repair requires context measurement from the selected model.")
+                state.check_budget(measure(state.turns, cancel=cancel, **generation))
+            raw = (initial if isinstance(initial, str) else json.dumps(initial, ensure_ascii=False)) if initial is not _MISSING else complete(
+                state.turns, cancel=cancel, **generation)
+            initial = _MISSING
+            result = state.accept(raw)
+            if result is not None:
+                return result
+            cnt += 1
+            if cnt > RESET_STATE_LIMIT:
+                state = _Repair(messages, schema, validation_context, on_rejection, validate, cancel)
+                cnt = 0
+        except (ValueError, ModelFormatError):
             state = _Repair(messages, schema, validation_context, on_rejection, validate, cancel)
             cnt = 0
-
 
 async def complete_json_async(complete: Callable, messages: Sequence[TurnInput], schema: type[T], *,
                               measure: Callable | None = None, validation_context: dict | None = None,
@@ -200,23 +203,27 @@ async def complete_json_async(complete: Callable, messages: Sequence[TurnInput],
     measure = measure or context_measure(complete)
     cnt = 0
     while True:
-        state.check_cancelled()
-        if state.attempt:
-            if measure is None:
-                raise ValueError("JSON repair requires context measurement from the selected model.")
-            if inspect.iscoroutinefunction(measure):
-                measurement = await measure(state.turns, cancel=cancel, **generation)
-            else:
-                measurement = await asyncio.to_thread(measure, state.turns, cancel=cancel, **generation)
-            state.check_budget(measurement)
-        raw = (initial if isinstance(initial, str) else json.dumps(initial, ensure_ascii=False)) if initial is not _MISSING else await complete(
-            state.turns, cancel=cancel, **generation)
-        initial = _MISSING
-        result = state.accept(raw)
-        if result is not None:
-            return result
-        cnt += 1
-        if cnt > RESET_STATE_LIMIT:
+        try:
+            state.check_cancelled()
+            if state.attempt:
+                if measure is None:
+                    raise ValueError("JSON repair requires context measurement from the selected model.")
+                if inspect.iscoroutinefunction(measure):
+                    measurement = await measure(state.turns, cancel=cancel, **generation)
+                else:
+                    measurement = await asyncio.to_thread(measure, state.turns, cancel=cancel, **generation)
+                state.check_budget(measurement)
+            raw = (initial if isinstance(initial, str) else json.dumps(initial, ensure_ascii=False)) if initial is not _MISSING else await complete(
+                state.turns, cancel=cancel, **generation)
+            initial = _MISSING
+            result = state.accept(raw)
+            if result is not None:
+                return result
+            cnt += 1
+            if cnt > RESET_STATE_LIMIT:
+                state = _Repair(messages, schema, validation_context, on_rejection, validate, cancel)
+                cnt = 0
+        except (ValueError, ModelFormatError):
             state = _Repair(messages, schema, validation_context, on_rejection, validate, cancel)
             cnt = 0
 
