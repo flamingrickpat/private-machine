@@ -37,6 +37,7 @@ is tested directly without a kernel, model, or MemoryStore.
 from __future__ import annotations
 
 import asyncio
+import re
 from pathlib import Path
 from pm.context_render.turns import Role, Turn
 from pm.llm.completion import AsyncTextCompletion
@@ -309,6 +310,16 @@ def _artifact_lines(request: StoryRequest, prompts: dict) -> list[ArtifactLine]:
     return lines
 
 
+def _line_start(text: str, marker: str) -> int | None:
+    """Return the index where marker opens a line, or None. An inline match is not a turn boundary."""
+    index = text.find(marker)
+    while index != -1:
+        if index == 0 or text[index - 1] == "\n":
+            return index
+        index = text.find(marker, index + 1)
+    return None
+
+
 def clean_reply(raw: str, companion_name: str, partner_name: str, *, prefill: str = "") -> str:
     """Keep only the companion's continuation.
 
@@ -317,16 +328,22 @@ def clean_reply(raw: str, companion_name: str, partner_name: str, *, prefill: st
     Then cut the text at the first marker of any other
     speaker or the start of a non-public state line. This prevents a
     model-invented next user turn from becoming stored dialogue.
+
+    A marker only ends the reply when it opens a line, so no punctuation and no
+    inline mention of another speaker can truncate a spoken utterance. Every
+    companion bubble before that boundary is kept, in order, one per line.
     """
     reply = (raw or "").lstrip()
     if prefill and reply.startswith(prefill):
         reply = reply[len(prefill):]
     reply = reply.strip()
+    leading_marker = False
     for prefix in (f"{companion_name} says:", f"{companion_name}:"):
         if reply.lower().startswith(prefix.lower()):
             reply = reply[len(prefix):].lstrip()
             if reply.startswith('"'):
                 reply = reply[1:]
+            leading_marker = True
             break
 
     if reply.startswith((f"{companion_name} thinks:", "StateUpdate:", "Narrative:", "Fact:",
@@ -335,41 +352,49 @@ def clean_reply(raw: str, companion_name: str, partner_name: str, *, prefill: st
 
     # Cut at the first other-speaker or non-public marker before trimming any
     # preamble. A model-invented user turn is never kept, even when the model
-    # later reopens the companion line.
+    # later reopens the companion line. Each marker counts only at a line start:
+    # the companion quoting someone inside its own sentence is speech, and
+    # cutting there would deliver half an utterance.
     other_markers = [
-        f"\n{partner_name} says:", f"{partner_name} says:",
-        f"\n{partner_name}:", f"{partner_name}:",
-        "\nStateUpdate:", "\nNarrative:", "\nFact:",
+        f"{partner_name} says:", f"{partner_name}:",
+        "StateUpdate:", "Narrative:", "Fact:",
         # The transcript shows earlier private thoughts. A continuation that
         # starts a new thought line is not speech.
-        f"\n{companion_name} thinks:",
+        f"{companion_name} thinks:",
         # A new day marker is narration, not speech.
-        "\n*(",
+        "*(",
     ]
     cut = len(reply)
     for marker in other_markers:
-        index = reply.find(marker)
-        if index != -1:
+        index = _line_start(reply, marker)
+        if index is not None:
             cut = min(cut, index)
     reply = reply[:cut].strip()
 
-    own_markers = [
-        f"\n{companion_name} says:", f"{companion_name} says:",
-        f"\n{companion_name}:", f"{companion_name}:",
-    ]
-    last_end = 0
-    for marker in own_markers:
-        index = reply.rfind(marker)
-        if index != -1:
-            last_end = max(last_end, index + len(marker))
-    candidate = reply[last_end:].strip()
-    if candidate:
-        reply = candidate
-
-    if reply.startswith('"') and reply.endswith('"') and len(reply) > 1:
-        reply = reply[1:-1].strip()
-    elif reply.endswith('"') and reply.count('"') % 2 == 1:
-        reply = reply[:-1].rstrip()
+    # Keep every own bubble up to that boundary, in order. Keeping only the text
+    # after the last own marker delivered the fourth line of a multi-line
+    # completion and dropped the first one, which was the line that answered
+    # the user (run bz_p_e2e_live_7530, call 502).
+    own_bubbles = re.split(rf"^{re.escape(companion_name)}(?: says)?[ \t]*:", reply, flags=re.MULTILINE)
+    lead, segments = own_bubbles[0], own_bubbles[1:]
+    bubbles = []
+    # The marker strip above already removed a leading own marker, so that lead
+    # is spoken text. A lead before an unstripped marker is model preamble.
+    if lead.strip() and (prefill or leading_marker or not segments):
+        bubbles.append(lead)
+    bubbles.extend(segments)
+    cleaned = []
+    for bubble in bubbles:
+        bubble = bubble.strip()
+        if bubble.startswith('"') and bubble.endswith('"') and len(bubble) > 1:
+            bubble = bubble[1:-1].strip()
+        elif bubble.endswith('"') and bubble.count('"') % 2 == 1:
+            bubble = bubble[:-1].rstrip()
+        elif bubble.startswith('"') and bubble.count('"') % 2 == 1:
+            bubble = bubble[1:].lstrip()
+        if bubble:
+            cleaned.append(bubble)
+    reply = "\n".join(cleaned)
     return strip_narrator_setup(reply, partner_name)
 
 
