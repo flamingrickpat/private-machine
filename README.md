@@ -1,6 +1,8 @@
 # private-machine
 
-private-machine (pm) is a cognitive runtime for **persistent characters**.
+private-machine (pm) is a cognitive runtime for **a persistent character**.
+
+Each instance runs one persona. Each persona must run in its own process or container, with its own character home.
 
 A character in pm is not a system prompt and a chat log. It is inspectable internal state: a persistent mental-state
 vector, episodic memory with emotional consequences, needs and goals the character can defer or refuse, parallel
@@ -15,7 +17,7 @@ and the [memory inspector](#inspect-a-memory-without-the-character) read this st
 Nothing in the runtime is specific to any one use. Build a companion you talk to daily, a non-player character that
 remembers you 200 hours later, a character with a body that plays Minecraft, or a persona behind a game's dialogue
 line. Character creation and [character-card import](docs/subsystems/character-import.md) are built in, including an
-existing chatlog as starting history. Personas, model selection, and prompt templates are yours; the runtime is
+existing chatlog as starting history. The persona, model selection, and prompt templates are yours; the runtime is
 neutral about what the character is for.
 
 Two design decisions are load-bearing and worth knowing before you read further:
@@ -118,12 +120,8 @@ This is **alpha**. Be accurate about what that costs you:
   the prompt cost of every shard and flags content several shards pay for twice. Making that number the headline of a
   cycle is a prerequisite for the performance work below, not a side effect of it.
 - **Model output still needs repair sometimes.** Character quality depends heavily on your model and prompts.
-- **Long-run consistency is the open research problem, not latency.** Several characters running for weeks against
-  each other is the failure mode to expect: retrieval contamination, persona bleed, self-contradiction, and a
-  character acting on information it was never present for. Latency is an engineering task. This is not.
-- **Multiple characters means multiple processes today.** Each gets its own character home, `--web-port`, MCP
-  configuration, and (for simultaneous bodies) distinct MCP, body, and viewer ports. There is no world-level arbiter
-  yet; see [Roadmap](#roadmap).
+- **Long-run consistency is an open research problem.** Weeks of interaction can expose irrelevant memories,
+  self-contradiction, and decisions based on information the character never received. Latency is an engineering task.
 
 The tradeoff is deliberate. Quality of the internal model came before throughput, and the throughput work is now
 constrained by measurements rather than by taste.
@@ -156,10 +154,6 @@ Roughly in the order it is planned. Items below the line are not implemented.
   host's own system prompt will also fight the character's persona, so the endpoint needs an explicit precedence mode
   rather than a concatenation. Design notes land under `docs/subsystems/` as they are settled.
 
-- **Multi-character world arbitration.** A scheduler that decides which character acts when two want the same thing,
-  and resolves contention over shared world state. This is the prerequisite for factions rather than for
-  parallel-and-unaware characters.
-
 - **Belief gating in retrieval.** A character must be unable to recall what it was not present for. Requires an
   explicit per-entity model of what others know, applied as a retrieval filter. Without this, everything downstream
   reads as fake to anyone paying attention.
@@ -171,9 +165,9 @@ Roughly in the order it is planned. Items below the line are not implemented.
   [cognitive-evaluation-authoring](docs/subsystems/cognitive-evaluation-authoring.md).
 
   What A18B does not do is time. The planned benchmark adds multi-month simulated interaction and reports **drift
-  curves rather than a single score**, plus negative metrics that belief-oriented suites omit: confabulated memories,
-  contradictions, persona bleed across characters, and correct *refusal* to know something the character was not
-  present for. Scoring recall alone rewards retrieval and ignores invented pasts, which is the failure that actually
+  curves rather than a single score**. It also measures confabulated memories, contradictions,
+  and correct *refusal* to know something the character was not present for.
+  Scoring recall alone rewards retrieval and ignores invented pasts, which is the failure that actually
   breaks a long-running character. Cost and token volume per interaction go on the same chart. Competing open
   projects run at pinned versions with their defaults documented, and transcripts plus judge prompts ship with the
   results so any number can be checked. Until those numbers exist, statements about how pm compares to other projects
@@ -217,7 +211,6 @@ uv run --locked python main.py --home .runtime/characters/sunny --config config.
 Open the web address printed by the launcher.
 The character home holds its accepted memory in `ghost.pickle` and saves later changes there.
 An older home that holds only `ghost.json` still loads.
-Use separate homes for separate characters.
 
 ## Bring your own character
 
@@ -330,10 +323,6 @@ If you're interested in real survival gameplay, add this babymode-mod for easier
    These requests use a live read. A successful read confirms more than an open server port.
    Then ask for a Minecraft goal through the same chat.
 
-Use a separate player name, MCP configuration, and `MCMCP_AGENT_HOME` for each character.
-For simultaneous characters, also assign distinct MCP, body, and viewer ports.
-Give each pm process a distinct `--web-port`.
-Point each pm process at its character's MCP endpoint.
 Stopping pm leaves the MCP service and Minecraft server running.
 Read the [Minecraft workflow guide](docs/workflows/minecraft.md) for managed runs and cancellation.
 
