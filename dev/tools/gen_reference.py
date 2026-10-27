@@ -28,6 +28,7 @@ paths += [Path("dev/work_items/alpha_a19_reflection_gate.py")]
 paths += [Path("dev/work_items/alpha_a19_review.py"), Path("dev/review/cognitive_trace.py")]
 paths += [Path("dev/review/record_format.py")]
 paths += [Path("dev/work_items/alpha_a19f_groups_gate.py")]
+paths += [Path("dev/kanban/server.py")]
 for path in sorted(paths):
     if "tests" in path.parts or any(part.startswith("_") for part in path.parts):
         continue

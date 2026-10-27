@@ -25,6 +25,28 @@ The [structural refactor](docs/work_items/refactor/index.md) is in progress. Fol
 Product code must not import `dev/` or `tests/`. `pm/` must not import `workflows/`.
 `tests/unit/test_architecture.py` checks these import directions.
 
+## Local development planning
+
+Use the [local Kanban board](docs/workflows/kanban.md) for development planning and current card status.
+Before planning work, read `dev/kanban/board.json` and the relevant work-item documents.
+Update an existing card when it already covers the requested work.
+Add cards for new work that the user discusses or requests.
+Keep undeveloped ideas in `backlog`, agreed queued work in `todo`, and current work in `doing`.
+Move a card to `done` after the requested work and its relevant checks are complete.
+Record blockers, pending owner review, work-item paths, and evidence paths in the card notes.
+Keep detailed designs, acceptance gates, and verification records in the work-item documents.
+A board status does not replace execution evidence or human review.
+
+Edit the JSON file directly to manage cards without a running server.
+Preserve existing card ids and unrelated cards.
+Give each new card the current `next_id`, then increase `next_id` by one.
+Use `id`, `title`, `description`, and `status` for each card.
+Do not infer current card status from historical plans.
+Complete direct file edits between browser saves.
+After a direct edit, the user can press **Reload** in the browser.
+Start the browser board with `dev/kanban/start.ps1`.
+The board saves locally and does not create Git commits or push changes.
+
 ## Base references
 
 The research PDFs and their converted TXT files are base references for companion architecture and behavior.

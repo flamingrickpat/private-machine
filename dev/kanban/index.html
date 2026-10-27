@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>private-machine · Kanban</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/board.css">
+  <script src="/board.js" defer></script>
+</head>
+<body>
+  <main>
+    <header class="page-header">
+      <div>
+        <p class="eyebrow">private-machine <span>/ development</span></p>
+        <h1>A little room for the work.</h1>
+        <p class="subtitle">One developer. One board. One thing at a time.</p>
+      </div>
+      <div class="toolbar">
+        <button id="reload" type="button">Reload</button>
+        <button id="add" class="primary" type="button" disabled>+ Add card</button>
+      </div>
+    </header>
+    <div class="board-meta">
+      <span><span class="local-dot" aria-hidden="true"></span> Local board</span>
+      <span id="total">Loading cards…</span>
+    </div>
+    <p id="notice" class="notice" role="status" aria-live="polite"></p>
+    <section id="board" class="board" aria-label="Development Kanban board"></section>
+    <footer>Cards live in <code>dev/kanban/board.json</code>. Git keeps their history.</footer>
+  </main>
+
+  <dialog id="editor" aria-labelledby="editor-title">
+    <form id="card-form">
+      <div class="dialog-header">
+        <h2 id="editor-title">New card</h2>
+        <button id="close" class="icon-button" type="button" aria-label="Close card">×</button>
+      </div>
+      <label for="title">Title</label>
+      <input id="title" name="title" required autocomplete="off" placeholder="What needs doing?">
+      <label for="description">Notes</label>
+      <textarea id="description" name="description" rows="7" placeholder="A few details, a work-item path, or what done looks like."></textarea>
+      <label for="status">Column</label>
+      <select id="status" name="status"></select>
+      <p id="editor-error" class="error" role="alert"></p>
+      <div class="dialog-footer">
+        <button id="delete" class="danger" type="button">Delete card</button>
+        <span class="spacer"></span>
+        <button id="cancel" type="button">Cancel</button>
+        <button id="save" class="primary" type="submit">Save card</button>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>

@@ -40,6 +40,7 @@ nav:
       - Jesse quickstart: workflows/jesse-quickstart.md
       - Operator console: workflows/console.md
       - Development loop: workflows/development.md
+      - Local Kanban board: workflows/kanban.md
       - One exchange: workflows/exchange.md
       - Memory experiment: workflows/memory.md
       - Artifact classification demo: workflows/classification-demo.md

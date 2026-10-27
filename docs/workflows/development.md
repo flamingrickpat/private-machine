@@ -8,6 +8,7 @@ Run its contracts, inspect a real exchange, and record the result.
 Update the documentation with the changed behavior.
 
 Parent: [manual](../index.md).
+Local planning: [Kanban board](kanban.md).
 Planning: [next experiments](../work_items/experiments.md).
 Alpha delivery: [baseline commands](../work_items/alpha-plan/baseline/commands.md) and [session handoff](../work_items/alpha-plan/baseline/handoff.md).
 Optional decisions: [client boundary](../subsystems/decisions/index.md), [live procedure](../subsystems/decisions/operation.md), and [A02 results](../work_items/verification/a02-decisions.md).
