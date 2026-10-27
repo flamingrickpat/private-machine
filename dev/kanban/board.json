@@ -1,4 +1,11 @@
 {
-  "next_id": 1,
-  "cards": []
+  "next_id": 2,
+  "cards": [
+    {
+      "id": 1,
+      "title": "fix memoryleak from user report",
+      "description": "\"C:\\source\\pm\\private-machine\\docs\\ab_test_2026-10-23.md\"\nThis guy tested my project and found bugs. Please fix the memory leak. The repo: C:\\source\\pm\\sinsforreal-private-machine\n\nImplemented: MCP memory tools use weak callbacks, so cached validators release their read sessions. Verified: 26 focused tests passed; six Spamuel loopback MCP sessions with the full seed retained no session records. Guide: docs/work_items/verification/k001-memory-sessions.md. Evidence: .runtime/kanban/k001-20261027-200041/. Restart running PM instances to load the fix.",
+      "status": "done"
+    }
+  ]
 }

@@ -2,6 +2,7 @@
 import asyncio
 from dataclasses import replace
 from datetime import datetime
+import gc
 import json
 from pathlib import Path
 import subprocess
@@ -10,6 +11,7 @@ from tempfile import TemporaryDirectory
 from threading import Event, Timer
 from types import SimpleNamespace
 import unittest
+import weakref
 
 from fastmcp import Client
 
@@ -181,6 +183,50 @@ class MemoryAgentToolTests(unittest.TestCase):
         memory.close()
         with self.assertRaises(GhostCancelled):
             memory.view()
+
+    def test_registered_tools_do_not_keep_closed_sessions_or_their_store_alive(self):
+        def register():
+            store = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"))
+            source = new_feature(store, "A copper lantern marks the route.", FeatureType.Dialogue, source="Jesse")
+            view = MemoryView(frozenset(store.revisions), frozenset({(-1, "in_world")}))
+            with MemoryReadSession(MemoryToolConfig(store, view, graph=True)) as memory:
+                server = memory.server()
+                memory.get(source.id)
+                references = [weakref.ref(value) for value in (memory, store, source, view)]
+            return server, references
+
+        server, references = register()
+        gc.collect()
+        self.assertTrue(all(reference() is None for reference in references))
+
+        async def revoked():
+            async with Client(server) as client:
+                with self.assertRaisesRegex(Exception, "memory read session is closed"):
+                    await client.call_tool("memory_view", {})
+        asyncio.run(revoked())
+
+    def test_retained_tools_revoke_reads_after_owner_cleanup(self):
+        source = self.say("Any wood is acceptable.")
+        config = replace(self.config(graph=True), refresh_view=lambda: self.config().view)
+        memory = MemoryReadSession(config)
+        tools = memory.tools()
+        memory.close()
+        memory.close()
+        for name, arguments in (("memory_view", {}), ("memory_get", {"record_id": source.id}),
+                                ("memory_sources", {"record_id": source.id}),
+                                ("memory_neighbors", {"record_id": source.id}), ("memory_refresh", {})):
+            with self.subTest(tool=name), self.assertRaises(GhostCancelled):
+                tools[name](**arguments)
+        with self.assertRaises(GhostCancelled):
+            asyncio.run(tools["memory_search"]("wood"))
+        reference = weakref.ref(memory)
+        del memory
+        gc.collect()
+        self.assertIsNone(reference())
+        with self.assertRaises(GhostCancelled):
+            tools["memory_view"]()
+        with self.assertRaises(GhostCancelled):
+            asyncio.run(tools["memory_search"]("wood"))
 
     def test_independent_grants_in_separate_client_process_and_listener_cleanup(self):
         first = self.say("Visible copper lantern.")

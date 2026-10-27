@@ -44,6 +44,11 @@ Read tools cannot commit memory, publish speech, start work, or change the world
 Cancellation rejects pending retrieval and prevents another accepted turn.
 The native runner awaits agent cleanup before listener shutdown.
 The caller then revokes the read session.
+Tool callbacks hold weak references instead of bound methods that own the session.
+The host retains the session until agent cleanup and listener shutdown finish.
+After host release, retained validators cannot keep the snapshot, serialized records, or accepted owner alive.
+Calls through a retained callback raise `GhostCancelled` after closure or owner release.
+The callback preserves the original parameter names, defaults, annotations, and synchronous or asynchronous execution.
 During retrieval, the search detects a closed session, cancels its provider task, and awaits cleanup.
 It does not set the enclosing run's cancellation signal.
 Completed embedding vectors can remain on their records.
@@ -63,3 +68,4 @@ Old grants cannot authorize another group.
 4. Reconsider the affected draft before another attempt.
 
 The [verification record](../work_items/verification/a14b-agent-memory.md) distinguishes engineering checks, actual model decisions, and pending world execution.
+The [K001 memory check](../work_items/verification/k001-memory-sessions.md) records the reported session leak and its repair.

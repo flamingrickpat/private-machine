@@ -12,10 +12,12 @@ from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import datetime
 import hashlib
+from inspect import iscoroutinefunction, signature
 import json
 from threading import Event, RLock
 from typing import Callable, Iterator
 from typing import TYPE_CHECKING
+from weakref import WeakMethod
 
 from fastmcp import FastMCP
 
@@ -143,12 +145,42 @@ def _snapshot(config: MemoryToolConfig, grant: MemoryView) -> Snapshot:
                     {key: original.revisions[key] for key in allowed}, original.embedding_index)
 
 
+def _weak_tool(method: Callable) -> Callable:
+    """Preserve a tool's schema without owning its read session.
+
+    Validators can outlive their listener. A retained callback must not keep
+    the session's snapshot, serialized records, or accepted owner alive.
+    A released owner raises GhostCancelled, as a closed session does.
+    """
+    reference = WeakMethod(method)
+    if iscoroutinefunction(method):
+        async def invoke(*args, **kwargs):
+            owner_method = reference()
+            if owner_method is None:
+                raise GhostCancelled("The memory read session is closed or cancelled.")
+            return await owner_method(*args, **kwargs)
+    else:
+        def invoke(*args, **kwargs):
+            owner_method = reference()
+            if owner_method is None:
+                raise GhostCancelled("The memory read session is closed or cancelled.")
+            return owner_method(*args, **kwargs)
+    # functools.wraps adds __wrapped__, which would retain the bound method.
+    invoke.__name__ = method.__name__
+    invoke.__doc__ = method.__doc__
+    invoke.__annotations__ = method.__annotations__
+    invoke.__signature__ = signature(method)
+    return invoke
+
+
 class MemoryReadSession:
     """Own one read snapshot, source trace, and cached graph adjacency.
 
     The host closes this session after native agent cleanup. A refresh replaces
     its snapshot explicitly. Old revisions stay in the trace. Concurrent
     refresh cannot publish a result from the previous snapshot.
+    Registered tools hold weak references. The host owns the session until
+    agent requests finish and its listeners stop.
     """
 
     def __init__(self, config: MemoryToolConfig):
@@ -367,17 +399,21 @@ class MemoryReadSession:
         self.close()
 
     def tools(self) -> dict[str, Callable]:
-        """Return only the configured read operations for MCP registration."""
+        """Return weak callbacks for configured read operations.
+
+        The caller must retain this session until its requests finish.
+        Closure or owner release makes later calls raise GhostCancelled.
+        """
         tools = {"memory_view": self.view, "memory_search": self.search,
                  "memory_get": self.get, "memory_sources": self.sources}
         if self.config.graph:
             tools["memory_neighbors"] = self.neighbors
         if self.config.refresh_view is not None:
             tools["memory_refresh"] = self.refresh
-        return tools
+        return {name: _weak_tool(method) for name, method in tools.items()}
 
     def server(self) -> FastMCP:
-        """Register the scoped tools without inference or another memory owner."""
+        """Register scoped tools while the caller retains this read session."""
         server = FastMCP("memory")
         for name, fn in self.tools().items():
             server.tool(name=name)(fn)

@@ -207,6 +207,7 @@ nav:
           - A09R private ontology: work_items/verification/a09r-private-ontology.md
           - A09R OpenRouter delivery: work_items/verification/a09r-openrouter-delivery.md
           - A14B agent memory: work_items/verification/a14b-agent-memory.md
+          - K001 memory session lifetime: work_items/verification/k001-memory-sessions.md
           - A10 Minecraft actor: work_items/verification/a10-minecraft-actor.md
           - A11 Minecraft projects: work_items/verification/a11-minecraft-projects.md
           - A12 body recovery: work_items/verification/a12-body-recovery.md

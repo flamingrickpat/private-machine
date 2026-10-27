@@ -24,6 +24,9 @@ Construction performs no network work.
 
 [`pm.memory.agent_tools.MemoryReadSession`][] captures the accepted owner and constructs the read tools.
 The host owns this session and closes it after agent cleanup.
+Registered callbacks hold weak references to the session.
+The host must retain the session while its tools serve requests.
+Cached MCP validators cannot keep its memory snapshot alive after the host releases it.
 Optional `refresh_view` supplies a host selector for explicit refresh.
 The agent cannot select a broader view.
 
