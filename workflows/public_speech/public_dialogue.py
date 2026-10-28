@@ -75,7 +75,7 @@ class PublicDialogue(CognitiveWorkflow):
         # Refresh the durable private ontology before the snapshot. The review
         # reads the terms and bindings from the frozen public context.
         from workflows.public_speech.ontology import observe_ontology
-        observe_ontology(self.ghost)
+        observe_ontology(self.ghost, authority_id=request.knoxel_id)
         capabilities = self.capability_provider() if self.capability_provider else None
         with self.ghost.lock:
             self._public_context = build_public_context(self.ghost, request, capabilities=capabilities,
@@ -202,7 +202,8 @@ class PublicDialogue(CognitiveWorkflow):
         with self.ghost.lock:
             return sorted(record.id for record in self.ghost.all_features
                           if record.id > frontier and record.feature_type == FeatureType.Dialogue
-                          and record.override_source == partner and record.content.strip()
+                          and (record.entity_id == request.partner_entity_id if request.partner_entity_id is not None
+                               else record.override_source == partner) and record.content.strip()
                           and record.provenance is not None
                           and record.provenance.source_kind in {SourceKind.User, SourceKind.Agent})
 

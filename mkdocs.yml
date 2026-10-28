@@ -53,6 +53,7 @@ nav:
       - Glossary: concepts/glossary.md
       - Naming rules: concepts/naming.md
   - Subsystems:
+      - Simulation and review: subsystems/simulation.md
       - Runtime files and recovery: subsystems/runtime-files.md
       - Cognition: subsystems/cognition.md
       - Inference settings and parallel calls: subsystems/inference-settings.md
@@ -125,6 +126,10 @@ nav:
       - Managed work: subsystems/managed-work.md
       - Singleton managed workflows: subsystems/managed-singletons.md
   - Work items:
+      - K002 simulation harness:
+          - Requirements and status: work_items/k002/index.md
+          - Causal memory and recovery: work_items/k002/causal-memory.md
+          - Execution evidence: work_items/k002/verification.md
       - Development process: work_items/process.md
       - Structural refactor:
           - Plan: work_items/refactor/index.md

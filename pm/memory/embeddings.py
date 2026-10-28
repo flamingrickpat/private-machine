@@ -312,14 +312,22 @@ class EmbeddingService:
 
     async def record_embedding(self, record: RecordBase, *, cancel: Event | None = None) -> list[float]:
         """Return the record's vector. A missing vector is stored and auto-indexed."""
+        if record.embedding_model and record.embedding_model != self.config.model:
+            record.embedding = []
         if not record.embedding:
             record.embedding = await self.embed(record.content or record.get_story_element(), cancel=cancel)
+        record.embedding_model = self.config.model
         return record.embedding
 
     async def prepare_index(self, records: dict[int, RecordBase], *, cancel: Event | None = None,
                             progress: Callable[[int, int], None] | None = None) -> IndexPlan:
         """Embed all missing records in batches of 32, with up to four requests at once."""
+        for record in records.values():
+            if record.embedding_model and record.embedding_model != self.config.model:
+                record.embedding = []
         plan = self.inspect_index(records)
+        for key in plan.hits:
+            records[key].embedding_model = self.config.model
         completed = len(plan.hits)
         if progress is not None:
             progress(completed, len(records))
@@ -332,6 +340,7 @@ class EmbeddingService:
                                                 cancel=cancel)
                 for key, vector in zip(keys, vectors, strict=True):
                     records[key].embedding = vector
+                    records[key].embedding_model = self.config.model
                 completed += len(keys)
                 if progress is not None:
                     progress(completed, len(records))
@@ -352,7 +361,9 @@ class EmbeddingService:
         if not records:
             return []
         await self.prepare_index(records, cancel=cancel)
-        if index is None:
+        # Historical grants can include versions outside the live head index.
+        # Keep their vectors in a private index so model changes stay isolated.
+        if index is None or not set(records).issubset(index.ids):
             index = VectorIndex()
             index.rebuild(records.values())
         if isinstance(query, str):

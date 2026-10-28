@@ -18,6 +18,7 @@ class Mailbox:
     def __init__(self) -> None:
         self._items: deque[Envelope] = deque()
         self._condition = threading.Condition()
+        self._claimed = False
 
     def put(self, envelope: Envelope) -> None:
         with self._condition:
@@ -28,13 +29,25 @@ class Mailbox:
         with self._condition:
             self._condition.notify_all()
 
-    def take_batch(self, stop_event: threading.Event, timeout: float | None) -> list[Envelope]:
+    def pending(self) -> int:
+        """Return queued envelopes without removing them."""
+        with self._condition:
+            return len(self._items) + int(self._claimed)
+
+    def take_batch(self, stop_event: threading.Event, timeout: float | None, *, claim: bool = False) -> list[Envelope]:
         with self._condition:
             if not self._items and not stop_event.is_set():
                 self._condition.wait(timeout)
             items = list(self._items)
             self._items = deque()
+            if claim and items:
+                self._claimed = True
             return items
+
+    def release(self) -> None:
+        """End a module's claimed delivery after all synchronous publication."""
+        with self._condition:
+            self._claimed = False
 
 
 class BusSystem:

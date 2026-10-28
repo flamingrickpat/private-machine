@@ -241,7 +241,8 @@ class AcceptedCycleTests(unittest.TestCase):
             module.prepare_input([])
             module.publish_output(report.model_dump(mode="json"), [])
             self.assertEqual(errors, [])
-            stored = ghost.get_knoxel_by_id(seeded.id)
+            self.assertEqual(ghost.get_knoxel_by_id(seeded.id).status, "pending")
+            stored = next(record for record in ghost.all_knoxels.values() if record.supersedes_id == seeded.id)
             self.assertEqual(stored.status, "contradicted")
             self.assertEqual(stored.observation_ids, [seeded.id])
 
@@ -323,7 +324,7 @@ class RejectionTests(unittest.TestCase):
             module.prepare_input([])
             # Another writer changes one of the records the cycle read.
             for record_id in module._read_revisions:
-                replaced = ghost.get_knoxel_by_id(record_id)
+                replaced = ghost.get_knoxel_by_id(record_id).copy_for_edit()
                 replaced.metadata = {**(replaced.metadata or {}), "changed": "mid-flight"}
                 other = ghost.begin_batch("mid-flight-writer")
                 other.expect_revision(record_id, module._read_revisions[record_id])
@@ -376,6 +377,11 @@ class RestartTests(unittest.TestCase):
             module, bus, errors = _module(ghost, _reports(), tmp)
             module.handle_batch([])
             self.assertEqual(errors, [])
+            from pm.records.global_workspace import GwtTurnRecord
+            private = ghost.gwt_turns_of("inner")[0]
+            admitted = ghost.begin_batch("main-admit-private", new_tick=True)
+            admitted.set_gwt(GwtTurnRecord(tick_id=admitted.tick_id, knoxel_ids=private.knoxel_ids))
+            ghost.commit(admitted)
             reopened = MemoryStore.from_checkpoint(checkpoint)
             inner = reopened.gwt_turns_of("inner")
             self.assertEqual(len(inner), 1)

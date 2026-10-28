@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 
 REFERENCE_FIELDS = frozenset({
+    "supersedes_id",
     "reality_id", "entity_id", "generated_expectation_ids", "intention_ids",
     "min_event_id", "max_event_id", "subject_entity_id",
     "semantic_record_id", "source_cluster_id", "superseded_by_ids", "source_knoxel_ids",

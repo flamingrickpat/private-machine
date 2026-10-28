@@ -145,9 +145,9 @@ class FocusManagement(CognitiveWorkflow):
             lineage=RecordLineage(episode_id=action.lineage.episode_id if action.lineage else self.invocation_id,
                 operation="direct_attention", parent_record_ids=[action.id], source_event_ids=plan.evidence_ids,
                 topic_hints=plan.focus.topic_hints if plan.focus else []))
-        action.metadata.update(dispatch_status="admitted", mental_result_id=proposal.id,
-                               mental_status="proposed")
-        changes.replace(action)
+        changes.depend_on(report["source_revisions"], authority=action.id)
+        changes.set_lifecycle(action.id, dispatch_status="admitted", mental_result_id=proposal.id,
+                              mental_status="proposed", execution_status="completed")
         try:
             self.ghost.commit(changes)
         except GhostConflict as error:
@@ -171,8 +171,9 @@ class FocusManagement(CognitiveWorkflow):
                           "memory_kind": "interpretation"},
                 lineage=RecordLineage(episode_id=self.invocation_id, operation="mental_failure",
                                      parent_record_ids=[action.id]))
-            action.metadata.update(dispatch_status="admitted", mental_status="failed", mental_result_id=failure.id)
-            changes.replace(action)
+            changes.depend_on([action.id], authority=action.id)
+            changes.set_lifecycle(action.id, dispatch_status="admitted", mental_status="failed",
+                                  mental_result_id=failure.id, execution_status="failed")
             self.ghost.commit(changes)
         self._receipt(failure.id, "failed")
         self.resume()

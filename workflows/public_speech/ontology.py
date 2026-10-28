@@ -150,7 +150,7 @@ def _existing_terms(records: dict) -> dict[str, int]:
 
 def _latest_state_feature(ghost, records: dict) -> dict | None:
     """Return the newest accepted internal-state record, if one exists."""
-    states = ghost.states
+    states = ghost.read_cycles()
     tick = states[-1].tick_id if states else None
     for raw in reversed(list(records.values())):
         data = raw["data"]
@@ -161,12 +161,15 @@ def _latest_state_feature(ghost, records: dict) -> dict | None:
     return None
 
 
-def observe_ontology(ghost, *, threshold: float = BIND_THRESHOLD, max_bindings: int = MAX_BINDINGS) -> dict:
+def observe_ontology(ghost, *, threshold: float = BIND_THRESHOLD, max_bindings: int = MAX_BINDINGS,
+                     authority_id: int | None = None) -> dict:
     """Commit seed terms and bind notable accepted feelings.
 
     Returns a receipt with the created term ids, created binding ids, and the
     terms that were bound. Repeated calls with the same accepted state make no
     new binding. The caller may ignore the receipt.
+    A selected speech action can authorize these derived records. The batch
+    retains their input dependencies; the authority does not admit new stimuli.
     """
     with ghost.lock:
         records = ghost.snapshot().serialize_knoxels()
@@ -180,6 +183,8 @@ def observe_ontology(ghost, *, threshold: float = BIND_THRESHOLD, max_bindings: 
             return {"created_terms": [], "created_bindings": [], "bound_terms": []}
 
         batch = ghost.begin_batch(f"ontology:{new_id()}")
+        if authority_id is not None:
+            batch.depend_on([], authority=authority_id, manifest={"kind": "private_ontology"})
         created_terms = {}
         for item in missing:
             created = batch.create(OntologyTermRecord(

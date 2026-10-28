@@ -70,6 +70,30 @@ class OntologyRenderTests(unittest.TestCase):
 
 
 class ObserveTests(unittest.TestCase):
+    def test_approved_speech_keeps_derived_ontology_through_clean_recovery(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from pm.memory.read_scope import ReadScope
+        from pm.records.memory_records import ActionSchemaRecord
+        from pm.records.enums import ActionType
+        with TemporaryDirectory() as directory:
+            ghost = ghost_with_state(anger=0.8)
+            ghost.checkpoint = Path(directory) / "ghost.pickle"
+            selected = ghost.begin_batch("select-speech", new_tick=True)
+            action = selected.create(ActionSchemaRecord(content="Speak", action_type=ActionType.Reply))
+            selected.set_gwt(GwtTurnRecord(tick_id=selected.tick_id, knoxel_ids=[action.id]))
+            ghost.commit(selected)
+            with ReadScope():
+                receipt = observe_ontology(ghost, authority_id=action.id)
+                ghost.snapshot()
+                result = ghost.begin_batch("approved-speech")
+                result.depend_on([], authority=action.id)
+                reply = result.create(Feature(content="An approved reply", feature_type=FeatureType.Dialogue))
+                ghost.commit(result)
+            reopened = MemoryStore.from_checkpoint(ghost.checkpoint)
+            self.assertIsNotNone(reopened.get_knoxel_by_id(reply.id))
+            self.assertTrue(all(reopened.get_knoxel_by_id(key) is not None for key in receipt["created_terms"]))
+
     def test_notable_feelings_bind_and_terms_are_committed_once(self):
         ghost = ghost_with_state(anger=0.8, tenderness=0.5)
         receipt = observe_ontology(ghost)

@@ -39,6 +39,20 @@ class WrapTests(unittest.TestCase):
 
 
 class WriteTests(unittest.TestCase):
+    def test_parallel_calls_retain_their_workflow_identity_and_exact_error(self):
+        from threading import Event
+        from pm.llm.concurrency import ordered_parallel_map
+        from pm.llm.prompt_log import invocation_scope, log_scope
+        with tempfile.TemporaryDirectory() as directory, log_scope(Path(directory)), invocation_scope("dialogue", "approved-run"):
+            def call(index):
+                path = start_prompt_log(connection=example_connection(), payload={"messages": []},
+                                        route="chat/completions", request_count=index)
+                finish_prompt_log(path, response={"error": {"message": "Context exceeded"}}, error=RuntimeError("HTTP 400"))
+                return json.loads(path.with_suffix(".json").read_text())
+            records = ordered_parallel_map(call, [1, 2], workers=2, cancel=Event())
+            self.assertEqual([row["invocation_id"] for row in records], ["approved-run", "approved-run"])
+            self.assertTrue(all(row["response"]["error"]["message"] == "Context exceeded" for row in records))
+
     def test_prompt_exists_before_response_and_exact_payload_survives_wrapping(self):
         with tempfile.TemporaryDirectory() as directory:
             payload = {"model": "qwen", "messages": [{"role": "user", "content": "a  b\n" + "x" * 150}],
@@ -51,7 +65,7 @@ class WriteTests(unittest.TestCase):
             finish_prompt_log(path, response={"usage": {"prompt_tokens": 5, "completion_tokens": 2,
                                                        "completion_tokens_details": {"reasoning_tokens": 1},
                                                        "cost": 0.0001}}, elapsed=1)
-            self.assertFalse(path.with_suffix(".json").exists())
+            self.assertEqual(json.loads(path.with_suffix(".json").read_text())["payload"], payload)
             self.assertFalse(path.with_suffix(".response.json").exists())
             self.assertEqual(list(Path(directory).glob("*.md")), [path])
             events = read_events(Path(directory))
@@ -70,7 +84,7 @@ class WriteTests(unittest.TestCase):
             self.assertEqual(receipt["event"], "error")
             self.assertIn("CancelledError", receipt["error"])
             self.assertIn("CancelledError", path.read_text(encoding="utf-8"))
-            self.assertFalse(path.with_suffix(".json").exists())
+            self.assertIn("CancelledError", json.loads(path.with_suffix(".json").read_text())["error"])
 
     def test_embeddings_keep_usage_without_vectors(self):
         with tempfile.TemporaryDirectory() as directory:

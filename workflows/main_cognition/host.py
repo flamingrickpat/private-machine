@@ -13,6 +13,8 @@ each run. The phases call the model only through that tool.
 """
 from __future__ import annotations
 
+from pm import vclock
+
 from pm.records.copying import pickle_copy
 
 import asyncio
@@ -176,7 +178,7 @@ def _capabilities(ghost) -> list[str]:
 
 def _state_summary(ghost) -> str:
     """Return the summary of the newest broadcast, or an empty text before the first one."""
-    turns = ghost.gwt_turns
+    turns = ghost.read_workspace_turns()
     if not turns:
         return ""
     return turns[max(turns)].summary
@@ -214,7 +216,7 @@ def seconds_since_user_input(ghost, exclude_ids) -> float | None:
              and int(knoxel.id) not in excluded]
     if not times:
         return None
-    return max(0.0, (datetime.utcnow() - max(times)).total_seconds())
+    return max(0.0, (vclock.utcnow() - max(times)).total_seconds())
 
 
 class MainCogLoop(CognitiveWorkflow):
@@ -239,7 +241,7 @@ class MainCogLoop(CognitiveWorkflow):
     DATA_TOPICS = frozenset({
         "user.input", "thought.created", "task.telemetry", "workflow.question", "workflow.event",
         "system.lifecycle",
-        "minecraft.world",
+        "minecraft.world", "environment.event",
         "cognition.wake",
     })
 
@@ -408,10 +410,9 @@ class MainCogLoop(CognitiveWorkflow):
         matches = [MemoryCandidate.model_validate(item) for item in retrieval["matches"]]
         if rewrite.evidence_use == "event":
             from pm.memory.retrieval import evidence_role
-            records = memory_view.serialize_knoxels()
-            selected_sources = {key for item in matches for key in item.source_ids if key in records}
+            selected_sources = {key for item in matches for key in item.source_ids if key in memory_view.revisions}
             original_sources = {key for key in selected_sources
-                                if evidence_role(memory_view, records[key]) in {"user_report", "runtime_event", "world_observation"}}
+                                if evidence_role(memory_view, memory_view.get(key)) in {"user_report", "runtime_event", "world_observation"}}
             # An answer to a recall question cannot become event evidence for
             # its repetition. Keep speech available for explicit speech recall.
             rejected_ids = {item.knoxel_id for item in matches
@@ -510,19 +511,18 @@ class MainCogLoop(CognitiveWorkflow):
         self._focus_source_revisions = {}
         present = {item.knoxel_id for item in matches}
         from pm.memory.retrieval import evidence_role, memory_kind
-        records = memory_view.serialize_knoxels() if focus_ids else {}
         for key in sorted(focus_ids):
             if key not in memory_view.revisions:
                 continue
             record = memory_view.get(key)
             self._focus_source_revisions[key] = memory_view.revisions[key]
             if key not in present:
-                raw = records[key]
+                raw = record.as_payload(include_embedding=False)
                 matches.append(MemoryCandidate(knoxel_id=key, text=record.content,
                     revision=memory_view.revisions[key], source_ids=[key],
                     memory_kind=memory_kind(raw), evidence_role=evidence_role(memory_view, raw),
                     reasons=["deliberate mental recall"]))
-        previous = self.ghost.states[-1] if self.ghost.states else None
+        previous = self.ghost.read_cycles()[-1] if self.ghost.read_cycles() else None
         # The appraise phase computes the EMA mental state from this history.
         # It reads the live store, like ``previous``: the cycle state and the
         # features that produced it come from the same committed ticks.
@@ -560,7 +560,7 @@ class MainCogLoop(CognitiveWorkflow):
             entity_names=entity_names,
             state_summary=_state_summary(self.ghost),
             previous_state=previous,
-            cycle_time=datetime.utcnow(),
+            cycle_time=vclock.utcnow(),
             state_history=history,
             personality=PersonalityProfile.init_from_vector(self.ghost.ghost_config.personality_profile),
             active_goals=active_goal_texts(self.ghost)[:8],
@@ -578,7 +578,7 @@ class MainCogLoop(CognitiveWorkflow):
                                  else self.workflow_catalogue),
             public_context=public,
             managed_runs=[ManagedRunView.model_validate(run)
-                          for run in list(self.ghost.managed_runs.values())[-16:]],
+                          for run in list(self.ghost.read_run_receipts().values())[-16:]],
             stimulus_revisions=dict(self._stimulus_revisions),
             active_goal_records=[
                 GoalRecordView(knoxel_id=int(item.id), text=str(item.content),
@@ -756,7 +756,7 @@ class MainCogLoop(CognitiveWorkflow):
                     "event": state,
                     "artifact_path": artifact,
                     "evidence": dict(envelope.payload),
-                    "executed_at": event.executed_at or datetime.utcnow().isoformat(),
+                    "executed_at": event.executed_at or vclock.utcnow().isoformat(),
                 },
             )
             result = feature.id, text, "workflow.event"
@@ -808,6 +808,10 @@ class MainCogLoop(CognitiveWorkflow):
         changes = self.ghost.begin_batch(
             self.invocation_id or new_id(), new_tick=True, cancel=self.run_stop,
         )
+        changes.depend_on(self.last_environment.ghost_view.revisions,
+                          manifest={"kind": "main_cognition", "invocation_id": self.invocation_id,
+                                    "request": work.request.model_dump(mode="json")})
+        changes.depend_on_commits(self.last_environment.ghost_view.commit_ids)
         tick = changes.tick_id
         view = changes.view()
         changes.expect_metadata_version("control_kind", "attention_focus", self._focus_family_revisions)
@@ -845,6 +849,7 @@ class MainCogLoop(CognitiveWorkflow):
             if record["created"] and record["intention_id"] is not None
         ]
         goal_ids = [int(item.id) for item in active_intentions(changes.view())]
+        changes.depend_on(goal_ids)
         belief_receipt = update_beliefs(changes, work.context.belief_updates, user_name=self.ghost.get_user_name(),
                                         permitted_source_ids=set(self._stimulus_ids))
         experience_ids = consolidate_cycle(changes, self._stimulus_ids, appraisal_feature, work.affect.felt)
@@ -909,7 +914,7 @@ class MainCogLoop(CognitiveWorkflow):
             accepted_focus = stage_focus(changes, self._memory_view,
                 instruction=focus.instruction, focus=focus.model_dump(mode="json"),
                 companion_name=self.ghost.get_companion_name(),
-                expires_at=(datetime.utcnow() + timedelta(seconds=focus.seconds)).isoformat(),
+                expires_at=(vclock.utcnow() + timedelta(seconds=focus.seconds)).isoformat(),
                 lineage=lineage.model_copy(update={"operation": "focus_acceptance"}))
             created_order.append(accepted_focus.id)
         memory_evidence = [item.model_dump(mode="json") for item in work.selected_memories]
@@ -1083,7 +1088,7 @@ class MainCogLoop(CognitiveWorkflow):
         for item in entered:
             item.entered_tick = tick if item.entered_tick == expected else item.entered_tick
         state.tick_id = tick
-        state.timestamp = datetime.utcnow()
+        state.timestamp = vclock.utcnow()
         state.control_generation = self._control_generation
         state.dispatches = [ActionDispatchRef(
             action_id=created_id, group=dispatch.group, correlation_id=dispatch.correlation_id,
@@ -1261,12 +1266,10 @@ def stage_structures(changes, work: CycleWork, pending: dict[int, int]) -> dict[
 
 
 def mark_causal(changes, view, work: CycleWork) -> list[int]:
-    """Make each stored codelet percept that entered a shard in this cycle causal. Return the ids.
+    """Return percept IDs that entered a workspace shard in this cycle.
 
-    A percept of an earlier cycle can enter a shard later. Its stored record
-    was non-causal until now, so the batch replaces it with ``causal=True``.
-    New percepts of this cycle got the flag in ``stage_percepts``. Call this
-    after ``remap_pending``, so the entered items hold record ids.
+    The GWT trace records later participation without changing old percepts.
+    Call after remap_pending, when entered items have durable record IDs.
     """
     created = changes.created_ids
     entered = [item.record_id for change in work.attention.changes for item in change.entered]
@@ -1277,10 +1280,7 @@ def mark_causal(changes, view, work: CycleWork) -> list[int]:
             continue
         if work.records[record_id].record_class != "CodeletPercept":
             continue
-        record = view.get(record_id).copy_for_edit()
-        if not record.causal:
-            record.causal = True
-            changes.replace(record)
+        # The GWT entry records this later participation. The percept stays immutable.
         caused.append(record_id)
     return [record_id for record_id in caused if work.records[record_id].record_class == "CodeletPercept"]
 

@@ -37,7 +37,7 @@ class GhostConcurrencyTests(unittest.TestCase):
         receipts = self.together(lambda batch, index: batch.create(
             Feature(feature_type=FeatureType.Dialogue, content=f"worker {index}")))
         self.assertTrue(all(not isinstance(item, Exception) for item in receipts))
-        reopened = MemoryStore.from_checkpoint(self.path)
+        reopened = MemoryStore.from_checkpoint(self.path, raw=True)
         self.assertEqual({record.content for record in reopened.all_knoxels.values()}, {"worker 0", "worker 1"})
         self.assertEqual(len({receipt.added_ids[0] for receipt in receipts}), 2)
         self.assertEqual(len({receipt.tick_id for receipt in receipts}), 2)
@@ -53,14 +53,15 @@ class GhostConcurrencyTests(unittest.TestCase):
 
         results = self.together(prepare)
         self.assertEqual(sum(isinstance(result, GhostConflict) for result in results), 1)
-        reopened = MemoryStore.from_checkpoint(self.path)
-        winner = reopened.get_knoxel_by_id(original.id).content[-1]
+        reopened = MemoryStore.from_checkpoint(self.path, raw=True)
+        winner = next(item.content[-1] for item in reopened.all_knoxels.values() if item.supersedes_id == original.id)
         self.assertEqual({record.content for record in reopened.all_knoxels.values()}, {f"winner {winner}", f"append {winner}"})
-        self.assertEqual(reopened.revisions[original.id], 2)
+        self.assertEqual(reopened.revisions[original.id], 1)
+        self.assertEqual(reopened.get_knoxel_by_id(original.id).content, "original")
 
     def test_same_run_receipt_has_one_winner(self):
         results = self.together(lambda batch, index: batch.set_run_receipt(
             "job", {"state": "completed", "result": index}))
         self.assertEqual(sum(isinstance(result, GhostConflict) for result in results), 1)
-        reopened = MemoryStore.from_checkpoint(self.path)
+        reopened = MemoryStore.from_checkpoint(self.path, raw=True)
         self.assertEqual(reopened.managed_runs, self.ghost.managed_runs)

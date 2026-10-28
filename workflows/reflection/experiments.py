@@ -5,6 +5,8 @@ Every lifecycle step checks its source revisions. No helper commits or sends
 an event. The private host owns cancellation, persistence, and publication.
 """
 
+from pm import vclock
+
 from pm.records.copying import pickle_copy
 from datetime import datetime, timedelta
 
@@ -226,7 +228,7 @@ def validate_decision(decision: ReflectionDecision, payload: dict) -> None:
 def _event(data: dict, batch, action: str, reason: str, **facts) -> None:
     """Append a lifecycle receipt without replacing earlier predictions or results."""
     data["history"].append({"action": action, "reason": reason, "tick_id": batch.tick_id,
-                            "at": datetime.utcnow().isoformat(), **facts})
+                            "at": vclock.utcnow().isoformat(), **facts})
 
 
 def stage_decision(batch, view, decision: ReflectionDecision, payload: dict, *,
@@ -349,7 +351,7 @@ def _apply(batch, view, experiment_id, plan, data, companion, maximum_bias):
         focus.update(accept=True, fresh=False, strength=min(focus["strength"], maximum_bias))
         return stage_focus(batch, view, instruction=focus["instruction"], focus=focus,
             companion_name=companion, experiment_id=experiment_id,
-            expires_at=(datetime.utcnow() + timedelta(seconds=focus["seconds"])).isoformat())
+            expires_at=(vclock.utcnow() + timedelta(seconds=focus["seconds"])).isoformat())
     from workflows.main_cognition.cycle_commits import revise_reflected_belief
     return revise_reflected_belief(batch, view.get(change.expected_record_id), text=change.belief,
         evidence_ids=plan.hypotheses[0].supporting_ids, opposing_ids=plan.hypotheses[0].opposing_ids,
@@ -367,7 +369,7 @@ def _reverse(batch, view, experiment_id, data, plan, companion):
             raise GhostConflict("Newer attention advice prevents reversal of this experiment.")
         return stage_focus(batch, view, instruction=previous.get("focus", {}).get("instruction", "Restore prior attention advice."),
             focus=previous.get("focus", {}), companion_name=companion, experiment_id=experiment_id,
-            expires_at=previous.get("expires_at") or datetime.utcnow().isoformat())
+            expires_at=previous.get("expires_at") or vclock.utcnow().isoformat())
     from workflows.main_cognition.cycle_commits import revise_reflected_belief
     return revise_reflected_belief(batch, view.get(effective_id), text=previous["text"],
         evidence_ids=previous["supporting_ids"], opposing_ids=previous["opposing_ids"],

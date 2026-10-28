@@ -4,7 +4,7 @@ from pathlib import Path
 import mkdocs_gen_files
 
 nav = mkdocs_gen_files.Nav()
-roots = [Path("pm"), Path("workflows")]
+roots = [Path("pm"), Path("workflows"), Path("simulation")]
 paths = [p for root in roots for p in root.rglob("*.py")]
 paths += [Path("main.py")]
 paths += [Path("dev/work_items/alpha_input_gate.py"), Path("dev/work_items/alpha_classification_gate.py"), Path("dev/work_items/alpha_pm_classification_gate.py")]
@@ -25,10 +25,9 @@ paths += [Path("dev/work_items/alpha_a14_dialogue_gate.py")]
 paths += list(Path("dev/work_items/a18b").glob("*.py"))
 paths += [Path("dev/work_items/alpha_a18c_wait_gate.py")]
 paths += [Path("dev/work_items/alpha_a19_reflection_gate.py")]
-paths += [Path("dev/work_items/alpha_a19_review.py"), Path("dev/review/cognitive_trace.py")]
-paths += [Path("dev/review/record_format.py")]
+paths += [Path("dev/work_items/alpha_a19_review.py")]
 paths += [Path("dev/work_items/alpha_a19f_groups_gate.py")]
-paths += [Path("dev/kanban/server.py")]
+paths += [Path("dev/kanban/server.py"), Path("dev/work_items/k002/recovery.py")]
 for path in sorted(paths):
     if "tests" in path.parts or any(part.startswith("_") for part in path.parts):
         continue

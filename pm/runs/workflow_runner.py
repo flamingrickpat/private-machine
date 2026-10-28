@@ -52,6 +52,30 @@ class WorkflowResult:
     resume_phase: str | None = None
 
 
+class _ProjectionKernel(Kernel):
+    """Retry a locked diagnostic projection without repeating a kernel phase."""
+
+    def __init__(self, *args: Any, state_lock_attempts: int = 5, **kwargs: Any) -> None:
+        self._state_lock_attempts = state_lock_attempts
+        super().__init__(*args, **kwargs)
+
+    def _render_state_md(self, current_phase: str) -> None:
+        """Retry only the journal projection. Other permission errors propagate.
+
+        Windows readers can briefly prevent replacement of state.md. Re-entering
+        the workflow here would repeat a completed phase or an external effect.
+        """
+        for attempt in range(self._state_lock_attempts):
+            try:
+                return super()._render_state_md(current_phase)
+            except PermissionError:
+                if attempt == self._state_lock_attempts - 1:
+                    raise
+                logging.getLogger(__name__).warning(
+                    "State projection locked phase=%s attempt=%d", current_phase, attempt + 1, exc_info=True)
+                time.sleep(0.25 * (attempt + 1))
+
+
 class WorkflowRunner:
     """Reuse the real kernel without a bus, module thread, or MemoryStore dependency.
 
@@ -90,12 +114,9 @@ class WorkflowRunner:
         supplied runtime enables ``propagate_python_errors``. ``resume``
         continues a suspended run from its retained journal.
 
-        The kernel projects its journal into a read-only ``state.md`` through an
-        atomic replace. Windows can hold a transient lock on that file (indexer,
-        backup, antivirus), and ``os.replace`` then raises ``PermissionError``.
-        The journal is the source of truth and is written before the projection,
-        so a bounded retry resumes from the journal instead of repeating a
-        completed phase or an external effect.
+        The kernel projects its journal into read-only state.md files.
+        Windows can briefly lock a destination during replacement.
+        Retry that projection in place. Never restart the workflow for a file lock.
         """
         logger = logging.getLogger(__name__)
         started = time.monotonic()
@@ -113,35 +134,29 @@ class WorkflowRunner:
         )
         summary = None
         kernel = None
-        for attempt in range(self.state_lock_attempts):
-            try:
-                kernel = Kernel(
-                    manifest_path=self.workflow,
-                    workspace=self.runtime_root / self.namespace / request.run_id / "workspace",
-                    task_id=request.run_id,
-                    task_text=f"Read inbox/request.yaml from the supplied working target ({request.run_id}). "
-                              "Write the final YAML report to outbox/report.yaml in that target. "
-                              "Agent tools already use the target. Use relative paths.",
-                    base_dir=self.base_dir,
-                    coding_agent="pm-coder" if runtime.agent_model is not None else "python",
-                    kernel_data_root=self.runtime_root / "kernel",
-                    run_id=request.run_id,
-                    resume=resume or attempt > 0,
-                    allowed_mcp=allowed_mcp,
-                    runtime=runtime,
-                    request_data=request.payload,
-                )
-                if getattr(kernel.driver, "kind", None) == "pm-coder":
-                    from pm.llm.prompt_log import log_directory
-                    # Keep native role and compaction prompts beside direct calls.
-                    # The installed driver still owns the request log format.
-                    kernel.driver.log_root = log_directory() / "agents"
-                summary = kernel.run()
-                break
-            except PermissionError:
-                if attempt == self.state_lock_attempts - 1:
-                    raise
-                time.sleep(0.25 * (attempt + 1))
+        kernel = _ProjectionKernel(
+            manifest_path=self.workflow,
+            workspace=self.runtime_root / self.namespace / request.run_id / "workspace",
+            task_id=request.run_id,
+            task_text=f"Read inbox/request.yaml from the supplied working target ({request.run_id}). "
+                      "Write the final YAML report to outbox/report.yaml in that target. "
+                      "Agent tools already use the target. Use relative paths.",
+            base_dir=self.base_dir,
+            coding_agent="pm-coder" if runtime.agent_model is not None else "python",
+            kernel_data_root=self.runtime_root / "kernel",
+            run_id=request.run_id,
+            resume=resume,
+            state_lock_attempts=self.state_lock_attempts,
+            allowed_mcp=allowed_mcp,
+            runtime=runtime,
+            request_data=request.payload,
+        )
+        if getattr(kernel.driver, "kind", None) == "pm-coder":
+            from pm.llm.prompt_log import log_directory
+            # Keep native role and compaction prompts beside direct calls.
+            # The installed driver still owns the request log format.
+            kernel.driver.log_root = log_directory() / "agents"
+        summary = kernel.run()
         status = _status(summary, self.success_status, runtime.stop_event.is_set())
         logger.info("Workflow end namespace=%s run=%s status=%s seconds=%.3f", self.namespace,
                     request.run_id, status.value, time.monotonic() - started)

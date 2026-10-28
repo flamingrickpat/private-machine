@@ -1,5 +1,5 @@
 """Retain episode membership without assigning a permanent memory topic."""
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class RecordLineage(BaseModel):
@@ -10,6 +10,7 @@ class RecordLineage(BaseModel):
     Reality labels describe the content, not whether the operation ran.
     """
 
+    model_config = ConfigDict(frozen=True)
     episode_id: str
     operation: str
     sequence: int = Field(default=0, ge=0)

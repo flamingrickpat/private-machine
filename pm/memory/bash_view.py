@@ -80,7 +80,7 @@ class MemoryBashEnvironment(WorkingEnvironment):
         # ``cd /work`` needs /work to exist; inbox/outbox/scratch hold traffic.
         result = self.machine.exec("user",
             "mkdir -p /work/inbox /work/outbox /work/scratch "
-            "/work/ghost/knoxels /work/ghost/gwt"
+            "/work/ghost/knoxels /work/ghost/gwt /work/ghost/history"
         )
         if result.exit_code != 0:
             raise RuntimeError(result.stderr)
@@ -95,6 +95,9 @@ class MemoryBashEnvironment(WorkingEnvironment):
         for tick in sorted(self.turns):
             path = f"/work/ghost/gwt/{tick}.yaml"
             files[path] = _LazyRecordFile(self.turns[tick])
+        if ghost_view is not None:
+            for record_id, record in ghost_view.historical_records.items():
+                files[f"/work/ghost/history/{record_id}.yaml"] = _LazyRecordFile(record)
         files["/work/ghost/index.yaml"] = _LazyRecordFile(index)
         self.machine.write_texts(files, access=Access.R)
 

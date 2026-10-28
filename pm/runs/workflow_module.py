@@ -18,6 +18,7 @@ from concurrent.futures import CancelledError as FutureCancelledError
 import uuid
 from abc import abstractmethod
 from pathlib import Path
+import json
 from typing import Any, Callable, Mapping
 
 from fastmcp import FastMCP
@@ -30,6 +31,7 @@ from pm.llm.workflow_sessions import WorkflowModels
 from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowResult, WorkflowRunner, WorkflowStatus
 from pm.bus.envelopes import Envelope
 from pm.memory.store_tools import build_tools
+from pm.memory.read_scope import ReadScope, current as current_reads
 
 
 class WorkflowModule(BusModule):
@@ -125,12 +127,102 @@ class WorkflowModule(BusModule):
         self.run_stop.set()
         self.mailbox.wake()
 
+    @property
+    def parked_path(self) -> Path:
+        """Return this module's durable wait receipt path."""
+        return self.runtime_root / "parked" / f"{self.module_id}.json"
+
+    def save_parked(self) -> None:
+        """Persist a parked request after its kernel journal reaches the wait.
+
+        No running model call is serialized. The kernel journal owns resume.
+        Missing or excluded input records prevent restoration of that branch.
+        """
+        from pm.host.durable_files import atomic_json
+        pending = self._pending
+        if pending is None:
+            self.parked_path.unlink(missing_ok=True)
+            return
+        view = getattr(pending["environment"], "ghost_view", None)
+        state = {
+            "run_id": pending["request"].run_id, "payload": pending["request"].payload,
+            "envelopes": [item.to_json() for item in pending["envelopes"]],
+            "question_id": pending["question_id"], "resume_phase": pending["resume_phase"],
+            "visible_ids": list(view.revisions) if view is not None else None}
+        atomic_json(self.parked_path, state)
+        ghost = getattr(self.working_target, "ghost", None)
+        if ghost is not None:
+            from pm.records.codelet_records import ModuleOutput
+            from pm.runs.parked_state import capture_kernel
+            state["kernel_state"] = capture_kernel(self.runtime_root, self.module_id, state["run_id"])
+            environment = pending["environment"]
+            state["files"] = {name: environment.read_text(name)
+                              for directory in ("inbox", "outbox", "scratch") for name in environment.list_files(directory)}
+            changes = ghost.begin_batch(f"parked:{self.module_id}:{state['run_id']}:{state['question_id']}")
+            if view is not None:
+                changes.depend_on(view.revisions)
+                changes.depend_on_commits(view.commit_ids)
+            action_id = next((item.payload.get("knoxel_id") for item in pending["envelopes"]
+                              if item.topic == "action.request"), None)
+            if action_id is not None:
+                changes.depend_on([action_id], authority=action_id)
+            changes.create(ModuleOutput(content="The workflow is parked for outside input.", source_module=self.module_id,
+                status="waiting_for_input", metadata={"parked_module": state, "memory_kind": "runtime_receipt"}))
+            ghost.commit(changes)
+
+    def restore_parked(self) -> None:
+        """Restore an accepted parked invocation without calling its model."""
+        ghost = getattr(self.working_target, "ghost", None)
+        raw = None
+        if ghost is not None:
+            from pm.records.codelet_records import ModuleOutput
+            finished = {item.metadata.get("finished_invocation_id") for item in ghost.all_knoxels.values()
+                        if isinstance(item, ModuleOutput)}
+            candidates = [item for item in ghost.all_knoxels.values() if isinstance(item, ModuleOutput)
+                          and item.source_module == self.module_id and item.metadata.get("parked_module")
+                          and item.metadata["parked_module"]["run_id"] not in finished]
+            if candidates:
+                raw = candidates[-1].metadata["parked_module"]
+        if raw is None:
+            if not self.parked_path.exists() or ghost is not None and ghost.causal_history is not None:
+                return
+            raw = json.loads(self.parked_path.read_text(encoding="utf-8"))
+        visible_ids = raw["visible_ids"]
+        if ghost is not None and visible_ids is not None:
+            if any(ghost.get_knoxel_by_id(key) is None for key in visible_ids):
+                return
+            from pm.memory.bash_view import MemoryBashEnvironment
+            view = ghost.snapshot(visible_ids)
+            environment = MemoryBashEnvironment(view.all_knoxels, view._gwt, "read", ghost_view=view)
+        else:
+            environment = self.working_target.open(raw["run_id"])
+        if raw.get("kernel_state"):
+            from pm.runs.parked_state import restore_kernel
+            restore_kernel(self.runtime_root, self.module_id, raw["run_id"], raw["kernel_state"])
+            for name, content in raw.get("files", {}).items():
+                import posixpath
+                import shlex
+                parent = posixpath.dirname(name)
+                result = environment.exec("mkdir -p -- " + shlex.quote(parent))
+                if result.exit_code != 0:
+                    raise RuntimeError(result.stderr)
+                environment.write_text(name, content)
+        self.invocation_id = raw["run_id"]
+        self.last_environment = environment
+        envelopes = [Envelope.from_json(item) for item in raw["envelopes"]]
+        self.prepare_input(envelopes)
+        self._pending = {"request": WorkflowRequest(raw["run_id"], raw["payload"]),
+                         "environment": environment, "envelopes": envelopes,
+                         "question_id": raw["question_id"], "resume_phase": raw["resume_phase"]}
+
     # ------------------------------------------------------------ execution
 
     def handle_batch(self, batch: list[Envelope]) -> None:
         from pm.memory.snapshot import GhostCancelled
+        from pm.llm.prompt_log import invocation_scope
         try:
-            self._handle_batch(batch)
+            with ReadScope(), invocation_scope(self.module_id, lambda: self.invocation_id):
+                self._handle_batch(batch)
         except (asyncio.CancelledError, FutureCancelledError, GhostCancelled):
             # Only an explicit cancellation signal makes cancellation expected.
             # Logic and transport errors still reach the application during stop.
@@ -169,6 +261,9 @@ class WorkflowModule(BusModule):
     def _resume(self, answer: str) -> None:
         pending = self._pending
         self._pending = None
+        ghost = getattr(self.working_target, "ghost", None)
+        if ghost is not None:
+            ghost.snapshot()
         runner = self._runner()
         runner.write_answer(
             pending["request"].run_id,
@@ -214,6 +309,7 @@ class WorkflowModule(BusModule):
         if result.status is WorkflowStatus.Failed:
             self._discard(proposal_batch)
             self._pending = None
+            self._record_failure(request, batch, result)
             raise RuntimeError(
                 f"workflow {self.module_id} ended unsuccessfully: {result.kernel_summary}"
             )
@@ -225,12 +321,18 @@ class WorkflowModule(BusModule):
                 "question_id": result.question_id,
                 "resume_phase": result.resume_phase,
             }
+            self.save_parked()
             self.publish_question(result, batch)
             return
         if self.run_stop.is_set():
             self._discard(proposal_batch)
             return
+        reads = current_reads()
+        if reads is not None:
+            reads.collecting = False
+            reads.completed_invocation_id = request.run_id
         self.publish_output(result.report, batch)
+        self.parked_path.unlink(missing_ok=True)
 
     def _runner(self) -> WorkflowRunner:
         return WorkflowRunner(
@@ -238,6 +340,28 @@ class WorkflowModule(BusModule):
             success_status=self.success_status,
             models=self.workflow_models,
         )
+
+    def _record_failure(self, request: WorkflowRequest, envelopes: list[Envelope], result: WorkflowResult) -> None:
+        """Finish an approved action only for a declared terminal kernel failure.
+
+        Python and transport exceptions bypass this method. Their selected
+        actions remain pending because those exceptions prove no clean outcome.
+        """
+        ghost = getattr(self, "ghost", None)
+        if ghost is None or not envelopes or envelopes[0].topic != "action.request":
+            return
+        action_id = envelopes[0].payload.get("knoxel_id")
+        if action_id is None:
+            return
+        reads = current_reads()
+        if reads is not None:
+            reads.collecting = False
+            reads.completed_invocation_id = request.run_id
+        changes = ghost.begin_batch(f"workflow-failure:{request.run_id}")
+        changes.depend_on([action_id], authority=action_id,
+                          manifest={"kind": "workflow_failure", "summary": result.kernel_summary})
+        changes.set_lifecycle(action_id, dispatch_status="admitted", execution_status="failed")
+        ghost.commit(changes)
 
     @staticmethod
     def _discard(proposal_batch: Any) -> None:

@@ -89,7 +89,7 @@ Successful completion establishes observed execution only. It supplies no automa
 ## Register and review
 
 ```powershell
-uv run --locked python dev/review/server.py register `
+uv run --locked python -m simulation.review register `
   .runtime/alpha/YOUR-RUN/review-bundle.json
 ```
 
@@ -115,11 +115,11 @@ World polling stays disabled because this scenario concerns a shared story.
 uv run --locked python dev/work_items/alpha_a19_review.py `
   --source .runtime/alpha/YOUR-A19-EVALUATION/ghost.json `
   --out .runtime/alpha/YOUR-A19-REVIEW
-uv run --locked python dev/review/cognitive_trace.py `
+uv run --locked python -m simulation.review.cognitive_trace `
   .runtime/alpha/YOUR-A19-REVIEW --id YOUR-REVIEW-ID
-uv run --locked python dev/review/server.py register `
+uv run --locked python -m simulation.review register `
   .runtime/alpha/YOUR-A19-REVIEW/review-bundle.json
-uv run --locked python dev/review/server.py serve
+uv run --locked python -m simulation
 ```
 
 The runner waits for each source exchange's recorded public outcome.
@@ -130,7 +130,7 @@ Use `--drain-only` to finish pending exchanges without adding new messages after
 The continuation preserves previously captured delivery rows when its source receipt contains them.
 
 The offline exporter reads the completed checkpoint and copies selected records into an immutable bundle.
-See [`dev.review.cognitive_trace.build_bundle`][] for the export contract.
+See [`simulation.review.cognitive_trace.build_bundle`][] for the export contract.
 It uses the generic [runtime record-package contract](record-packages.md) for chat, private activity, and each retained GWT turn.
 The review server still reads no checkpoint and runs no inference.
 The A19 selection starts at record 11203, after the complete 11,202-record canon.

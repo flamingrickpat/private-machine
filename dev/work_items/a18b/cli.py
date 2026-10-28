@@ -431,13 +431,13 @@ def main() -> int:
         report = summarize(out, suite, results)
         print(render(out, suite, report))
         if args.register:
-            subprocess.run([sys.executable, "dev/review/server.py", "register", str(bundle(out, suite, report))], cwd=ROOT, check=True)
+            subprocess.run([sys.executable, "-m", "simulation.review", "register", str(bundle(out, suite, report))], cwd=ROOT, check=True)
         return 0 if report["passed"] else 1
     results = run_cases(out, suite, args.config, args.case, seed=args.seed, jobs=args.jobs)
     report = summarize(out, suite, results)
     render(out, suite, report)
     path = bundle(out, suite, report)
     if args.register:
-        subprocess.run([sys.executable, "dev/review/server.py", "register", str(path)], cwd=ROOT, check=True)
+        subprocess.run([sys.executable, "-m", "simulation.review", "register", str(path)], cwd=ROOT, check=True)
     print(path, flush=True)
     return 0 if report["passed"] else 1

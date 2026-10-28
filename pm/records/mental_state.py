@@ -1106,7 +1106,7 @@ def features_to_history(features: List["Feature"],
     by entity.
     """
     samples = [feature_state_sample(feature) for feature in features if feature.causal]
-    samples += [percept_state_sample(percept) for percept in percepts if percept.causal]
+    samples += [percept_state_sample(percept) for percept in percepts if percept.was_in_workspace()]
     return sorted(samples, key=lambda sample: sample.timestamp)
 
 

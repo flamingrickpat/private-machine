@@ -5,6 +5,8 @@ Delivery can repeat after a crash. Consumers deduplicate by the utterance ID.
 """
 from __future__ import annotations
 
+from pm import vclock
+
 from datetime import datetime, timezone
 
 from pm.bus.envelopes import Envelope, new_id
@@ -44,6 +46,15 @@ def commit_public_reply(ghost, text: str, correlation: str, *, commit_id: str,
         if action_id is None and exchange is not None and exchange.metadata.get("exchange_status") == "resolved":
             return None
         batch = ghost.begin_batch(commit_id, cancel=cancel)
+        inputs = set(context.revisions) if context is not None else set()
+        if context is not None:
+            inputs.update(context.input_record_ids)
+            batch.depend_on_commits(context.input_commit_ids)
+        if exchange is not None:
+            inputs.add(exchange.id)
+        authority_id = action_id if action_id is not None else context.action_schema_id if context is not None else None
+        batch.depend_on(inputs, authority=authority_id,
+                        manifest={"kind": "public_reply", "context": context.model_dump(mode="json") if context is not None else None})
         if context is not None:
             validate_public_context(ghost, context)
             for key, revision in context.revisions.items():
@@ -61,7 +72,7 @@ def commit_public_reply(ghost, text: str, correlation: str, *, commit_id: str,
                       "generation_state_tick": context.state_tick if context is not None else None,
                       "generation_source_revisions": dict(context.revisions) if context is not None else {},
                       "responding_to_ids": list(context.stimulus_user_ids) if context is not None else [],
-                      "executed_at": datetime.now(timezone.utc).isoformat()},
+                      "executed_at": vclock.now_aware().isoformat()},
         ))
         resolved_ids = set(context.stimulus_user_ids) if context is not None else set()
         if exchange is not None:
@@ -69,14 +80,9 @@ def commit_public_reply(ghost, text: str, correlation: str, *, commit_id: str,
         for key in resolved_ids:
             source = ghost.snapshot({key}).get(key).copy_for_edit()
             if source.metadata.get("exchange_status") == "pending":
-                source.metadata.update(exchange_status="resolved", public_reply_id=reply.id, recovery_outcome=recovery)
-                batch.replace(source)
+                batch.set_lifecycle(key, exchange_status="resolved", public_reply_id=reply.id, recovery_outcome=recovery)
         if action_id is not None and action_id in ghost.revisions:
-            action = ghost.snapshot({action_id}).get(action_id).copy_for_edit()
-            if action.metadata.get("dispatch_status") == "pending":
-                action.metadata["dispatch_status"] = "admitted"
-            action.metadata["public_reply_id"] = reply.id
-            batch.replace(action)
+            batch.set_lifecycle(action_id, dispatch_status="admitted", execution_status="completed", public_reply_id=reply.id)
         receipt = ghost.commit(batch)
         return receipt.added_ids[0]
 
@@ -87,6 +93,8 @@ def validate_public_context(ghost, context) -> None:
     The caller holds the MemoryStore lock. Recovery must not replace old revision
     guards with a fresh snapshot after their original evidence changed.
     """
+    if any(key not in ghost.all_knoxels for key in context.head_ids):
+        raise GhostConflict("Public evidence acquired a successor during generation.")
     for key, revision in context.revisions.items():
         if ghost.revisions.get(key) != revision:
             from workflows.public_speech.public_context import source_fingerprint
@@ -109,9 +117,8 @@ def acknowledge_reply(ghost, reply_id: int) -> None:
         if reply is None or reply.metadata.get("publication_status") != "pending":
             return
         batch = ghost.begin_batch(f"public-ack:{reply_id}")
-        reply = reply.copy_for_edit()
-        reply.metadata["publication_status"] = "published"
-        batch.replace(reply)
+        batch.depend_on([reply_id], authority=reply_id)
+        batch.set_lifecycle(reply_id, publication_status="published")
         ghost.commit(batch)
 
 

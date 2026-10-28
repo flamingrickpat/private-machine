@@ -1,7 +1,7 @@
 """Typed membership and revisions over shared memory records."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from collections.abc import Iterator, Mapping
 from typing import Any
 
@@ -42,6 +42,8 @@ class Snapshot:
     _gwt: dict[int, GwtTurnRecord]
     revisions: dict[int, int]
     embedding_index: VectorIndex | None = None
+    commit_ids: frozenset[str] = frozenset()
+    historical_records: dict[int, RecordBase] = field(default_factory=dict)
 
     @property
     def all_knoxels(self) -> dict[int, RecordBase]:
@@ -50,11 +52,13 @@ class Snapshot:
 
     def get(self, record_id: int) -> RecordBase:
         """Return the shared record. A missing ID raises KeyError."""
-        return self._records[record_id]
+        if record_id in self._records:
+            return self._records[record_id]
+        return self.historical_records[record_id]
 
     def get_knoxel_by_id(self, record_id: int) -> RecordBase | None:
         """Return a shared member or None. Keep its central owner."""
-        return self._records.get(record_id)
+        return self._records.get(record_id) or self.historical_records.get(record_id)
 
     def get_entity_name(self, entity_id: int) -> str:
         """Return the content of a visible entity."""

@@ -1,3 +1,5 @@
+
+from pm import vclock
 from datetime import datetime
 from typing import Dict, Any, List
 
@@ -31,7 +33,7 @@ class CycleState(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     tick_id: int
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=vclock.utcnow)
 
     mental_state: FullMentalState = Field(default_factory=FullMentalState, description="Current EMA-normalized mental state.")
     csm: SituationalModel = Field(default_factory=SituationalModel, description="Unconscious content with activation.")

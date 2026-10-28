@@ -11,12 +11,12 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-LOCAL_ROOTS = {"pm", "workflows", "runtime", "pm_core", "main", "modules", "tests", "dev"}
+LOCAL_ROOTS = {"pm", "workflows", "runtime", "pm_core", "main", "modules", "tests", "dev", "simulation"}
 EVERYTHING_IN_PM = {"records", "llm", "context_render", "memory", "bus", "host", "runs", "app", "console", "paths", "introspection"}
 #: Leaf modules that every runtime package may import. They import no other
 #: runtime package: ``pm.constants`` holds tunable numbers (A19F engineering
 #: rules) and ``pm.utils`` holds the YAML helpers.
-LEAF_MODULES = {"constants", "utils"}
+LEAF_MODULES = {"constants", "utils", "vclock"}
 
 #: Runtime package -> runtime packages it may import.
 ALLOWED_IN_PM: dict[str, set[str]] = {

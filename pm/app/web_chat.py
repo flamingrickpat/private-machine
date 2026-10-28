@@ -24,6 +24,7 @@ only selects the speaker. Anyone who can open the URL can speak as any name.
 from __future__ import annotations
 
 import threading
+import json
 from collections.abc import Callable
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -212,11 +213,14 @@ class WebChatServer:
     path) and answers 500, so the app stops instead of hiding the error.
     """
 
-    def __init__(self, store: MemoryStore, submit: Submit, *, port: int,
-                 on_error: Callable[[BaseException], None], host: str = WEB_CHAT_HOST) -> None:
+    def __init__(self, store: MemoryStore | None, submit: Submit, *, port: int,
+                 on_error: Callable[[BaseException], None], host: str = WEB_CHAT_HOST,
+                 control: Callable[[str, dict], dict] | None = None) -> None:
         self.store = store
         self.submit = submit
         self.on_error = on_error
+        self.control = control
+        self.stopping = threading.Event()
         # Request threads are not daemon threads, so ``server_close`` joins
         # them: a message that is being committed finishes before shutdown.
         self._httpd = ThreadingHTTPServer((host, port), _handler(self))
@@ -235,6 +239,7 @@ class WebChatServer:
 
     def stop(self) -> None:
         """Stop serving. New messages cannot arrive after this returns."""
+        self.stopping.set()
         if self._thread.is_alive():
             self._httpd.shutdown()
         self._httpd.server_close()
@@ -301,6 +306,18 @@ def _handler(chat: WebChatServer) -> type[BaseHTTPRequestHandler]:
         def _json(self, model: BaseModel, status: int = 200) -> None:
             self._send(status, model.model_dump_json().encode("utf-8"), "application/json; charset=utf-8")
 
+        def _json_error(self, error: str, status: int) -> None:
+            self._json(ErrorResult(error=error), status)
+
+        def _control(self, path: str, body: dict) -> None:
+            if chat.control is None:
+                return self._json_error("Runtime control is unavailable.", 503)
+            try:
+                result = chat.control(path, body)
+            except (ValueError, KeyError) as error:
+                return self._json_error(str(error), 400)
+            self._send(200, json.dumps(result, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8")
+
         def _same_origin(self) -> bool:
             # A page of another site can send a POST to loopback. The browser
             # names that site in Origin, so only this server's own origin passes.
@@ -327,6 +344,13 @@ def _handler(chat: WebChatServer) -> type[BaseHTTPRequestHandler]:
 
         def _get(self) -> None:
             path = urlparse(self.path)
+            if path.path == "/v1/events":
+                from pm.app.transport import serve_events
+                return serve_events(self, chat)
+            if path.path.startswith("/control/"):
+                return self._control(path.path, {key: values[0] for key, values in parse_qs(path.query).items()})
+            if chat.store is None and path.path.startswith("/api/"):
+                return self._json_error("The participant has not started.", 503)
             if path.path == "/api/session":
                 return self._json(chat.session())
             if path.path == "/api/messages":
@@ -347,7 +371,10 @@ def _handler(chat: WebChatServer) -> type[BaseHTTPRequestHandler]:
             return self._json(ErrorResult(error="Unknown path."), 404)
 
         def _post(self) -> None:
-            if urlparse(self.path).path != "/api/messages":
+            path = urlparse(self.path).path
+            if path in {"/v1/completions", "/v1/chat/completions", "/v1/completion"} or path.startswith("/control/"):
+                return self._stimulus_or_control(path)
+            if path != "/api/messages":
                 return self._json(ErrorResult(error="Unknown path."), 404)
             if not self._same_origin():
                 return self._json(ErrorResult(error="Cross-origin requests are rejected."), 403)
@@ -367,5 +394,36 @@ def _handler(chat: WebChatServer) -> type[BaseHTTPRequestHandler]:
             except ValueError as exc:
                 return self._json(ErrorResult(error=f"Invalid image: {exc}"), 400)
             return self._json(PostResult(correlation_id=chat.submit(message.text, speaker=message.name, images=images)))
+
+        def _stimulus_or_control(self, path: str) -> None:
+            from pm.app.transport import CompletionStimulus, StimulusAccepted
+            if not self._same_origin():
+                return self._json_error("Cross-origin requests are rejected.", 403)
+            length = self.headers.get("Content-Length", "")
+            if not length.isdigit() or int(length) < 1:
+                return self._json_error("A JSON body is required.", 400)
+            try:
+                body = json.loads(self.rfile.read(int(length)))
+                if not isinstance(body, dict):
+                    raise ValueError("The request must be a JSON object.")
+                if path.startswith("/control/"):
+                    return self._control(path, body)
+                if chat.store is None:
+                    return self._json_error("The participant has not started.", 503)
+                request = CompletionStimulus.model_validate(body)
+                speaker = request.user or chat.store.get_user_name()
+                if chat.names_the_companion(speaker):
+                    raise ValueError("The speaker name belongs to the companion.")
+                options = {"speaker": speaker}
+                if request.delivery_id:
+                    options["delivery_id"] = request.delivery_id
+                if request.entity_ref:
+                    options["entity_ref"] = request.entity_ref
+                stimulus_id = chat.submit(request.messages[-1]["content"], **options)
+            except (ValueError, ValidationError) as error:
+                return self._json_error(str(error), 400)
+            except RuntimeError as error:
+                return self._json_error(str(error), 503)
+            return self._json(StimulusAccepted(stimulus_id=stimulus_id), 202)
 
     return Handler

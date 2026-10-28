@@ -42,7 +42,9 @@ class _Listener:
         async def serve() -> None:
             import uvicorn
             asyncio.get_running_loop().set_exception_handler(_ignore_aborted_socket)
-            app = self.server.http_app(transport="http")
+            # Scoped tools return one complete result per request. Stateless
+            # JSON avoids background SSE sessions that outlive this listener.
+            app = self.server.http_app(transport="http", stateless_http=True, json_response=True)
             config = uvicorn.Config(app, host="127.0.0.1", port=self.port,
                                     lifespan="on", log_level="error", timeout_graceful_shutdown=2)
             self.http_server = uvicorn.Server(config)

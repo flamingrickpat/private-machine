@@ -182,7 +182,7 @@ def candidate(view, key: int, raw: RecordBase | dict, *, terms=None, score=0.0, 
         if source_id in view.revisions:
             pending.extend(referenced_ids(view.get(source_id)) - source_ids)
     source_ids = sorted(source_ids)
-    stale = (bool(metadata.get("stale")) or data.get("active") is False
+    stale = (key not in view.all_knoxels or bool(metadata.get("stale")) or data.get("active") is False
              or data.get("status") in {"superseded", "retracted"}
              or bool(data.get("invalid_at") and utc_time(data["invalid_at"]) <= datetime.now(timezone.utc)))
     if raw["__type__"] in {"WorldPlaceKnoxel", "WorldObjectKnoxel", "BodyEpisodeKnoxel"}:

@@ -8,6 +8,8 @@ voice and are never published.
 """
 from __future__ import annotations
 
+from pm import vclock
+
 from datetime import datetime
 
 from pm.memory.embeddings import EmbeddingService
@@ -70,7 +72,7 @@ async def plan_story_request(
         supported_capabilities=list(ghost.ghost_config.supported_capabilities),
         unsupported_capabilities=[str(item) for item in ghost.ghost_config.unsupported_capabilities],
         capability_notes=[str(item) for item in ghost.ghost_config.capability_notes],
-        now=str(situation.get("now") or datetime.utcnow().isoformat()),
+        now=str(situation.get("now") or vclock.utcnow().isoformat()),
         prior_dialogue=prior,
         current_user_message=current,
         current_message_id=int(source.id),

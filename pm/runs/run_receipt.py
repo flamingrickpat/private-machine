@@ -55,6 +55,12 @@ class ManagedRunReceipt:
     resume_requests: list[str] = field(default_factory=list)
     singleton_key: str = ""
     blocked_by_run_id: str = ""
+    authority_record_id: int | None = None
+    input_record_ids: list[int] = field(default_factory=list)
+    input_commit_ids: list[str] = field(default_factory=list)
+    resume_phase: str = ""
+    causal_commit_id: str = ""
+    parked_state: dict = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.state not in STATES:
@@ -87,6 +93,12 @@ class ManagedRunReceipt:
             "resume_requests": list(self.resume_requests),
             "singleton_key": self.singleton_key,
             "blocked_by_run_id": self.blocked_by_run_id,
+            "authority_record_id": self.authority_record_id,
+            "input_record_ids": list(self.input_record_ids),
+            "input_commit_ids": list(self.input_commit_ids),
+            "resume_phase": self.resume_phase,
+            "causal_commit_id": self.causal_commit_id,
+            "parked_state": pickle_copy(self.parked_state),
         }
 
     @classmethod

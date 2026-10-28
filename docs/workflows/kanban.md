@@ -9,6 +9,7 @@ It needs no account, external service, package installation, or companion instan
 
 Parent: [development loop](development.md).
 Implementation: [`dev.kanban.server.board_handler`][], [`dev.kanban.server.read_board`][], and [`dev.kanban.server.write_board`][].
+Current harness design: [K002 simulation harness](../work_items/k002/index.md).
 
 ## Open the board
 

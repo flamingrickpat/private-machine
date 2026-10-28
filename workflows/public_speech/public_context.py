@@ -110,6 +110,9 @@ class PublicContext(BaseModel):
     presentation: Presentation = Field(default_factory=Presentation)
     action_schema_id: int | None = None
     revisions: dict[int, int] = Field(default_factory=dict)
+    input_record_ids: list[int] = Field(default_factory=list)
+    input_commit_ids: list[str] = Field(default_factory=list)
+    head_ids: list[int] = Field(default_factory=list)
     source_fingerprints: dict[int, str] = Field(default_factory=dict)
     user_frontier: int | None = None
     stimulus_user_ids: list[int] = Field(default_factory=list)
@@ -126,7 +129,7 @@ def source_fingerprint(record) -> str:
     source. Those changes do not invalidate its meaning. All other fields,
     including attribution and scope, remain part of the comparison.
     """
-    data = record.model_dump(mode="json", exclude={"embedding"})
+    data = record.model_dump(mode="json", exclude={"embedding", "embedding_model"})
     metadata = data.get("metadata", {}).copy()
     for key in ("exchange_status", "public_reply_id", "publication_status", "recovery_outcome", "dispatch_status"):
         metadata.pop(key, None)
@@ -197,7 +200,7 @@ def build_public_context(ghost, request: ActionRequest | None = None, *, capabil
     if presentation.mode == "deceive" and (
         not presentation.purpose or not presentation.known_fact_ids
         or any(key not in view.revisions for key in presentation.known_fact_ids)
-        or any(evidence_role(view, records[key]) in {"companion_utterance", "intent", "imagined", "interpretation"}
+        or any(evidence_role(view, view.get(key)) in {"companion_utterance", "intent", "imagined", "interpretation"}
                for key in presentation.known_fact_ids if key in view.revisions)
     ):
         raise ValueError("Deception requires a prior purpose and retained facts.")
@@ -207,6 +210,8 @@ def build_public_context(ghost, request: ActionRequest | None = None, *, capabil
     ids.update(presentation.known_fact_ids)
     stimulus_ids = [item.knoxel_id for item in request.stimuli] + list(late_ids)
     ids.update(stimulus_ids)
+    if planned is not None:
+        ids.update(turn.knoxel_id for turn in planned.dialogue if turn.knoxel_id is not None)
     # Original startup events establish restart chronology beside retained facts.
     startup_ids = sorted(key for key, record in records.items()
                          if record["data"].get("metadata", {}).get("origin") == "lifecycle"
@@ -219,8 +224,8 @@ def build_public_context(ghost, request: ActionRequest | None = None, *, capabil
     # The planned context already budgeted its records. The stimuli, the
     # known facts of a deception, and the startup events come first.
     for key in dict.fromkeys([*stimulus_ids, *presentation.known_fact_ids, *startup_ids, *selected_ids]):
-        if key in records and key != action_id:
-            original = EvidenceItem.model_validate(candidate(view, key, records[key]))
+        if key in view.revisions and key != action_id:
+            original = EvidenceItem.model_validate(candidate(view, key, view.get(key)))
             if key in startup_ids:
                 original.lifecycle_event = "startup"
             if key in lanes:
@@ -248,7 +253,7 @@ def build_public_context(ghost, request: ActionRequest | None = None, *, capabil
         private_state.append(item)
         ids.add(key)
     originals.extend(private_state)
-    states = ghost.states
+    states = ghost.read_cycles()
     state = states[-1] if states else None
     affect = metadata.affect_summary or request.affect
     feelings = ""
@@ -308,6 +313,8 @@ def build_public_context(ghost, request: ActionRequest | None = None, *, capabil
         capabilities=domain_capabilities, ontology=ontology, presentation=presentation,
         action_schema_id=action_id,
         revisions={key: view.revisions[key] for key in ids if key in view.revisions},
+        input_record_ids=list(view.revisions), input_commit_ids=sorted(view.commit_ids),
+        head_ids=sorted(ids & set(view.all_knoxels)),
         source_fingerprints={key: source_fingerprint(view.get(key)) for key in ids if key in view.revisions},
         user_frontier=max(users, default=None), task_receipt=dict(request.task_receipt),
         stimulus_user_ids=[key for key in stimulus_ids if key in users],

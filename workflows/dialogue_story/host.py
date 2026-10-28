@@ -7,6 +7,8 @@ role receives an async completion tool bound to the already-active client.
 
 from __future__ import annotations
 
+from pm import vclock
+
 from datetime import datetime
 from typing import Callable
 from functools import partial
@@ -64,7 +66,7 @@ class StoryDialogue(PublicDialogue):
             supported_capabilities=[str(item) for item in self.ghost.ghost_config.supported_capabilities],
             unsupported_capabilities=[str(item) for item in self.ghost.ghost_config.unsupported_capabilities],
             capability_notes=[str(item) for item in self.ghost.ghost_config.capability_notes],
-            now=datetime.utcnow().isoformat(),
+            now=vclock.utcnow().isoformat(),
             prior_dialogue=planned.dialogue,
             current_user_message="\n".join(item.text for item in spoken),
             current_message_id=spoken[-1].knoxel_id if spoken else None,

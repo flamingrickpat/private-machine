@@ -203,12 +203,14 @@ def apply_goal_changes(batch, view, changes: list[GoalChange], *, evidence_ids=N
                 replaced.status = "completed"
                 replaced.fulfilment = 1.0
                 batch.replace(replaced)
+                existing = replaced
                 result = "completed"
         elif kind == "reprioritize":
             if existing is not None:
                 replaced = existing.copy_for_edit()
                 replaced.incentive_salience = _clamp01(float(change.priority))
                 batch.replace(replaced)
+                existing = replaced
                 result = "reprioritized"
         elif kind == "defer":
             if existing is not None:
@@ -216,6 +218,7 @@ def apply_goal_changes(batch, view, changes: list[GoalChange], *, evidence_ids=N
                 replaced.active = False
                 replaced.status = "deferred"
                 batch.replace(replaced)
+                existing = replaced
                 result = "deferred"
             elif goal:
                 created = _stage_intention(
@@ -231,6 +234,7 @@ def apply_goal_changes(batch, view, changes: list[GoalChange], *, evidence_ids=N
                 replaced.active = False
                 replaced.status = "refused"
                 batch.replace(replaced)
+                existing = replaced
                 result = "refused"
             elif goal:
                 created = _stage_intention(

@@ -1,6 +1,8 @@
 """Send observed world changes to the main cognition loop during silence."""
 from __future__ import annotations
 
+from pm import vclock
+
 from datetime import datetime, timezone
 import json
 from pathlib import Path
@@ -107,7 +109,7 @@ class WorldEvents(BusModule):
         silent = self.clock() - self.last_user_at >= self.quiet_seconds
         if batch or self.pending_id is not None or not (silent or self.last_conditions is not None and self._active_work()):
             return
-        requested_at = datetime.now(timezone.utc).isoformat()
+        requested_at = vclock.now_aware().isoformat()
         try:
             response = self.observe()
         except TaskServiceError as error:
@@ -118,7 +120,7 @@ class WorldEvents(BusModule):
         silent = self.clock() - self.last_user_at >= self.quiet_seconds
         if not silent and not (self.last_conditions is not None and self._active_work()):
             return
-        observed_at = datetime.now(timezone.utc).isoformat()
+        observed_at = vclock.now_aware().isoformat()
         if not response.get("ok"):
             self._record({"status": "unavailable", "observed_at": observed_at, "response": response})
             return

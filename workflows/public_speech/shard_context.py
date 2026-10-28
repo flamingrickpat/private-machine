@@ -138,7 +138,6 @@ def shard_context(view, request: ActionRequest, companion_name: str, late_ids: l
                           item.shard.item_ids(), shown_tail[index], verbatim_tail=moved[index])
               for index, item in enumerate(request.shards)]
     transcript.sort(key=lambda record: (record.timestamp_world_begin, record.id))
-    serialized = view.serialize_knoxels()
     evidence = []
     for item in request.shards:
         ids = [*item.shard.item_ids(), *item.shard.tail_ids]
@@ -147,7 +146,9 @@ def shard_context(view, request: ActionRequest, companion_name: str, late_ids: l
         for record_id in dict.fromkeys(ids):
             if record_id in dropped:
                 continue
-            entry = EvidenceItem.model_validate(candidate(view, record_id, serialized[record_id]))
+            # A shard retains the exact version selected by cognition. Its
+            # successor can already be the current query head.
+            entry = EvidenceItem.model_validate(candidate(view, record_id, view.get(record_id)))
             entry.lane = f"shard:{item.name}"
             evidence.append(entry)
     trace = {"source": "shards",

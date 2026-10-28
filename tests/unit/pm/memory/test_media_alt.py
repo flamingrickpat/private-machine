@@ -83,7 +83,7 @@ class AltTextTests(unittest.TestCase):
         self.assertEqual((stored.alt_text, stored.alt_text_source), ("A grey cat sits on a sofa.", "model"))
         # The description is derived data: the revision stays, the checkpoint keeps it.
         self.assertEqual(self.store.revisions[self.feature.id], revision)
-        reopened = MemoryStore.from_checkpoint(self.root / "ghost.pickle")
+        reopened = MemoryStore.from_checkpoint(self.root / "ghost.pickle", raw=True)
         self.assertEqual(reopened.find_image(self.image.id).alt_text, "A grey cat sits on a sofa.")
         # A second call finds the alt text and asks nothing.
         complete_alt_text(self.store, [self.image.id], model)
@@ -94,9 +94,10 @@ class AltTextTests(unittest.TestCase):
         record = batch.view().get(self.feature.id).copy_for_edit()
         complete_alt_text(self.store, [self.image.id], ScriptedVision("A grey cat."))
         record.metadata = {**record.metadata, "exchange_status": "resolved"}
+        record.content = "A revised image description request."
         batch.replace(record)
         self.store.commit(batch)
-        after = self.store.get_knoxel_by_id(self.feature.id)
+        after = self.store.get_knoxel_by_id(record.id)
         self.assertEqual(after.metadata["exchange_status"], "resolved")
         self.assertEqual(record_media(after).images[0].alt_text, "A grey cat.")
 

@@ -9,7 +9,9 @@ domain: every memory object shares a base identity, causal time range, trace tag
 invariant: RecordBase.type resolves through the public RecordKind registry, and owner-backed access assumes RecordOwner stores knoxels by stable ids.
 """
 
-from datetime import datetime
+from pm import vclock
+
+from datetime import datetime, timezone
 import pickle
 import logging
 from enum import StrEnum
@@ -20,7 +22,7 @@ from typing import (
     Optional,
 )
 
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from pm.records.enums import FrameEnum, RecordSubtypeBase, NoSubtype, SourceKind
 from pm.records.lineage import RecordLineage
@@ -61,18 +63,15 @@ def persisted_type_name(cls: type) -> str:
 
 
 def get_causal_datetime() -> datetime:
-    """
-    Return real datetime now in UTC, or get from test infrastructure for dry runs.
-    For when simulating past (not implemented yet)
-    """
-    return datetime.utcnow()
+    """Return naive UTC world time from the active process clock."""
+    return vclock.utcnow()
 
 
 def get_real_datetime() -> datetime:
     """
     Real world time, for system.
     """
-    return datetime.utcnow()
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 # Sentinel reality id meaning "the real world" until a bootstrap/converter
 # materializes the actual RealityKnoxel and rewrites default scopes.
@@ -89,6 +88,7 @@ class RecordScope(BaseModel):
     (minecraft house location vs server ip; orgblorg kills goblin vs
     "rick plays orgblorg every friday").
     """
+    model_config = ConfigDict(frozen=True)
     reality_id: int = Field(default=REAL_REALITY_ID, description="RealityKnoxel id; REAL_REALITY_ID sentinel = the real world.")
     frame: FrameEnum = Field(default=FrameEnum.InWorld)
 
@@ -97,6 +97,7 @@ class Provenance(BaseModel):
     """
     Who/what brought this knoxel into the ghost (spec v2 §1.2).
     """
+    model_config = ConfigDict(frozen=True)
     source_kind: SourceKind
     source_ref: Optional[str] = Field(default=None, description="e.g. task id, workflow run id, entity id")
 
@@ -143,12 +144,15 @@ class RecordBase(BaseModel):
     id: int = -1
     tick_id: int = -1
     sub_tick_id: int = 0
+    supersedes_id: int | None = None
+    tombstone: bool = False
     content: str
     embedding: list[float] = Field(default_factory=list, repr=False)
-    timestamp_creation: datetime = Field(default_factory=datetime.utcnow)
+    embedding_model: str = ""
+    timestamp_creation: datetime = Field(default_factory=get_real_datetime)
     timestamp_world_begin: datetime = Field(default_factory=get_causal_datetime)
     timestamp_world_end: datetime = Field(default_factory=get_causal_datetime)
-    last_accessed: datetime = Field(default_factory=datetime.utcnow)
+    last_accessed: datetime = Field(default_factory=get_real_datetime)
     metadata: Dict[str, Any] = Field(default_factory=dict)
     lineage: RecordLineage | None = None
     scope: RecordScope = Field(default_factory=RecordScope, description="Reality + frame scoping; default real/in_world.")
@@ -203,7 +207,19 @@ class RecordBase(BaseModel):
         record._owner = self._owner
         return record
 
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        """Supply identity defaults when importing trusted older pickle records."""
+        super().__setstate__(state)
+        self.__dict__.setdefault("supersedes_id", None)
+        self.__dict__.setdefault("tombstone", False)
+        self.__dict__.setdefault("embedding_model", "")
+
     def __setattr__(self, name: str, value: Any) -> None:
+        if not name.startswith("_") and name not in {"embedding", "embedding_model", "last_accessed"}:
+            owner = self._owner
+            committed = getattr(owner, "_is_committed_instance", None)
+            if committed is not None and committed(self):
+                raise TypeError("Committed knoxels are immutable. Copy the record and append a successor.")
         previous = self.__dict__.get("content") if name == "content" else None
         super().__setattr__(name, value)
         if name == "content" and previous is not None and previous != value:
@@ -221,7 +237,18 @@ class RecordBase(BaseModel):
 
     def touch_last_accessed(self) -> None:
         """Explicitly mark this knoxel as accessed (call from retrieval/tools, never from dumps)."""
-        object.__setattr__(self, "last_accessed", datetime.utcnow())
+        object.__setattr__(self, "last_accessed", get_real_datetime())
+
+    def was_in_workspace(self) -> bool:
+        """Read original participation or a later recorded workspace entry.
+
+        Later entry belongs to the GWT event. It does not change this record.
+        A runtime owner captures that event as an input of the current run.
+        """
+        if getattr(self, "causal", False):
+            return True
+        lookup = getattr(self._owner, "has_workspace_entry", None)
+        return bool(lookup(self.id)) if lookup is not None else False
 
     def get_emotional_state_at_time(self) -> str:
         """
@@ -258,6 +285,10 @@ class RecordOwner:
 
     def index_embedding(self, record: RecordBase) -> None:
         """Accept a vector update. Plain record containers have no search index."""
+
+    def get_knoxel_by_id(self, knoxel_id: int) -> RecordBase | None:
+        """Resolve an exact reference. MemoryStore also retains historical versions."""
+        return self.all_knoxels.get(knoxel_id)
 
     def __init__(self):
         self.all_knoxels: Dict[int, RecordBase] = {}

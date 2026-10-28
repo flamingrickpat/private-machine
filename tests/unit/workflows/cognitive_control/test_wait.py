@@ -16,6 +16,7 @@ from pm.memory.snapshot import GhostCancelled
 from pm.memory.store import MemoryStore
 from pm.records.enums import FeatureType
 from pm.records.memory_records import new_feature
+from pm.records.global_workspace import GwtTurnRecord
 from tests.support import ManualClock, Recorder
 from tests.unit.test_design_contracts import small_ghost
 from tests.unit.workflows.inner_thought.test_private_host import _module as private_module, _reports as private_reports
@@ -43,7 +44,8 @@ class WaitTests(unittest.TestCase):
 
     def arm(self, seconds=30, control=None, commit_id="wait"):
         control = control or self.control
-        batch = control.ghost.begin_batch(commit_id)
+        batch = control.ghost.begin_batch(commit_id, new_tick=True)
+        batch.set_gwt(GwtTurnRecord(tick_id=batch.tick_id))
         control.commit(batch, WaitRequest(seconds=seconds), control.generation)
         return batch
 
@@ -121,13 +123,13 @@ class WaitTests(unittest.TestCase):
             self.assertEqual(len(self.events.events), 1)
             wake = self.wakes()[0]
             self.assertEqual(wake.metadata["elapsed_seconds"], 50)
-            reopened = MemoryStore.from_checkpoint(self.ghost.checkpoint)
+            reopened = MemoryStore.from_checkpoint(self.ghost.checkpoint, raw=True)
             controller = self.controller(reopened)
             controller.handle_batch([])
             self.assertEqual(len(self.events.events), 2)
             self.assertEqual(self.events.events[-1].payload["knoxel_id"], wake.id)
             controller.commit(reopened.begin_batch("accept-wake"), None, controller.generation, wake_ids=[wake.id])
-            restored = MemoryStore.from_checkpoint(self.ghost.checkpoint)
+            restored = MemoryStore.from_checkpoint(self.ghost.checkpoint, raw=True)
             self.controller(restored).handle_batch([])
             self.assertEqual(len(self.events.events), 2)
             self.assertEqual(len(self.wakes(restored)), 1)
@@ -145,7 +147,7 @@ class WaitTests(unittest.TestCase):
             self.assertEqual(len(self.wakes()), 1)
             self.assertEqual(self.events.events, [])
             self.bus.observer = None
-            reopened = MemoryStore.from_checkpoint(self.ghost.checkpoint)
+            reopened = MemoryStore.from_checkpoint(self.ghost.checkpoint, raw=True)
             self.controller(reopened).handle_batch([])
             self.assertEqual(self.events.events[0].topic, "cognition.wake")
 

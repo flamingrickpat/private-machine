@@ -28,7 +28,7 @@ class SerializerTests(unittest.TestCase):
             legacy = Path(directory) / "ghost.pickle"
             write_checkpoint(legacy, checkpoint, lambda: None, serializer=JSON_SERIALIZER)
             self.assertEqual(json.loads(legacy.read_bytes())["state"]["knoxels"][0]["__type__"], "Feature")
-            restored = MemoryStore.from_checkpoint(legacy)
+            restored = MemoryStore.from_checkpoint(legacy, raw=True)
             self.assertEqual(restored.state_dict(), store.state_dict())
             self.assertEqual(restored.checkpoint.suffix, ".pickle")
 

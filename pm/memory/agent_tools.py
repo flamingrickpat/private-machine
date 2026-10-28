@@ -31,16 +31,19 @@ if TYPE_CHECKING:
 
 
 @contextmanager
-def guard_revisions(store, revisions: dict[int, int], cancel: Event | None = None) -> Iterator[None]:
+def guard_revisions(store, revisions: dict[int, int], cancel: Event | None = None, *, heads=()) -> Iterator[None]:
     """Guard cited source revisions through a local commit under the owner lock.
 
     Changed sources raise GhostConflict. Cancellation raises GhostCancelled.
+    ``heads`` names sources that must still be current. Exact historical IDs
+    remain valid after supersession when the caller does not require a head.
     The caller must perform no model or network work inside this boundary.
     """
     with store.lock:
         if cancel is not None and cancel.is_set():
             raise GhostCancelled("The memory decision is cancelled.")
-        changed = [key for key, revision in revisions.items() if store.revisions.get(key) != revision]
+        changed = [key for key, revision in revisions.items() if store.revisions.get(key) != revision
+                   or key in heads and key not in store._all_knoxels]
         if changed:
             raise GhostConflict(f"Inspected memory changed: {changed}. Refresh memory and reconsider the draft.")
         yield
@@ -191,7 +194,9 @@ class MemoryReadSession:
         self._install(config.view)
 
     def _install(self, grant: MemoryView) -> None:
-        snapshot = _snapshot(self.config, grant)
+        with self.config.store.lock:
+            snapshot = _snapshot(self.config, grant)
+            self.head_ids = set(snapshot.revisions) & set(self.config.store.all_knoxels)
         records = snapshot.serialize_knoxels()
         references = {key: referenced_ids(snapshot.get(key)) for key in records}
         grant_data = {key: sorted(value) if isinstance(value, frozenset) else
@@ -384,7 +389,8 @@ class MemoryReadSession:
         """
         with self._lock:
             self.check_cancelled()
-            with guard_revisions(self.config.store, self.accessed, self.config.cancel):
+            with guard_revisions(self.config.store, self.accessed, self.config.cancel,
+                                 heads=self.head_ids.intersection(self.accessed)):
                 yield
 
     def close(self) -> None:

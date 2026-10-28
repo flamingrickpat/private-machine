@@ -73,13 +73,16 @@ class GhostProposalTests(unittest.TestCase):
         replacement = _record("after")
         replacement["data"]["id"] = original.id
         replacement["data"]["tick_id"] = original.tick_id
-        tools["ghost_propose_replace"](replacement)
+        successor = tools["ghost_propose_replace"](replacement)
+        successor_id = successor["data"]["id"]
 
-        self.assertEqual(tools["ghost_get"](original.id)["data"]["content"], "after")
+        self.assertNotEqual(successor_id, original.id)
+        self.assertEqual(tools["ghost_get"](successor_id)["data"]["content"], "after")
         self.assertEqual(ghost.get_knoxel_by_id(original.id).content, "before")
 
         ghost.commit(batch)
-        self.assertEqual(ghost.get_knoxel_by_id(original.id).content, "after")
+        self.assertEqual(ghost.get_knoxel_by_id(original.id).content, "before")
+        self.assertEqual(ghost.get_knoxel_by_id(successor_id).content, "after")
 
     def test_untrusted_record_is_rejected(self):
         ghost = _ghost()

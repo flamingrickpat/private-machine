@@ -148,9 +148,9 @@ class MemoryAgentToolTests(unittest.TestCase):
             with memory.guard():
                 pass
             batch = self.store.begin_batch("correction")
-            record = batch.view().get(source.id)
+            record = batch.view().get(source.id).copy_for_edit()
             record.content = "Use oak for this task."
-            batch.replace(record)
+            successor = batch.replace(record)
             self.store.commit(batch)
             self.assertIn("Any wood", json.dumps(memory.get(source.id)))
             with self.assertRaises(GhostConflict):
@@ -159,7 +159,7 @@ class MemoryAgentToolTests(unittest.TestCase):
             memory.refresh()
             self.assertNotEqual(identity, memory.snapshot_id)
             self.assertEqual(memory.accessed, {})
-            self.assertIn("Use oak", json.dumps(memory.get(source.id)))
+            self.assertIn("Use oak", json.dumps(memory.get(successor.id)))
             with memory.guard():
                 pass
 

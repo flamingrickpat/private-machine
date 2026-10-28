@@ -22,6 +22,8 @@ No phase writes the memory store. The host owns the store and the bus.
 """
 from __future__ import annotations
 
+from pm import vclock
+
 from datetime import datetime
 
 from pydantic import BaseModel, Field
@@ -99,7 +101,7 @@ class CycleRequest(BaseModel):
     entity_names: dict[int, str] = Field(default_factory=dict)
     state_summary: str = ""
     previous_state: CycleState | None = None
-    cycle_time: datetime = Field(default_factory=datetime.utcnow)
+    cycle_time: datetime = Field(default_factory=vclock.utcnow)
     state_history: list[MentalStateSample] = Field(default_factory=list)
     personality: PersonalityProfile = Field(default_factory=PersonalityProfile)
     active_goals: list[str] = Field(default_factory=list)

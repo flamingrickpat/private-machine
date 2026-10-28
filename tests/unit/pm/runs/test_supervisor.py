@@ -42,7 +42,7 @@ class ManagedRunTests(unittest.TestCase):
         self.assertTrue(_wait_for(lambda: self.supervisor.get(run_id)["state"] == "running"))
         app.shutdown()
         app.join()
-        self.assertEqual(self.supervisor.get(run_id)["state"], "cancelled")
+        self.assertEqual(self.supervisor.get(run_id)["state"], "interrupted")
         self.assertFalse(self.supervisor._threads[run_id].is_alive())
         self.assertTrue(Path(receipt["artifact_path"]).is_dir())
         later = self.supervisor.start(action_id="after-stop", workflow_name="local_task", instructions="Do not launch.")
@@ -191,7 +191,7 @@ class ManagedRunTests(unittest.TestCase):
         self.supervisor.on_error = errors.append
         self.supervisor.workflows["bad_manifest"] = WorkflowSpec(self.root / "missing.workflow.md")
         receipt = self.supervisor.start(action_id="manifest-fault", workflow_name="bad_manifest")
-        self.assertTrue(_wait_for(lambda: self.supervisor.status(receipt["run_id"])["state"] == "failed"))
+        self.assertTrue(_wait_for(lambda: self.supervisor.status(receipt["run_id"])["state"] == "interrupted"))
         self.supervisor.join_all(timeout=10)
         self.assertEqual(len(errors), 1)
         self.assertIsInstance(errors[0], FileNotFoundError)
@@ -316,7 +316,7 @@ class ManagedRunTests(unittest.TestCase):
         )
         run_id = receipt["run_id"]
         self.assertTrue(_wait_for(lambda: self.supervisor.status(run_id)["state"] == "completed"))
-        reopened = MemoryStore.from_checkpoint(self.root / "ghost.pickle")
+        reopened = MemoryStore.from_checkpoint(self.root / "ghost.pickle", raw=True)
         self.assertEqual(reopened.managed_runs[run_id]["state"], "completed")
         self.assertEqual(reopened.managed_runs[run_id]["action_id"], "action-6")
 

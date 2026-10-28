@@ -203,8 +203,10 @@ class GoalLifecycleTests(unittest.TestCase):
             self.assertEqual(errors, [])
             self.assertIsNone(find_intention(ghost, key))
             stored = ghost.get_knoxel_by_id(intention.id)
-            self.assertFalse(stored.active)
-            self.assertEqual(stored.status, "completed")
+            self.assertTrue(stored.active)
+            successor = next(item for item in ghost.all_intentions if item.supersedes_id == intention.id)
+            self.assertFalse(successor.active)
+            self.assertEqual(successor.status, "completed")
 
     def test_refuse_and_defer_are_distinct_durable_lifecycle_states(self):
         from workflows.main_cognition.schemas import GoalChange
@@ -266,7 +268,7 @@ class GoalLifecycleTests(unittest.TestCase):
 
         # A newer batch changes the same intention before the stale batch commits.
         newer = ghost.begin_batch("newer-turn")
-        current = ghost.get_knoxel_by_id(goal.id)
+        current = ghost.get_knoxel_by_id(goal.id).copy_for_edit()
         current.incentive_salience = 0.9
         newer.replace(current)
         ghost.commit(newer)

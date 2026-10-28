@@ -14,7 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from dev.review.record_format import record_card
+from simulation.review.record_format import record_card
 from pm.introspection.record_packages import capture_records, capture_gwt, dump_package
 from pm.memory.snapshot import Snapshot
 

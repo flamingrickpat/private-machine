@@ -14,6 +14,7 @@ from typing import Callable
 from pm.bus.bus import BusSystem, Mailbox
 from pm.bus.envelopes import Envelope, new_id
 from pm.host.diagnostics import join_thread
+from pm import vclock
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,8 @@ class BusModule(ABC):
             self._next_tick = self.clock() + tick_seconds
         self._thread: threading.Thread | None = None
         self._termination_done = False
+        self.draining = False
+        self.working = False
 
     # ------------------------------------------------------------ interest
 
@@ -105,17 +108,20 @@ class BusModule(ABC):
         Empty batches and scheduler batches run silently to limit log noise.
         Other batches record their start and exit without private payloads.
         """
-        if not batch or str(self.module_id) == "scheduler":
-            self.handle_batch(batch)
-            return
         started = time.monotonic()
-        logger.debug("Module work start module=%s topics=%s correlations=%s", self.module_id,
-                     [item.topic for item in batch], [item.correlation_id for item in batch])
+        log_work = bool(batch) and str(self.module_id) != "scheduler"
+        if log_work:
+            logger.debug("Module work start module=%s topics=%s correlations=%s", self.module_id,
+                         [item.topic for item in batch], [item.correlation_id for item in batch])
         try:
-            self.handle_batch(batch)
+            self.working = True
+            with vclock.busy():
+                self.handle_batch(batch)
         finally:
-            logger.debug("Module work exit module=%s invocation=%s seconds=%.3f", self.module_id,
-                         self.invocation_id, time.monotonic() - started)
+            self.working = False
+            if log_work:
+                logger.debug("Module work exit module=%s invocation=%s seconds=%.3f", self.module_id,
+                             self.invocation_id, time.monotonic() - started)
 
     def _finish_termination(self) -> None:
         if self._termination_done:
@@ -140,25 +146,30 @@ class BusModule(ABC):
 
         if block:
             wait: float | None
-            if self._next_tick is not None:
+            if not self.draining and self._next_tick is not None:
                 wait = max(0.0, self._next_tick - start)
             else:
                 wait = None
         else:
             wait = 0.0
 
-        batch = self.mailbox.take_batch(self.stop_event, wait)
+        batch = self.mailbox.take_batch(self.stop_event, vclock.wait_cap(wait), claim=True)
 
         if self.stop_event.is_set():
+            self.mailbox.release()
             self._finish_termination()
             return False
 
         if batch:
-            self._logged_batch(batch)
+            try:
+                self._logged_batch(batch)
+            finally:
+                self.mailbox.release()
             return True
 
         now = self.clock()
-        if self._next_tick is not None and now >= self._next_tick:
+        if not self.draining and self._next_tick is not None and now >= self._next_tick:
+            self.working = True
             self._next_tick = now + self.tick_seconds
             self._logged_batch([])
             return True
@@ -182,6 +193,68 @@ class Application:
         self._error_lock = threading.Lock()
         self.stop_workers: Callable[[], None] | None = None
         self.join_workers: Callable[[], None] | None = None
+        self.draining = threading.Event()
+        self.drained = threading.Event()
+        self.frozen = threading.Event()
+        self._drain_thread: threading.Thread | None = None
+
+    def idle(self) -> bool:
+        """Return whether runnable module and managed work is quiet.
+
+        Parked workflows do not count as runnable work. A due timer prevents
+        virtual time advancement unless graceful shutdown already fenced it.
+        """
+        for module in self.modules:
+            if module.working or module.mailbox.pending():
+                return False
+            if (not module.draining and module._next_tick is not None
+                    and module.clock() >= module._next_tick):
+                return False
+        supervisor = getattr(self, "supervisor", None)
+        return supervisor is None or supervisor.idle()
+
+    def request_shutdown(self) -> None:
+        """Close intake and drain runnable work in a separate thread.
+
+        A normal stop has no elapsed-time limit. A runtime failure still uses
+        immediate cancellation. Parked workflows retain their durable journals.
+        """
+        with self._error_lock:
+            if self.draining.is_set() or self.shutdown_event.is_set():
+                return
+            self.draining.set()
+            user_input = getattr(self, "user_input", None)
+            if user_input is not None:
+                user_input.close_intake()
+            for module in self.modules:
+                module.draining = True
+                module.mailbox.wake()
+            self._drain_thread = threading.Thread(target=self._drain, name="shutdown-drain", daemon=False)
+            self._drain_thread.start()
+
+    def _drain(self) -> None:
+        """Wait for stable quiescence, persist parked work, then stop threads."""
+        try:
+            quiet_since = None
+            while not self.shutdown_event.is_set():
+                if self.idle():
+                    quiet_since = quiet_since or time.monotonic()
+                    if time.monotonic() - quiet_since >= .1:
+                        for module in self.modules:
+                            persist = getattr(module, "save_parked", None)
+                            if persist is not None:
+                                persist()
+                        ghost = getattr(self, "ghost", None)
+                        if ghost is not None:
+                            ghost.save()
+                        self.drained.set()
+                        self.shutdown()
+                        return
+                else:
+                    quiet_since = None
+                time.sleep(.02)
+        except BaseException as error:
+            self.on_error(error)
 
     def on_error(self, exc: BaseException) -> None:
         logger.error("Application failure", exc_info=(type(exc), exc, exc.__traceback__))
@@ -207,6 +280,8 @@ class Application:
 
     def join(self) -> None:
         """Wait for module and worker cleanup. Propagate worker-hook failures."""
+        if self._drain_thread is not None and self._drain_thread is not threading.current_thread():
+            self._drain_thread.join()
         for module in self.modules:
             module.join()
         if self.join_workers is not None:

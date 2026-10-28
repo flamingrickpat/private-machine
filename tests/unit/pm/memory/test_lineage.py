@@ -30,6 +30,10 @@ class LineageTests(unittest.TestCase):
             thought = new_feature(self.ghost, "an imagined outcome", FeatureType.InnerMonologue,
                                   source="Spamuel", changes=batch, lineage=self.lineage())
             self.ghost.commit(batch)
+            from pm.records.global_workspace import GwtTurnRecord
+            accepted = self.ghost.begin_batch("main-admission", new_tick=True)
+            accepted.set_gwt(GwtTurnRecord(tick_id=accepted.tick_id, knoxel_ids=[thought.id]))
+            self.ghost.commit(accepted)
             restored = MemoryStore.from_checkpoint(self.ghost.checkpoint)
             self.assertEqual(restored.get_knoxel_by_id(thought.id).lineage, self.lineage())
             self.assertEqual((restored.get_knoxel_by_id(self.source.id)).as_payload(), original)

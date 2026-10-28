@@ -19,6 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pm.records.global_workspace import GwtTurnRecord
 from pm.records.cycle_state import CycleStateModel
 from pm.memory.yaml_codec import ghost_state_from_dict, ghost_state_to_dict
+from pm.memory.causal import CausalHistory
 
 
 class CommitReceipt(BaseModel):
@@ -31,7 +32,7 @@ class CommitReceipt(BaseModel):
 
 class Checkpoint(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    schema_id: Literal["pm.ghost-snapshot.v1"] = "pm.ghost-snapshot.v1"
+    schema_id: Literal["pm.ghost-snapshot.v1", "pm.ghost-snapshot.v2"] = "pm.ghost-snapshot.v2"
     state: CycleStateModel
     current_knoxel_id: int
     current_tick_id: int
@@ -41,6 +42,7 @@ class Checkpoint(BaseModel):
     applied_commits: dict[str, CommitReceipt]
     managed_runs: dict[str, dict] = Field(default_factory=dict)
     consolidations: dict[str, dict] = Field(default_factory=dict)
+    causal_history: CausalHistory | None = None
 
     @field_validator("state", mode="before")
     @classmethod

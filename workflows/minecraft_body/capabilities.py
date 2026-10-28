@@ -1,6 +1,8 @@
 """Read current domain capabilities without moving the Minecraft character."""
 from __future__ import annotations
 
+from pm import vclock
+
 import asyncio
 import os
 import socket
@@ -33,7 +35,7 @@ def capability_snapshot(ghost, workflow_names) -> dict:
     values, _ = environment_values()
     url = os.environ.get("MINECRAFT_MCP_URL") or values.get("MINECRAFT_MCP_URL") or "http://127.0.0.1:6767/mcp"
     result = {"status": "disconnected", "endpoint": url, "tools": [],
-              "visual_interpretation": False, "observed_at": datetime.now(timezone.utc).isoformat()}
+              "visual_interpretation": False, "observed_at": vclock.now_aware().isoformat()}
 
     async def discover():
         from fastmcp import Client

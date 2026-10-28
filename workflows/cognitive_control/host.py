@@ -7,6 +7,8 @@ private work. Bus publication alone is not an acknowledgment.
 """
 from __future__ import annotations
 
+from pm import vclock
+
 from datetime import datetime, timedelta
 from typing import Callable, Sequence
 
@@ -29,7 +31,7 @@ class CognitiveControl(BusModule):
     """
 
     def __init__(self, *args, ghost, config: ControlConfig | None = None,
-                 now: Callable[[], datetime] = datetime.utcnow, **kwargs):
+                 now: Callable[[], datetime] = vclock.utcnow, **kwargs):
         super().__init__(*args, **kwargs)
         self.ghost = ghost
         self.config = config or ControlConfig()
@@ -169,8 +171,7 @@ class CognitiveControl(BusModule):
             for key in wake_ids:
                 record = batch.view().get(key).copy_for_edit()
                 if record.metadata.get("wake_status") == "pending":
-                    record.metadata.update(wake_status="consumed", consumed_by=batch.commit_id)
-                    batch.replace(record)
+                    batch.set_lifecycle(record.id, wake_status="consumed", consumed_by=batch.commit_id)
             if wait is not None:
                 # Revalidate objects supplied by trusted host callers too.
                 wait = WaitRequest.model_validate(wait.model_dump())
@@ -227,8 +228,7 @@ class CognitiveControl(BusModule):
     def _wake(self, record: Feature, reason: str, *, timeout: bool, now: datetime) -> None:
         batch = self.ghost.begin_batch("wake-" + new_id(), cancel=self.stop_event)
         accepted = batch.view().get(record.id).copy_for_edit()
-        accepted.metadata.update(status="awake", wake_reason=reason, woke_at=now.isoformat())
-        batch.replace(accepted)
+        batch.set_lifecycle(accepted.id, status="awake", wake_reason=reason, woke_at=now.isoformat())
         if timeout:
             seconds = max(0, (now - datetime.fromisoformat(record.metadata["started_at"])).total_seconds())
             new_feature(self.ghost,

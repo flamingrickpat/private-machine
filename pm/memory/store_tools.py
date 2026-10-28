@@ -45,6 +45,10 @@ def build_tools(environment, batch=None, *, memory: MemoryReadSession | None = N
     def ghost_get(knoxel_id: int) -> dict:
         record = _read_knoxels(environment, batch).get(knoxel_id)
         if record is None:
+            view = batch.view() if batch is not None else getattr(environment, "ghost_view", None)
+            historical = view.get_knoxel_by_id(knoxel_id) if view is not None else None
+            record = historical.as_payload(include_embedding=False) if historical is not None else None
+        if record is None:
             raise KeyError(knoxel_id)
         return record
 
@@ -80,11 +84,10 @@ def build_tools(environment, batch=None, *, memory: MemoryReadSession | None = N
             return (created).as_payload()
 
         def ghost_propose_replace(record: dict) -> dict:
-            """Stage a replacement for an existing knoxel by ID."""
+            """Append a successor and return its new identity."""
             if not isinstance(record, dict):
                 raise ValueError("A proposed record must be a mapping.")
-            batch.replace(RecordPayload.model_validate(record).root)
-            return record
+            return batch.replace(RecordPayload.model_validate(record).root).as_payload()
 
         tools["ghost_propose_create"] = ghost_propose_create
         tools["ghost_propose_replace"] = ghost_propose_replace

@@ -38,6 +38,7 @@ class PublicationTests(unittest.TestCase):
         source = exchange_record(self.ghost, correlation)
         context = build_public_context(self.ghost, ActionRequest(stimuli=[Stimulus(knoxel_id=source.id)]))
         changes = self.ghost.begin_batch("change-source")
+        source = source.copy_for_edit()
         source.content = "The report changed before publication."
         changes.replace(source)
         self.ghost.commit(changes)
@@ -71,6 +72,7 @@ class PublicationTests(unittest.TestCase):
                 module._public_context = build_public_context(self.ghost, ActionRequest(stimuli=[Stimulus(knoxel_id=source.id)]))
                 module.invocation_id = "stale-" + status
                 changes = self.ghost.begin_batch("changed-" + status)
+                source = source.copy_for_edit()
                 source.content = "Changed while the generation was running."
                 changes.replace(source)
                 self.ghost.commit(changes)
@@ -105,7 +107,7 @@ class PublicationTests(unittest.TestCase):
             self.ghost.checkpoint = Path(tmp) / "ghost.pickle"
             correlation = self.proxy.submit("One exchange.", session="original-session")
             reply_id = commit_public_reply(self.ghost, "One answer.", correlation, commit_id="reply")
-            restored = MemoryStore.from_checkpoint(self.ghost.checkpoint)
+            restored = MemoryStore.from_checkpoint(self.ghost.checkpoint, raw=True)
             self.assertEqual(exchange_record(restored, correlation).metadata["public_reply_id"], reply_id)
             self.assertIsNone(commit_public_reply(restored, "Duplicate answer.", correlation, commit_id="duplicate"))
             recovery = ReplyRecovery("reply_recovery", self.bus, self.fail, lambda: 0, None,

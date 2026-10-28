@@ -992,6 +992,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
     { name = "tiktoken" },
+    { name = "websockets" },
 ]
 
 [package.metadata]
@@ -1008,6 +1009,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.9,<3" },
     { name = "pyyaml", specifier = ">=6,<7" },
     { name = "tiktoken", specifier = ">=0.14,<1" },
+    { name = "websockets", specifier = ">=17.1,<18" },
 ]
 
 [[package]]

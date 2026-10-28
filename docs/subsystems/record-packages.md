@@ -3,9 +3,9 @@
 ## Summary
 
 PM can export a named collection of serialized records from one frozen snapshot.
-The review desk formats that collection for reading and keeps human ratings separate.
+The simulation browser formats that collection for reading and keeps human ratings separate.
 Records retain their timestamps, provenance, appraisal fields, codelet metadata, and other serialized fields.
-Embedding fields are omitted from the export and hidden when the desk imports external packages.
+Embedding fields are omitted from the export and hidden when the browser imports external packages.
 
 Parent: [conversation review](async-conversation-review.md).
 Related: [private loop](private-loop.md) and [reflection](reflection.md).
@@ -43,9 +43,9 @@ It never copies private thoughts into a public view automatically.
 
 [`pm.introspection.record_packages.capture_gwt`][] captures the selected turn and its exact ordered member IDs.
 The package retains the complete turn record: the summary, timestamp, slot, claimed stimuli, shard changes, codelet trace, experience, and decision record.
-Capture at the tick boundary to preserve that tick's current record revisions.
-Exporting an older turn later uses the snapshot's current record payloads.
-It does not reconstruct prior versions of mutable records.
+Capture at the tick boundary to preserve the complete input view and operational receipts.
+Record IDs identify immutable payloads. Superseded payloads remain available through their original IDs.
+Older legacy checkpoints cannot supply payload versions that they did not retain.
 
 [`pm.introspection.record_packages.capture_cycle`][] captures one accepted cycle state with the `cycle` display hint.
 Pass the snapshot and the cycle state of the same tick, for example `app.ghost.states[-1]`.
@@ -84,10 +84,10 @@ The package contains no model judgment or human rating.
 ## Read and rate packages
 
 ```powershell
-uv run --locked python dev/review/server.py register-package `
+uv run --locked python -m simulation.review register-package `
   .runtime/debug/chat.json .runtime/debug/gwt.json `
   --id YOUR-REVIEW-ID --work-item A19
-uv run --locked python dev/review/server.py serve
+uv run --locked python -m simulation
 ```
 
 The importer creates a review item for each file.
@@ -97,14 +97,14 @@ Conflicting copies in a combined item raise an error instead of choosing one sil
 
 The desk opens chat as speech in caller order.
 The **Cycles** view arranges each `cycle` package as the path of one tick: stimuli, the mental state before and after, the appraisal, the codelet selector and runs with their percepts, the CSM, the structures with their attention ratings, the shard changes, the experience, the decisions and routes, the expectations, the shard items that the action carried to the reply, and the reply.
-The formatter for this view is [`dev.review.record_format.present_cycle`][].
+The formatter for this view is [`simulation.review.record_format.present_cycle`][].
 The **Record packages** view selects named collections and displays GWT summaries beside their member content.
 Hover over a record heading or **Record metadata** to see timestamps, source, revision, appraisal, and codelet fields.
 Expand **Record metadata** to read all captured fields.
 The desk formats text as text. Captured content cannot execute HTML or scripts.
 Uncaptured linked records stay disabled and identify their missing capture.
 
-The formatter is [`dev.review.record_format.present_packages`][].
+The formatter is [`simulation.review.record_format.present_packages`][].
 It imports no runtime code, reads no checkpoint, and runs no inference.
 The server reads the immutable bundle, formats its packages, and saves ratings in separate feedback files.
 The A19 exporter now uses this package contract for the chat, private activity, and each retained GWT tick.

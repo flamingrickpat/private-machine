@@ -2,9 +2,9 @@
 
 ## Summary
 
-The shared cache holds model responses and inference transcripts.
-Each agent home holds its accepted memory, unlimited backups, process logs, and runtime artifacts.
-Shutdown cancels active requests and joins owned workers.
+The shared cache holds model responses. Each owning home holds its inference transcripts.
+Each agent home holds raw memory history, unlimited backups, process logs, and runtime artifacts.
+Normal shutdown drains running work and saves parked workflows. A forced interruption remains separate.
 Windows also removes child processes when their owning runtime exits.
 
 Parent: [direct workflow execution](../runtime.md).
@@ -15,8 +15,9 @@ Related: [model connections](../models.md), [character home](character-import.md
 | Path | Content |
 | --- | --- |
 | `~/.pm/private-machine/cache/<model>/` | Completion JSON, readable transcripts, and inference receipts. |
-| `<home>/ghost.pickle` | Current accepted memory. Each accepted commit saves it. |
+| `<home>/ghost.pickle` | Full raw history. Normal loading opens its accepted causal view. |
 | `<home>/ghost_<tick>_<UTC datetime>_<suffix>.pickle` | Stable memory after a successful main cognition commit. |
+| `<home>/logs/prompts/` | Exact direct requests, responses, usage receipts, and native agent sessions. |
 | `<home>/logs/runtime_<UTC datetime>_<pid>.log` | Process diagnostics and native crash traces. |
 | `<home>/runtime/` | Kernel journals, managed tasks, and workflow artifacts. |
 
@@ -24,12 +25,13 @@ Related: [model connections](../models.md), [character home](character-import.md
 Without `--home`, the terminal uses its selected runtime root for diagnostics and checkpoints.
 Console workers use their instance root as the home.
 `PM_CACHE_DIR` changes the single shared cache root for tests or another deployment.
-Legacy `PM_PROMPT_LOG_DIR` still redirects attempt logs. Cache transcripts remain beside their JSON files.
+A configured persona log directory takes precedence over `PM_PROMPT_LOG_DIR`.
+Standalone tools can use that environment variable when they have no owning home.
 `PM_PROMPT_LOG=0` disables inference transcripts. It does not disable process diagnostics.
 
 Embeddings live on the knoxels inside `ghost.pickle`. There is no embedding cache.
 The application accepts legacy JSON checkpoints and YAML seeds. It saves subsequent state with pickle.
-Startup can add missing Markdown transcripts to existing completion response entries.
+A launcher without a home can add missing Markdown transcripts to existing completion response entries.
 
 ## Read an inference
 
@@ -57,7 +59,8 @@ The backup includes records, revisions, GWT turns, cycle state, managed runs, an
 Main cognition writes the backup after its cycle commit and before it publishes bus events.
 Its tick identifies that completed cycle.
 Failed attempts, retries, and cancellations before commit create no backup.
-If a later message's cycle crashes before commit, the previous backup excludes that message.
+Default recovery excludes a later message when no completed cognition run admitted its causal dependencies.
+The raw backup can retain that provisional message for debugging.
 A backup I/O error propagates after memory acceptance and prevents event publication. Earlier backups remain available.
 An explicitly ephemeral store writes no backup.
 
@@ -82,7 +85,8 @@ Native failures write all Python thread stacks to the same log when Python can h
 If a worker remains active for five seconds, it records that worker's stack and continues to wait.
 This preserves the location of an uncancelled external operation without abandoning its cleanup.
 
-Ctrl+C, SIGTERM, and Windows Ctrl+Break signal cancellation before cleanup starts.
+The first stop signal fences intake and timers, then drains runnable work.
+Parked workflows retain their journals and workspace bytes in the ghost.
 The terminal restores its previous signal handlers after cleanup.
 If cleanup is stuck, a second stop signal records all thread stacks and forces exit with code 130.
 Web sockets close, modules stop, and managed workers finish before the terminal returns.
@@ -95,3 +99,26 @@ Windows kills remaining descendants after runtime exit, including a forced paren
 Existing external services stay outside that job.
 See the [Windows Job Object contract](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects).
 If a host rejects the job, the process log records the Windows error. Normal cancellation and joins still apply.
+
+## Causal recovery and exports
+
+K002 adds immutable transaction history to the normal ghost file.
+Each logical knoxel change creates a new ID and records its predecessor.
+Delivery and execution updates use separate operational receipts.
+Main cognition admits new stimuli; completed approved actions retain their exact input dependencies.
+See [causal memory and recovery](../work_items/k002/causal-memory.md).
+
+Normal startup opens the accepted view and resumes unfinished approved actions.
+An explicit raw load supports debugging.
+A clean export writes a new file and preserves the source history:
+
+```powershell
+uv run --locked python main.py --home YOUR-HOME --clean .runtime/clean-ghost.pickle
+```
+
+The destination must not exist.
+A bare legacy ghost cannot restore missing earlier payloads; its existing records become an explicit import baseline.
+
+The [simulation](simulation.md) also retains the clock, timer deadlines, and participant routing ledger.
+Failed multi-participant runs resume from a coordinated barrier for all participants.
+Single-participant recovery retains its causally accepted progress.

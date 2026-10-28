@@ -1,5 +1,7 @@
 """Run actual Python workflows synchronously on real and virtual targets."""
 from pathlib import Path
+import json
+import os
 from tempfile import TemporaryDirectory
 import threading
 import unittest
@@ -49,6 +51,51 @@ class WorkflowRunnerTests(unittest.TestCase):
             else FolderTarget(self.root / "target", "bash").open("probe")
         )
         return WorkflowRuntime(environment, threading.Event(), {}, propagate_python_errors=True)
+
+    @unittest.skipUnless(os.name == "nt", "Windows file sharing")
+    def test_state_file_lock_retries_projection_without_repeating_the_phase(self):
+        import ctypes
+        runner = self.runner(
+            "    context.runtime.environment.write_text('outbox/report.yaml', 'text: complete')\n"
+            "    context.runtime.tools['hold_state']()\n"
+            "    return {'status': 'done', 'summary': 'one execution'}\n"
+        )
+        state = self.root / "runtime/standalone/locked/workspace/agents/tasks/locked/state.md"
+        held = []
+        releases = []
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.CreateFileW.restype = ctypes.c_void_p
+        kernel32.CreateFileW.argtypes = [ctypes.c_wchar_p, ctypes.c_uint32, ctypes.c_uint32,
+                                       ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p]
+        kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+        def hold_state():
+            handle = kernel32.CreateFileW(str(state), 0x80000000, 3, None, 3, 0, None)
+            if handle == ctypes.c_void_p(-1).value:
+                raise ctypes.WinError(ctypes.get_last_error())
+            held.append(handle)
+            def release():
+                threading.Event().wait(.4)
+                kernel32.CloseHandle(handle)
+            thread = threading.Thread(target=release)
+            releases.append(thread)
+            thread.start()
+        runtime = self.runtime()
+        runtime.tools["hold_state"] = hold_state
+        try:
+            result = runner.invoke(WorkflowRequest("locked", {}), runtime)
+        finally:
+            for thread in releases:
+                thread.join()
+        self.assertEqual(result.status, WorkflowStatus.Completed)
+        self.assertEqual(len(held), 1)
+        entries = [json.loads(line) for line in (result.artifact_dir / "journal.jsonl").read_text(encoding="utf-8").splitlines()]
+        self.assertEqual(sum(row["kind"] == "role" for row in entries), 1)
+        self.assertEqual(sum(row["kind"] == "route" for row in entries), 1)
+
+    def test_permission_error_inside_a_role_propagates_without_kernel_replay(self):
+        runner = self.runner("    raise PermissionError('role permission failure')\n")
+        with self.assertRaisesRegex(PermissionError, "role permission failure"):
+            runner.invoke(WorkflowRequest("permission", {}), self.runtime())
 
     def test_stop_route_completes_on_both_targets_in_the_calling_thread(self):
         runner = self.runner(

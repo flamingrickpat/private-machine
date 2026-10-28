@@ -21,6 +21,7 @@ def record_links(record: dict) -> list[dict]:
                     links.append(link)
 
     fields = {
+        "supersedes_id": "previous immutable record",
         "focus_knoxel_ids": "focus", "winning_attention_ids": "selected codelet output",
         "supporting_knoxel_ids": "support", "opposing_knoxel_ids": "counterevidence",
         "source_knoxel_ids": "source", "internal_knoxel_ids": "structure member",

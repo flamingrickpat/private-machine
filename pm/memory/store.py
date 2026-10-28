@@ -9,7 +9,7 @@ from __future__ import annotations
 
 
 import hashlib
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 import json
 import pickle
@@ -20,9 +20,17 @@ from pm.memory.snapshot import GhostCancelled, GhostConflict, Snapshot
 from pm.memory.write_batch import WriteBatch
 from pm.memory.record_index import RecordIndex
 from pm.memory.references import check_references
+from pm.memory.references import referenced_ids
+from pm.memory.causal import CausalHistory, Transaction
+from pm.records.copying import pickle_copy
+from pm.memory.read_scope import current as current_reads
+from pm.records.immutable import freeze_record
+from pm.records.codelet_records import ModuleOutput
 from pm.records.cycle_state import CycleState, CycleStateModel, PersonaConfig
 from pm.records.global_workspace import GwtTurnRecord
-from pm.records.base import RecordBase
+from pm.records.base import RecordBase, RecordKind
+from pm.records.memory_records import Entity
+from pm.records.enums import RecordSubtypeBase
 from pm.memory.yaml_codec import ghost_state_to_dict, load_ghost_state_from_yaml
 from pm.memory.vector_index import VectorIndex
 from pm.memory.embeddings import EmbeddingService, run_embedding_work
@@ -32,9 +40,94 @@ from pm.records.media import MEDIA_KEY, RecordImage, merge_alt_text, metadata_me
 
 class MemoryStore(RecordIndex):
     """Own one central record map. Reads share records and writes use the store lock."""
+
+    def _observe_records(self, records: Iterable[RecordBase]) -> None:
+        """Capture direct host reads and operational overlays in the invocation.
+
+        Deletions also affect empty collection results. Record those commit
+        dependencies without treating unrelated appended messages as inputs.
+        """
+        reads = current_reads()
+        if reads is None or not reads.collecting:
+            return
+        ids = {record.id for record in records}
+        transactions = self.causal_history.transactions if self.causal_history is not None else {}
+        commits = [key for key, item in transactions.items()
+                   if key in self._live_transactions and (item.tombstone_ids or ids.intersection(item.lifecycle))]
+        reads.observe(self, ids, commits)
+
+    @RecordIndex.all_knoxels.getter
+    def all_knoxels(self) -> dict[int, RecordBase]:
+        """Return stable live membership and retain its causal read dependencies."""
+        with self.lock:
+            records = dict(self._all_knoxels)
+            self._observe_records(records.values())
+            return records
+
+    def _knoxels_for_type(self, kind: RecordKind) -> list[RecordBase]:
+        with self.lock:
+            records = list(super()._knoxels_for_type(kind))
+            self._observe_records(records)
+            return records
+
+    def _knoxels_for_class(self, cls: type[RecordBase]) -> list[RecordBase]:
+        with self.lock:
+            records = list(super()._knoxels_for_class(cls))
+            self._observe_records(records)
+            return records
+
+    def knoxels_by_subtype(self, subtype: RecordSubtypeBase, *, needs_causal: bool = False) -> list[RecordBase]:
+        with self.lock:
+            records = super().knoxels_by_subtype(subtype, needs_causal=needs_causal)
+            self._observe_records(records)
+            return records
+
+    def get_knoxels_of_types(self, *type_filters, needs_causal: bool = True) -> list[RecordBase]:
+        with self.lock:
+            records = super().get_knoxels_of_types(*type_filters, needs_causal=needs_causal)
+            self._observe_records(records)
+            return records
+
+    def read_run_receipts(self) -> dict[str, dict]:
+        """Copy live managed-run receipts and capture their exact transactions."""
+        with self.lock:
+            rows = pickle_copy(self.managed_runs)
+            reads = current_reads()
+            if reads is not None:
+                reads.observe(self, [], [row["causal_commit_id"] for row in rows.values() if row.get("causal_commit_id")])
+            return rows
+
+    def _observe_ticks(self, ticks: Iterable[int]) -> None:
+        """Link consumed cycle and workspace state to its creating transactions."""
+        reads = current_reads()
+        if reads is not None and self.causal_history is not None:
+            ticks = set(ticks)
+            reads.observe(self, [], [key for key, item in self.causal_history.transactions.items()
+                if key in self._live_transactions and item.manifest.get("gwt") and item.tick_id in ticks])
+
+    def read_cycles(self) -> list[CycleState]:
+        """Read stable cycle membership and retain its causal dependencies."""
+        with self.lock:
+            states = list(self.states)
+            self._observe_ticks(item.tick_id for item in states)
+            return states
+
+    def read_workspace_turns(self) -> dict[int, GwtTurnRecord]:
+        """Read workspace history without depending on unrelated new messages."""
+        with self.lock:
+            turns = dict(self.gwt_turns)
+            self._observe_ticks(turns)
+            return turns
+
+    def get_entity_name(self, entity_id: int) -> str | None:
+        """Resolve an exact identity version, including historical attribution."""
+        record = self.get_knoxel_by_id(entity_id)
+        return record.content if isinstance(record, Entity) else None
     def __init__(self, config: PersonaConfig, *, checkpoint: Path | None = None):
-        super().__init__(None, config)
         self.lock = RLock()
+        self.causal_history: CausalHistory | None = None
+        self._live_transactions: set[str] = set()
+        super().__init__(None, config)
         self.embedding_index = VectorIndex()
         self.embeddings: EmbeddingService | None = None
         self.checkpoint = Path(checkpoint) if checkpoint is not None else None
@@ -47,9 +140,14 @@ class MemoryStore(RecordIndex):
         self.consolidations: dict[str, dict] = {}
         self.previous_emb_model = ""
         self._reserved_tick_id = 0
+        self._history: dict[int, RecordBase] = {}
+        self._visible_history: dict[int, RecordBase] = {}
+        self._raw_gwt: dict[int, GwtTurnRecord] = {}
+        self._raw_cycles: list[CycleState] = []
+        self._raw_commits: dict[str, CommitReceipt] = {}
 
     @classmethod
-    def load(cls, path: str | Path, *, checkpoint: Path | None = None) -> "MemoryStore":
+    def load(cls, path: str | Path, *, checkpoint: Path | None = None, raw: bool = False) -> "MemoryStore":
         """Load pickle, JSON, or a legacy YAML seed. Save future changes with pickle."""
         from pm.memory.yaml_codec import ghost_state_from_dict
         path = Path(path)
@@ -59,11 +157,11 @@ class MemoryStore(RecordIndex):
         if data.startswith(b"\x80"):
             loaded = pickle.loads(data)
             if isinstance(loaded, Checkpoint):
-                return cls._restore(loaded, checkpoint or path.with_suffix(".pickle"))
+                return cls._restore(loaded, checkpoint or path.with_suffix(".pickle"), raw=raw)
             return cls.from_state(loaded, checkpoint=checkpoint or path.with_suffix(".pickle"))
         loaded = json.loads(data)
         if "schema_id" in loaded:
-            return cls._restore(Checkpoint.model_validate(loaded), checkpoint or path.with_suffix(".pickle"))
+            return cls._restore(Checkpoint.model_validate(loaded), checkpoint or path.with_suffix(".pickle"), raw=raw)
         return cls.from_state(ghost_state_from_dict(loaded), checkpoint=checkpoint)
 
     @classmethod
@@ -79,6 +177,8 @@ class MemoryStore(RecordIndex):
         ghost._reserved_tick_id = ghost.current_tick_id
         ghost.revisions = {record_id: 1 for record_id in ghost._all_knoxels}
         ghost.rebuild_knoxel_indexes()
+        for record in ghost._all_knoxels.values():
+            freeze_record(record)
         ghost.embedding_index.rebuild(state.knoxels)
         return ghost
 
@@ -96,23 +196,25 @@ class MemoryStore(RecordIndex):
         from pm.records.base import Provenance
         from pm.records.enums import SourceKind
         for record in ghost._all_knoxels.values():
-            record.metadata = {**record.metadata, "memory_kind": "background",
+            object.__setattr__(record, "metadata", {**record.metadata, "memory_kind": "background",
                                "seed_sha256": digest, "seed_source": str(path.resolve()),
-                               "imported_provenance": record.provenance.model_dump(mode="json") if record.provenance else None}
-            record.provenance = Provenance(source_kind=SourceKind.Migration, source_ref=digest)
+                               "imported_provenance": record.provenance.model_dump(mode="json") if record.provenance else None})
+            object.__setattr__(record, "provenance", Provenance(source_kind=SourceKind.Migration, source_ref=digest))
+            freeze_record(record)
         return ghost
 
     @classmethod
-    def from_checkpoint(cls, path: str | Path) -> "MemoryStore":
-        ghost = cls._restore(read_checkpoint(Path(path)), Path(path))
+    def from_checkpoint(cls, path: str | Path, *, raw: bool = False) -> "MemoryStore":
+        """Open the accepted view by default. Raw mode retains provisional activity."""
+        ghost = cls._restore(read_checkpoint(Path(path)), Path(path), raw=raw)
         for receipt in ghost.managed_runs.values():
-            if receipt["state"] in {"accepted", "running", "waiting_for_input"}:
+            if receipt["state"] in {"accepted", "running"}:
                 receipt["interrupted_from"] = receipt["state"]
                 receipt["state"] = "interrupted"
         return ghost
 
     @classmethod
-    def _restore(cls, data: Checkpoint, path: Path | None) -> "MemoryStore":
+    def _restore(cls, data: Checkpoint, path: Path | None, *, raw: bool = False) -> "MemoryStore":
         ghost = cls.from_state(data.state, checkpoint=path)
         if set(data.revisions) != set(ghost._all_knoxels) or any(revision < 1 for revision in data.revisions.values()):
             raise ValueError("Checkpoint record revisions do not match stored memory.")
@@ -132,7 +234,130 @@ class MemoryStore(RecordIndex):
         ghost.applied_commits = dict(data.applied_commits)
         ghost.managed_runs = data.managed_runs
         ghost.consolidations = data.consolidations
+        ghost.causal_history = getattr(data, "causal_history", None)
+        if ghost.causal_history is not None:
+            ghost._history = dict(ghost._all_knoxels)
+            ghost._raw_gwt = dict(data.gwt_turns)
+            ghost._raw_cycles = list(data.state.cycles)
+            ghost._raw_commits = dict(data.applied_commits)
+            ghost._project(raw=raw)
         return ghost
+
+    def _ensure_history(self) -> None:
+        """Establish an explicit legacy baseline before the first new transaction."""
+        if self.causal_history is None:
+            self.causal_history = CausalHistory(
+                baseline_ids=tuple(self._all_knoxels),
+                baseline_ticks=tuple(sorted(set(self.gwt_turns) | {cycle.tick_id for cycle in self.states})),
+                baseline_runs=pickle_copy(self.managed_runs),
+                baseline_commit_ids=tuple(self.applied_commits),
+                baseline_consolidations=pickle_copy(self.consolidations))
+            self._history = dict(self._all_knoxels)
+            self._visible_history = dict(self._all_knoxels)
+            self._raw_gwt = dict(self.gwt_turns)
+            self._raw_cycles = list(self.states)
+            self._raw_commits = dict(self.applied_commits)
+
+    def accept_import(self) -> None:
+        """Make an explicit persona import the recovery baseline and save it.
+
+        Use only before runtime cognition starts. This operation cannot recover
+        the missing history of an imported legacy file.
+        """
+        with self.lock:
+            if self.causal_history is not None and any(item.main for item in self.causal_history.transactions.values()):
+                raise ValueError("A running persona cannot replace its causal baseline.")
+            self.causal_history = None
+            self._ensure_history()
+            self.save()
+
+    def export_clean(self, destination: Path) -> Path:
+        """Write accepted history to a separate file. Keep the source unchanged.
+
+        Historical superseded records remain because exact references need
+        them. Excluded transactions and their knoxels leave the exported file.
+        """
+        destination = Path(destination).resolve()
+        if self.checkpoint is not None and destination == self.checkpoint.resolve():
+            raise ValueError("Clean export requires a different destination file.")
+        if destination.exists():
+            raise FileExistsError("Clean export requires a new destination file.")
+        with self.lock:
+            data = self.checkpoint_data()
+            accepted = self.causal_history.accepted()
+            history = self.causal_history.model_copy(update={
+                "transactions": {key: value for key, value in self.causal_history.transactions.items() if key in accepted}})
+            ids = set(history.baseline_ids)
+            ticks = set(history.baseline_ticks)
+            for item in history.transactions.values():
+                ids.update(item.created_ids)
+                if item.manifest.get("gwt"):
+                    ticks.add(item.tick_id)
+            data = data.model_copy(update={
+                "state": self.state({key: self._history[key] for key in ids},
+                                    [cycle for cycle in self._raw_cycles if cycle.tick_id in ticks]),
+                "revisions": {key: self.revisions[key] for key in ids},
+                "gwt_turns": {key: value for key, value in self._raw_gwt.items() if key in ticks},
+                "applied_commits": {key: value for key, value in self._raw_commits.items()
+                                    if key in accepted or key in history.baseline_commit_ids},
+                "causal_history": history})
+            # Validate the projection before publishing a clean artifact.
+            self._restore(data, None)
+            write_checkpoint(destination, data, lambda: None)
+        return destination
+
+    def _project(self, *, raw: bool = False) -> None:
+        """Install a validated recovery view while retaining the raw archive.
+
+        Replay only accepted transactions. Receipt overlays do not alter raw
+        knoxels. Counters retain their raw maxima to prevent ID reuse.
+        """
+        history = self.causal_history
+        accepted = set(history.transactions) if raw else history.accepted()
+        self._live_transactions = accepted
+        history.producers()
+        ids = set(history.baseline_ids)
+        heads = set(ids)
+        lifecycle = {}
+        ticks = set(history.baseline_ticks)
+        runs = pickle_copy(history.baseline_runs)
+        consolidations = pickle_copy(history.baseline_consolidations)
+        for transaction in history.transactions.values():
+            if transaction.commit_id not in accepted:
+                continue
+            if not set(transaction.input_ids).issubset(ids):
+                raise ValueError(f"Missing causal input in {transaction.commit_id!r}.")
+            ids.update(transaction.created_ids)
+            heads.difference_update(transaction.superseded_ids)
+            heads.update(transaction.created_ids)
+            heads.difference_update(transaction.tombstone_ids)
+            for key, fields in transaction.lifecycle.items():
+                lifecycle.setdefault(key, {}).update(fields)
+            runs.update(pickle_copy(transaction.runs))
+            consolidations.update(pickle_copy(transaction.consolidations))
+            if transaction.main or transaction.manifest.get("gwt"):
+                ticks.add(transaction.tick_id)
+        if not ids.issubset(self._history):
+            raise ValueError("Causal history names missing knoxels.")
+        records = {key: self._history[key] for key in ids}
+        for key, fields in lifecycle.items():
+            record = records[key].copy_for_edit()
+            record.metadata = {**record.metadata, **pickle_copy(fields)}
+            records[key] = record
+            freeze_record(record)
+        self._visible_history = records
+        self._all_knoxels = {key: records[key] for key in heads}
+        self.gwt_turns = {key: turn for key, turn in self._raw_gwt.items() if key in ticks}
+        self.states = [cycle for cycle in self._raw_cycles if cycle.tick_id in ticks]
+        self.managed_runs = runs
+        self.consolidations = consolidations
+        self.applied_commits = {key: self._raw_commits[key] for key in history.baseline_commit_ids}
+        for item in sorted(history.transactions.values(), key=lambda row: row.sequence):
+            if item.commit_id in accepted:
+                key = item.manifest.get("logical_commit_id", item.commit_id)
+                self.applied_commits[key] = self._raw_commits[item.commit_id].model_copy(update={"commit_id": key})
+        self.rebuild_knoxel_indexes()
+        self.embedding_index.rebuild(self._all_knoxels.values())
 
     def state(self, records: dict[int, RecordBase] | None = None, cycles: list[CycleState] | None = None) -> CycleStateModel:
         """Return typed state with shared records. This method copies no record values."""
@@ -147,14 +372,23 @@ class MemoryStore(RecordIndex):
         with self.lock:
             return ghost_state_to_dict(self.state())
 
-    def snapshot(self, visible_ids=None) -> Snapshot:
+    def snapshot(self, visible_ids=None, *, capture: bool = True) -> Snapshot:
         """Capture membership and revisions while sharing the central record instances."""
         with self.lock:
             ids = self._all_knoxels.keys() if visible_ids is None else visible_ids
-            records = {key: self._all_knoxels[key] for key in ids}
+            records = {key: self._all_knoxels.get(key) or self._visible_history.get(key) for key in ids}
+            if any(record is None for record in records.values()):
+                raise KeyError("Snapshot includes a record outside the current causal view.")
+            reads = current_reads()
+            if capture and reads is not None:
+                reads.observe(self, records, self._live_transactions)
+            historical = ({key: record for key, record in self._visible_history.items() if key not in records}
+                          if visible_ids is None else {})
+            allowed = set(records) | set(historical)
             gwt = {tick: record for tick, record in self.gwt_turns.items()
-                   if set(record.knoxel_ids).issubset(records)}
-            return Snapshot(records, gwt, {key: self.revisions[key] for key in records}, self.embedding_index)
+                   if set(record.knoxel_ids).issubset(allowed)}
+            return Snapshot(records, gwt, {key: self.revisions[key] for key in allowed}, self.embedding_index,
+                            frozenset(self._live_transactions), historical)
 
     def index_embedding(self, record: RecordBase) -> None:
         """Index a vector update only when this record is the accepted central instance."""
@@ -210,7 +444,10 @@ class MemoryStore(RecordIndex):
         records = self.snapshot().all_knoxels
         changed_model = bool(self.previous_emb_model and self.previous_emb_model != embeddings.config.model)
         for record in records.values():
-            if changed_model or len(record.embedding) != embeddings.dimensions:
+            if not record.embedding_model and record.embedding:
+                record.embedding_model = self.previous_emb_model
+            if (changed_model or record.embedding_model != embeddings.config.model
+                    or len(record.embedding) != embeddings.dimensions):
                 record.embedding = []
         missing = any(not record.embedding for record in records.values())
         run_embedding_work(embeddings.prepare_index(records))
@@ -224,13 +461,35 @@ class MemoryStore(RecordIndex):
 
     def checkpoint_data(self) -> Checkpoint:
         """Collect the full typed store for a pickle save."""
+        self._ensure_history()
+        self._sync_caches()
         return Checkpoint(
-            state=self.state(), current_knoxel_id=self.current_knoxel_id,
+            state=self.state(self._history, self._raw_cycles), current_knoxel_id=self.current_knoxel_id,
             current_tick_id=self.current_tick_id, reserved_tick_id=self._reserved_tick_id,
-            revisions=self.revisions, gwt_turns=self.gwt_turns,
-            applied_commits=self.applied_commits, managed_runs=self.managed_runs,
+            revisions=self.revisions, gwt_turns=self._raw_gwt,
+            applied_commits=self._raw_commits, managed_runs=self.managed_runs,
             consolidations=self.consolidations,
+            causal_history=self.causal_history,
         )
+
+    def _sync_caches(self) -> None:
+        """Keep derived caches beside raw payloads after receipt overlays.
+
+        Logical fields remain unchanged. A materialized receipt view can own
+        a newer vector or image description than its archived source instance.
+        """
+        for key, record in self._visible_history.items():
+            original = self._history[key]
+            if original is record:
+                continue
+            original.embedding = record.embedding
+            original.embedding_model = record.embedding_model
+            original.last_accessed = record.last_accessed
+            if MEDIA_KEY in record.metadata:
+                metadata = dict(original.metadata)
+                merge_alt_text(metadata, record.metadata)
+                object.__setattr__(original, "metadata", metadata)
+                freeze_record(original)
 
     def save(self) -> None:
         """Save all records and vectors. Filesystem errors propagate."""
@@ -239,7 +498,7 @@ class MemoryStore(RecordIndex):
                 write_checkpoint(self.checkpoint, self.checkpoint_data(), lambda: None)
 
     def backup(self) -> Path | None:
-        """Save accepted memory beside the checkpoint and return its backup path.
+        """Save full history beside the ghost. Default loading opens its accepted view.
 
         Main cognition calls this method after a successful cycle commit.
         The commit lock keeps all fields at one stable revision. Backups have
@@ -329,17 +588,33 @@ class MemoryStore(RecordIndex):
         """
         with self.lock:
             turns = [record for record in self.gwt_turns.values() if record.slot_id == slot_id]
+            self._observe_ticks(item.tick_id for item in turns)
         turns.sort(key=lambda record: record.tick_id, reverse=True)
         return turns[:max(1, limit)]
 
-    def begin_batch(self, commit_id: str, *, visible_ids=None, new_tick: bool = False, cancel: Event | None = None) -> WriteBatch:
-        """Capture a stable view. A new tick reserves an ID without accepting memory."""
+    def has_workspace_entry(self, record_id: int) -> bool:
+        """Read later percept participation without rewriting the original event."""
+        with self.lock:
+            reads = current_reads()
+            if reads is not None and self.causal_history is not None:
+                commits = [key for key, item in self.causal_history.transactions.items()
+                           if item.manifest.get("gwt") and key in self._live_transactions]
+                reads.observe(self, [], commits)
+            return any(record_id in turn.trace.causal_percept_ids for turn in self.gwt_turns.values())
+
+    def begin_batch(self, commit_id: str, *, visible_ids=None, new_tick: bool = False,
+                    cancel: Event | None = None, embed: bool = True) -> WriteBatch:
+        """Capture a stable view. A new tick reserves an ID without accepting memory.
+
+        Set ``embed=False`` for stimulus delivery. It must reach durable storage
+        without a model call. Cognition can fill the derived vectors later.
+        """
         with self.lock:
             tick = self.current_tick_id
             if new_tick:
                 self._reserved_tick_id = max(self._reserved_tick_id, self.current_tick_id) + 1
                 tick = self._reserved_tick_id
-            return WriteBatch(self, commit_id, self.snapshot(visible_ids), tick, cancel)
+            return WriteBatch(self, commit_id, self.snapshot(visible_ids, capture=False), tick, cancel, embed=embed)
 
     def commit(self, batch: WriteBatch) -> CommitReceipt:
         """Save and accept a whole batch, or raise without accepting its proposals.
@@ -347,7 +622,12 @@ class MemoryStore(RecordIndex):
         Repeated commit IDs return their original receipt. Revision conflicts
         raise GhostConflict. A cancellation before replacement raises GhostCancelled.
         """
-        if self.embeddings is not None and batch.commit_id not in self.applied_commits:
+        reads = current_reads()
+        if reads is not None:
+            reads.apply(self, batch)
+            if reads.completed_invocation_id is not None:
+                self._finish_parked(batch, reads.completed_invocation_id)
+        if self.embeddings is not None and batch.embed and batch.commit_id not in self.applied_commits:
             batch.check_cancelled()
             run_embedding_work(self.embeddings.prepare_index(
                 {**batch._new, **batch._replacements}, cancel=batch.cancel))
@@ -358,7 +638,9 @@ class MemoryStore(RecordIndex):
                 batch._closed = True
                 return self.applied_commits[batch.commit_id]
             batch.check_cancelled()
-            conflicts = [record_id for record_id, revision in batch._expected.items() if self.revisions[record_id] != revision]
+            conflicts = [record_id for record_id, revision in batch._expected.items()
+                         if self.revisions.get(record_id) != revision
+                         or record_id in (batch._superseded | batch._heads) and record_id not in self._all_knoxels]
             family_conflicts = [key for key, value, expected in batch._metadata_guards
                                 if {record.id: self.revisions[record.id]
                                     for record in self._all_knoxels.values()
@@ -378,7 +660,7 @@ class MemoryStore(RecordIndex):
                     f"Stale memory revisions: {conflicts}. Stale run receipts: {run_conflicts}. "
                     f"Stale consolidation receipts: {consolidation_conflicts}. Stale record families: {family_conflicts}."
                 )
-            allowed_ids = set(batch._snapshot._records) | set(batch._new)
+            allowed_ids = set(batch._snapshot.revisions) | set(batch._new)
             for record in (*batch._new.values(), *batch._replacements.values()):
                 check_references(record, allowed_ids)
             if batch._gwt is not None:
@@ -390,31 +672,89 @@ class MemoryStore(RecordIndex):
                     raise GhostConflict(f"Cycle tick {batch.tick_id} is already committed.")
                 check_references(batch._cycle, allowed_ids)
 
-            records = {**self._all_knoxels, **batch._new, **batch._replacements}
-            for record_id, replacement in batch._replacements.items():
-                merge_alt_text(replacement.metadata, self._all_knoxels[record_id].metadata)
+            self._ensure_history()
+            self._sync_caches()
+            for record in batch._new.values():
+                if record.supersedes_id is not None:
+                    merge_alt_text(record.metadata, self.get_knoxel_by_id(record.supersedes_id).metadata)
+            records = {key: record for key, record in self._all_knoxels.items() if key not in batch._superseded}
+            records.update({key: record for key, record in batch._new.items() if not record.tombstone})
+            for key, fields in batch._lifecycle.items():
+                record = records[key].copy_for_edit()
+                record.metadata = {**record.metadata, **pickle_copy(fields)}
+                records[key] = record
             cycles = self.states if batch._cycle is None else [*self.states, batch._cycle]
             revisions = dict(self.revisions)
             for record_id in (*batch._new, *batch._replacements):
                 revisions[record_id] = revisions.get(record_id, 0) + 1
             receipt = CommitReceipt(commit_id=batch.commit_id, added_ids=tuple(batch._new),
-                                    updated_ids=tuple(batch._replacements), tick_id=batch.tick_id)
+                                    updated_ids=tuple(batch._superseded), tick_id=batch.tick_id)
             gwt = dict(self.gwt_turns)
             if batch._gwt is not None:
                 gwt[batch.tick_id] = batch._gwt
+            inputs = set(batch._input_ids) | set(batch._expected) | set(batch._superseded)
+            for record in batch._new.values():
+                inputs.update(referenced_ids(record) - set(batch._new))
+            if batch._gwt is not None:
+                inputs.update(referenced_ids(batch._gwt) - set(batch._new))
+                inputs.update(set(batch._gwt.stimulus_ids) - set(batch._new))
+            if batch._cycle is not None:
+                inputs.update(referenced_ids(batch._cycle) - set(batch._new))
+            inputs.difference_update(batch._new)
+            producers = self.causal_history.producers()
+            missing = inputs - set(self._visible_history) - set(self._all_knoxels)
+            if missing:
+                raise ValueError(f"Causal inputs are outside the live view: {sorted(missing)}")
+            dependencies = {producers[key] for key in inputs if key in producers}
+            if not batch._input_commits.issubset(self._live_transactions):
+                raise ValueError("A transaction dependency is outside the live view.")
+            dependencies.update(batch._input_commits)
+            authority = producers.get(batch._authority)
+            baseline_authority = batch._authority in self.causal_history.baseline_ids
+            if batch._authority is not None and authority is None and not baseline_authority:
+                raise ValueError("An action authority must have a recorded transaction.")
+            transaction_id = batch.commit_id
+            if transaction_id in self.causal_history.transactions:
+                transaction_id = f"{transaction_id}:branch:{uuid4().hex}"
+            transaction = Transaction(
+                commit_id=transaction_id, sequence=max((item.sequence for item in self.causal_history.transactions.values()), default=0) + 1,
+                input_ids=tuple(sorted(inputs)), dependencies=tuple(sorted(dependencies)),
+                created_ids=tuple(batch._new), superseded_ids=tuple(batch._superseded),
+                tombstone_ids=tuple(key for key, record in batch._new.items() if record.tombstone),
+                lifecycle=pickle_copy(batch._lifecycle), runs=pickle_copy(batch._runs),
+                consolidations=pickle_copy(batch._consolidations), tick_id=batch.tick_id,
+                main=batch._gwt is not None and batch._gwt.slot_id == "main", authority=authority,
+                authority_record_id=batch._authority, baseline_authority=baseline_authority,
+                manifest={**batch._manifest, "gwt": batch._gwt is not None, "logical_commit_id": batch.commit_id})
+            history = self.causal_history.model_copy(update={
+                "transactions": {**self.causal_history.transactions, transaction_id: transaction}})
+            raw_records = {**self._history, **batch._new}
+            raw_cycles = self._raw_cycles if batch._cycle is None else [*self._raw_cycles, batch._cycle]
+            raw_gwt = dict(self._raw_gwt)
+            if batch._gwt is not None:
+                raw_gwt[batch.tick_id] = batch._gwt
+            raw_commits = {**self._raw_commits, transaction_id: receipt.model_copy(update={"commit_id": transaction_id})}
             data = Checkpoint(
-                state=self.state(records, cycles), current_knoxel_id=self.current_knoxel_id,
+                state=self.state(raw_records, raw_cycles), current_knoxel_id=self.current_knoxel_id,
                 current_tick_id=max(self.current_tick_id, batch.tick_id), reserved_tick_id=self._reserved_tick_id,
-                revisions=revisions, gwt_turns=gwt,
-                applied_commits={**self.applied_commits, batch.commit_id: receipt},
+                revisions=revisions, gwt_turns=raw_gwt,
+                applied_commits=raw_commits,
                 managed_runs={**self.managed_runs, **batch._runs},
                 consolidations={**self.consolidations, **batch._consolidations},
+                causal_history=history,
             )
             batch.check_cancelled()
             if self.checkpoint is not None:
                 write_checkpoint(self.checkpoint, data, batch.check_cancelled)
             # Save before installation. A failed file replacement leaves proposals private.
-            for record_id, record in {**batch._new, **batch._replacements}.items():
+            for record_id in batch._superseded:
+                self.embedding_index.remove(record_id)
+                self._deindex_knoxel(self._all_knoxels.pop(record_id))
+            for record_id in set(batch._new) | set(batch._lifecycle):
+                if record_id not in records:
+                    continue
+                record = records[record_id]
+                freeze_record(record)
                 previous = self._all_knoxels.get(record_id)
                 if previous is not None:
                     self._deindex_knoxel(previous)
@@ -426,9 +766,17 @@ class MemoryStore(RecordIndex):
             self.current_tick_id = data.current_tick_id
             self.revisions = revisions
             self.gwt_turns = gwt
-            self.applied_commits = data.applied_commits
+            self.applied_commits = {**self.applied_commits, batch.commit_id: receipt}
             self.managed_runs = data.managed_runs
             self.consolidations = data.consolidations
+            self.causal_history = history
+            self._history = raw_records
+            self._raw_gwt = raw_gwt
+            self._raw_cycles = raw_cycles
+            self._raw_commits = raw_commits
+            self._live_transactions.add(transaction_id)
+            self._visible_history = {**self._visible_history, **batch._new, **{key: records[key] for key in batch._lifecycle}}
+            self.applied_commits = {**self.applied_commits, batch.commit_id: receipt}
             batch._closed = True
             import logging
             logging.getLogger(__name__).debug("Memory commit id=%s tick=%s added=%s updated=%s", receipt.commit_id,
@@ -452,6 +800,25 @@ class MemoryStore(RecordIndex):
                         return image
         return None
 
+    def _finish_parked(self, batch: WriteBatch, invocation_id: str) -> None:
+        """Append a completion receipt in the same transaction as the workflow result."""
+        with self.lock:
+            if batch.commit_id in self.applied_commits:
+                return
+            completed = {item.metadata.get("finished_invocation_id") for item in self._all_knoxels.values()
+                         if isinstance(item, ModuleOutput)}
+            if invocation_id in completed:
+                return
+            parked = [item for item in self._all_knoxels.values() if isinstance(item, ModuleOutput)
+                      and item.metadata.get("parked_module", {}).get("run_id") == invocation_id]
+            if not parked:
+                return
+            batch.create(ModuleOutput(content="The parked workflow reached a terminal outcome.",
+                source_module=parked[-1].source_module, predecessor_output_ids=[item.id for item in parked],
+                metadata={"finished_invocation_id": invocation_id, "memory_kind": "runtime_receipt"}))
+            if batch._authority is None:
+                batch.depend_on([item.id for item in parked], authority=parked[-1].id)
+
     def annotate_alt_text(self, image_id: str, alt_text: str, source: str) -> list[int]:
         """Store an alt text in every accepted record that holds the image, and save.
 
@@ -473,7 +840,8 @@ class MemoryStore(RecordIndex):
                         image.alt_text, image.alt_text_source = alt_text, source
                         hit = True
                 if hit:
-                    record.metadata = {**record.metadata, MEDIA_KEY: media.model_dump(mode="json")}
+                    object.__setattr__(record, "metadata", {**record.metadata, MEDIA_KEY: media.model_dump(mode="json")})
+                    freeze_record(record)
                     changed.append(record_id)
             if changed and self.checkpoint is not None:
                 self.save()
@@ -488,7 +856,15 @@ class MemoryStore(RecordIndex):
 
     def get_knoxel_by_id(self, knoxel_id: int) -> RecordBase | None:
         with self.lock:
-            return self._all_knoxels.get(knoxel_id)
+            record = self._all_knoxels.get(knoxel_id) or self._visible_history.get(knoxel_id)
+            if record is not None:
+                self._observe_records([record])
+            return record
+
+    def _is_committed_instance(self, record: RecordBase) -> bool:
+        """Return whether a caller holds a central committed record instance."""
+        return (self._all_knoxels.get(record.id) is record or self._history.get(record.id) is record
+                or self._visible_history.get(record.id) is record)
 
     def add_knoxel(self, knoxel: RecordBase, generate_embedding: bool = True) -> RecordBase:
         raise NotImplementedError("Use store_knoxel or GhostWriteBatch.create to add memory.")

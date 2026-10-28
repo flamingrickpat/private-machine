@@ -96,6 +96,21 @@ class ShardContextTests(unittest.TestCase):
         with self.assertRaises(KeyError):
             shard_context(self.ghost.snapshot(), self.request, "Kit")
 
+    def test_shard_evidence_keeps_the_selected_version_after_supersession(self):
+        edit = self.memory.copy_for_edit()
+        edit.content = "A later account of the chapter."
+        batch = self.ghost.begin_batch("later-memory")
+        successor = batch.replace(edit)
+        self.ghost.commit(batch)
+        self.assertNotIn(self.memory.id, self.ghost.snapshot().serialize_knoxels())
+        planned = shard_context(self.ghost.snapshot(), self.request, "Kit")
+        evidence = next(item for item in planned.evidence if item.knoxel_id == self.memory.id)
+        self.assertIn("rewrote a whole chapter", evidence.text)
+        self.assertTrue(evidence.historical)
+        self.assertNotIn(successor.id, [item.knoxel_id for item in planned.evidence])
+        context = build_public_context(self.ghost, self.request, planned=planned)
+        self.assertIn(self.memory.id, [item.knoxel_id for item in context.evidence])
+
     def test_an_empty_transcript_supplies_no_invented_turns(self):
         for shard, kind in ((self.request.shards[0], FeatureType.Thought),
                             (self.request.shards[1], FeatureType.Dialogue)):

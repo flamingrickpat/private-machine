@@ -29,8 +29,8 @@ def acknowledge_intent(ghost, action_id: int) -> None:
                 or ActionMetadata.model_validate(action.metadata).dispatch_status != "pending"):
             return
         batch = ghost.begin_batch(f"intent-ack:{action_id}")
-        action.metadata["dispatch_status"] = "admitted"
-        batch.replace(action)
+        batch.depend_on([action_id], authority=action_id)
+        batch.set_lifecycle(action_id, execution_status="running")
         ghost.commit(batch)
 
 

@@ -27,7 +27,7 @@ record packages (``pm.introspection.record_packages``):
 All packages come from the same snapshot, so one combined review item can
 hold them. Register them with::
 
-    uv run --locked python dev/review/server.py register-package --combine \\
+    uv run --locked python -m simulation.review register-package --combine \\
         .runtime/alpha/<run>/packages/*.json --id <id> --work-item A19F
 
 A runtime error or a missing reply keeps the receipt with ``ok: false``.

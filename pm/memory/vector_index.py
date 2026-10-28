@@ -34,11 +34,7 @@ class VectorIndex:
     def update(self, record: RecordBase) -> None:
         """Replace one indexed vector. An empty vector removes the record ID."""
         with self.lock:
-            if record.id in self.ids:
-                self.index.remove_ids(np.asarray([record.id], dtype=np.int64))
-                self.ids.remove(record.id)
-                if not self.ids:
-                    self.index = None
+            self.remove(record.id)
             if record.embedding:
                 vector = np.asarray([record.embedding], dtype=np.float32)
                 faiss.normalize_L2(vector)
@@ -46,6 +42,15 @@ class VectorIndex:
                     self.index = faiss.IndexIDMap2(faiss.IndexFlatIP(vector.shape[1]))
                 self.index.add_with_ids(vector, np.asarray([record.id], dtype=np.int64))
                 self.ids.add(record.id)
+
+    def remove(self, record_id: int) -> None:
+        """Remove a superseded query head without changing its stored vector."""
+        with self.lock:
+            if record_id in self.ids:
+                self.index.remove_ids(np.asarray([record_id], dtype=np.int64))
+                self.ids.remove(record_id)
+                if not self.ids:
+                    self.index = None
 
     def search(self, vector: list[float], visible_ids: Iterable[int], *, limit: int | None = None) -> list[tuple[int, float]]:
         """Rank visible IDs by cosine similarity. Hidden IDs never enter results."""

@@ -155,4 +155,5 @@ class CharacterHome(BaseModel):
         store.commit(store.begin_batch("character-home-init"))
         ensure_persona_entities(store, ImportMark(origin=ImportOrigin.CharacterInit, import_id="character-init",
                                                   synthetic=True))
+        store.accept_import()
         return store

@@ -64,6 +64,7 @@ class LaunchPlan(BaseModel):
     # again at startup. ``--embed`` is the deliberate way to run that rebuild
     # when the operator changes the model in the config.
     embed: bool = False
+    clean: Path | None = None
 
 
 def build_parser(default_seed: Path) -> argparse.ArgumentParser:
@@ -87,6 +88,8 @@ def build_parser(default_seed: Path) -> argparse.ArgumentParser:
     parser.add_argument("--embed", action="store_true",
                         help="Rebuild every stored embedding vector with the configured model, then save."
                              " Needs --home or --checkpoint. No cycle and no chat model run.")
+    parser.add_argument("--clean", type=Path, metavar="DESTINATION",
+                        help="Export accepted causal history into a separate checkpoint, then exit.")
     return parser
 
 
@@ -100,6 +103,8 @@ def launch_plan(argv, default_seed: Path) -> LaunchPlan:
     """
     parser = build_parser(default_seed)
     args = parser.parse_args(argv)
+    if args.clean is not None and (args.ephemeral or args.embed or args.inspector):
+        parser.error("--clean needs a source checkpoint and excludes --ephemeral, --embed, and --inspector.")
     if args.embed and args.ephemeral:
         parser.error("--embed rewrites the vectors stored in a checkpoint; it cannot run with --ephemeral")
     if args.embed and args.inspector:
@@ -112,7 +117,7 @@ def launch_plan(argv, default_seed: Path) -> LaunchPlan:
         home = args.home.resolve()
         return LaunchPlan(home=home, seed=None, runtime_root=home / "runtime", checkpoint=home / "ghost.pickle",
                           cognition=args.cognition, config=args.config, web=True, web_port=args.web_port,
-                          inspector=args.inspector, inspector_port=args.inspector_port, embed=args.embed)
+                          inspector=args.inspector, inspector_port=args.inspector_port, embed=args.embed, clean=args.clean)
     runtime_root = Path(args.runtime_root) if args.runtime_root is not None else Path.cwd() / ".runtime"
     checkpoint = None if args.ephemeral else (args.checkpoint or runtime_root / "ghost.pickle")
     if args.embed and checkpoint is None:
@@ -122,7 +127,7 @@ def launch_plan(argv, default_seed: Path) -> LaunchPlan:
         runtime_root=runtime_root,
         checkpoint=checkpoint,
         cognition=args.cognition, config=args.config, web=args.web, web_port=args.web_port,
-        inspector=args.inspector, inspector_port=args.inspector_port, embed=args.embed,
+        inspector=args.inspector, inspector_port=args.inspector_port, embed=args.embed, clean=args.clean,
     )
 
 
@@ -158,6 +163,10 @@ def main(argv=None, *, assembly) -> int:
     from pm.host.processes import ensure_process_cleanup
 
     plan = launch_plan(argv, assembly.DEFAULT_SEED)
+    if plan.clean is not None:
+        from pm.memory.store import MemoryStore
+        print(MemoryStore.from_checkpoint(plan.checkpoint).export_clean(plan.clean), flush=True)
+        return 0
     if plan.inspector:
         from pm.tools.inspector import run_inspector
 
@@ -167,10 +176,13 @@ def main(argv=None, *, assembly) -> int:
 
         return run_embedding_rebuild(plan)
     configure_logging(plan.home or plan.runtime_root)
+    from pm.llm.prompt_log import configure_root
+    configure_root((plan.home or plan.runtime_root) / "logs" / "prompts")
     ensure_process_cleanup()
     try:
         from pm.llm.prompt_log import backfill_cache_logs
-        backfill_cache_logs()
+        if plan.home is None:
+            backfill_cache_logs()
         return _run_session(plan, assembly=assembly)
     except BaseException:
         logging.getLogger(__name__).exception("Terminal session stopped with an error")
@@ -205,7 +217,7 @@ def _run_session(plan: LaunchPlan, *, assembly) -> int:
             # Without the web chat, the end of stdin ends the session. With
             # it, the browser stays the input and Ctrl+C ends the session.
             if web is None:
-                app.shutdown()
+                app.request_shutdown()
 
     # SIGTERM and, on Windows, Ctrl+Break or a closed console window stop
     # the session like Ctrl+C. A second signal forces exit after a thread dump.
@@ -219,7 +231,7 @@ def _run_session(plan: LaunchPlan, *, assembly) -> int:
         if stop_signals > 1:
             from pm.host.diagnostics import exit_after_repeated_signal
             exit_after_repeated_signal()
-        app.shutdown()
+        app.request_shutdown()
 
     previous = {signal.SIGINT: signal.signal(signal.SIGINT, stop_on_signal),
                 signal.SIGTERM: signal.signal(signal.SIGTERM, stop_on_signal)}
@@ -229,7 +241,9 @@ def _run_session(plan: LaunchPlan, *, assembly) -> int:
     try:
         if plan.web:
             from pm.app.web_chat import WebChatServer
-            web = WebChatServer(app.ghost, app.user_input.submit, port=plan.web_port, on_error=app.on_error)
+            from pm.app.control import RuntimeControl
+            web = WebChatServer(app.ghost, app.user_input.submit, port=plan.web_port, on_error=app.on_error,
+                                control=RuntimeControl(app))
         app.run()
         if web is not None:
             web.start()

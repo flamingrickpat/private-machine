@@ -8,6 +8,7 @@ from __future__ import annotations
 from asyncio import CancelledError
 from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor, wait
+from contextvars import copy_context
 from threading import Event, Lock
 from typing import TypeVar
 from contextlib import asynccontextmanager, contextmanager
@@ -100,7 +101,11 @@ R = TypeVar("R")
 
 
 def ordered_parallel_map(operation: Callable[[T], R], items: Iterable[T], *, workers: int, cancel: Event) -> list[R]:
-    """Return results in input order. Failure signals cancellation and joins workers."""
+    """Return ordered results with the caller's memory and logging scopes.
+
+    Each worker enters its own context copy. Failure signals cancellation and
+    joins every worker before returning control to the publishing thread.
+    """
     errors: list[BaseException] = []
     lock = Lock()
 
@@ -117,7 +122,7 @@ def ordered_parallel_map(operation: Callable[[T], R], items: Iterable[T], *, wor
             raise
 
     with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="inference") as pool:
-        futures = [pool.submit(call, item) for item in items]
+        futures = [pool.submit(copy_context().run, call, item) for item in items]
         wait(futures)
     if errors:
         raise errors[0]

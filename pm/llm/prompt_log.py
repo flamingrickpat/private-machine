@@ -25,11 +25,50 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock, current_thread, get_native_id
+from contextvars import ContextVar
+from contextlib import contextmanager
 from pm.llm.cache import cache_root, model_directory
 
 MAX_LINE = 120
 DEFAULT_DIR = Path.home() / ".pm" / "private-machine" / "cache"
 _EVENT_LOCK = Lock()
+_PERSONA_ROOT: Path | None = None
+_SCOPED_ROOT: ContextVar[Path | None] = ContextVar("pm_prompt_log_root", default=None)
+_INVOCATION: ContextVar[tuple | None] = ContextVar("pm_prompt_invocation", default=None)
+
+
+@contextmanager
+def invocation_scope(module: str, run_id):
+    """Link direct model calls to their owning workflow, including preparation.
+
+    A callable run ID supports module preparation before the host assigns it.
+    The scope follows async calls and resets after success or failure.
+    """
+    token = _INVOCATION.set((module, run_id))
+    try:
+        yield
+    finally:
+        _INVOCATION.reset(token)
+
+
+@contextmanager
+def log_scope(path: Path):
+    """Keep one harness invocation's logs separate from concurrent runs."""
+    token = _SCOPED_ROOT.set(Path(path))
+    try:
+        yield
+    finally:
+        _SCOPED_ROOT.reset(token)
+
+
+def configure_root(path: Path | None) -> None:
+    """Set the owning persona's prompt and agent directory before startup.
+
+    Each process owns one persona. Completion caches remain separate from
+    these execution logs. None restores the ordinary environment default.
+    """
+    global _PERSONA_ROOT
+    _PERSONA_ROOT = Path(path) if path is not None else None
 
 
 def logging_enabled() -> bool:
@@ -39,6 +78,10 @@ def logging_enabled() -> bool:
 
 def log_directory() -> Path:
     """Return the directory for prompt files, honoring ``PM_PROMPT_LOG_DIR``."""
+    if _SCOPED_ROOT.get() is not None:
+        return _SCOPED_ROOT.get()
+    if _PERSONA_ROOT is not None:
+        return _PERSONA_ROOT
     raw = os.environ.get("PM_PROMPT_LOG_DIR")
     return Path(raw).expanduser() if raw else cache_root()
 
@@ -201,7 +244,8 @@ def start_prompt_log(*, connection, payload: dict | None, route: str,
     if not logging_enabled() or route not in {"chat/completions", "embeddings"}:
         return None
     default = model_directory(connection.model, cache_root() / "embeddings" if route == "embeddings" else cache_root())
-    target = directory or (log_directory() if os.environ.get("PM_PROMPT_LOG_DIR") else default)
+    target = directory or (log_directory() if _PERSONA_ROOT is not None or _SCOPED_ROOT.get() is not None
+                           or os.environ.get("PM_PROMPT_LOG_DIR") else default)
     path = target / f"{uuid.uuid4().hex}.md"
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -209,6 +253,12 @@ def start_prompt_log(*, connection, payload: dict | None, route: str,
                   "route": route, "owner_thread": current_thread().name, "thread_id": get_native_id(),
                   "pid": os.getpid(), "started_at": datetime.now(timezone.utc).isoformat(),
                   "request_count": request_count, "payload": payload}
+        from pm import vclock
+        record["world_time"] = vclock.now_aware().isoformat()
+        invocation = _INVOCATION.get()
+        if invocation is not None:
+            module, run_id = invocation
+            record.update(module=module, invocation_id=run_id() if callable(run_id) else run_id)
         path.with_suffix(".json").write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
         generation = {key: value for key, value in (payload or {}).items() if key not in {"messages", "input"}}
         body = ["# Private-machine prompt log", "", "- status: pending",
@@ -233,7 +283,7 @@ def finish_prompt_log(path: Path | None, *, response: dict | None = None,
     """Append provider usage and the response, or record an error or cancellation.
 
     Usage events exclude embedding vectors but retain provider usage.
-    Completion removes the temporary request JSON and updates the Markdown file.
+    Completion retains the request JSON and updates the Markdown file.
     An interrupted process leaves a pending prompt. HTTP success does not
     establish a valid workflow result. Write errors cannot mask model errors.
     """
@@ -241,7 +291,10 @@ def finish_prompt_log(path: Path | None, *, response: dict | None = None,
         return
     try:
         request = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
-        os.remove(path.with_suffix(".json"))
+        # Keep the exact request and provider error for failed-run diagnosis.
+        raw_response = response if request["route"] == "chat/completions" else {"usage": (response or {}).get("usage")}
+        path.with_suffix(".json").write_text(json.dumps({**request, "response": raw_response,
+            "error": repr(error) if error is not None else None}, ensure_ascii=False, default=str), encoding="utf-8")
 
         response = response if isinstance(response, dict) else None
         usage = (response or {}).get("usage") or {}
@@ -258,6 +311,7 @@ def finish_prompt_log(path: Path | None, *, response: dict | None = None,
                        if not replayed and isinstance(output_tokens, (int, float)) and elapsed > 0 else None),
                    "finish_reason": choices[0].get("finish_reason") if choices else None,
                    "error": f"{type(error).__name__}: {error}" if error is not None else None}
+        receipt.update({key: request[key] for key in ("module", "invocation_id", "world_time") if key in request})
         #raw_response = response if request["route"] == "chat/completions" else {"usage": usage}
         #path.with_suffix(".response.json").write_text(
         #    json.dumps({**receipt, "response": raw_response}, ensure_ascii=False, indent=2, default=str), encoding="utf-8")

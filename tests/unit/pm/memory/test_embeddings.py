@@ -57,24 +57,25 @@ class EmbeddingTests(unittest.IsolatedAsyncioTestCase):
         record = self.record("one", [1.0, 0.0])
         record.embedding = [0.0, 1.0]
         self.assertAlmostEqual(self.store.embedding_index.search([0, 1], [record.id])[0][1], 1)
-        record.content = "changed text"
-        self.assertEqual(record.embedding, [])
-        self.assertEqual(self.store.embedding_index.search([0, 1], [record.id]), [])
         batch = self.store.begin_batch("edit")
         edited = record.copy_for_edit()
+        edited.content = "changed text"
+        self.assertEqual(edited.embedding, [])
+        successor = batch.replace(edited)
         edited.embedding = [1.0, 0.0]
-        batch.replace(edited)
         self.store.commit(batch)
-        self.assertIs(self.store.get_knoxel_by_id(record.id), edited)
+        self.assertEqual(record.content, "one")
+        self.assertIs(self.store.get_knoxel_by_id(successor.id), edited)
+        self.assertEqual(self.store.embedding_index.search([0, 1], [record.id]), [])
         self.assertIs(edited._owner, self.store)
-        self.assertAlmostEqual(self.store.embedding_index.search([1, 0], [record.id])[0][1], 1)
+        self.assertAlmostEqual(self.store.embedding_index.search([1, 0], [successor.id])[0][1], 1)
 
     def test_pickle_restart_retains_every_vector_and_rebuilds_index(self):
         record = self.record("durable", [1.0, 0.5])
         with tempfile.TemporaryDirectory() as directory:
             self.store.checkpoint = Path(directory) / "ghost.pickle"
             self.store.save()
-            restored = MemoryStore.from_checkpoint(self.store.checkpoint)
+            restored = MemoryStore.from_checkpoint(self.store.checkpoint, raw=True)
             loaded = restored.get_knoxel_by_id(record.id)
             self.assertEqual(loaded.embedding, record.embedding)
             self.assertIs(restored.snapshot().get(record.id), loaded)

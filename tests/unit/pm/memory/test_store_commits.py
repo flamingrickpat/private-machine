@@ -60,7 +60,8 @@ class GhostCommitTests(unittest.TestCase):
         self.assertEqual(view.get(first.id).content, "visible")
         with self.assertRaises(KeyError):
             view.get(hidden.id)
-        self.assertEqual(self.ghost.get_knoxel_by_id(first.id).content, "new accepted text")
+        self.assertEqual(self.ghost.get_knoxel_by_id(first.id).content, "visible")
+        self.assertEqual(self.ghost.get_knoxel_by_id(replacement.id).content, "new accepted text")
 
     def test_unrelated_append_does_not_conflict_but_stale_update_does(self):
         original = self.ghost.store_knoxel(Feature(feature_type=FeatureType.Dialogue, content="original"))
@@ -78,7 +79,9 @@ class GhostCommitTests(unittest.TestCase):
             self.ghost.commit(stale)
         self.assertEqual(self.path.read_bytes(), before)
         self.assertIsNone(self.ghost.get_knoxel_by_id(proposed.id))
-        self.assertEqual(self.ghost.get_knoxel_by_id(original.id).content, "winner")
+        self.assertEqual(self.ghost.get_knoxel_by_id(original.id).content, "original")
+        self.assertEqual(next(item.content for item in self.ghost.all_knoxels.values()
+                              if item.supersedes_id == original.id), "winner")
 
     def test_reserved_ids_are_unique_and_gaps_survive_restart(self):
         abandoned = self.ghost.begin_batch("abandoned")
@@ -87,7 +90,7 @@ class GhostCommitTests(unittest.TestCase):
         second = next_batch.create(Feature(feature_type=FeatureType.Dialogue, content="accepted"))
         abandoned.discard()
         self.ghost.commit(next_batch)
-        reopened = MemoryStore.from_checkpoint(self.path)
+        reopened = MemoryStore.from_checkpoint(self.path, raw=True)
         third = reopened.store_knoxel(Feature(feature_type=FeatureType.Dialogue, content="after restart"))
         self.assertGreater(second.id, first.id)
         self.assertGreater(third.id, second.id)
@@ -135,7 +138,7 @@ class GhostCommitTests(unittest.TestCase):
         batch.set_run_receipt("running-job", {"state": "running", "workflow": "local"})
         batch.set_run_receipt("done-job", {"state": "completed", "workflow": "local"})
         self.ghost.commit(batch)
-        reopened = MemoryStore.from_checkpoint(self.path)
+        reopened = MemoryStore.from_checkpoint(self.path, raw=True)
         self.assertEqual(reopened.managed_runs["running-job"]["state"], "interrupted")
         self.assertEqual(reopened.managed_runs["done-job"]["state"], "completed")
 
@@ -145,7 +148,7 @@ class GhostCommitTests(unittest.TestCase):
         batch = self.ghost.begin_batch("run-only")
         batch.set_run_receipt("job", {"state": "completed", "workflow": "local"})
         self.ghost.commit(batch)
-        reopened = MemoryStore.from_checkpoint(self.path)
+        reopened = MemoryStore.from_checkpoint(self.path, raw=True)
         self.assertEqual(reopened.state_dict(), before)
         self.assertEqual(reopened.managed_runs["job"]["state"], "completed")
         self.assertEqual(self.ghost.get_knoxel_by_id(record.id).content, "retained")
@@ -195,7 +198,7 @@ class GhostCommitTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             batch.replace(replacement)
         replacement = batch.view().get(accepted.id).copy_for_edit()
-        replacement.scope.reality_id = 123
+        replacement.scope = replacement.scope.model_copy(update={"reality_id": 123})
         with self.assertRaises(ValueError):
             batch.replace(replacement)
 

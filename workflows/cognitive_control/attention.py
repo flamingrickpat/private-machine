@@ -1,5 +1,7 @@
 """Accept temporary focus advice through ordinary attention processing."""
 
+from pm import vclock
+
 from pm.records.copying import pickle_copy
 from collections.abc import Sequence
 from datetime import datetime
@@ -86,7 +88,7 @@ def active_focus(store, now=None, *, maximum_strength: float | None = None) -> F
     Clamping here means an old proposal cannot keep an influence the current
     configuration forbids.
     """
-    now = now or datetime.utcnow()
+    now = now or vclock.utcnow()
     with store.lock:
         record = next((item for item in reversed(list(store.all_knoxels.values()))
                        if item.metadata.get("control_kind") == "attention_focus"), None)

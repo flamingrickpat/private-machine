@@ -7,6 +7,8 @@ the role can call them over MCP or directly with one implementation.
 """
 from __future__ import annotations
 
+from pm import vclock
+
 from datetime import datetime
 from typing import Callable
 from functools import partial
@@ -118,7 +120,7 @@ class AssistantDialogue(PublicDialogue):
             partner_name=public.partner_name,
             character_card=self.ghost.get_simple_character_story_block(),
             abilities="\n".join(ability_lines(public)),
-            time="\n".join(time_lines(datetime.utcnow().isoformat(), planned.dialogue, load_prompts(), names)),
+            time="\n".join(time_lines(vclock.utcnow().isoformat(), planned.dialogue, load_prompts(), names)),
             feelings=public.feelings,
             prior_dialogue=self._prior_dialogue(current, planned.dialogue, public.partner_name),
             current_user_message=current,

@@ -5,6 +5,8 @@ points in ``pm.app`` receive this module; the runtime never imports it.
 """
 from __future__ import annotations
 
+from pm import vclock
+
 from datetime import datetime
 import time
 from pathlib import Path
@@ -45,7 +47,7 @@ DEFAULT_SEED = REPO_ROOT / "test_data" / "personas" / "spamuel" / "canon.yaml"
 
 
 def _managed_workflows(stage_model=None, embeddings=None, ghost=None, tool_call: ToolCallConfig | None = None,
-                       minecraft_endpoint: str | None = None) -> dict:
+                       minecraft_endpoint: str | None = None, *, enable_minecraft: bool = True) -> dict:
     """Return the managed workflow specifications by name.
 
     ``tool_call`` is registered only when its configuration names at least
@@ -66,7 +68,7 @@ def _managed_workflows(stage_model=None, embeddings=None, ghost=None, tool_call:
     if tool_call is not None and tool_call.mcp_servers:
         from workflows.tool_call.host import WORKFLOW_NAME, build_workflow_spec
         optional[WORKFLOW_NAME] = build_workflow_spec(tool_call)
-    return {**optional,
+    result = {**optional,
         "local_task": WorkflowSpec(base / "local_task.workflow.md", namespace="local_task"),
         "local_task_question": WorkflowSpec(
             base / "local_task_question.workflow.md", namespace="local_task_question",
@@ -107,6 +109,10 @@ def _managed_workflows(stage_model=None, embeddings=None, ghost=None, tool_call:
                 if stage_model is not None else None,
         ),
     }
+    if not enable_minecraft:
+        result.pop("minecraft")
+        result.pop("minecraft_project")
+    return result
 
 
 def _cognition_workflow_options(supervisor, tool_catalogue=None) -> list[dict]:
@@ -277,7 +283,7 @@ def build_app(
     runtime_root,
     thought_period: float = 30.0,
     task_period: float = 0.1,
-    clock=time.monotonic,
+    clock=vclock.monotonic,
     emit_reply=print,
     ghost=None,
     checkpoint_path=None,
@@ -292,6 +298,8 @@ def build_app(
     codelet_definitions: str | None = None,
     cognitive_control_config: ControlConfig | dict | None = None,
     tool_call: ToolCallConfig | None = None,
+    enable_minecraft: bool = True,
+    bus_observer=None,
 ) -> Application:
     """Construct an application without service activation.
 
@@ -350,11 +358,13 @@ def build_app(
     install_media_lookup(MediaLibrary(ghost, stage_model.complete) if stage_model is not None else None)
     target = MemoryBashTarget(ghost, mode="read")
     bus = BusSystem()
+    bus.observer = bus_observer
     tasks = TaskTable(clock)
     app = Application(bus, [])
 
     on_error = app.on_error
     runtime_root = Path(runtime_root)
+    app.runtime_root = runtime_root
 
     consolidator = Consolidator(ghost, clock=clock)
     context_embeddings = None
@@ -369,7 +379,7 @@ def build_app(
             tool_call = loaded.tool_call
         if cognitive_control_config is None:
             cognitive_control_config = loaded.cognitive_control
-        minecraft_endpoint = _minecraft_endpoint(loaded)
+        minecraft_endpoint = _minecraft_endpoint(loaded) if enable_minecraft else None
         if loaded.minecraft is not None and minecraft_endpoint is not None:
             # The operator named a body in the model configuration, so the
             # endpoint must answer now. Failing here beats a session where
@@ -379,7 +389,8 @@ def build_app(
     supervisor = ManagedRunSupervisor(
         ghost,
         runtime_root=runtime_root,
-        workflows=_managed_workflows(stage_model, context_embeddings, ghost, tool_call, minecraft_endpoint),
+        workflows=_managed_workflows(stage_model, context_embeddings, ghost, tool_call, minecraft_endpoint,
+                                     enable_minecraft=enable_minecraft),
         clock=clock,
         task_root=runtime_root / "managed_tasks",
         on_error=on_error,
@@ -397,7 +408,7 @@ def build_app(
             run = supervisor.status(event["run_id"])
             parent = run.get("parent_correlation", "")
             event = {**event, "artifact_path": run.get("artifact_path", ""),
-                     "executed_at": datetime.utcnow().isoformat()}
+                     "executed_at": vclock.utcnow().isoformat()}
         except Exception:
             parent = ""
         topic = "workflow.question" if event.get("event") == "waiting_for_input" else "workflow.event"
@@ -603,7 +614,7 @@ def build_app(
 
     def finish_workers():
         """Join all owned work before recording a successful clean stop."""
-        supervisor.shutdown()
+        supervisor.shutdown(preserve_parked=app.drained.is_set())
         if record_lifecycle and app.error is None:
             from pm.app.lifecycle_records import record_shutdown
             record_shutdown(ghost, boot_id=app.lifecycle_boot["boot_id"])
@@ -648,6 +659,10 @@ def build_app(
         # while asynchronous recovery dispatches it again in another cycle.
         # Interrupted runs get their terminal report and consolidation first,
         # so a recovered task reply reads the retained report.
+        for module in modules:
+            restore = getattr(module, "restore_parked", None)
+            if restore is not None:
+                restore()
         supervisor.recover_interrupted()
         recovery.resume()
         inner_thought.resume()

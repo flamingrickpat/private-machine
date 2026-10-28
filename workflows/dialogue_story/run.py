@@ -12,6 +12,8 @@ exact three messages without contacting a model.
 """
 from __future__ import annotations
 
+from pm import vclock
+
 import argparse
 import asyncio
 import os
@@ -44,7 +46,7 @@ def _config_path() -> str:
 
 
 def _run_root(runtime_root: Path) -> Path:
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    stamp = vclock.now_aware().strftime("%Y%m%dT%H%M%SZ")
     return Path(runtime_root) / "w4" / f"{stamp}-{uuid4().hex[:8]}"
 
 

@@ -11,7 +11,7 @@ invariant: serialized models keep references as ids and primitive metadata; live
 
 from typing import Dict, List, Union
 
-from pydantic import BaseModel, Field, JsonValue
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 from pm.constants import CODELET_BASE_ACTIVATION, CODELET_COOLDOWN_TICKS
 from pm.records.base import RecordBase
@@ -26,6 +26,7 @@ class AffectMeta(BaseModel):
     attention/selection steps where valence, salience, arousal, and dominance influence
     prioritization.
     """
+    model_config = ConfigDict(frozen=True)
     affective_valence: float = Field(default=0, le=1, ge=-1, description="Affect sign for {companion_name}. [-1..1]. -1 = aversive, 0 = neutral, 1 = positive.")
     incentive_salience: float = Field(default=0, le=1, ge=0, description="How salient is this Percept? [0..1]. 0 = irrelevant, 1 = decisive for {companion_name}.")
     arousal: float = Field(default=0, le=1, ge=-1, description="Activation/urgency proxy")
@@ -35,6 +36,7 @@ class AffectMeta(BaseModel):
 class StructureRelation(BaseModel):
     """One relation between two records of a structure, with its reason in words."""
 
+    model_config = ConfigDict(frozen=True)
     source_id: int = 0
     relation: str = ""
     target_id: int = 0
@@ -67,18 +69,19 @@ class Structure(RecordBase):
         return [
             structure
             for structure_id in self.structure_ids
-            if isinstance(structure := self._owner.all_knoxels.get(structure_id), Structure)
+            if isinstance(structure := self._owner.get_knoxel_by_id(structure_id), Structure)
         ]
 
     @property
     def predecessor(self) -> Union[None, "Structure"]:
-        predecessor = self._owner.all_knoxels.get(self.predecessor_id, None)
+        predecessor = self._owner.get_knoxel_by_id(self.predecessor_id)
         if isinstance(predecessor, Structure):
             return predecessor
         return None
 
 
 class ModuleDestination(BaseModel):
+    model_config = ConfigDict(frozen=True)
     module: str
     port: str | None = None
 
@@ -101,14 +104,14 @@ class ModuleOutput(RecordBase):
         return [
             structure
             for structure_id in self.produced_structure_ids
-            if isinstance(structure := self._owner.all_knoxels.get(structure_id), Structure)
+            if isinstance(structure := self._owner.get_knoxel_by_id(structure_id), Structure)
         ]
 
     @property
     def primary_structure(self) -> Structure | None:
         if self._owner is None:
             return None
-        primary = self._owner.all_knoxels.get(self.primary_structure_id, None)
+        primary = self._owner.get_knoxel_by_id(self.primary_structure_id)
         if isinstance(primary, Structure):
             return primary
         return None
@@ -117,7 +120,7 @@ class ModuleOutput(RecordBase):
     def control(self) -> RecordBase | None:
         if self._owner is None:
             return None
-        return self._owner.all_knoxels.get(self.control_knoxel_id, None)
+        return self._owner.get_knoxel_by_id(self.control_knoxel_id)
 
     @property
     def predecessor_outputs(self) -> List["ModuleOutput"]:
@@ -126,7 +129,7 @@ class ModuleOutput(RecordBase):
         return [
             output
             for output_id in self.predecessor_output_ids
-            if isinstance(output := self._owner.all_knoxels.get(output_id), ModuleOutput)
+            if isinstance(output := self._owner.get_knoxel_by_id(output_id), ModuleOutput)
         ]
 
 

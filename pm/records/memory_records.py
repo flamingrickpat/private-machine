@@ -1,3 +1,5 @@
+
+from pm import vclock
 from typing import Any, List
 from typing import (
     Optional,
@@ -529,7 +531,7 @@ def new_feature(ghost, content, feature_type, *, source, interlocus=None, causal
         "memory_kind": ("utterance" if feature_type == FeatureType.Dialogue else
                         "speculation" if feature_type in {FeatureType.Thought, FeatureType.InnerMonologue} else
                         "executed_event"),
-        "executed_at": datetime.utcnow().isoformat(),
+        "executed_at": vclock.utcnow().isoformat(),
     }
     if metadata:
         kwargs["metadata"].update(metadata)

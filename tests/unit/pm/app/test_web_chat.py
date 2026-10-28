@@ -184,6 +184,11 @@ class WebChatServerTests(unittest.TestCase):
     def test_read_messages_matches_the_store_after_a_restart(self):
         self.submit("persist me", speaker="Jesse")
         self.reply("persisted")
+        from pm.records.global_workspace import GwtTurnRecord
+        batch = self.store.begin_batch("accept-chat", new_tick=True)
+        ids = list(self.store.all_knoxels)
+        batch.set_gwt(GwtTurnRecord(tick_id=batch.tick_id, stimulus_ids=ids, knoxel_ids=ids))
+        self.store.commit(batch)
         before = read_messages(self.store)
         reopened = CharacterHome(self.tmp / "home").open_store()
         self.assertEqual(read_messages(reopened), before)
