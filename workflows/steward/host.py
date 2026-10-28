@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
+from typing import Any
 
 from workflows.steward.gate import build_steward_tools
 from pm.bus.envelopes import Envelope
@@ -11,10 +12,13 @@ from pm.bus.envelopes import new_envelope
 from pm.runs.workflow_module import CognitiveWorkflow
 
 
-def build_steward_module_tools(steward) -> Callable[[object, object], dict]:
+def build_steward_module_tools(
+    steward: "Steward",
+) -> Callable[[object, object], dict[str, Callable[..., Any]]]:
     """Return ``tools_factory(environment, batch)`` for the steward module."""
 
-    def factory(environment, batch) -> dict:
+    def factory(environment: object, batch: object) -> dict[str, Callable[..., Any]]:
+        """Return the steward tools of one invocation."""
         return build_steward_tools(steward)
 
     return factory

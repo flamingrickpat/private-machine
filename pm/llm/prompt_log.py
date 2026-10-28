@@ -22,11 +22,14 @@ import json
 import sys
 import textwrap
 import uuid
+from collections.abc import Callable, Iterator
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock, current_thread, get_native_id
 from contextvars import ContextVar
 from contextlib import contextmanager
+from typing import Protocol
 from pm.llm.cache import cache_root, model_directory
 
 MAX_LINE = 120
@@ -36,9 +39,34 @@ _PERSONA_ROOT: Path | None = None
 _SCOPED_ROOT: ContextVar[Path | None] = ContextVar("pm_prompt_log_root", default=None)
 _INVOCATION: ContextVar[tuple | None] = ContextVar("pm_prompt_invocation", default=None)
 
+#: A run id that the host may assign only after module preparation started.
+RunId = str | Callable[[], str]
+
+
+class LogTarget(Protocol):
+    """The two connection fields that a prompt log records.
+
+    A resolved :class:`~pm.llm.config.Connection` and the reconstructed target
+    of a finishing log both satisfy this, so the renderer needs no reflection.
+    """
+
+    @property
+    def model(self) -> str: ...
+
+    @property
+    def base_url(self) -> str: ...
+
+
+@dataclass(frozen=True, slots=True)
+class LoggedConnection:
+    """A connection name pair rebuilt from a log file that is being finished."""
+
+    model: str
+    base_url: str
+
 
 @contextmanager
-def invocation_scope(module: str, run_id):
+def invocation_scope(module: str, run_id: RunId) -> Iterator[None]:
     """Link direct model calls to their owning workflow, including preparation.
 
     A callable run ID supports module preparation before the host assigns it.
@@ -52,7 +80,7 @@ def invocation_scope(module: str, run_id):
 
 
 @contextmanager
-def log_scope(path: Path):
+def log_scope(path: Path) -> Iterator[None]:
     """Keep one harness invocation's logs separate from concurrent runs."""
     token = _SCOPED_ROOT.set(Path(path))
     try:
@@ -173,9 +201,14 @@ def _render_response(response: dict | None, error: BaseException | None) -> list
     return lines
 
 
-def _metadata(connection, generation: dict, response: dict | None, error: BaseException | None,
+def _metadata(connection: LogTarget, generation: dict, response: dict | None, error: BaseException | None,
               elapsed: float, request_count: int | None, replayed: bool = False) -> list[str]:
-    """Build the metadata header lines."""
+    """Build the metadata header lines.
+
+    Provider usage arrives only with the response, so an unfinished log states
+    the token counts as unknown. ``tokens_per_second`` is left out for a
+    replayed cache response, which measured no inference.
+    """
     usage = ((response or {}).get("usage") or {}) if isinstance(response, dict) else {}
     prompt_tokens = usage.get("prompt_tokens")
     completion_tokens = usage.get("completion_tokens")
@@ -191,8 +224,8 @@ def _metadata(connection, generation: dict, response: dict | None, error: BaseEx
     clean_generation = {key: value for key, value in generation.items() if key != "cancel"}
     raw_lines = [
         f"- time: {datetime.now(timezone.utc).isoformat()}",
-        f"- model: {getattr(connection, 'model', '')}",
-        f"- endpoint: {getattr(connection, 'base_url', '')}",
+        f"- model: {connection.model}",
+        f"- endpoint: {connection.base_url}",
         f"- latency_seconds: {elapsed:.2f}",
         f"- tokens_per_second: {tps or 'unknown'}",
         "- ttft_seconds: unknown (non-streaming response)",
@@ -233,7 +266,7 @@ def _event(path: Path, event: dict) -> None:
     #      f"output={usage.get('completion_tokens', 'unknown')} log={path}", file=sys.stderr)
 
 
-def start_prompt_log(*, connection, payload: dict | None, route: str,
+def start_prompt_log(*, connection: LogTarget, payload: dict[str, object] | None, route: str,
                      request_count: int, directory: Path | None = None) -> Path | None:
     """Save the exact inference payload before external I/O. Return its log path.
 
@@ -319,8 +352,7 @@ def finish_prompt_log(path: Path | None, *, response: dict | None = None,
                  *wrap_text(json.dumps(receipt, ensure_ascii=False, indent=2)), ""]
         if request["route"] == "chat/completions":
             lines.extend(_render_response(response, error))
-        from types import SimpleNamespace
-        connection = SimpleNamespace(model=request["model"], base_url=request["endpoint"])
+        connection = LoggedConnection(model=request["model"], base_url=request["endpoint"])
         payload = request.get("payload") or {}
         generation = {key: value for key, value in payload.items() if key not in {"messages", "input"}}
         body = ["# Private-machine prompt log", "", "## Metadata", "",

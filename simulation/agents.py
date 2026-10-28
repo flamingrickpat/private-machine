@@ -1,11 +1,24 @@
-"""Director and conversational actors owned entirely by the simulation harness."""
+"""Director and conversational actors owned entirely by the simulation harness.
+
+The harness needs three kinds of model work that a companion must never do for
+itself: write the scripted person's next line, check that line before delivery,
+and judge a finished stage against the actual delivered messages. ``Agents``
+performs them with the configured default model and keeps every input and output
+under the attempt's ``agents`` folder.
+
+Owns: those harness calls and their receipts. Does not own: the plan schema
+(``simulation.plans``), delivery, or routing; the engine decides what to do with
+a returned judgment. A rejected structured response is re-asked with bounded
+correction feedback; a model-quality failure is retained, never accepted.
+"""
 from __future__ import annotations
 
+from collections.abc import Callable
 import json
 from pathlib import Path
 import threading
 from uuid import uuid4
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, JsonValue, ValidationError
 
 from pm.llm.activation import ModelActivation
 from pm.llm.config import load_config, resolve_connection
@@ -22,14 +35,21 @@ class Agents:
     run through the existing model cancellation path. Logic failures propagate.
     """
 
-    def __init__(self, config: str, evidence: Path, cancel: threading.Event | None = None):
-        self.model = LazyStageModel(resolve_connection(load_config(config)), ModelActivation())
-        self.evidence = evidence
-        self.cancel = cancel
+    def __init__(self, config: str, evidence: Path, cancel: threading.Event | None = None) -> None:
+        self.model: LazyStageModel = LazyStageModel(resolve_connection(load_config(config)), ModelActivation())
+        self.evidence: Path = evidence
+        self.cancel: threading.Event | None = cancel
 
-    def call(self, role: str, instruction: str, payload: dict, *, schema: type[BaseModel] | None = None,
-             prepare=None) -> dict:
-        """Run one focused JSON task. Invalid output retains its failed receipt."""
+    def call(self, role: str, instruction: str, payload: dict[str, JsonValue], *, schema: type[BaseModel] | None = None,
+             prepare: Callable[[dict[str, JsonValue]], dict[str, JsonValue]] | None = None) -> dict[str, JsonValue]:
+        """Run one focused JSON task. Invalid output retains its failed receipt.
+
+        ``schema`` is the accepted contract; an unparsable or invalid answer is
+        retained as ``rejected`` and re-asked with the exact validation error.
+        ``prepare`` may pin fields the model must not choose.
+        ``role`` and the generated call ID name the two prompt log scopes.
+        Cancellation pauses the run through the model's own cancel path.
+        """
         from pm.llm.structured import extract_json, JsonOutputError
         required = " Required JSON schema: " + json.dumps(schema.model_json_schema()) if schema is not None else ""
         turns = [{"role": "system", "content": instruction + " Return one JSON object." + required},
@@ -68,7 +88,7 @@ class Agents:
             atomic_json(path, {"id": call_id, "status": "completed", "request": request, "output": output, "result": result})
             return result
 
-    def actor(self, context: dict) -> dict:
+    def actor(self, context: dict[str, JsonValue]) -> dict[str, JsonValue]:
         """Generate and check the scripted entity's next line before delivery.
 
         Rejected drafts remain evidence. Repair retains every rejection until
@@ -76,7 +96,7 @@ class Agents:
         """
         from simulation.plans import ActorTurn, ActorDraftReview
         speaker = context["stage"]["speaker"]
-        rejected = []
+        rejected: list[dict[str, JsonValue]] = []
         while True:
             draft = self.call("participant_actor", f"Write only the next spoken message from {speaker}. "
                 f"Your identity is {speaker}. The PM companion supplies its own speech. "

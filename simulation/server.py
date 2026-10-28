@@ -1,7 +1,23 @@
-"""Loopback browser application for persona forks, scenarios, and run evidence."""
+"""Loopback browser application for persona forks, scenarios, and run evidence.
+
+``Simulation`` is the browser-facing owner of background jobs and run
+controllers: it forks persona homes, starts plan generation, holds the one
+``RunEngine`` per run, and stores owner feedback. The handler below serves the
+static page and a JSON API on ``127.0.0.1`` only.
+
+Browser/API boundary: a request body is a JSON object read from the socket, a
+response is JSON or a captured artifact, and a path is resolved only after it is
+checked against its owner's root. A POST must be same-origin. A rejected request
+answers 400 with its reason; an unexpected exception answers 500 and is not
+hidden. Nothing here advances a scenario by itself: run operations are forwarded
+to the engine, which owns the durable controller document.
+
+The package overview is in ``simulation/__init__.py``.
+"""
 from __future__ import annotations
 
 import argparse
+from collections.abc import Sequence
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -10,6 +26,8 @@ import re
 import threading
 from urllib.parse import parse_qs, unquote, urlparse
 from uuid import uuid4
+
+from pydantic import JsonValue
 
 from pm.host.durable_files import atomic_json
 from pm.host.processes import ensure_process_cleanup
@@ -28,10 +46,10 @@ STATIC = Path(__file__).parent / "static"
 class Simulation:
     """Own browser jobs and run controllers. PM remains in separate processes."""
 
-    def __init__(self, homes_root: Path, runs_root: Path, config: str):
-        self.homes_root = homes_root.resolve()
-        self.runs_root = runs_root.resolve()
-        self.config = str(Path(config).resolve())
+    def __init__(self, homes_root: Path, runs_root: Path, config: str) -> None:
+        self.homes_root: Path = homes_root.resolve()
+        self.runs_root: Path = runs_root.resolve()
+        self.config: str = str(Path(config).resolve())
         self.engines: dict[str, RunEngine] = {}
         self._lock = threading.RLock()
 
@@ -48,15 +66,15 @@ class Simulation:
                 self.engines[run_id] = RunEngine(self.run_root(run_id))
             return self.engines[run_id]
 
-    def catalog(self) -> dict:
+    def catalog(self) -> dict[str, JsonValue]:
         """List personas and retained runs without model calls."""
-        runs = []
+        runs: list[dict[str, JsonValue]] = []
         for path in sorted((self.runs_root / "runs").glob("*/state.json"), reverse=True):
             state = json.loads(path.read_text(encoding="utf-8"))
             runs.append({key: state[key] for key in ("id", "title", "status", "created_at", "step_index", "attempt")})
         return {"homes": self.all_homes(), "runs": runs, "captures": captures(self.runs_root), "config": self.config}
 
-    def all_homes(self) -> list[dict]:
+    def all_homes(self) -> list[dict[str, str]]:
         """Include run-owned participant homes so their checkpoints can be forked."""
         result = homes(self.homes_root)
         for run in sorted((self.runs_root / "runs").glob("*/state.json")):
@@ -79,13 +97,19 @@ class Simulation:
             raise ValueError("Choose a checkpoint in the selected home.")
         return selected
 
-    def job(self, kind: str, body: dict) -> str:
-        """Persist a browser job before background work starts."""
+    def job(self, kind: str, body: dict[str, JsonValue]) -> str:
+        """Persist a browser job before background work starts.
+
+        The job folder and its ``running`` receipt are durable before the worker
+        thread exists, so the browser can poll a job it has just created. The
+        worker replaces the receipt with ``completed`` and its result, or with
+        ``failed`` and the error repr. Returns the job ID.
+        """
         job_id = uuid4().hex
         root = self.runs_root / "jobs" / job_id
         root.mkdir(parents=True)
         atomic_json(root / "state.json", {"status": "running", "kind": kind})
-        def work():
+        def work() -> None:
             try:
                 if kind == "plan":
                     plan = Agents(self.config, root).plan(body["brief"], body["start_time"])
@@ -117,7 +141,7 @@ class Simulation:
             if engine.thread is not None:
                 engine.thread.join()
 
-    def feedback(self, path: Path, changes: dict) -> None:
+    def feedback(self, path: Path, changes: dict[str, JsonValue]) -> None:
         """Merge owner notes without replacing ratings on other captured records."""
         with self._lock:
             previous = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
@@ -128,13 +152,13 @@ class Simulation:
             atomic_json(path, {"updated_at": datetime.now(timezone.utc).isoformat(), "review": review})
 
 
-def handler(application: Simulation):
+def handler(application: Simulation) -> type[BaseHTTPRequestHandler]:
     """Build same-origin browser routes. Invalid requests retain clear failures."""
     class Handler(BaseHTTPRequestHandler):
-        def log_message(self, *args):
+        def log_message(self, format: str, *args: object) -> None:
             pass
 
-        def respond(self, status: int, body: bytes, mime: str):
+        def respond(self, status: int, body: bytes, mime: str) -> None:
             self.send_response(status)
             self.send_header("Content-Type", mime)
             self.send_header("Content-Length", str(len(body)))
@@ -144,10 +168,10 @@ def handler(application: Simulation):
             self.end_headers()
             self.wfile.write(body)
 
-        def output(self, value, status: int = 200):
+        def output(self, value: JsonValue, status: int = 200) -> None:
             self.respond(status, json.dumps(value, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8")
 
-        def do_GET(self):
+        def do_GET(self) -> None:
             try:
                 self.get()
             except (ValueError, KeyError, FileNotFoundError) as error:
@@ -157,7 +181,7 @@ def handler(application: Simulation):
             except Exception as error:
                 self.output({"error": repr(error)}, 500)
 
-        def get(self):
+        def get(self) -> None:
             path = urlparse(self.path)
             if path.path == "/favicon.ico":
                 return self.respond(204, b"", "image/x-icon")
@@ -215,7 +239,7 @@ def handler(application: Simulation):
             filename, mime = names[path.path]
             return self.respond(200, (STATIC / filename).read_bytes(), mime + "; charset=utf-8")
 
-        def do_POST(self):
+        def do_POST(self) -> None:
             if self.headers.get("Origin") not in {None, f"http://{self.headers.get('Host')}"}:
                 return self.output({"error": "Cross-origin requests are rejected."}, 403)
             try:
@@ -231,7 +255,7 @@ def handler(application: Simulation):
             except Exception as error:
                 self.output({"error": repr(error)}, 500)
 
-        def post(self, path, body):
+        def post(self, path: str, body: dict[str, JsonValue]) -> None:
             if path == "/api/present":
                 return self.output(present_packages({"packages": [body["package"]]}))
             if path == "/api/record-links":
@@ -273,7 +297,7 @@ def handler(application: Simulation):
     return Handler
 
 
-def main(argv=None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     """Serve the local simulation browser and drain active runs on exit."""
     parser = argparse.ArgumentParser(description="PM simulation browser")
     parser.add_argument("--homes", type=Path, default=DEFAULT_HOMES)

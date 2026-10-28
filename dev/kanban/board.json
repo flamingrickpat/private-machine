@@ -28,8 +28,8 @@
     {
       "id": 5,
       "title": "Restore static typing across remaining legacy code",
-      "description": "Owner requested a dedicated later task for repository-wide cleanup. Replace anonymous dictionaries, untyped views and callbacks, dynamic attribute probing, and string-key fallback chains with explicit contracts. K002 covers reflection, private-thought consumers, centralized rendering and budgeting, and directly affected K002 interfaces. Preserve domain behavior. Readability and maintainability take priority.",
-      "status": "backlog"
+      "description": "Owner requested a dedicated later task for repository-wide cleanup. Replace anonymous dictionaries, untyped views and callbacks, dynamic attribute probing, and string-key fallback chains with explicit contracts. K002 covers reflection, private-thought consumers, centralized rendering and budgeting, and directly affected K002 interfaces. Preserve domain behavior. Readability and maintainability take priority.\n\n2026-10-28 light refactor pass (doing): repository-wide annotations, module/class/function docstrings, removal of clear ad-hoc domain dicts, and doc updates. Shared brief: .runtime/refactor/BRIEF.md. Audit: .runtime/refactor/audit-*.txt. Keep behavior identical and verify with targeted real tests. Do not push.\n\nDone 2026-10-28. 202 files changed (pm 75, workflows 106, simulation 14, docs 4, mkdocs.yml 1, dev board 1, .gitattributes 1). Targeted unit failure sets are byte-identical to HEAD 8480b73 for every compared package; architecture tests OK; strict pyright config 0 errors; import sweeps clean; mkdocs build --strict OK. Evidence and intended differences: docs/work_items/refactor/typing-and-docstrings.md. Not pushed.",
+      "status": "done"
     }
   ]
 }

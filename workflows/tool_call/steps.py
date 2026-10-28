@@ -12,6 +12,7 @@ terminal hook consolidates the report, and the reply path reads it.
 """
 from __future__ import annotations
 
+from collections.abc import Iterator
 from contextlib import nullcontext
 from dataclasses import replace
 import hashlib
@@ -118,7 +119,8 @@ def split_tool_name(name: str, servers: list[str]) -> tuple[str, str]:
     return "", name
 
 
-def _files(content: Any):
+def _files(content: Any) -> Iterator[Any]:
+    """Yield the binary attachments of one content value, preserving order."""
     """Yield every binary file inside one message content value, in order."""
     from pydantic_ai.messages import BinaryContent
 

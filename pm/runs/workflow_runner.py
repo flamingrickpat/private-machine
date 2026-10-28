@@ -56,6 +56,7 @@ class _ProjectionKernel(Kernel):
     """Retry a locked diagnostic projection without repeating a kernel phase."""
 
     def __init__(self, *args: Any, state_lock_attempts: int = 5, **kwargs: Any) -> None:
+        """Forward the kernel construction and retain the retry count."""
         self._state_lock_attempts = state_lock_attempts
         super().__init__(*args, **kwargs)
 
@@ -96,6 +97,7 @@ class WorkflowRunner:
         state_lock_attempts: int = 5,
         models: WorkflowModels | None = None,
     ) -> None:
+        """Bind one manifest, runtime root, and namespace. No kernel runs yet."""
         self.workflow = Path(workflow)
         self.runtime_root = Path(runtime_root)
         self.namespace = namespace
@@ -177,6 +179,7 @@ class WorkflowRunner:
         )
 
     def _answers_root(self, run_id: str) -> Path:
+        """Return the folder that holds the durable answer receipts of one run."""
         return self.runtime_root / "kernel" / run_id / "answers"
 
     def _waiting_question(self, kernel_data: Path) -> tuple[str | None, str | None]:
@@ -211,6 +214,7 @@ class WorkflowRunner:
 
 
 def _status(summary: dict, success_status: str, cancelled: bool) -> WorkflowStatus:
+    """Map one kernel summary to a workflow status without inventing a success."""
     if cancelled or summary["terminal_status"] == "terminated" or summary["exit_reason"] == "terminated":
         return WorkflowStatus.Cancelled
     if summary["exit_reason"] == "suspended:user":

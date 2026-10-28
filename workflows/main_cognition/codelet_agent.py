@@ -32,25 +32,31 @@ import json
 import threading
 from dataclasses import replace
 from pathlib import Path
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 
 from fastmcp import FastMCP
 from pm_workflows.drivers import PmCoderDriver
+from pm_workflows.python_role import RoleContext
 
 from pm.constants import CODELET_AGENT_ATTEMPTS, CODELET_AGENT_TIMEOUT_SECONDS
 from pm.host.mcp_listeners import serve_services
-from pm.llm.multimodal import agent_images
+from pm.llm.multimodal import ImageAttachment, agent_images
 from pm.llm.prompt_log import log_directory
 from pm.memory.agent_tools import MemoryReadSession, MemoryToolConfig, MemoryView
+from pm.memory.bash_view import MemoryBashEnvironment
+from pm.memory.store import MemoryStore
 from pm.records.media import alt_text_view
 
 from workflows.main_cognition.csm_view import record_view
 from workflows.main_cognition.model_json import ModelFormatError
 from workflows.main_cognition.schemas import AgentCodeletAnswer, AgentCodeletJob
 
+if TYPE_CHECKING:
+    from pm.memory.embeddings import EmbeddingService
+
 SKILL = Path(__file__).resolve().parent / "resources" / "codelet_agent.md"
 
-CodeletAgent = Callable[[object, AgentCodeletJob], AgentCodeletAnswer]
+CodeletAgent = Callable[[RoleContext, AgentCodeletJob], AgentCodeletAnswer]
 
 
 def prompt_text(job: AgentCodeletJob, problems: list[str]) -> str:
@@ -71,8 +77,8 @@ def prompt_text(job: AgentCodeletJob, problems: list[str]) -> str:
     return alt_text_view(text)
 
 
-def prompt_images(job: AgentCodeletJob) -> list[tuple[bytes, str]]:
-    """Return the ``(bytes, media_type)`` pictures this session should see.
+def prompt_images(job: AgentCodeletJob) -> list[ImageAttachment]:
+    """Return the pictures this session should see, with their media types.
 
     The codelet reads the story of the moment, so it gets the same images that
     a direct call of the cycle would see: the newest ``PROMPT_MAX_IMAGES``
@@ -81,7 +87,8 @@ def prompt_images(job: AgentCodeletJob) -> list[tuple[bytes, str]]:
     return agent_images(f"{job.story}\n\n{job.view}\n\n{job.instruction}")
 
 
-def build_codelet_agent(ghost, environment, embeddings, cancel: threading.Event) -> CodeletAgent:
+def build_codelet_agent(ghost: MemoryStore, environment: MemoryBashEnvironment,
+                        embeddings: EmbeddingService | None, cancel: threading.Event) -> CodeletAgent:
     """Return the ``codelet_agent`` tool for one run over ``environment``.
 
     ``environment`` is the working target of the run. Its visible records
@@ -94,7 +101,7 @@ def build_codelet_agent(ghost, environment, embeddings, cancel: threading.Event)
                        for raw in environment.visible_knoxels.values())
     turn = threading.Lock()
 
-    def run(context, job: AgentCodeletJob) -> AgentCodeletAnswer:
+    def run(context: RoleContext, job: AgentCodeletJob) -> AgentCodeletAnswer:
         """Run sessions until one returns a valid answer. See the module docstring."""
         runtime = context.runtime
         if runtime.classification_session is None:

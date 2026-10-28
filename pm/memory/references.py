@@ -25,6 +25,12 @@ REFERENCE_FIELDS = frozenset({
 
 
 def referenced_ids(record: BaseModel) -> set[int]:
+    """Return the memory record IDs that ``record`` names.
+
+    Only declared reference fields count. ``0`` and ``-1`` are sentinels for
+    "no record" and are not references, and nested models are searched so a
+    lineage or embedded structure cannot hide a dangling link.
+    """
     result: set[int] = set()
     for name, value in record:
         if name not in type(record).model_fields:
@@ -44,6 +50,7 @@ def referenced_ids(record: BaseModel) -> set[int]:
 
 
 def check_references(record: BaseModel, allowed_ids: set[int]) -> None:
+    """Fail the whole batch when an accepted reference names an unavailable record."""
     missing = referenced_ids(record) - allowed_ids
     if missing:
         raise ValueError(f"Memory references are missing or outside the batch view: {sorted(missing)}")

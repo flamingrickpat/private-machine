@@ -2,11 +2,18 @@
 
 HTTP acknowledges durable stimulus delivery. Speech arrives independently.
 Output IDs are knoxel IDs, so clients can replay and deduplicate messages.
+
+The stream is a cursor over commit order, not record IDs: a record ID can be
+reserved before another transaction commits. A reconnect sends its last cursor
+and receives the later messages exactly once. A closed browser does not cancel
+cognition, because the reply is already committed when it becomes visible.
 """
 from __future__ import annotations
 
 import json
 import socket
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Protocol
 from urllib.parse import parse_qs, urlparse
 
 from pydantic import BaseModel, Field, model_validator
@@ -14,6 +21,29 @@ from websockets.datastructures import Headers
 from websockets.http11 import Request
 from websockets.protocol import State
 from websockets.server import ServerProtocol
+
+from pm.memory.store import MemoryStore
+
+if TYPE_CHECKING:
+    from pm.app.web_chat import WebChatServer
+
+
+class EventStreamHandler(Protocol):
+    """The HTTP handler surface that one event-stream upgrade needs.
+
+    The web chat supplies its own request handler, so the stream names only the
+    members it uses: the request target and headers, the socket, and the two
+    helpers that answer a rejected upgrade.
+    """
+
+    path: str
+    headers: Mapping[str, str]
+    connection: socket.socket
+    close_connection: bool
+
+    def _json_error(self, error: str, status: int) -> None: ...
+
+    def _same_origin(self) -> bool: ...
 
 
 class CompletionMessage(BaseModel):
@@ -42,7 +72,7 @@ class StimulusAccepted(BaseModel):
     stimulus_id: str
 
 
-def serve_events(handler, chat) -> None:
+def serve_events(handler: EventStreamHandler, chat: "WebChatServer") -> None:
     """Upgrade this HTTP connection and replay public companion messages.
 
     The protocol library handles masking, control frames, and close frames.
@@ -73,6 +103,7 @@ def serve_events(handler, chat) -> None:
     after = cursor
 
     def flush() -> None:
+        """Send every frame the protocol queued, and nothing when it is empty."""
         for data in protocol.data_to_send():
             if data:
                 handler.connection.sendall(data)
@@ -105,7 +136,7 @@ def parse_cursor(value: str) -> tuple[int, int]:
     return int(parts[0]), int(parts[1])
 
 
-def public_events(store, after: str = "0") -> tuple[list[dict], str]:
+def public_events(store: MemoryStore, after: str = "0") -> tuple[list[dict], str]:
     """Read committed speech after a durable cursor, including late commits.
 
     Record IDs can be reserved before another transaction commits. Cursors
@@ -144,7 +175,7 @@ def public_events(store, after: str = "0") -> tuple[list[dict], str]:
     return result, f"{last[0]}:{last[1]}"
 
 
-def event_cursor(store) -> str:
+def event_cursor(store: MemoryStore) -> str:
     """Return the latest committed position without rendering conversation."""
     with store.lock:
         store._ensure_history()

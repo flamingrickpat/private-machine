@@ -1,15 +1,59 @@
-"""Bus module and tool factory of the main cognition cycle.
+"""Host of the main cognition cycle: bus, tools, commit boundary, and telemetry.
 
-``MainCogLoop`` turns one bus batch into one run of
-``main_cognition.workflow.md``. It builds the typed
-:class:`~workflows.main_cognition.cycle_work.CycleRequest` from committed
-state, lets the phases run, and then commits the final
-:class:`~workflows.main_cognition.cycle_work.CycleWork` in one write batch.
-After the commit it publishes the bus events.
+This package runs one cognitive cycle, from a bus batch to committed state and
+released actions. The cycle is the companion's main wake: it appraises what
+arrived, recalls memory, runs codelets, forms a workspace, decides, and routes
+actions. This module is the canonical subsystem overview.
 
-The application supplies one lazily activated completion callable.
+**What the cycle owns.**
+
+- The phase order of ``main_cognition.workflow.md``: triage, appraise,
+  retrieve, codelets, structures, attention, experience, goals, decide,
+  route, commit (:mod:`workflows.main_cognition.steps`).
+- The frozen input of one cycle (:class:`~workflows.main_cognition.cycle_work.CycleRequest`)
+  and the phase state they share (:class:`~workflows.main_cognition.cycle_work.CycleWork`).
+- The single write batch that turns the finished work into records, the GWT
+  turn, and the next :class:`~pm.records.cycle_state.CycleState`
+  (:meth:`MainCogLoop.publish_output`).
+- The action dispatches and their receipts. Each released
+  :class:`~workflows.main_cognition.schemas.ActionDispatch` becomes an
+  action record and an ``action.request`` bus message; a rejected, queued, or
+  duplicate dispatch gets an ``action.receipt`` message instead.
+
+**Inputs.** One bus batch of stimuli, plus the committed state that the batch
+was admitted against. The host materializes workflow questions and workflow
+events as ``WorldEvent`` records, resolves every stimulus against the frozen
+invocation view, retrieves memory candidates by embedding, and records the
+revisions it read.
+
+**Execution boundary.** The application supplies one completion callable.
 :func:`build_main_cognition_tools` binds it as the ``llm_complete`` tool of
-each run. The phases call the model only through that tool.
+each run, together with ``embed_texts`` and ``codelet_agent``. The phases call
+the model only through those tools, and never write the store. The host owns
+the store, the bus, and cognitive control.
+
+**Commit boundary.** ``publish_output`` stages the appraisal, goal changes,
+beliefs, episodic summary, codelet percepts and structures, subjective
+experience, action records with expectations, expectation outcomes, the GWT
+turn, and the cycle state in one batch. Every revision the cycle read is a
+batch dependency, so a concurrent change aborts the whole cycle instead of
+partly applying it. A completed commit is followed by the backup and then all
+bus events.
+
+**Telemetry and recovery.** Rejected model output and revision conflicts are
+retried under the policy of :meth:`MainCogLoop._handle_awake_batch` and are
+reported as ``cycle.rejected`` / ``cycle.conflict``; each failed model output
+keeps a ``model-output-rejection.json`` beside the run. A cycle that commits
+twice resolves its action ids by durable identity, so a repeated commit never
+publishes an uncommitted action id.
+
+**Reading map.** :mod:`~workflows.main_cognition.cycle_work` holds the typed
+state; :mod:`~workflows.main_cognition.schemas` holds the model-visible
+contracts; :mod:`~workflows.main_cognition.cycle_commits` and
+:mod:`~workflows.main_cognition.experience` stage record changes into the
+batch; :mod:`~workflows.main_cognition.expectations` and
+:mod:`~workflows.main_cognition.dispatch` own expectation and dependency
+lifecycle; the ``phases`` package holds the cognitive work of each phase.
 """
 from __future__ import annotations
 
@@ -21,10 +65,10 @@ import asyncio
 import json
 import threading
 import traceback
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 
 from pydantic import BaseModel, ValidationError
 
@@ -37,8 +81,10 @@ from pm.llm.completion import TextCompletion
 from pm.llm.http_client import ModelError
 from pm.llm.structured import context_measure
 from pm.llm.prompt_encoding import TurnInput, normalize_turns
-from pm.memory.snapshot import GhostCancelled
-from pm.records.base import Provenance
+from pm.memory.snapshot import GhostCancelled, Snapshot
+from pm.memory.store import MemoryStore
+from pm.memory.write_batch import WriteBatch
+from pm.records.base import Provenance, RecordBase
 from pm.records.codelet_records import AffectMeta, CodeletPercept, Structure
 from pm.records.cognitive_records import ExpectationRecord
 from pm.records.cycle_records import ActionDispatchRef, BroadcastRef
@@ -47,7 +93,7 @@ from pm.records.mental_state import PersonalityProfile, features_to_history
 from pm.records.workspace import SELF_SHARD, ShardKey
 from pm.records.enums import ActionType, FeatureType, SourceKind
 from pm.records.global_workspace import CodeletRunRef, CycleTrace, GwtTurnRecord, PathwayBoostRef
-from pm.records.memory_records import ActionSchemaRecord, new_feature
+from pm.records.memory_records import ActionSchemaRecord, Feature, new_feature
 from pm.runs.workflow_module import CognitiveWorkflow
 from workflows.cognitive_control.schemas import MentalPlan
 from workflows.inference_settings import REASONING
@@ -83,15 +129,20 @@ from workflows.main_cognition.cycle_commits import (
 from workflows.inner_thought.expectations import pending_expectations
 from workflows.public_speech.public_context import build_public_context
 
+if TYPE_CHECKING:
+    # The embedding service loads model configuration on first use. Import it
+    # only for annotations, so module import stays free of that work.
+    from pm.memory.embeddings import EmbeddingService
+
 
 def build_main_cognition_tools(
-    ghost,
+    ghost: MemoryStore,
     runtime_root: Path,
     llm_complete: TextCompletion,
     *,
     cancel_provider: Callable[[], threading.Event] | None = None,
-    embeddings=None,
-) -> Callable[[object, object], dict]:
+    embeddings: EmbeddingService | None = None,
+) -> Callable[[object, object], dict[str, Callable[..., object]]]:
     """Return the ``tools_factory(environment, batch)`` of the main module.
 
     The factory grants these tools to each run:
@@ -113,14 +164,14 @@ def build_main_cognition_tools(
     the frozen grant only.
     """
 
-    def factory(environment, batch) -> dict:
+    def factory(environment: object, batch: object) -> dict[str, Callable[..., object]]:
         stop = cancel_provider() if cancel_provider is not None else threading.Event()
 
         def complete(messages: Sequence[TurnInput], **generation: object) -> str:
             generation["reasoning_budget"] = REASONING["off"]
             return llm_complete(normalize_turns(messages), cancel=stop, **generation)
 
-        tools = {"llm_complete": complete}
+        tools: dict[str, Callable[..., object]] = {"llm_complete": complete}
         measure = context_measure(llm_complete)
         if measure is not None:
             complete.measure_context = measure
@@ -172,11 +223,11 @@ class KnoxelPayload(BaseModel):
     knoxel_id: int | None = None
 
 
-def _capabilities(ghost) -> list[str]:
+def _capabilities(ghost: MemoryStore) -> list[str]:
     return [str(item) for item in ghost.ghost_config.supported_capabilities]
 
 
-def _state_summary(ghost) -> str:
+def _state_summary(ghost: MemoryStore) -> str:
     """Return the summary of the newest broadcast, or an empty text before the first one."""
     turns = ghost.read_workspace_turns()
     if not turns:
@@ -184,7 +235,7 @@ def _state_summary(ghost) -> str:
     return turns[max(turns)].summary
 
 
-def dialogue_partner(feature, entity_ids: dict[str, int], user_entity_id: int | None,
+def dialogue_partner(feature: Feature, entity_ids: dict[str, int], user_entity_id: int | None,
                      self_entity_id: int | None) -> int | None:
     """Return the entity that the companion talks with in one dialogue line.
 
@@ -203,7 +254,7 @@ def dialogue_partner(feature, entity_ids: dict[str, int], user_entity_id: int | 
     return user_entity_id
 
 
-def seconds_since_user_input(ghost, exclude_ids) -> float | None:
+def seconds_since_user_input(ghost: MemoryStore, exclude_ids: Iterable[int]) -> float | None:
     """Return seconds since the newest earlier user message, or None.
 
     The current batch's own messages are excluded; otherwise every message
@@ -245,8 +296,9 @@ class MainCogLoop(CognitiveWorkflow):
         "cognition.wake",
     })
 
-    def __init__(self, *args, workflow_catalogue=None, embedding_config_path=None,
-                 codelet_definitions=None, **kwargs):
+    def __init__(self, *args: object, workflow_catalogue: Iterable[dict[str, object]] | None = None,
+                 embedding_config_path: str | Path | None = None,
+                 codelet_definitions: str | Path | None = None, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
         # The codelet definitions are a workflow resource. ``None`` selects
         # codelets.yaml; a gate or persona can name another file.
@@ -381,7 +433,8 @@ class MainCogLoop(CognitiveWorkflow):
                 if attempt == 3:
                     raise
 
-    def _retrieve(self, stimuli: list[Stimulus], memory_view, sources) -> tuple[list[MemoryCandidate], dict]:
+    def _retrieve(self, stimuli: list[Stimulus], memory_view: Snapshot,
+                  sources: list[RecordBase]) -> tuple[list[MemoryCandidate], dict[str, object]]:
         """Retrieve memory candidates for the stimuli by embedding.
 
         Returns the candidates and the retrieval trace of ``pm.memory``. The
@@ -596,7 +649,8 @@ class MainCogLoop(CognitiveWorkflow):
         )
         return request.model_dump(mode="json")
 
-    def _speaker_entity(self, stimulus: Stimulus, source, self_entity_id: int | None) -> int | None:
+    def _speaker_entity(self, stimulus: Stimulus, source: RecordBase,
+                        self_entity_id: int | None) -> int | None:
         """Return the entity that spoke a dialogue stimulus, or None.
 
         Only a dialogue stimulus (kind ``user.input``) has a speaker. The
@@ -609,7 +663,7 @@ class MainCogLoop(CognitiveWorkflow):
         entity_id = source.entity_id or self.ghost.get_entity_id(source.source)
         return None if entity_id is None or entity_id == self_entity_id else int(entity_id)
 
-    def _open_expectations(self, memory_view) -> list[OpenExpectation]:
+    def _open_expectations(self, memory_view: Snapshot) -> list[OpenExpectation]:
         """Return the newest pending expectations that main cognition recorded, oldest first.
 
         The private loop keeps its own expectations. It resolves them itself
@@ -624,14 +678,14 @@ class MainCogLoop(CognitiveWorkflow):
                                 about_entity_ids=list(record.about_entity_ids))
                 for record in records[-EXPECTATION_OPEN_LIMIT:]]
 
-    def _narrative_ids(self, memory_view, entity_ids: list[int]) -> list[int]:
+    def _narrative_ids(self, memory_view: Snapshot, entity_ids: list[int]) -> list[int]:
         """Return the newest narrative of each type for each entity in ``entity_ids``.
 
         The store keeps every refined version of a narrative. The newest one
         has the highest refinement tick, then the newest world time, then the
         highest id. Only records of the frozen view count.
         """
-        newest: dict[tuple[str, int], tuple[tuple, int]] = {}
+        newest: dict[tuple[str, int], tuple[tuple[int, datetime, int], int]] = {}
         with self.ghost.lock:
             for record in self.ghost.all_narratives:
                 if record.entity_id not in entity_ids or record.id not in memory_view.revisions:
@@ -642,7 +696,7 @@ class MainCogLoop(CognitiveWorkflow):
                     newest[key] = (rank, record.id)
         return [newest[key][1] for key in sorted(newest)]
 
-    def _streams(self, memory_view, keys: list[ShardKey], user_entity_id: int | None,
+    def _streams(self, memory_view: Snapshot, keys: list[ShardKey], user_entity_id: int | None,
                  self_entity_id: int | None) -> list[ShardStream]:
         """Return the newest stream records of each shard, oldest first.
 
@@ -681,8 +735,9 @@ class MainCogLoop(CognitiveWorkflow):
             streams.append(ShardStream(key=key, record_ids=[item.id for item in chosen[-WORKSPACE_TAIL_CANDIDATES:]]))
         return streams
 
-    def _record_views(self, memory_view, sources, matches: list[MemoryCandidate],
-                      previous: CycleState | None, extra_ids: list[int]) -> tuple[dict[int, RecordView], list[int]]:
+    def _record_views(self, memory_view: Snapshot, sources: list[RecordBase], matches: list[MemoryCandidate],
+                      previous: CycleState | None,
+                      extra_ids: list[int]) -> tuple[dict[int, RecordView], list[int]]:
         """Return the record views that the CSM can hold, and the recent dialogue ids.
 
         The views cover the records of the previous CSM, the stimuli, the
@@ -779,7 +834,7 @@ class MainCogLoop(CognitiveWorkflow):
             kind = "workflow.event"
         return knoxel_id, str(knoxel.content), kind
 
-    def _input_knoxel(self, knoxel_id: int):
+    def _input_knoxel(self, knoxel_id: int) -> RecordBase:
         """Resolve a supplied ID through the frozen invocation grant."""
         view = self.last_environment.ghost_view
         if knoxel_id not in view.revisions:
@@ -1098,7 +1153,7 @@ class MainCogLoop(CognitiveWorkflow):
                                                             experience_id=experience_id)][-CCQ_LENGTH:]
         return state
 
-    def _committed_action_id(self, dispatch, tick: int) -> int | None:
+    def _committed_action_id(self, dispatch: ActionDispatch, tick: int) -> int | None:
         """Return the accepted action id for this identity and tick, if any."""
         for knoxel in self.ghost.all_knoxels.values():
             if not isinstance(knoxel, ActionSchemaRecord):
@@ -1109,7 +1164,8 @@ class MainCogLoop(CognitiveWorkflow):
                 return int(knoxel.id)
         return None
 
-    def _active_game_request(self, dispatch, correlation: str, batch: list[Envelope]) -> str | None:
+    def _active_game_request(self, dispatch: ActionDispatch, correlation: str,
+                             batch: list[Envelope]) -> str | None:
         """Keep progress for an active request from starting another game run.
 
         Read the current durable run table before committing an action. A new
@@ -1134,7 +1190,7 @@ class MainCogLoop(CognitiveWorkflow):
                          and run["parent_correlation"] == correlation
                          and run["state"] in {"accepted", "running", "waiting_for_input"}), None)
 
-    def _existing_action_identity(self, dispatch) -> int | None:
+    def _existing_action_identity(self, dispatch: ActionDispatch) -> int | None:
         """Return the existing non-reply action with this identity, if any.
 
         Replies may repeat their content. A tool or start action keeps its
@@ -1149,8 +1205,8 @@ class MainCogLoop(CognitiveWorkflow):
                 return int(knoxel.id)
         return None
 
-    def _publish_receipt(self, correlation: str, dispatch, status: str, cause,
-                         detail: str = "") -> None:
+    def _publish_receipt(self, correlation: str, dispatch: ActionDispatch, status: str,
+                         cause: str | None, detail: str = "") -> None:
         payload = {
             "action_id": dispatch.action_id,
             "workflow_name": dispatch.workflow_name,
@@ -1181,7 +1237,7 @@ class InnerThoughtLoop(CognitiveWorkflow):
         ))
 
 
-def stage_percepts(changes, work: CycleWork) -> dict[int, int]:
+def stage_percepts(changes: WriteBatch, work: CycleWork) -> dict[int, int]:
     """Stage one ``CodeletPercept`` record for each percept and recommendation.
 
     Returns ``{pending id: record id}``. Each percept record stores its
@@ -1232,7 +1288,7 @@ def stage_percepts(changes, work: CycleWork) -> dict[int, int]:
     return mapping
 
 
-def stage_structures(changes, work: CycleWork, pending: dict[int, int]) -> dict[int, int]:
+def stage_structures(changes: WriteBatch, work: CycleWork, pending: dict[int, int]) -> dict[int, int]:
     """Stage one ``Structure`` record for each structure of the cycle.
 
     ``pending`` maps the pending percept ids to record ids, so a structure
@@ -1265,7 +1321,7 @@ def stage_structures(changes, work: CycleWork, pending: dict[int, int]) -> dict[
     return mapping
 
 
-def mark_causal(changes, view, work: CycleWork) -> list[int]:
+def mark_causal(changes: WriteBatch, view: Snapshot, work: CycleWork) -> list[int]:
     """Return percept IDs that entered a workspace shard in this cycle.
 
     The GWT trace records later participation without changing old percepts.
@@ -1308,7 +1364,8 @@ def remap_pending(work: CycleWork, mapping: dict[int, int]) -> None:
     work.experience.rekey(mapping)
 
 
-def stage_expectations(changes, view, work: CycleWork, dispatch: ActionDispatch, action_id: int) -> list[int]:
+def stage_expectations(changes: WriteBatch, view: Snapshot, work: CycleWork, dispatch: ActionDispatch,
+                       action_id: int) -> list[int]:
     """Stage the expected reactions of one published action. Return the new record ids.
 
     Port of the record part of ``_generate_expectations_for_action``. Each
@@ -1346,7 +1403,7 @@ def stage_expectations(changes, view, work: CycleWork, dispatch: ActionDispatch,
     return created
 
 
-def apply_expectation_outcomes(changes, view, work: CycleWork) -> None:
+def apply_expectation_outcomes(changes: WriteBatch, view: Snapshot, work: CycleWork) -> None:
     """Stage the check results of the appraise phase on the checked expectations.
 
     Each checked record gets its new fulfillment. A supported or

@@ -6,13 +6,19 @@ refused operation becomes a typed rejected report, never an invented success.
 """
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
+from typing import Any
+
+from pm_workflows.python_role import RoleContext
+
 from pm.utils import yaml_util
 
 from pm.runs.run_receipt import ManagedRunError
 from workflows.self_management.schemas import SelfManagementReport, SelfManagementRequest
 
 
-def run(context) -> dict:
+def run(context: RoleContext) -> dict[str, Any]:
+    """Validate one managed-run operation and return its typed report."""
     environment = context.runtime.environment
     request = SelfManagementRequest.model_validate(
         yaml_util.safe_load(environment.read_text("inbox/request.yaml"))
@@ -37,7 +43,9 @@ def run(context) -> dict:
     }
 
 
-def _dispatch(request: SelfManagementRequest, tools) -> SelfManagementReport:
+def _dispatch(request: SelfManagementRequest,
+              tools: Mapping[str, Callable[..., Any]]) -> SelfManagementReport:
+    """Call the one management tool that the requested operation names."""
     operation = request.operation
     if operation == "resume":
         receipt = tools["managed_resume"](run_id=request.run_id, request_id=request.request_id or request.action_id)

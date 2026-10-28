@@ -28,6 +28,8 @@ expectations at commit and publishes the released dispatches after it.
 """
 from __future__ import annotations
 
+from pm_workflows.python_role import RoleContext
+
 from pm.records.copying import pickle_copy
 
 import hashlib
@@ -53,6 +55,7 @@ from workflows.main_cognition.schemas import (
     QUIET_ACTIONS,
     ActionArguments,
     ActionDispatch,
+    ExpectationDraft,
     RouteAnswer,
     RouteCheck,
     RouteChoice,
@@ -125,7 +128,8 @@ def build_messages(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix, 
     return prefix.ask(instruction)
 
 
-def route(context, work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix, decision: ActionDecision) -> RouteAnswer:
+def route(context: RoleContext, work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix,
+          decision: ActionDecision) -> RouteAnswer:
     """Run the routing call of one decision. Runs in a worker thread and does not change ``work``."""
     check = RouteCheck(workflow_names=[item.name for item in available_workflows(work)])
     return complete(context, work, build_messages(work, prompts, prefix, decision), RouteAnswer,
@@ -245,7 +249,8 @@ def anticipation_job(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix
     return action, target, entities
 
 
-def anticipate(context, work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix, dispatch: ActionDispatch):
+def anticipate(context: RoleContext, work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix,
+               dispatch: ActionDispatch) -> list[ExpectationDraft]:
     """Return the expectations of one released dispatch. Runs in a worker thread and does not change ``work``."""
     action, target, entities = anticipation_job(work, prompts, prefix, dispatch)
     return expectations.anticipate(context, work, prefix, prompts, decision=dispatch.content, action=action,
@@ -253,7 +258,7 @@ def anticipate(context, work: CycleWork, prompts: PhasePrompts, prefix: StoryPre
                                    embedder=Embedder(context, work.records))
 
 
-def run(context, work: CycleWork) -> CycleWork:
+def run(context: RoleContext, work: CycleWork) -> CycleWork:
     """Route the decisions, check conflicts, and record the expected reactions.
 
     No receipts of earlier actions reach the cycle yet, so every success

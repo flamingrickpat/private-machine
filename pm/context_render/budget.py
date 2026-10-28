@@ -63,6 +63,7 @@ class ContextBudget(TokenEstimator):
 
     @property
     def input_ceiling(self) -> int:
+        """Return the largest estimated input that this budget admits."""
         return int(self.context_window * self.input_fraction)
 
     def require_fit(self, turns: Sequence[Turn]) -> int:
@@ -125,6 +126,7 @@ def select_context(instructions: Sequence[Turn], groups: Sequence[ContextGroup],
     omitted: list[str] = []
 
     def assemble() -> tuple[Turn, ...]:
+        """Render the current selection, including the omission receipt."""
         evidence = Content("")
         for group in chosen:
             evidence += f"\n{group.name}:\n"

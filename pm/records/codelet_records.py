@@ -9,7 +9,8 @@ domain: structures collect knoxel ids and local relationship hints while module 
 invariant: serialized models keep references as ids and primitive metadata; live Python objects are resolved only through owner-backed properties.
 """
 
-from typing import Dict, List, Union
+
+from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
@@ -52,20 +53,20 @@ class Structure(RecordBase):
     and the structure kind. A structure can bind conflicting content.
     """
     active: bool = Field(default=True, description="Whether this structure is active or inactive (superceded, ignored)")
-    internal_knoxel_ids: List[int] = Field(default_factory=list, description="list of knoxels that contribute (memories, features, beliefs, ...)")
-    structure_ids: List[int] = Field(default_factory=list, description="Nested structure ids that contribute to this structure")
-    relations: List[StructureRelation] = Field(default_factory=list, description="Inline relation triplets between referenced knoxels")
+    internal_knoxel_ids: list[int] = Field(default_factory=list, description="list of knoxels that contribute (memories, features, beliefs, ...)")
+    structure_ids: list[int] = Field(default_factory=list, description="Nested structure ids that contribute to this structure")
+    relations: list[StructureRelation] = Field(default_factory=list, description="Inline relation triplets between referenced knoxels")
     affect: AffectMeta = Field(default_factory=AffectMeta, description=" Simple low-dim appraisal vector for runtime importance")
     predecessor_id: int | None = Field(default=None, description="Predecessor structure if there is one")
     primitive_metadata: dict[str, JsonValue] = Field(default_factory=dict, description="Freeform primitive metadata for runtime inspection")
     target_shard: ShardKey | None = Field(default=None, description="Shard that the structure concerns. Attention can choose another shard.")
 
     @property
-    def knoxels(self) -> List[RecordBase]:
+    def knoxels(self) -> list[RecordBase]:
         return [x for x in self._owner.all_knoxels.values() if x.id in self.internal_knoxel_ids]
 
     @property
-    def structures(self) -> List["Structure"]:
+    def structures(self) -> list["Structure"]:
         return [
             structure
             for structure_id in self.structure_ids
@@ -73,7 +74,7 @@ class Structure(RecordBase):
         ]
 
     @property
-    def predecessor(self) -> Union[None, "Structure"]:
+    def predecessor(self) -> "Structure" | None:
         predecessor = self._owner.get_knoxel_by_id(self.predecessor_id)
         if isinstance(predecessor, Structure):
             return predecessor
@@ -88,17 +89,17 @@ class ModuleDestination(BaseModel):
 
 class ModuleOutput(RecordBase):
     source_module: str
-    destinations: List[ModuleDestination] = Field(default_factory=list)
+    destinations: list[ModuleDestination] = Field(default_factory=list)
     status: str = "completed"
-    produced_structure_ids: List[int] = Field(default_factory=list)
+    produced_structure_ids: list[int] = Field(default_factory=list)
     primary_structure_id: int | None = None
     control_knoxel_id: int | None = None
-    predecessor_output_ids: List[int] = Field(default_factory=list)
+    predecessor_output_ids: list[int] = Field(default_factory=list)
     trace_data: dict[str, JsonValue] = Field(default_factory=dict)
-    diagnostics: List[str] = Field(default_factory=list)
+    diagnostics: list[str] = Field(default_factory=list)
 
     @property
-    def structures(self) -> List[Structure]:
+    def structures(self) -> list[Structure]:
         if self._owner is None:
             return []
         return [
@@ -123,7 +124,7 @@ class ModuleOutput(RecordBase):
         return self._owner.get_knoxel_by_id(self.control_knoxel_id)
 
     @property
-    def predecessor_outputs(self) -> List["ModuleOutput"]:
+    def predecessor_outputs(self) -> list["ModuleOutput"]:
         if self._owner is None:
             return []
         return [
@@ -141,13 +142,13 @@ class CodeletPercept(RecordBase):
     explanation: str = ""
     reasoning_trace: str = ""
     affect: AffectMeta = Field(default_factory=AffectMeta, description="Simple low-dim appraisal vector for runtime importance")
-    mental_state_appraisal_vec: List[float] = Field(default_factory=create_empty_ms_vector, description="The state with the real appraisals and latent state (total, includes state at which feature was created).")
-    mental_state_delta_vec: List[float] = Field(default_factory=create_empty_ms_vector, description="The state with no appraisals and the real delta from latent_state - previous_real_state (local delta, can be added up in EMA for 'state during'.")
-    internal_knoxel_ids: List[int] = Field(default_factory=list, description="list of knoxels that are based on this percept (new beliefs, attention shifts, goals, or just the features)")
+    mental_state_appraisal_vec: list[float] = Field(default_factory=create_empty_ms_vector, description="The state with the real appraisals and latent state (total, includes state at which feature was created).")
+    mental_state_delta_vec: list[float] = Field(default_factory=create_empty_ms_vector, description="The state with no appraisals and the real delta from latent_state - previous_real_state (local delta, can be added up in EMA for 'state during'.")
+    internal_knoxel_ids: list[int] = Field(default_factory=list, description="list of knoxels that are based on this percept (new beliefs, attention shifts, goals, or just the features)")
     causal: bool = Field(default=False, description="True after the percept entered a workspace shard. Only causal percepts add their delta to the EMA mental state.")
 
     @property
-    def knoxels(self) -> List[RecordBase]:
+    def knoxels(self) -> list[RecordBase]:
         return [x for x in self._owner.all_knoxels.values() if x.id in self.internal_knoxel_ids]
 
     @property
@@ -188,13 +189,13 @@ class CodeletRuntimeState(BaseModel):
     cooldown_ticks: int = CODELET_COOLDOWN_TICKS
     last_fired_tick: int | None = None
     total_runs: int = 0
-    last_percept_ids: List[int] = Field(default_factory=list)
-    precursor_ids: List[int] = Field(default_factory=list)
+    last_percept_ids: list[int] = Field(default_factory=list)
+    precursor_ids: list[int] = Field(default_factory=list)
     # ALPHA RUN ONLY: the last selector rating, for ALPHA_MAX_RATING_STEP.
     # Remove it with the ALPHA block in pm.constants.
     last_rating: float | None = None
 
-    def rekey(self, mapping: Dict[int, int]) -> None:
+    def rekey(self, mapping: dict[int, int]) -> None:
         """Replace pending percept ids by record ids. See ``SituationalModel.rekey``."""
         self.last_percept_ids = [mapping.get(item, item) for item in self.last_percept_ids]
         self.precursor_ids = [mapping.get(item, item) for item in self.precursor_ids]
@@ -209,7 +210,7 @@ class CodeletRegistryState(BaseModel):
     codelet without an entry has the default runtime state.
     """
 
-    codelets: Dict[str, CodeletRuntimeState] = Field(default_factory=dict)
+    codelets: dict[str, CodeletRuntimeState] = Field(default_factory=dict)
 
     def runtime(self, name: str) -> CodeletRuntimeState:
         """Return the runtime state of ``name``. Create the default state on first use."""
@@ -217,7 +218,7 @@ class CodeletRegistryState(BaseModel):
             self.codelets[name] = CodeletRuntimeState(name=name)
         return self.codelets[name]
 
-    def rekey(self, mapping: Dict[int, int]) -> None:
+    def rekey(self, mapping: dict[int, int]) -> None:
         """Replace pending percept ids by record ids in every runtime state."""
         for state in self.codelets.values():
             state.rekey(mapping)

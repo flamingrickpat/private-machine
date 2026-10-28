@@ -13,9 +13,9 @@ domain: every semantic memory classification in pm uses these enums so that reco
 invariant: every taxonomy string round-trips through its enum unchanged; normalization never
   invents a value that is not a member of the corresponding enum.
 """
+from __future__ import annotations
 
 from enum import StrEnum
-from typing import List, Optional
 
 from pm.records.enums import RecordSubtypeBase
 
@@ -179,13 +179,13 @@ class MemoryTaxonomy:
     }
 
     @staticmethod
-    def normalize_text(text: Optional[str]) -> str:
+    def normalize_text(text: str | None) -> str:
         """Lowercase alphanumeric normalization used for exact-match dedup keys."""
         cleaned = "".join(ch if ch.isalnum() or ch.isspace() else " " for ch in str(text or "").lower())
         return " ".join(cleaned.split())
 
     @staticmethod
-    def normalize_record_type(value: Optional[str]) -> RecordType:
+    def normalize_record_type(value: str | None) -> RecordType:
         """Coerce a raw classifier type string into a valid RecordType member."""
         raw = str(value or "").strip().lower()
         if not raw:
@@ -196,7 +196,7 @@ class MemoryTaxonomy:
             return MemoryTaxonomy._TYPE_REPAIR.get(raw, RecordType.Fact)
 
     @staticmethod
-    def normalize_epistemic(value: Optional[str]) -> EpistemicStatus:
+    def normalize_epistemic(value: str | None) -> EpistemicStatus:
         """Coerce a raw classifier epistemic string into a valid EpistemicStatus member."""
         raw = str(value or "").strip().lower()
         if not raw:

@@ -137,10 +137,12 @@ def reason_once(context: RoleContext, store: TreeStore, role: str, contract: typ
         raise ValueError("Minecraft project decisions need the configured normal LLM.")
     # Use the same normal-chat mode as selection and native actor sessions.
     # Retain the setting with the decision; do not cap the output mid-object.
-    def rejected(attempt, raw, problem):
+    def rejected(attempt: int, raw: str, problem: str) -> None:
+        """Retain one malformed sample beside the decision it belongs to."""
         store.write(name + f"/rejection-{attempt:02d}.json", {"text": raw, "error": problem})
 
-    def send(turns, **settings):
+    def send(turns: list[dict[str, str]], **settings: object) -> str:
+        """Send one measured decision prompt and retain its raw answer."""
         text = complete(turns, **settings)
         store.write(name + "/raw.json", {"text": text})
         context.runtime.check_cancelled()

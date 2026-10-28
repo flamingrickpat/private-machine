@@ -9,19 +9,36 @@ from __future__ import annotations
 
 from pm import vclock
 
+from collections.abc import Callable
 from datetime import datetime
-from typing import Callable
 from functools import partial
+from threading import Event
+from typing import TYPE_CHECKING, Any
+
 from pm.bus.envelopes import Envelope
 from workflows.dialogue_story.schemas import StoryReport, StoryRequest
 from workflows.main_cognition.schemas import ActionRequest
 from workflows.public_speech.public_dialogue import PublicDialogue
 
+if TYPE_CHECKING:
+    from pm.llm.stage_model import LazyStageModel
+    from pm.memory.bash_view import MemoryBashEnvironment
 
-def build_story_tools(model, *, cancel_provider=None) -> Callable[[object, object], dict]:
-    """Return the ``tools_factory(environment, batch)`` for Story dialogue."""
 
-    def factory(environment, batch) -> dict:
+def build_story_tools(
+    model: LazyStageModel,
+    *,
+    cancel_provider: Callable[[], Event | None] | None = None,
+) -> Callable[[MemoryBashEnvironment, object], dict[str, Callable[..., Any]]]:
+    """Return the ``tools_factory(environment, batch)`` for Story dialogue.
+
+    The role receives one async completion tool that both the story stage and
+    the public stage use. ``cancel_provider`` supplies the run's cancellation
+    event, so a stopped run stops its inference.
+    """
+
+    def factory(environment: MemoryBashEnvironment, batch: object) -> dict[str, Callable[..., Any]]:
+        """Return the completion tools of one Story invocation."""
         complete = model.build_async_tool(cancel=cancel_provider() if cancel_provider is not None else None)
         if cancel_provider is not None:
             complete = partial(complete, cancel=cancel_provider())

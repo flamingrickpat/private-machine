@@ -9,8 +9,9 @@ from __future__ import annotations
 
 from pm import vclock
 
+from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
-from typing import Callable, Sequence
+from typing import TYPE_CHECKING, Any
 
 from pm.bus.envelopes import Envelope, new_envelope, new_id
 from pm.host.application import BusModule
@@ -21,6 +22,9 @@ from pm.records.memory_records import Feature, new_feature
 from pm.records.lineage import RecordLineage
 from workflows.cognitive_control.schemas import ControlConfig, WaitRequest
 
+if TYPE_CHECKING:
+    from pm.memory.store import MemoryStore
+
 
 class CognitiveControl(BusModule):
     """Own waits, external-input fences, and the wake outbox.
@@ -30,8 +34,9 @@ class CognitiveControl(BusModule):
     Elapsed-time receipts never claim cognition during the gap.
     """
 
-    def __init__(self, *args, ghost, config: ControlConfig | None = None,
-                 now: Callable[[], datetime] = vclock.utcnow, **kwargs):
+    def __init__(self, *args: Any, ghost: MemoryStore, config: ControlConfig | None = None,
+                 now: Callable[[], datetime] = vclock.utcnow, **kwargs: Any) -> None:
+        """Forward the module configuration and retain the store and clock."""
         super().__init__(*args, **kwargs)
         self.ghost = ghost
         self.config = config or ControlConfig()
@@ -154,7 +159,7 @@ class CognitiveControl(BusModule):
 
     def commit(self, batch: WriteBatch, wait: WaitRequest | None, generation: int,
                *, envelope_ids: set[str] | None = None, wake_ids: Sequence[int] = (),
-               private_generation: int | None = None, source_ids: Sequence[int] = ()):
+               private_generation: int | None = None, source_ids: Sequence[int] = ()) -> Any:
         """Commit cognition, wake acknowledgment, and a possible wait together.
 
         Newer input prevents a late Sleep from hiding that input. A private-only
@@ -214,7 +219,7 @@ class CognitiveControl(BusModule):
             self.cancel_private()
         return receipt
 
-    def commit_private(self, batch: WriteBatch, generation: int):
+    def commit_private(self, batch: WriteBatch, generation: int) -> Any:
         """Reject private work after outside input or an accepted wait.
 
         The store lock covers the generation check and durable commit. Native

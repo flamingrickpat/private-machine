@@ -14,6 +14,10 @@ import asyncio
 import base64
 import json
 from pathlib import Path
+from typing import Any
+
+from pm_workflows.python_role import RoleContext
+from pm_workflows.working_target import WorkingEnvironment
 
 from pm.utils import yaml_util
 
@@ -69,8 +73,13 @@ def parse_plan(text: str) -> tuple[str, dict]:
     return head.strip(), arguments
 
 
-def write_images(environment, images: list[dict]) -> list[str]:
-    """Write screenshot pixels to real files and return their paths."""
+def write_images(environment: WorkingEnvironment, images: list[dict[str, Any]]) -> list[str]:
+    """Write screenshot pixels to real files and return their paths.
+
+    An environment without binary writes keeps the base64 payload in a text
+    file beside the screenshots. A frame that already names a path is retained
+    as it is, so a replayed call cannot duplicate the bytes.
+    """
     paths: list[str] = []
     for index, image in enumerate(images):
         if image.get("path"):
@@ -145,7 +154,13 @@ def build_world(
     }
 
 
-def _run_boundary_check(context) -> dict:
+def _run_boundary_check(context: RoleContext) -> dict[str, Any]:
+    """Run the narrow explicit observation/action boundary check.
+
+    The observation is published before the optional instruction wait, so a
+    cancellation still retains real world evidence. A new instruction revision
+    invalidates a previously supplied action.
+    """
     environment = context.runtime.environment
     payload = yaml_util.safe_load(environment.read_text("inbox/request.yaml"))
     request = MinecraftRequest.model_validate({key: value for key, value in payload.items()
@@ -155,7 +170,8 @@ def _run_boundary_check(context) -> dict:
     from workflows.minecraft_body.gateway import BodyGateway
     endpoint = context.runtime.tools["minecraft_endpoint"]()
     gateway = BodyGateway(endpoint, context.task_id, environment, context.runtime, dict(context.runtime.tools))
-    def call(name, arguments=None):
+    def call(name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Call one body tool through the leased gateway of this run."""
         return gateway.call(name, arguments or {})
     boundary = context.runtime.tools["managed_instructions"]
     initial = boundary()
@@ -237,7 +253,7 @@ def _run_boundary_check(context) -> dict:
     return {"status": "done", "summary": "minecraft body finished with recorded tool evidence"}
 
 
-def run(context) -> dict:
+def run(context: RoleContext) -> dict[str, Any]:
     """Select sustained work or the retained explicit W8 boundary check."""
     payload = yaml_util.safe_load(context.runtime.environment.read_text("inbox/request.yaml"))
     # Existing explicit actions and wait fixtures retain their narrow contract.

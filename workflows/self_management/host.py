@@ -7,7 +7,8 @@ Python steps and MCP clients share one implementation.
 """
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from pm.runs.management_api import build_management_tools
 from pm.records.memory_records import ActionSchemaRecord
@@ -18,11 +19,17 @@ from workflows.public_speech.publication import exchange_record
 from pm.bus.envelopes import new_envelope
 from pm.runs.workflow_module import CognitiveWorkflow
 
+if TYPE_CHECKING:
+    from pm.runs.supervisor import ManagedRunSupervisor
 
-def build_self_management_tools(supervisor) -> Callable[[object, object], dict]:
+
+def build_self_management_tools(
+    supervisor: ManagedRunSupervisor,
+) -> Callable[[object, object], dict[str, Callable[..., Any]]]:
     """Return ``tools_factory(environment, batch)`` for SelfManagement."""
 
-    def factory(environment, batch) -> dict:
+    def factory(environment: object, batch: object) -> dict[str, Callable[..., Any]]:
+        """Return the managed-run tools of one SelfManagement invocation."""
         return build_management_tools(supervisor)
 
     return factory

@@ -3,39 +3,56 @@
 Each function reads ``inbox/request.yaml`` through ``context.runtime.environment``,
 writes a semantic report to ``outbox/report.yaml``, and returns the kernel result
 object. The fixed output is the prototype behavior, not evidence of LLM wiring.
+
+The demo workflow manifests name these modules through ``role_skills``. Nothing
+here calls a model, a memory store, or a body: the modules exist so the real
+kernel, bus, and managed-run paths can be exercised with a known answer.
+
+Reading map: ``main_cognition`` routes user input by keyword, ``dialogue``
+echoes the accepted action content, ``schedule`` and ``status`` drive the
+in-memory task table, ``tool_dialogue`` answers a memory search, and
+``inner_thought`` emits one fixed thought.
 """
 from __future__ import annotations
+
+from typing import Any
+
+from pm_workflows.python_role import RoleContext
 
 from pm.utils import yaml_util
 
 
-def _environment(context):
+def _environment(context: RoleContext) -> Any:
+    """Return the invocation environment the role may read and write."""
     return context.runtime.environment
 
 
-def _read_request(context) -> dict:
+def _read_request(context: RoleContext) -> dict[str, Any]:
+    """Return the request mapping that the kernel wrote for this attempt."""
     return yaml_util.safe_load(_environment(context).read_text("inbox/request.yaml"))
 
 
-def _write_report(context, report: dict) -> None:
+def _write_report(context: RoleContext, report: dict[str, Any]) -> None:
     env = _environment(context)
     env.write_text("scratch/report.yaml", yaml_util.safe_dump(report, sort_keys=False))
     env.move("scratch/report.yaml", "outbox/report.yaml")
 
 
-def _message_content(message: dict) -> str:
+def _message_content(message: dict[str, Any]) -> str:
+    """Return the content text of one request message."""
     return str(message.get("knoxel", {}).get("data", {}).get("content", ""))
 
 
-def _speaker(message: dict) -> str:
+def _speaker(message: dict[str, Any]) -> str:
     """Return the speaker name of a dialogue message. The persona supplies the name."""
     return str(message.get("knoxel", {}).get("data", {}).get("override_source") or "")
 
 
-def main_cognition(context) -> dict:
+def main_cognition(context: RoleContext) -> dict[str, Any]:
+    """Route demonstration user input by keyword and publish its decisions."""
     request = _read_request(context)
     messages = request.get("messages", [])
-    decisions: list[dict] = []
+    decisions: list[dict[str, str]] = []
     for message in messages:
         if message.get("topic") != "user.input":
             continue
@@ -117,24 +134,27 @@ def main_cognition(context) -> dict:
     return {"status": "done", "summary": "dummy main cognition completed"}
 
 
-def dialogue(context) -> dict:
+def dialogue(context: RoleContext) -> dict[str, Any]:
+    """Echo each accepted action content as the demonstration reply."""
     request = _read_request(context)
     replies = [
-        {"correlation_id": m.get("correlation_id", ""), "content": _message_content(m)}
-        for m in request.get("messages", [])
+        {"correlation_id": message.get("correlation_id", ""), "content": _message_content(message)}
+        for message in request.get("messages", [])
     ]
     _write_report(context, {"replies": replies})
     return {"status": "done", "summary": "dummy dialogue completed"}
 
 
-def inner_thought(context) -> dict:
+def inner_thought(context: RoleContext) -> dict[str, Any]:
+    """Write the one fixed demonstration thought."""
     _write_report(context, {"thought": "I wonder what they will ask next."})
     return {"status": "done", "summary": "dummy inner thought completed"}
 
 
-def schedule(context) -> dict:
+def schedule(context: RoleContext) -> dict[str, Any]:
+    """Report the tasks that the demonstration decisions asked to schedule."""
     request = _read_request(context)
-    tasks = []
+    tasks: list[dict[str, str]] = []
     for message in request.get("messages", []):
         data = message.get("knoxel", {}).get("data", {})
         metadata = data.get("metadata", {})
@@ -147,9 +167,10 @@ def schedule(context) -> dict:
     return {"status": "done", "summary": "dummy scheduling completed"}
 
 
-def status(context) -> dict:
+def status(context: RoleContext) -> dict[str, Any]:
+    """Report the demonstration task that the request names."""
     request = _read_request(context)
-    queries = []
+    queries: list[dict[str, str]] = []
     for message in request.get("messages", []):
         data = message.get("knoxel", {}).get("data", {})
         metadata = data.get("metadata", {})
@@ -161,10 +182,11 @@ def status(context) -> dict:
     return {"status": "done", "summary": "dummy status completed"}
 
 
-def tool_dialogue(context) -> dict:
+def tool_dialogue(context: RoleContext) -> dict[str, Any]:
+    """Answer a memory search with the fixed demonstration text."""
     request = _read_request(context)
     tools = context.runtime.tools
-    replies = []
+    replies: list[dict[str, str]] = []
     for message in request.get("messages", []):
         # The demo main cognition put the speaker name into the action content.
         name = _message_content(message)

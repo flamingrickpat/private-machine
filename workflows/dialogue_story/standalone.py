@@ -21,12 +21,14 @@ from pm.constants import Sampler
 from pm.utils import yaml_util
 from pm_workflows.runtime import WorkflowRuntime
 
+from pm.memory.store import MemoryStore
 from pm.records.memory_records import Feature
 from pm.records.enums import FeatureType, InterlocusType
 from pm.llm.activation import ChatClient
 from pm.llm.completion import AsyncTextCompletion
 from pm.llm.prompt_encoding import TurnInput
 from collections.abc import Sequence
+from threading import Event
 from pm.runs.workflow_runner import WorkflowRequest, WorkflowResult, WorkflowRunner, WorkflowStatus
 from workflows.dialogue_story.schemas import StoryQualityScore, StoryReport
 from pm.memory.bash_view import MemoryBashEnvironment
@@ -36,7 +38,8 @@ MANIFEST = WORKFLOW_DIR / "dialogue_story.workflow.md"
 PROJECT_ROOT = WORKFLOW_DIR.parent.parent
 
 
-def read_yaml(path: str | Path) -> dict:
+def read_yaml(path: str | Path) -> dict[str, Any]:
+    """Load one YAML prompt or evaluator file from disk."""
     return yaml_util.safe_load(Path(path).read_text(encoding="utf-8"))
 
 
@@ -51,7 +54,8 @@ def build_story_tools(client: ChatClient) -> dict[str, AsyncTextCompletion]:
         from pm.llm.stage_model import complete_with_retry
         return await complete_with_retry(client, messages, generation)
 
-    async def measure(messages: Sequence[TurnInput], *, cancel=None, **generation: object) -> dict:
+    async def measure(messages: Sequence[TurnInput], *, cancel: threading.Event | None = None,
+                      **generation: object) -> dict[str, object]:
         from pm.llm.context_window import measure_context
         with client.activation.use(client.connection):
             return await measure_context(client.connection, messages,
@@ -61,21 +65,28 @@ def build_story_tools(client: ChatClient) -> dict[str, AsyncTextCompletion]:
     return {"story_complete": story_complete, "public_complete": story_complete}
 
 
-def make_environment(ghost) -> MemoryBashEnvironment:
+def make_environment(ghost: MemoryStore) -> MemoryBashEnvironment:
+    """Return a read-only working environment over the current store state."""
     view = ghost.snapshot()
     return MemoryBashEnvironment(view.serialize_knoxels(), view.serialize_gwt(), "read")
 
 
 def generate_story(
-    ghost,
+    ghost: MemoryStore,
     environment: MemoryBashEnvironment,
     client: ChatClient,
-    request_payload: dict,
+    request_payload: dict[str, Any],
     runtime_root: Path,
     run_id: str,
     *,
     resume: bool = False,
 ) -> tuple[WorkflowResult, StoryReport]:
+    """Run the Story workflow once and return its result and typed report.
+
+    ``resume`` continues a parked kernel rather than replaying generation. A
+    run that did not complete raises RuntimeError with its kernel summary;
+    no partial report is returned as an answer.
+    """
     runtime = WorkflowRuntime(
         environment=environment,
         stop_event=threading.Event(),
@@ -90,7 +101,8 @@ def generate_story(
     return result, report
 
 
-def commit_accepted_dialogue(ghost, candidate: str, companion_name: str, commit_id: str) -> dict:
+def commit_accepted_dialogue(ghost: MemoryStore, candidate: str, companion_name: str,
+                            commit_id: str) -> dict[str, Any]:
     """Commit one accepted reply as public dialogue memory.
 
     Called only for an accepted candidate, after generation. Trials never call
@@ -142,12 +154,13 @@ async def evaluate_candidate(
     )
     from pm.llm.structured import complete_json_async
     from pm.llm.context_window import measure_context
-    from threading import Event
 
-    async def complete(turns, **generation):
+    async def complete(turns: Sequence[TurnInput], **generation: object) -> str:
+        """Return the evaluator's final text, never its reasoning."""
         return (await evaluator.complete(turns, **generation)).text
 
-    async def measure(turns, *, cancel=None, **generation):
+    async def measure(turns: Sequence[TurnInput], *, cancel: Event | None = None,
+                      **generation: object) -> dict[str, object]:
         return await measure_context(evaluator.connection, turns, cancel or Event(), **generation)
 
     return await complete_json_async(complete,

@@ -1,7 +1,16 @@
 """Repair model JSON until its schema accepts it or its context is full.
 
-Only syntax and declared validation errors receive repair turns. Completion,
-measurement, recording, and programming errors keep their original boundary.
+The repair loop owns one uncommitted conversation. A malformed or schema-
+rejected answer adds a correction turn that keeps the original task facts and
+source ids; a rejected answer never becomes accepted state. Only syntax and
+declared validation errors receive repair turns. Completion, measurement,
+recording, and programming errors keep their original boundary and propagate.
+
+Reading map: :func:`extract_json` reads the object, :class:`_Repair` owns the
+conversation and its rejections, :func:`complete_json` and
+:func:`complete_json_async` run the loop for synchronous and asynchronous
+completions, and :func:`repair_agent_result` applies the same policy to the
+final report of an agent session without replaying its tool actions.
 """
 from __future__ import annotations
 
@@ -16,7 +25,9 @@ from types import MethodType
 
 from json_repair import json_repair
 from json_repair.schema_repair import SchemaDefinitionError, schema_from_input
-from pydantic import BaseModel, ValidationError
+from pm_workflows.protocol import AgentResult
+from pm_workflows.runtime import AgentModel
+from pydantic import BaseModel, SecretStr, ValidationError
 
 from pm.llm.prompt_encoding import TurnInput
 from pm.llm.contracts import ContextMeasurement, ContextMeasurer
@@ -230,17 +241,25 @@ async def complete_json_async(complete: Callable[..., Awaitable[str]], messages:
 
 
 
-def repair_agent_result(result, schema: type[T], model, *, instruction: str,
-                        cancel: Event | None = None, validate=None) -> T:
+def repair_agent_result(result: AgentResult, schema: type[T], model: AgentModel, *, instruction: str,
+                        cancel: Event | None = None,
+                        validate: Callable[[dict[str, object], str], T] | None = None) -> T:
     """Validate an agent's final answer without replay of its tool actions.
 
     A correction uses the same endpoint and the agent's final text. It has no
     tools. Valid answers require no model activation or extra completion.
+
+    ``result.result_json`` is preferred as the initial answer; a session that
+    ended with prose falls back to the final text. ``validate`` receives the
+    parsed mapping and the raw answer, so a workflow can apply checks that the
+    schema alone cannot express.
     """
     from pm.llm.activation import ModelActivation
     from pm.llm.config import Connection
     from pm.llm.stage_model import LazyStageModel
-    connection = Connection(base_url=model.base_url, model=model.model, api_key=model.api_key,
+    # The session hands over a plain secret string; the connection field owns
+    # the masking, so wrap it here instead of keeping a bare string around.
+    connection = Connection(base_url=model.base_url, model=model.model, api_key=SecretStr(model.api_key),
                             context_window=model.context_window)
     stage = LazyStageModel(connection, ModelActivation(), live_test=model.live_test)
     messages = [{"role": "system", "content":

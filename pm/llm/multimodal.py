@@ -32,11 +32,11 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import NamedTuple
 
 from pm.constants import PROMPT_MAX_IMAGES
-from pm.context_render.turns import Content, Media, MediaKind, Role, Text, Turn
-from pm.llm.prompt_encoding import OpenAIChatEncoder, TurnInput, normalize_turns
+from pm.context_render.turns import Content, ContentPart, Media, MediaKind, Role, Text, Turn
+from pm.llm.prompt_encoding import OpenAIChatEncoder, OpenAIRequest, TurnInput, normalize_turns
 from pm.records.media import IMAGE_TAG, MISSING_IMAGE, RecordImage, find_image
 
 Resolver = Callable[[str], RecordImage | None]
@@ -104,9 +104,22 @@ def _tags(turns: list[Turn]) -> list[_Tag]:
 
 
 def _media(image: RecordImage) -> Media:
+    """Return one image record as image media of a format the endpoint decodes."""
     raw = image.data()
     converted, mime_type = _to_png(raw)
     return Media(MediaKind.Image, mime_type, data=converted, name=image.id)
+
+
+class ImageAttachment(NamedTuple):
+    """One image for a native agent session: its bytes and the type of those bytes.
+
+    A session that runs its own model client sends pictures as attachments
+    beside the prompt text, so it needs the encoded bytes rather than a record
+    id. ``media_type`` describes ``data`` after any conversion to PNG.
+    """
+
+    data: bytes
+    media_type: str
 
 
 def resolve_turns(messages: Sequence[TurnInput], resolve: Resolver = find_image,
@@ -153,12 +166,12 @@ def resolve_turns(messages: Sequence[TurnInput], resolve: Resolver = find_image,
     by_part: dict[tuple[int, int], list[_Tag]] = {}
     for tag in found:
         by_part.setdefault((tag.turn, tag.part), []).append(tag)
-    result = []
+    result: list[Turn] = []
     for turn_index, turn in enumerate(turns):
         if not any(key[0] == turn_index for key in by_part) and turn_index not in moved:
             result.append(turn)
             continue
-        parts: list = []
+        parts: list[ContentPart] = []
         for part_index, part in enumerate(turn.content.parts):
             tags = by_part.get((turn_index, part_index))
             if not tags:
@@ -192,12 +205,13 @@ def resolve_turns(messages: Sequence[TurnInput], resolve: Resolver = find_image,
 
 
 def encode_messages(messages: Sequence[TurnInput], resolve: Resolver = find_image,
-                    limit: int = PROMPT_MAX_IMAGES) -> dict[str, Any]:
+                    limit: int = PROMPT_MAX_IMAGES) -> OpenAIRequest:
     """Return the OpenAI-compatible ``{"messages": [...]}`` body for these turns.
 
     Tags resolve as :func:`resolve_turns` describes. The result is the
-    provider boundary, so it is a plain dict. Invalid media raise ValueError
-    before any network call.
+    provider request body (:class:`~pm.llm.prompt_encoding.OpenAIRequest`), so
+    each message stays an open mapping for provider state fields. Invalid
+    media raise ValueError before any network call.
     """
     return OpenAIChatEncoder().encode(resolve_turns(messages, resolve, limit))
 
@@ -210,8 +224,8 @@ def prompt_image_count(messages: Sequence[TurnInput], resolve: Resolver = find_i
 
 
 def agent_images(text: str, resolve: Resolver = find_image,
-                 limit: int = PROMPT_MAX_IMAGES) -> list[tuple[bytes, str]]:
-    """Return ``(bytes, media_type)`` for the image tags of one plain-text prompt.
+                 limit: int = PROMPT_MAX_IMAGES) -> list[ImageAttachment]:
+    """Return the image attachments of one plain-text prompt, in text order.
 
     A pm-coder session sends its prompt through its own model client, which
     does not resolve tags. The session therefore gets the pictures as
@@ -228,14 +242,14 @@ def agent_images(text: str, resolve: Resolver = find_image,
     for image_id in reversed(IMAGE_TAG.findall(text)):
         if len(chosen) < limit and image_id not in chosen and resolve(image_id) is not None:
             chosen.append(image_id)
-    parts = []
+    attachments: list[ImageAttachment] = []
     for image_id in reversed(chosen):
         image = resolve(image_id)
         if image is None:
             continue
         converted, mime_type = _to_png(image.data())
-        parts.append((converted, mime_type))
-    return parts
+        attachments.append(ImageAttachment(converted, mime_type))
+    return attachments
 
 
-__all__ = ["agent_images", "encode_messages", "prompt_image_count", "resolve_turns"]
+__all__ = ["ImageAttachment", "agent_images", "encode_messages", "prompt_image_count", "resolve_turns"]

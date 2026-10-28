@@ -6,12 +6,17 @@ is pure orchestration; this role adds no policy of its own.
 """
 from __future__ import annotations
 
+from typing import Any
+
+from pm_workflows.python_role import RoleContext
+
 from workflows.inner_thought.pipeline import run_cycle
 from workflows.inner_thought.schemas import InnerReport, InnerRequest
 from workflows.main_cognition.model_json import read_request, write_report
 
 
-def run(context) -> dict:
+def run(context: RoleContext) -> dict[str, Any]:
+    """Run one private cycle and write its typed parent report."""
     request = InnerRequest.model_validate(read_request(context.runtime.environment))
     report = run_cycle(request, context.runtime.tools["run_stage"],
                        context.runtime.tools.get("retrieve_memory"))

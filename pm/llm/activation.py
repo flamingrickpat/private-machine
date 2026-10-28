@@ -15,16 +15,17 @@ import shutil
 import subprocess
 import sys
 import logging
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
 from threading import Event, Lock
+from typing import TypedDict
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from pm.llm.http_client import EmptyCompletionError, JsonClient, ModelError, cancellable, wait_until_ready
 from pm.llm.config import Connection
-from collections.abc import Sequence
 from pm.llm.multimodal import encode_messages
 from pm.llm.prompt_encoding import TurnInput, tool_calls_from_wire
 from pm.llm.completion import Completion, Reasoning
@@ -32,7 +33,48 @@ from pm.llm.reasoning import ReasoningOptions
 from pm.context_render.turns import Role, Turn
 
 
+class ModelDiscoveryLimits(TypedDict, total=False):
+    """The serving limits that a local endpoint reports for one model.
+
+    A local server states its loaded context window here. The overlay reads it
+    only as a fallback, because a training context is not a serving limit.
+    """
+
+    n_ctx: int
+
+
+class ModelDiscoveryReasoning(TypedDict, total=False):
+    """The reasoning support that a hosted catalog advertises for one model."""
+
+    supports_max_tokens: bool
+
+
+class ModelDiscoveryProvider(TypedDict, total=False):
+    """The provider-side caps that a hosted catalog publishes for one model."""
+
+    max_completion_tokens: int
+
+
+class ModelDiscoveryEntry(TypedDict, total=False):
+    """One entry of a provider model catalog (``GET /models``).
+
+    Only the fields this runtime reads are named. A provider can publish more
+    optional fields, and the entry keeps them untouched.
+    """
+
+    id: str
+    context_length: int
+    reasoning: ModelDiscoveryReasoning
+    top_provider: ModelDiscoveryProvider
+    meta: ModelDiscoveryLimits
+
+
 def script_command(script: Path) -> list[str]:
+    """Return the interpreter and arguments for one finite startup script.
+
+    Raises ModelError for a missing script or an unsupported suffix, so a
+    wrong config entry fails before any process starts.
+    """
     if not script.is_file():
         raise ModelError("The startup script does not exist. Correct startup_script in the config.")
     if script.suffix.lower() == ".ps1":
@@ -45,6 +87,12 @@ def script_command(script: Path) -> list[str]:
 
 
 async def run_startup(script: Path, cancel: Event | None = None) -> None:
+    """Run one finite startup script and wait for its exit code.
+
+    A nonzero exit raises ModelError with the code only; the script's output
+    stays in its own local log. ``cancel`` stops the process and re-raises
+    ``asyncio.CancelledError`` so the owner's cancellation is never swallowed.
+    """
     if cancel is not None and cancel.is_set():
         raise asyncio.CancelledError
     process = await asyncio.create_subprocess_exec(
@@ -63,19 +111,28 @@ async def run_startup(script: Path, cancel: Event | None = None) -> None:
 
 
 class ModelActivation:
-    def __init__(self):
+    """Own which model this process admits calls for, and who may switch it.
+
+    The owner is process-wide. One activation holds the switch, clears the
+    readiness of every endpoint, and records the served alias and its
+    discovery metadata. A generation group holds one active call, so a switch
+    cannot start while another completion is in flight.
+    """
+
+    def __init__(self) -> None:
         self._lock = Lock()
         self._active_calls = 0
         self._switching = False
         self._ready: dict[str, str] = {}
-        self._metadata: dict[tuple[str, str], dict] = {}
+        self._metadata: dict[tuple[str, str], ModelDiscoveryEntry] = {}
 
     def is_ready(self, connection: Connection) -> bool:
         """Return whether this owner admits calls for the resolved alias."""
         with self._lock:
             return not self._switching and self._ready.get(connection.base_url) == connection.model
 
-    async def activate(self, connection: Connection, *, cancel: Event | None = None, live_test: bool = False):
+    async def activate(self, connection: Connection, *, cancel: Event | None = None,
+                       live_test: bool = False) -> None:
         """Activate the connection. Wait as long as the endpoint is not ready.
 
         A closed port, a model that is still loading, and a failed startup
@@ -90,7 +147,8 @@ class ModelActivation:
             lambda: self._activate(connection, cancel=cancel, live_test=live_test), cancel,
             live_test=live_test, label=f"Model {connection.model} at {connection.base_url}")
 
-    async def _activate(self, connection: Connection, *, cancel: Event | None = None, live_test: bool = False):
+    async def _activate(self, connection: Connection, *, cancel: Event | None = None,
+                        live_test: bool = False) -> None:
         """Try activation once. Readiness and errors follow the old contract."""
         logger = logging.getLogger(__name__)
         logger.info("Model activation start model=%s endpoint=%s", connection.model, connection.base_url)
@@ -112,6 +170,8 @@ class ModelActivation:
                 raise ModelError("The endpoint does not advertise the configured model alias.")
             with self._lock:
                 self._ready[connection.base_url] = connection.model
+                # Keep the catalog entry so a later call can read the served
+                # context window and the advertised reasoning support.
                 self._metadata[(connection.base_url, connection.model)] = next(
                     entry for entry in result["data"] if entry["id"] == connection.model)
         finally:
@@ -120,7 +180,8 @@ class ModelActivation:
             logger.info("Model activation exit model=%s ready=%s", connection.model, self.is_ready(connection))
 
     @contextmanager
-    def use(self, connection: Connection):
+    def use(self, connection: Connection) -> Iterator[None]:
+        """Hold one active call so no activation can switch the model meanwhile."""
         with self._lock:
             if self._switching or self._ready.get(connection.base_url) != connection.model:
                 raise ModelError("Activate the configured model before a generation group.")
@@ -131,28 +192,44 @@ class ModelActivation:
             with self._lock:
                 self._active_calls -= 1
 
-    def metadata(self, connection: Connection) -> dict:
-        """Return discovery metadata for the active model. Activation owns updates."""
+    def metadata(self, connection: Connection) -> ModelDiscoveryEntry:
+        """Return a copy of the discovery metadata of the active model.
+
+        Activation owns the stored entry; a caller gets its own mapping so no
+        reader can change what a later reasoning budget reads.
+        """
         with self._lock:
-            return dict(self._metadata[(connection.base_url, connection.model)])
+            entry = self._metadata[(connection.base_url, connection.model)]
+        return ModelDiscoveryEntry(**entry)
 
 
 class ChatMessage(BaseModel):
+    """One provider assistant message, keeping provider extras for replay.
+
+    ``content`` stays separate from ``reasoning``, ``reasoning_content``, and
+    the signed ``reasoning_details`` that a later tool turn can replay.
+    Unexpected provider fields are kept because ``extra="allow"``.
+    """
+
     model_config = ConfigDict(extra="allow", hide_input_in_errors=True)
     content: str | None = None
-    tool_calls: list[dict] = Field(default_factory=list)
+    tool_calls: list[dict[str, object]] = Field(default_factory=list)
     reasoning: str | None = None
     reasoning_content: str | None = None
-    reasoning_details: list[dict] | None = None
+    reasoning_details: list[dict[str, object]] | None = None
 
 
 class ChatChoice(BaseModel):
+    """One provider choice. ``finish_reason`` decides whether it is usable."""
+
     model_config = ConfigDict(extra="allow", hide_input_in_errors=True)
     message: ChatMessage
     finish_reason: str | None = None
 
 
 class ChatResult(BaseModel):
+    """One non-streaming chat completion with its usage and provider extras."""
+
     model_config = ConfigDict(extra="allow", hide_input_in_errors=True)
     model: str
     choices: list[ChatChoice] = Field(min_length=1)
@@ -182,6 +259,9 @@ OPENROUTER_HOST = "openrouter.ai"
 
 def provider_generation(connection: Connection, generation: dict) -> dict:
     """Translate reasoning controls without changing the caller's dictionaries.
+
+    The mapping stays open: any other provider generation setting passes
+    through as given, because each endpoint accepts its own keyword set.
 
     ``reasoning`` accepts ReasoningOptions or its dictionary fields. OpenRouter
     receives that object and requires parameter support during routing. Local
@@ -234,16 +314,28 @@ def provider_generation(connection: Connection, generation: dict) -> dict:
 
 
 class ChatClient:
-    def __init__(self, connection: Connection, activation: ModelActivation, *, live_test: bool = False):
+    """Send neutral turns to one activated connection and check the result.
+
+    Reasoning budgets are resolved against the activated model metadata, image
+    tags become provider parts, and the response is validated into
+    :class:`ChatResult`. A truncated, filtered, or empty completion raises
+    instead of returning a partial answer.
+    """
+
+    def __init__(self, connection: Connection, activation: ModelActivation, *, live_test: bool = False) -> None:
         self.connection = connection
         self.activation = activation
         self.client = JsonClient(connection, live_test=live_test)
 
-    async def complete(self, messages: Sequence[TurnInput], *, cancel: Event | None = None, **generation: object) -> ChatResult:
+    async def complete(self, messages: Sequence[TurnInput], *, cancel: Event | None = None,
+                       **generation: object) -> ChatResult:
+        """Return one validated completion for these turns."""
         if "model" in generation or "stream" in generation:
             raise ValueError("Use the resolved model and non-streaming response path.")
         if cancel is not None and cancel.is_set():
             raise asyncio.CancelledError
+        # A reasoning budget reserves hidden thinking space inside the serving
+        # context. Its token count is measured from the same rendered prompt.
         budget = generation.pop("reasoning_budget", None)
         if budget is not None:
             if generation.keys() & {"reasoning", "reasoning_tokens", "reasoning_effort", "reasoning_budget_tokens"}:

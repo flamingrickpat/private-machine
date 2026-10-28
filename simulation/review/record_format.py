@@ -1,26 +1,62 @@
-"""Format serialized runtime records without runtime imports or inference."""
+"""Format serialized runtime records for the browser without runtime imports.
+
+This is the presentation layer for captured evidence. It reads serialized record
+packages (JSON) and produces rows, cards, and cycle layouts that the static page
+renders. Every value here is derived from a captured record or is explicit
+arithmetic on captured values; nothing is inferred, scored, or repaired.
+
+Owns: record links, record cards, mental-state change rows, and the package and
+cycle layouts. Does not own: capture (``simulation.evidence``), registration
+(``simulation.review.catalog``), or any HTTP response. Embeddings are dropped
+everywhere, because they are runtime detail, not reviewable text.
+
+Invariant: one captured record has exactly one card. Two different captured
+versions of one knoxel raise instead of silently overwriting each other.
+
+Captured packages are read by key as plain mappings: one package mixes strings,
+numbers, and nested rows whose shape differs per record type, so imposing a
+record model here would model evidence this module did not produce. The row
+constructors and the numeric state helpers name their value types.
+"""
 from __future__ import annotations
+
+from collections import defaultdict
+from collections.abc import Iterable
+from typing import TypedDict
+
+from pydantic import JsonValue
 
 from pm.records.copying import pickle_copy
 
-from collections import defaultdict
 
-def record_links(record: dict) -> list[dict]:
+class RecordLink(TypedDict):
+    """One recorded dependency from a record to another record.
+
+    ``relation`` names the stored field that carries the reference, and ``id`` is
+    the referenced knoxel ID. A link proves a stored dependency, never the causal
+    effect of that dependency on the model's interpretation.
+    """
+
+    relation: str
+    id: int
+
+
+def record_links(record: dict) -> list[RecordLink]:
     """Return typed links from explicit record fields and consumed versions.
 
     These links describe stored dependencies. They do not prove that a model's
     interpretation was correct or measure the effect of an individual input.
     """
-    links = []
+    links: list[RecordLink] = []
 
-    def add(relation: str, ids) -> None:
+    def add(relation: str, ids: Iterable[JsonValue]) -> None:
         for key in ids:
             if key is not None:
-                link = {"relation": relation, "id": int(key)}
+                link: RecordLink = {"relation": relation, "id": int(key)}
                 if link not in links and int(key) != record["id"]:
                     links.append(link)
 
-    fields = {
+    fields: dict[str, str] = {
         "supersedes_id": "previous immutable record",
         "focus_knoxel_ids": "focus", "winning_attention_ids": "selected codelet output",
         "supporting_knoxel_ids": "support", "opposing_knoxel_ids": "counterevidence",
@@ -67,7 +103,13 @@ def record_links(record: dict) -> list[dict]:
 
 
 def record_card(wrapped: dict) -> dict:
-    """Copy exact record text and selected explanatory fields without vectors."""
+    """Copy exact record text and selected explanatory fields without vectors.
+
+    ``role`` is a display classification derived from the record's own fields, so
+    the review page can group records without knowing the record schema. The
+    result keeps the serialized record under ``record``; ``visible_data`` removes
+    embeddings. ``present_packages`` may add ``revision`` and ``decoded`` later.
+    """
     data = wrapped["data"]
     metadata = data.get("metadata", {})
     provenance = data.get("provenance") or {}
@@ -97,7 +139,7 @@ def record_card(wrapped: dict) -> dict:
             "record": visible_data(data)}
 
 
-def visible_data(value):
+def visible_data(value: JsonValue) -> JsonValue:
     """Preserve record fields while hiding embeddings from imported packages."""
     if isinstance(value, dict):
         return {key: visible_data(item) for key, item in value.items() if key not in {"embedding", "embeddings"}}
@@ -115,9 +157,9 @@ def _shard_name(key: dict, names: dict) -> str:
     return f"workflow {key['ref']}"
 
 
-def _flat(value: dict, prefix: str = "") -> dict:
+def _flat(value: dict[str, JsonValue], prefix: str = "") -> dict[str, float]:
     """Flatten nested numeric fields to dotted names. Other values stay out."""
-    flat = {}
+    flat: dict[str, float] = {}
     for key, item in value.items():
         if isinstance(item, dict):
             flat.update(_flat(item, f"{prefix}{key}."))
@@ -126,7 +168,7 @@ def _flat(value: dict, prefix: str = "") -> dict:
     return flat
 
 
-def state_change(before: dict | None, after: dict) -> list[dict]:
+def state_change(before: dict[str, JsonValue] | None, after: dict[str, JsonValue]) -> list[dict[str, JsonValue]]:
     """Return the mental-state axes that changed in one tick, the largest change first.
 
     ``before`` is the state of the previous tick, or None for the first tick
@@ -140,11 +182,13 @@ def state_change(before: dict | None, after: dict) -> list[dict]:
     return sorted(rows, key=lambda row: -abs(row["change"]))
 
 
-def _record_row(key: int, label: str = "", data: dict | None = None) -> dict:
+def _record_row(key: int, label: str = "", data: dict[str, JsonValue] | None = None) -> dict[str, JsonValue]:
+    """Return one row that the page renders as a record card with a follow link."""
     return {"kind": "record", "id": int(key), "label": label, "data": data or {}}
 
 
-def _text_row(text: str, data=None) -> dict:
+def _text_row(text: str, data: JsonValue = None) -> dict[str, JsonValue]:
+    """Return one row that the page renders as text with its captured fields."""
     return {"kind": "text", "text": text, "data": data if data is not None else {}}
 
 
@@ -165,7 +209,7 @@ def present_cycle(package: dict, cards: dict, after: dict | None = None) -> dict
     created = [key for key in turn.get("knoxel_ids", []) if key in cards and cards[key]["tick"] == tick]
     sections = []
 
-    def section(title: str, rows: list[dict], note: str = "") -> None:
+    def section(title: str, rows: list[dict[str, JsonValue]], note: str = "") -> None:
         sections.append({"title": title, "note": note, "rows": rows})
 
     groups = cycle.get("stimulus_groups", [])

@@ -1,8 +1,13 @@
 """Export captured conversation and accepted cognitive records for human review.
 
-This offline tool reads a completed checkpoint. The review server reads only
-the resulting immutable bundle. Recorded references supply the links; record
-order alone never establishes that one thought caused another thought.
+This offline tool reads a completed checkpoint and writes one immutable review
+bundle: the conversation as Jesse saw it, the accepted records in a selected ID
+range, and the transitive recorded sources of those records. The registration
+path in ``simulation.review.catalog`` then freezes the bundle; the browser reads
+only that frozen copy.
+
+Recorded references supply the links. Record order alone never establishes that
+one thought caused another thought, and no human score is invented here.
 """
 from __future__ import annotations
 
@@ -10,6 +15,8 @@ import argparse
 import json
 import sys
 from pathlib import Path
+
+from pydantic import JsonValue
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -19,13 +26,13 @@ from pm.introspection.record_packages import capture_records, capture_gwt, dump_
 from pm.memory.snapshot import Snapshot
 
 
-def read(path: Path) -> dict:
+def read(path: Path) -> dict[str, JsonValue]:
     """Read a UTF-8 evidence object. Missing or invalid evidence raises."""
     return json.loads(path.read_text(encoding="utf-8"))
 
 
 def build_bundle(checkpoint: Path, receipt_path: Path, *, bundle_id: str,
-                 first_record: int = 11203) -> dict:
+                 first_record: int = 11203) -> dict[str, JsonValue]:
     """Build a review bundle from a completed run with actual public speech.
 
     Refuse failed receipts and unresolved user exchanges. Keep all accepted
@@ -46,7 +53,7 @@ def build_bundle(checkpoint: Path, receipt_path: Path, *, bundle_id: str,
             raise ValueError(f"User exchange {data['id']} still has no completed public outcome.")
     selected = {key for key in records if key >= first_record}
     pending = list(selected)
-    cards = {}
+    cards: dict[int, dict[str, JsonValue]] = {}
     while pending:
         key = pending.pop()
         if key in cards:
@@ -58,7 +65,7 @@ def build_bundle(checkpoint: Path, receipt_path: Path, *, bundle_id: str,
         pending.extend(link["id"] for link in card["links"] if link["id"] not in cards)
 
     delivered = {row["id"] for row in messages}
-    conversation = []
+    conversation: list[dict[str, JsonValue]] = []
     for key in sorted(selected):
         data = records[key]["data"]
         if (data.get("feature_type") == "Dialogue" and key not in delivered
@@ -69,7 +76,7 @@ def build_bundle(checkpoint: Path, receipt_path: Path, *, bundle_id: str,
 
     view = Snapshot(records, {int(key): value for key, value in checkpoint_data["gwt_turns"].items()},
                     {int(key): value for key, value in checkpoint_data["revisions"].items()})
-    packages = [capture_records(view, sorted(selected), title="Private activity, memory, and routing",
+    packages: list[dict[str, JsonValue]] = [capture_records(view, sorted(selected), title="Private activity, memory, and routing",
                                 related_ids=sorted(set(cards) - selected)),
                 capture_records(view, [row["id"] for row in conversation], view="chat", perspective="Jesse",
                                 title="Chat log from Jesse's perspective")]

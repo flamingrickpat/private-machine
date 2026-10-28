@@ -28,7 +28,7 @@ class ReasoningOptions(BaseModel):
     exclude: bool | None = None
 
     @model_validator(mode="after")
-    def compatible_controls(self):
+    def compatible_controls(self) -> "ReasoningOptions":
         """Reject contradictory controls instead of silently discarding one."""
         if self.max_tokens is not None and self.effort is not None:
             raise ValueError("Choose a reasoning token allowance or an effort level, not both.")
@@ -51,7 +51,12 @@ class ReasoningBudget(BaseModel):
     input_margin_fraction: float = Field(default=0.1, ge=0, le=1)
 
     def generation(self, *, context_window: int, input_tokens: int, max_output_tokens: int) -> dict:
-        """Return neutral controls. Insufficient answer headroom raises ModelError."""
+        """Return neutral controls. Insufficient answer headroom raises ModelError.
+
+        The answer reserve comes out first, because the visible reply needs
+        space before hidden thinking may use any. The remaining headroom is
+        then split by ``fraction`` and bounded by ``ceiling_tokens``.
+        """
         if self.fraction == 0:
             return {"enable_thinking": False}
         remaining = min(max_output_tokens, context_window - int(input_tokens * (1 + self.input_margin_fraction)))

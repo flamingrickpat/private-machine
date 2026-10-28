@@ -18,10 +18,11 @@ The checkpoint is the source of truth for memory.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 import json
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 from pm.memory.store import MemoryStore
 from pm.records.cycle_state import PersonaConfig
@@ -45,16 +46,17 @@ class CharacterFile(BaseModel):
     character_card_story: str = ""
     character_card_assistant: str | None = None
     supported_capabilities: list[str] = Field(default_factory=list)
-    unsupported_capabilities: list = Field(default_factory=list)
-    capability_notes: list = Field(default_factory=list)
+    unsupported_capabilities: list[str] = Field(default_factory=list)
+    capability_notes: list[str] = Field(default_factory=list)
 
 
-def parse_personality(data: dict) -> PersonalityProfile:
+def parse_personality(data: Mapping[str, JsonValue]) -> PersonalityProfile:
     """Validate user-written trait values and return the profile.
 
-    Unknown keys raise ``ValueError`` with the allowed names. Missing keys
-    keep the profile default 0.5. Values outside 0..1 raise a pydantic
-    ``ValidationError``.
+    ``data`` is the decoded ``personality.json`` object: one 0..1 value per
+    ``PersonalityProfile`` field. Unknown keys raise ``ValueError`` with the
+    allowed names. Missing keys keep the profile default 0.5. Values outside
+    0..1 raise a pydantic ``ValidationError``.
     """
     allowed = sorted(PersonalityProfile.model_fields)
     unknown = sorted(set(data) - set(allowed))
@@ -74,19 +76,28 @@ class CharacterHome(BaseModel):
 
     root: Path = Path(".")
 
-    def __init__(self, root: Path | str = Path("."), **data):
-        super().__init__(root=Path(root), **data)
+    def __init__(self, root: Path | str = Path(".")) -> None:
+        """Bind the home folder without reading a file.
+
+        ``root`` accepts a string, which becomes a ``Path``. The value is
+        stored through the model field, so an unusable value still raises the
+        field's ``ValidationError``.
+        """
+        super().__init__(root=Path(root))
 
     @property
     def character_yaml(self) -> Path:
+        """Return the persona file: card texts and the capability lists."""
         return self.root / "character.yaml"
 
     @property
     def personality_json(self) -> Path:
+        """Return the trait file: one 0..1 value per personality field."""
         return self.root / "personality.json"
 
     @property
     def ghost_json(self) -> Path:
+        """Return the legacy JSON checkpoint path. Read only when no pickle exists."""
         return self.root / "ghost.json"
 
     @property
@@ -96,10 +107,12 @@ class CharacterHome(BaseModel):
 
     @property
     def runtime_root(self) -> Path:
+        """Return the app runtime root of this home: journals, tasks, and logs."""
         return self.root / "runtime"
 
     @property
     def import_dir(self) -> Path:
+        """Return the copy of every imported chat log and its receipt."""
         return self.root / "import"
 
     def load_character(self) -> CharacterFile:

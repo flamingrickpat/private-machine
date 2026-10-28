@@ -191,7 +191,8 @@ def _latest_per(keys: list[int], records: dict[int, RecordBase], fields: list[st
 class _Scorer:
     """Score records against one focus. Lexical weights use inverse frequency."""
 
-    def __init__(self, records: dict[int, RecordBase], focus: Focus, vector_of: Callable[[int], list[float] | None], now: datetime):
+    def __init__(self, records: dict[int, RecordBase], focus: Focus,
+                 vector_of: Callable[[int], list[float] | None], now: datetime) -> None:
         self.records = records
         self.focus = focus
         self.vector_of = vector_of

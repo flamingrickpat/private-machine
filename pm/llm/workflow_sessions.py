@@ -9,7 +9,8 @@ end the session.
 from __future__ import annotations
 
 import asyncio
-from contextlib import contextmanager
+from collections.abc import Mapping
+from contextlib import AbstractContextManager, contextmanager
 from dataclasses import replace
 import json
 from pathlib import Path
@@ -117,12 +118,13 @@ class WorkflowModels:
         if runtime.classification_session is not None:
             return runtime
 
-        def session(name: str, recovery: bool, cancel: Event):
+        def session(name: str, recovery: bool, cancel: Event) -> AbstractContextManager[AgentModel]:
             return self.session(name, recovery, cancel, receipt_path=receipt_path)
 
         return replace(runtime, classification_session=session)
 
-    def _record(self, path: Path, event: dict) -> None:
+    def _record(self, path: Path, event: Mapping[str, object]) -> None:
+        """Append one redacted service event beside the kernel journal."""
         with self._receipt_lock:
             path.parent.mkdir(parents=True, exist_ok=True)
             with path.open("a", encoding="utf-8") as stream:

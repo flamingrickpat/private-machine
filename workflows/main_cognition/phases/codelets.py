@@ -44,6 +44,7 @@ import random
 import time
 from collections.abc import Sequence
 
+from pm_workflows.python_role import RoleContext
 from pydantic import BaseModel, Field, create_model, model_validator
 
 from pm.constants import (
@@ -133,7 +134,7 @@ class CodeletFrame:
     its shard key: ``self`` and one label for each stimulus group.
     """
 
-    def __init__(self, work: CycleWork, prompts: PhasePrompts):
+    def __init__(self, work: CycleWork, prompts: PhasePrompts) -> None:
         story = StoryPrefix(work)
         self.prompts = prompts
         self.companion = story.companion
@@ -173,7 +174,7 @@ class CodeletFrame:
         resolves the target instead. An id outside ``allowed_ids`` stays a
         repair case, because the caller cannot choose the record for the model.
         """
-        def check(answer):
+        def check(answer: BaseModel) -> BaseModel:
             unknown = sorted(set(answer.about_ids) - allowed_ids)
             if unknown:
                 raise ValueError(f"about_ids {unknown} are not in the MIND list. Use only ids from that list.")
@@ -190,7 +191,7 @@ class CodeletFrame:
                               targets=", ".join(f'"{label}"' for label in self.targets)).text.strip()
 
 
-def convert(context, work: CycleWork, frame: CodeletFrame, asked: list[Turn], prose: str,
+def convert(context: RoleContext, work: CycleWork, frame: CodeletFrame, asked: list[Turn], prose: str,
             types: list[CodeletPerceptType], allowed_ids: set[int]) -> tuple[CodeletVariant, int, int]:
     """Convert one recommendation into typed percepts (call 2).
 
@@ -212,7 +213,8 @@ def convert(context, work: CycleWork, frame: CodeletFrame, asked: list[Turn], pr
     return variant, tokens(messages), tokens([Turn(Role.Assistant, answer.model_dump_json())])
 
 
-def execute(context, work: CycleWork, frame: CodeletFrame, definition: CodeletDefinition, job: CodeletJob) -> JobResult:
+def execute(context: RoleContext, work: CycleWork, frame: CodeletFrame, definition: CodeletDefinition,
+            job: CodeletJob) -> JobResult:
     """Run one codelet and return its variants. Runs in a worker thread.
 
     The function reads ``work`` but never changes it. ``chain`` writes the
@@ -277,7 +279,7 @@ def echoes(work: CycleWork, embedder: Embedder) -> list[int]:
     return list(dict.fromkeys(found))
 
 
-def select(context, work: CycleWork, frame: CodeletFrame, candidates: list[CodeletDefinition],
+def select(context: RoleContext, work: CycleWork, frame: CodeletFrame, candidates: list[CodeletDefinition],
            echo_ids: list[int]) -> CodeletRatings:
     """Ask the selector to rate the candidates for this moment of the story.
 
@@ -293,7 +295,7 @@ def select(context, work: CycleWork, frame: CodeletFrame, candidates: list[Codel
     text = format_content(frame.fill(frame.prompts.selector_template), candidates=listing,
                           echoes=echo).text.strip()
 
-    def known(answer):
+    def known(answer: CodeletRatings) -> CodeletRatings:
         unknown = sorted(set(answer.ratings) - names)
         if unknown:
             raise ValueError(f"Unknown mechanism names {', '.join(unknown)}. Use only: {', '.join(sorted(names))}.")
@@ -374,7 +376,7 @@ def integrate(work: CycleWork, embedder: Embedder, definition: CodeletDefinition
     codelets.cost.seconds = round(codelets.cost.seconds + result.seconds, 3)
 
 
-def collect(context, work: CycleWork, prompts: PhasePrompts) -> CodeletsResult:
+def collect(context: RoleContext, work: CycleWork, prompts: PhasePrompts) -> CodeletsResult:
     """Score, select, and run the codelets of one cycle. Change the CSM and the codelet state."""
     request = work.request
     loaded = load_definitions(request.codelet_definitions or None)
@@ -441,7 +443,7 @@ def collect(context, work: CycleWork, prompts: PhasePrompts) -> CodeletsResult:
     return codelets
 
 
-def run(context, work: CycleWork) -> CycleWork:
+def run(context: RoleContext, work: CycleWork) -> CycleWork:
     result = collect(context, work, phase_prompts("codelets"))
     work.codelets = result
     percepts = sum(len(variant.percepts) for output in result.outputs for variant in output.variants)

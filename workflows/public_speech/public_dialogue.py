@@ -7,6 +7,8 @@ application. Host failure strings never become companion speech.
 """
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from pm.host.durable_files import atomic_json
 from pm.llm.http_client import EmptyCompletionError, ProviderCompletionError
 from pm.llm.structured import ModelFormatError
@@ -20,6 +22,12 @@ from workflows.public_speech.speech_text import SpeechOutputError
 from workflows.public_speech.publication import commit_public_reply, publish_reply
 from pm.bus.envelopes import new_envelope
 from pm.runs.workflow_module import CognitiveWorkflow
+
+if TYPE_CHECKING:
+    from pydantic import JsonValue
+
+    from workflows.public_speech.context_planning import PlannedContext
+    from workflows.public_speech.public_context import PublicContext
 
 
 def _clip(text: str, limit: int = 500) -> str:
@@ -65,7 +73,8 @@ class PublicDialogue(CognitiveWorkflow):
                     result.append(item.model_copy(update={"text": str(record.content)}))
         return result
 
-    def public_context(self, request: ActionRequest, planned=None, late_ids: list[int] = ()):
+    def public_context(self, request: ActionRequest, planned: PlannedContext | None = None,
+                       late_ids: list[int] = ()) -> PublicContext:
         """Freeze the public context of one reply and keep it for the publication guard.
 
         ``late_ids`` are partner lines that arrived after the deciding cycle.
@@ -82,7 +91,7 @@ class PublicDialogue(CognitiveWorkflow):
                                                         planned=planned, late_ids=list(late_ids))
         return self._public_context
 
-    def reply_context(self, request: ActionRequest, late_ids: list[int] = ()):
+    def reply_context(self, request: ActionRequest, late_ids: list[int] = ()) -> PlannedContext:
         """Return the reply context: shard dialogue plus planned retrieval from memory.
 
         The shard tail provides the verbatim transcript with the partner.
@@ -145,7 +154,7 @@ class PublicDialogue(CognitiveWorkflow):
         shard.trace["planned_lanes"] = planned.trace.get("lanes", [])
         return shard
 
-    def prepare_reply(self, request: ActionRequest) -> tuple[list[Stimulus], object, object]:
+    def prepare_reply(self, request: ActionRequest) -> tuple[list[Stimulus], PlannedContext, PublicContext]:
         """Return the partner lines, the shard context, and the public context of one action.
 
         The reply answers the stimuli of the action. Partner lines that
@@ -300,7 +309,7 @@ class PublicDialogue(CognitiveWorkflow):
              "rejection_reason": str(error), "recovery_outcome": "not_published", "artifact_path": str(path)},
             causation_id=envelope.id))
 
-    def reject_reply(self, batch, reason: str, *, status: str = "rejected") -> None:
+    def reject_reply(self, batch: list[Envelope], reason: str, *, status: str = "rejected") -> None:
         """Retain a rejection and stop execution without invented speech.
 
         The workflow artifacts retain the rejected draft. The application owns
@@ -313,11 +322,14 @@ class PublicDialogue(CognitiveWorkflow):
                                causation_id=envelope.id))
         raise RuntimeError(f"Public reply {status} in {self.module_id}: {reason}")
 
-    def accept_reply(self, text: str, batch, *, tool_receipts=None, recovery_outcome="",
-                     review_reason="", review_judgment="") -> None:
+    def accept_reply(self, text: str, batch: list[Envelope], *,
+                     tool_receipts: list[dict[str, JsonValue]] | None = None, recovery_outcome: str = "",
+                     review_reason: str = "", review_judgment: str = "") -> None:
         """Commit an evidence-guarded reply, or raise with its rejection evidence.
 
-        ``review_reason`` records why the agentic review accepted this reply.
+        ``tool_receipts`` are already JSON-shaped receipt mappings; they cross
+        the bus with the published reply. ``review_reason`` records why the
+        agentic review accepted this reply.
         """
         from pm.memory.snapshot import GhostConflict
         envelope = batch[0]

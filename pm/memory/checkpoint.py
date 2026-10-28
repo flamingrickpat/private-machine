@@ -23,6 +23,13 @@ from pm.memory.causal import CausalHistory
 
 
 class CommitReceipt(BaseModel):
+    """The durable result of one accepted commit.
+
+    ``added_ids`` are the records the commit created and ``updated_ids`` the
+    heads it superseded. A repeated commit ID returns its original receipt, so
+    these fields must describe the accepted state, not the retry.
+    """
+
     model_config = ConfigDict(extra="forbid", frozen=True)
     commit_id: str
     added_ids: tuple[int, ...]
@@ -31,6 +38,13 @@ class CommitReceipt(BaseModel):
 
 
 class Checkpoint(BaseModel):
+    """One complete save of an accepted store.
+
+    ``schema_id`` selects the reader for a legacy file. The counters, revisions,
+    workspace turns, receipts, and causal history are saved together, so a
+    restored store cannot mix two revisions of accepted memory.
+    """
+
     model_config = ConfigDict(extra="forbid")
     schema_id: Literal["pm.ghost-snapshot.v1", "pm.ghost-snapshot.v2"] = "pm.ghost-snapshot.v2"
     state: CycleStateModel

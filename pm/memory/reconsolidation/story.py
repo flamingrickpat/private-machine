@@ -27,7 +27,8 @@ _THOUGHTS = {FeatureType.Thought, FeatureType.ExternalThought, FeatureType.Inner
 
 
 @lru_cache(maxsize=1)
-def _encoding():
+def _encoding() -> tiktoken.Encoding:
+    """Return the shared tokenizer of the story prompts."""
     return tiktoken.get_encoding("o200k_base")
 
 

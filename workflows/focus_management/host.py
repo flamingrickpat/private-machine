@@ -1,4 +1,15 @@
-"""Commit a private agent proposal before routing it through main appraisal."""
+"""Commit a private agent proposal before routing it through main appraisal.
+
+The module runs one scoped pm-coder mental session, commits its proposal as a
+self-origin feature, and publishes it for ordinary appraisal. It owns no
+emotion, goal, or workspace change: main cognition still accepts or rejects
+the advice, and a source conflict discards it silently by design.
+"""
+from __future__ import annotations
+
+from collections.abc import Callable, Mapping
+from typing import TYPE_CHECKING, Any
+
 from pm.bus.envelopes import Envelope, new_envelope
 from pm.memory.agent_tools import MemoryReadSession, MemoryToolConfig, MemoryView
 from pm.memory.snapshot import GhostConflict
@@ -11,6 +22,10 @@ from workflows.focus_management.schemas import MentalWorkRequest
 from workflows.main_cognition.schemas import ActionRequest
 from workflows.public_speech.shard_context import shard_story
 
+if TYPE_CHECKING:
+    from pm.memory.bash_view import MemoryBashEnvironment
+    from pm.memory.embeddings import EmbeddingService
+
 
 class FocusManagement(CognitiveWorkflow):
     """Offer a deliberate mental action through a real pm-coder workflow.
@@ -22,7 +37,9 @@ class FocusManagement(CognitiveWorkflow):
     DATA_TOPICS = frozenset({"action.request"})
     WORKFLOW_NAME = "focus_management"
 
-    def __init__(self, *args, embeddings=None, **kwargs):
+    def __init__(self, *args: Any, embeddings: EmbeddingService | None = None,
+                 **kwargs: Any) -> None:
+        """Forward the module configuration and bind the tool factory."""
         super().__init__(*args, tools_factory=self._tools, **kwargs)
         self.embeddings = embeddings
         self._published_results = set()
@@ -90,7 +107,9 @@ class FocusManagement(CognitiveWorkflow):
             experience=request.workspace, affect=request.affect,
         ).model_dump(mode="json")
 
-    def _tools(self, environment, batch):
+    def _tools(self, environment: MemoryBashEnvironment,
+               batch: object) -> dict[str, Callable[..., object]]:
+        """Bind scoped memory, goal, and session tools to one frozen view."""
         ids = frozenset(environment.visible_knoxels)
         scopes = frozenset((raw["data"]["scope"]["reality_id"], raw["data"]["scope"]["frame"])
                            for raw in environment.visible_knoxels.values())

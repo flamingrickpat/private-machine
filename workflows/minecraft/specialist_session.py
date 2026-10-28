@@ -8,7 +8,9 @@ from pathlib import Path
 
 from pm.utils import yaml_util
 from pydantic import BaseModel, ConfigDict
-from typing import Literal
+from typing import Any, Literal
+
+from pm_workflows.python_role import RoleContext
 from pm_workflows.drivers import PmCoderDriver
 
 from workflows.minecraft_body.gateway import BodyGateway, READ_TOOLS
@@ -43,11 +45,13 @@ def verify_wood_return(receipts: list[dict], initial: dict, final: dict, accepta
                 # A partial harvest can expose a higher base in the same trunk.
                 # Recovery must not count that column as another physical tree.
                 trees[(base["x"], base["z"])] = base
-    def logs(data):
+    def logs(data: dict[str, Any]) -> int:
+        """Count the retained wood items of one observation result."""
         return sum(item["count"] for item in data.get("inventory", [])
                    if item["name"].endswith(("_log", "_wood", "_stem", "_hyphae")))
     home, end = initial["camera"]["feet_position"], final["camera"]["feet_position"]
-    def distance(point):
+    def distance(point: dict[str, float]) -> float:
+        """Return the straight-line distance from the starting position, in blocks."""
         return math.dist([home[key] for key in ("x", "y", "z")], [point[key] for key in ("x", "y", "z")])
     traveled = max([distance(row["result"]["camera"]["feet_position"]) for row in receipts
                     if row["result"].get("camera", {}).get("feet_position")] or [0])
@@ -84,7 +88,7 @@ def leaf_execution_context(request: MinecraftRequest) -> dict:
     return current
 
 
-def run_specialist_session(context) -> dict:
+def run_specialist_session(context: RoleContext) -> dict[str, Any]:
     """Hold one body lease through the native session and external cleanup.
 
     The configured model session preserves pm-coder context discovery and

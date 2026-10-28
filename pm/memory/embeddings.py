@@ -248,7 +248,9 @@ class IndexPlan:
 
 
 class EmbeddingService:
-    def __init__(self, config: EmbeddingConfig, *, live_test: bool = False):
+    """The one embedding endpoint of a run. Records own the vectors it returns."""
+
+    def __init__(self, config: EmbeddingConfig, *, live_test: bool = False) -> None:
         self.config = config
         self.client = JsonClient(config.resolve(), live_test=live_test)
         self.dimensions = config.dimensions

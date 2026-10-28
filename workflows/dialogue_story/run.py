@@ -20,6 +20,7 @@ import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 from pm.memory.embeddings import EmbeddingService
@@ -29,7 +30,7 @@ from pm.llm.config import LlmPreset, load_config, resolve_connection
 from pm.llm.prompt_encoding import OpenAIChatEncoder
 from workflows.dialogue_story import standalone as engine
 from workflows.dialogue_story.context import plan_story_request
-from workflows.dialogue_story.schemas import StoryQualityScore, StoryReport
+from workflows.dialogue_story.schemas import StoryQualityScore, StoryReport, StoryRequest
 from workflows.dialogue_story.steps import build_story_messages, load_prompts, render_prior_dialogue
 
 DEFAULT_SEED = engine.PROJECT_ROOT / "test_data" / "personas" / "spamuel" / "canon.yaml"
@@ -50,11 +51,14 @@ def _run_root(runtime_root: Path) -> Path:
     return Path(runtime_root) / "w4" / f"{stamp}-{uuid4().hex[:8]}"
 
 
-def _plan_request(ghost, embedding, situation):
+def _plan_request(ghost: MemoryStore, embedding: EmbeddingService,
+                  situation: dict[str, Any]) -> StoryRequest:
+    """Plan one Story request synchronously for a command-line run."""
     return asyncio.run(plan_story_request(ghost, embedding, situation))
 
 
-def command_show(args) -> int:
+def command_show(args: argparse.Namespace) -> int:
+    """Print the exact Story messages without any model call."""
     ghost = MemoryStore.from_yaml(args.seed)
     embedding = EmbeddingService(load_config(_config_path()).embedding, live_test=True)
     request = _plan_request(ghost, embedding, engine.read_yaml(args.situation))
@@ -66,7 +70,8 @@ def command_show(args) -> int:
     return 0
 
 
-def command_accept(args) -> int:
+def command_accept(args: argparse.Namespace) -> int:
+    """Generate, evaluate, and commit one accepted Story reply."""
     config = load_config(_config_path())
     owner = ModelActivation()
     default = resolve_connection(config)
@@ -114,7 +119,8 @@ def command_accept(args) -> int:
     return 0
 
 
-def command_trials(args) -> int:
+def command_trials(args: argparse.Namespace) -> int:
+    """Generate several independent candidates and retain each evaluated report."""
     config = load_config(_config_path())
     owner = ModelActivation()
     default = resolve_connection(config)
@@ -189,7 +195,8 @@ def command_trials(args) -> int:
     return 0 if summary["passed"] else 3
 
 
-def main(argv=None) -> int:
+def main(argv: list[str] | None = None) -> int:
+    """Run one standalone Story subcommand."""
     parser = argparse.ArgumentParser(description="Standalone Story dialogue")
     parser.add_argument("--seed", default=str(DEFAULT_SEED))
     parser.add_argument("--situation", default=str(DEFAULT_SITUATION))

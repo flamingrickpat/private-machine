@@ -29,6 +29,8 @@ from pm.constants import (
 )
 # The story rendering lives in pm, so the memory inspector renders with it.
 # These names stay importable from here for the phases.
+from pm_workflows.python_role import RoleContext
+
 from pm.context_render.story import (
     RecordView, record_tokens, record_view, render_story, story_line, story_tokens,
 )
@@ -56,7 +58,7 @@ class Embedder:
     a bug in the phase that added the id.
     """
 
-    def __init__(self, context, records: dict[int, RecordView]):
+    def __init__(self, context: RoleContext, records: dict[int, RecordView]) -> None:
         self._tool: Callable[[list[str]], list[list[float]]] = context.runtime.tools["embed_texts"]
         self._records = records
 

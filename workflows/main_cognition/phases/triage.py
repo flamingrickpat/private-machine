@@ -10,6 +10,8 @@ insignificant and gets no decision. The phase never writes memory.
 """
 from __future__ import annotations
 
+from pm_workflows.python_role import RoleContext
+
 from pm.constants import CODELET_BUDGET_DEFAULT, CODELET_BUDGET_MAX
 from pm.context_render.turns import Turn, format_content
 
@@ -62,7 +64,7 @@ def rate_groups(work: CycleWork) -> None:
         group.insignificant = max(ranks) == 0
 
 
-def run(context, work: CycleWork) -> CycleWork:
+def run(context: RoleContext, work: CycleWork) -> CycleWork:
     prefix = StoryPrefix(work)
     result = complete(context, work, build_messages(work, phase_prompts("triage"), prefix), TriageResult,
                       grounded=True, emotion=True, grounding_at=len(prefix.turns))

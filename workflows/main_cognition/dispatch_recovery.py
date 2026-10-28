@@ -9,13 +9,16 @@ already admitted.
 """
 from __future__ import annotations
 
+from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope, new_id
+from pm.memory.store import MemoryStore
 from pm.records.memory_records import ActionSchemaRecord
+from pm.runs.supervisor import ManagedRunSupervisor
 from workflows.main_cognition.schemas import ActionMetadata, PendingDispatch, RecordMetadataView
 from workflows.public_speech.publication import exchange_record
 
 
-def acknowledge_intent(ghost, action_id: int) -> None:
+def acknowledge_intent(ghost: MemoryStore, action_id: int) -> None:
     """Mark durable admission without changing the selected action or its ID.
 
     An unknown id, a record that is not an action, and an action that is not
@@ -34,7 +37,7 @@ def acknowledge_intent(ghost, action_id: int) -> None:
         ghost.commit(batch)
 
 
-def replay_intents(ghost, bus, supervisor) -> set[str]:
+def replay_intents(ghost: MemoryStore, bus: BusSystem, supervisor: ManagedRunSupervisor) -> set[str]:
     """Replay frozen requests, or reconcile them with existing run receipts.
 
     An existing body receipt proves admission, even after interruption. Replay

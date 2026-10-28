@@ -10,6 +10,12 @@ Each workflow folder holds its manifest, scripts, prompts, skills, and host bind
 Parent: [work-item process](../process.md).
 Related: [glossary](../../concepts/glossary.md), [naming rules](../../concepts/naming.md), [relocation map](relocation-map.md).
 
+## Typing and docstring pass
+
+The [typing and docstring pass](typing-and-docstrings.md) is a separate, behavior-preserving quality pass over the moved code.
+It adds annotations and named contracts, rewrites module docstrings, and records the exact test comparison against the previous commit.
+Read it when you need the verification evidence or the list of intended differences.
+
 ## Owner decisions
 
 These decisions were made on 2026-10-12. They are not open.

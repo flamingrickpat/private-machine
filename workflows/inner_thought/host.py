@@ -18,22 +18,26 @@ from pm import vclock
 
 from pm.records.copying import pickle_copy
 
+from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
 import json
+from pathlib import Path
 from threading import Event
 import traceback
+from typing import TYPE_CHECKING, Any
 
 from workflows.cognitive_control.schemas import ControlConfig
 
 from pm.bus.envelopes import Envelope, new_envelope, new_id
-from pm.memory.snapshot import GhostCancelled, GhostConflict
+from pm.memory.bash_view import MemoryBashEnvironment
+from pm.memory.snapshot import GhostCancelled, GhostConflict, Snapshot
 from pm.records.enums import FeatureType, InterlocusType, SourceKind
-from pm.records.cognitive_records import ExpectationRecord
+from pm.records.cognitive_records import ExpectationRecord, Intention
 from pm.records.cycle_state import CycleState
 from pm.records.global_workspace import GwtTurnRecord
 from pm.records.lineage import RecordLineage
 from pm.records.mental_state import FullMentalState
-from pm.records.memory_records import new_feature
+from pm.records.memory_records import Feature, new_feature
 from pm.records.qualia_records import QualeRecord
 from pm.runs.workflow_module import CognitiveWorkflow
 
@@ -52,16 +56,39 @@ from workflows.inner_thought.schemas import InnerReport, InnerRequest, ThoughtCa
 from workflows.inner_thought.stage_runner import build_inner_stage_runner
 from workflows.inner_thought.triggers import evaluate_triggers
 
+if TYPE_CHECKING:
+    from pm.llm.prompt_encoding import TurnInput
+    from pm.memory.embeddings import EmbeddingService
+    from pm.memory.store import MemoryStore
+
 #: How many recent private thoughts feed the next cycle's context.
 RECENT_THOUGHT_LIMIT = 8
 
 
-def build_inner_thought_tools(ghost, runtime_root, llm_complete, *, cancel_provider=None, embeddings=None,
-                              yield_provider=None):
-    """Bind stages and bounded recall to the invocation's frozen read grant."""
+def build_inner_thought_tools(
+    ghost: MemoryStore,
+    runtime_root: str | Path,
+    llm_complete: Callable[..., str],
+    *,
+    cancel_provider: Callable[[], Event | None] | None = None,
+    embeddings: EmbeddingService | None = None,
+    yield_provider: Callable[[], bool] | None = None,
+) -> Callable[[MemoryBashEnvironment, object], dict[str, Callable[..., object]]]:
+    """Bind private stages and bounded recall to the invocation's frozen read grant.
+
+    ``llm_complete`` is the stage model's synchronous completion. Every stage
+    call checks ``yield_provider`` before and after inference, so a cooperative
+    yield stops the cycle instead of keeping the model slot. ``cancel_provider``
+    supplies the run's cancellation event; it is None until a run starts.
+
+    The returned tools read only records inside the environment's frozen view.
+    ``retrieve_memory`` raises ValueError for an empty query; a failed
+    retrieval is an error, not an empty result.
+    """
     from pathlib import Path
 
-    def factory(environment, batch):
+    def factory(environment: MemoryBashEnvironment, batch: object) -> dict[str, Callable[..., object]]:
+        """Return the tools of one private invocation over its frozen view."""
         import asyncio
 
         view = environment.ghost_view
@@ -69,8 +96,11 @@ def build_inner_thought_tools(ghost, runtime_root, llm_complete, *, cancel_provi
                   for raw in view.serialize_knoxels().values()}
         cancel = cancel_provider() if cancel_provider is not None else None
 
-        def complete(messages, **generation):
-            def check_yield():
+        def complete(messages: Sequence[TurnInput], **generation: object) -> str:
+            """Complete one private stage unless the cycle has been yielded."""
+
+            def check_yield() -> None:
+                """Raise cancellation when a yield was requested mid-stage."""
                 if yield_provider is not None and yield_provider():
                     if cancel is not None:
                         cancel.set()
@@ -83,7 +113,8 @@ def build_inner_thought_tools(ghost, runtime_root, llm_complete, *, cancel_provi
 
         complete.measure_context = context_measure(llm_complete)
 
-        def retrieve_memory(query: str) -> dict:
+        def retrieve_memory(query: str) -> dict[str, object]:
+            """Search the frozen view for experiences, with their source evidence."""
             if not query.strip():
                 raise ValueError("Private recall requires a nonempty query.")
             result = asyncio.run(ghost.retrieve_experiences(
@@ -110,8 +141,10 @@ class PrivateThoughtLoop(CognitiveWorkflow):
     # cycle cannot cascade into an inner cycle into another main cycle.
     DATA_TOPICS = frozenset()
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """Forward the module configuration and add the loop's own state."""
         super().__init__(*args, **kwargs)
+        # Thoughts already put on the bus, so a resume never publishes twice.
         self._published_thoughts: set[int] = set()
         self.yield_requested = Event()
 
@@ -185,11 +218,13 @@ class PrivateThoughtLoop(CognitiveWorkflow):
             self.bus.put(new_envelope(self.module_id, "telemetry", "thought.rejected", "",
                                       {**diagnostic, "diagnostic_path": str(path)}))
 
-    def prepare_input(self, batch: list[Envelope]) -> dict:
+    def prepare_input(self, batch: list[Envelope]) -> dict[str, Any]:
         """Freeze one private request from committed state.
 
-        Every citable record carries the revision the loop read, so the commit
-        can reject a proposal built on state the main loop already replaced.
+        The returned mapping is the serialized prompt payload; the typed
+        ``InnerRequest`` exists in this method. Every citable record carries the
+        revision the loop read, so the commit can reject a proposal built on
+        state the main loop already replaced.
         """
         view = getattr(self.last_environment, "ghost_view", None) or self.ghost.snapshot()
         with self.ghost.lock:
@@ -503,7 +538,7 @@ class PrivateThoughtLoop(CognitiveWorkflow):
     # Deterministic gathering helpers. All read committed state under the
     # caller's lock.
 
-    def _build_inspection(self) -> dict:
+    def _build_inspection(self) -> dict[str, Any]:
         """Freeze the selected implementation evidence for this cycle.
 
         The provider owns the source grant and the real records. When no
@@ -533,7 +568,7 @@ class PrivateThoughtLoop(CognitiveWorkflow):
             "observed_at": overlay.built_at.isoformat(),
         }
 
-    def _capability_states(self) -> dict:
+    def _capability_states(self) -> dict[str, str]:
         """Return the strongest inspected state per capability, if available."""
         overlay = getattr(self, "_overlay", None)
         if overlay is None:
@@ -545,14 +580,14 @@ class PrivateThoughtLoop(CognitiveWorkflow):
         control = getattr(self, "cognitive_control", None)
         return control.config if control is not None else ControlConfig()
 
-    def _inner_thoughts(self) -> list:
+    def _inner_thoughts(self) -> list[Feature]:
         """Return the accepted private thoughts in the order the store holds them."""
         return [knoxel for knoxel in self.ghost.all_features
                 if knoxel.feature_type == FeatureType.InnerMonologue
                 and knoxel.provenance and knoxel.provenance.source_kind == SourceKind.Self
                 and (knoxel.metadata or {}).get("loop") == "inner"]
 
-    def _open_episode(self) -> tuple[dict | None, object | None]:
+    def _open_episode(self) -> tuple[dict[str, Any] | None, Feature | None]:
         """Return the newest open private episode and the thought that carries it.
 
         The state is durable in the thought metadata, so a restart reconstructs
@@ -571,7 +606,7 @@ class PrivateThoughtLoop(CognitiveWorkflow):
         """Return whether an accepted main cycle appraised this thought."""
         return any(thought_id in cycle.claimed_ids() for cycle in self.ghost.read_cycles())
 
-    def _parked_sources(self, now: datetime, latest_user) -> set[int]:
+    def _parked_sources(self, now: datetime, latest_user: Feature | None) -> set[int]:
         """Return parked source ids whose review time has not arrived.
 
         A newer outside message is new evidence and releases the parking early.
@@ -620,8 +655,13 @@ class PrivateThoughtLoop(CognitiveWorkflow):
                                                        "elapsed_seconds": elapsed})
             self.ghost.commit(changes)
 
-    def _resolve_episode(self, open_episode: dict | None, latest_thought, latest_user,
-                         now: datetime) -> tuple[dict | None, bool]:
+    def _resolve_episode(
+        self,
+        open_episode: dict[str, Any] | None,
+        latest_thought: Feature | None,
+        latest_user: Feature | None,
+        now: datetime,
+    ) -> tuple[dict[str, Any] | None, bool]:
         """Return the episode context for this cycle and whether it must wait.
 
         An open episode continues only after main appraisal. Superseded work, a
@@ -649,7 +689,7 @@ class PrivateThoughtLoop(CognitiveWorkflow):
                  "elapsed_seconds": elapsed,
                  "steps_remaining": max(0, limits.episode_steps - int(open_episode.get("sequence", 0)) - 1)}, False)
 
-    def _next_episode(self, parsed: InnerReport) -> dict:
+    def _next_episode(self, parsed: InnerReport) -> dict[str, Any]:
         """Compute the durable episode state after this accepted step.
 
         A non-continuing step, a step or time limit, or repeated stalled
@@ -700,8 +740,9 @@ class PrivateThoughtLoop(CognitiveWorkflow):
                 if knoxel.feature_type == FeatureType.InnerMonologue
                 and (knoxel.metadata or {}).get("loop") == "inner"}
 
-    def _recent_private_thoughts(self) -> list[dict]:
-        thoughts = []
+    def _recent_private_thoughts(self) -> list[dict[str, Any]]:
+        """Return the newest private thoughts as prompt evidence, newest first."""
+        thoughts: list[dict[str, Any]] = []
         for knoxel in self.ghost.all_features:
             if knoxel.feature_type != FeatureType.InnerMonologue:
                 continue
@@ -719,8 +760,9 @@ class PrivateThoughtLoop(CognitiveWorkflow):
         thoughts.sort(key=lambda item: item["tick_id"], reverse=True)
         return thoughts[:RECENT_THOUGHT_LIMIT]
 
-    def _latest_appraisal(self):
-        latest = None
+    def _latest_appraisal(self) -> Feature | None:
+        """Return the newest committed appraisal record, or None before one exists."""
+        latest: Feature | None = None
         for knoxel in self.ghost.all_features:
             if (knoxel.metadata or {}).get("origin") == "appraisal":
                 if latest is None or knoxel.tick_id > latest.tick_id:
@@ -728,7 +770,8 @@ class PrivateThoughtLoop(CognitiveWorkflow):
         return latest
 
     def _startup_gap_seconds(self) -> float:
-        latest = None
+        """Return the offline gap that the newest startup record measured, in seconds."""
+        latest: Feature | None = None
         for knoxel in self.ghost.all_features:
             metadata = knoxel.metadata or {}
             if metadata.get("event") == "startup" and "gap_seconds" in metadata:
@@ -736,11 +779,12 @@ class PrivateThoughtLoop(CognitiveWorkflow):
                     latest = knoxel
         return float((latest.metadata or {}).get("gap_seconds", 0.0) or 0.0) if latest else 0.0
 
-    def _latest_user_dialogue(self):
+    def _latest_user_dialogue(self) -> Feature | None:
+        """Return the newest dialogue record the user spoke, or None."""
         # The user proxy names the user as the feature source; the provenance
         # of a user message carries no source kind. The source name is the
         # stable identity, exactly as the main loop's idle measurement uses.
-        latest = None
+        latest: Feature | None = None
         user = self.ghost.get_user_name()
         for knoxel in self.ghost.all_features:
             if knoxel.feature_type != FeatureType.Dialogue:
@@ -751,14 +795,23 @@ class PrivateThoughtLoop(CognitiveWorkflow):
                 latest = knoxel
         return latest
 
-    def _state_summary(self, cycle) -> str:
+    def _state_summary(self, cycle: CycleState | None) -> str:
+        """Return the one-line accepted-state summary the private prompt carries."""
         if cycle is None:
             return "(no accepted state yet)"
         turn = self.ghost.gwt_turns[cycle.tick_id] if cycle.tick_id in self.ghost.gwt_turns else None
         return f"tick {cycle.tick_id}, loop: {turn.slot_id if turn is not None else 'none'}"
 
-    def _candidates(self, view, goals, expectations, latest_appraisal, main_frame,
-                    thoughts, latest_user) -> list[ThoughtCandidate]:
+    def _candidates(
+        self,
+        view: Snapshot,
+        goals: Sequence[Intention],
+        expectations: Sequence[ExpectationRecord],
+        latest_appraisal: Feature | None,
+        main_frame: dict[str, Any],
+        thoughts: Sequence[dict[str, Any]],
+        latest_user: Feature | None,
+    ) -> list[ThoughtCandidate]:
         """Derive the loop's private attention deterministically.
 
         The selection weights inner material above outside material: goals,
@@ -768,7 +821,8 @@ class PrivateThoughtLoop(CognitiveWorkflow):
         candidates: list[ThoughtCandidate] = []
         revisions = view.revisions
 
-        def add(record, kind, urgency, reason):
+        def add(record: Feature, kind: str, urgency: float, reason: str) -> None:
+            """Offer one record as a private candidate when the frozen view holds it."""
             # A live record that is absent from the frozen view must not enter
             # the candidate list. A concurrent append cannot widen this grant.
             if int(record.id) not in revisions:

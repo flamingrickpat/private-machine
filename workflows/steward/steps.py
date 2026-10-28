@@ -6,12 +6,17 @@ report, never an invented success.
 """
 from __future__ import annotations
 
+from typing import Any
+
+from pm_workflows.python_role import RoleContext
+
 from pm.utils import yaml_util
 
 from workflows.steward.schemas import StewardReport, StewardRequest
 
 
-def run(context) -> dict:
+def run(context: RoleContext) -> dict[str, Any]:
+    """Validate one steward operation and return its typed report."""
     environment = context.runtime.environment
     request = StewardRequest.model_validate(
         yaml_util.safe_load(environment.read_text("inbox/request.yaml"))
@@ -31,7 +36,8 @@ def run(context) -> dict:
     return {"status": "done", "summary": report.summary}
 
 
-def _dispatch(request: StewardRequest, tools) -> dict:
+def _dispatch(request: StewardRequest, tools: dict[str, Any]) -> dict[str, Any]:
+    """Call the one steward tool that the requested operation names."""
     operation = request.operation
     if operation == "status":
         return tools["steward_status"](run_id=request.run_id)

@@ -2,9 +2,23 @@
 
 No cognition path uses these prompts yet. Later work items need them.
 """
-from typing import List, Dict
+from __future__ import annotations
+
+from typing import TypedDict
 
 from pm.records.enums import ActionType, NarrativeTypes, FeatureType
+
+
+class NarrativeDefinition(TypedDict):
+    """One reserved narrative prompt definition.
+
+    ``type`` selects the narrative category, ``target`` names whose narrative
+    it is as a placeholder, and ``prompt`` holds the template text.
+    """
+
+    type: NarrativeTypes
+    target: str
+    prompt: str
 
 ACTION_DESCRIPTIONS = {
     ActionType.Reply: (
@@ -50,7 +64,7 @@ ACTION_DESCRIPTIONS = {
     )
 }
 
-narrative_definitions: List[Dict[str, str]] = []
+narrative_definitions: list[NarrativeDefinition] = []
 base_narrative_prompts = {
     NarrativeTypes.SelfImage: "Provide a detailed character and psychological analysis of {target}. How does {target} see themselves versus how they act?",
     NarrativeTypes.PsychologicalAnalysis: "Write a thorough psychological profile of {target} using cognitive-affective psychology and internal systems theory. Identify dominant traits, conflicts, regulation patterns, tendencies (avoidant, anxious, resilient), and inner sub-personalities (critic, protector, exile).",
@@ -76,4 +90,4 @@ narrative_definitions.append({
 })
 
 
-narrative_feature_relevance_map: Dict[NarrativeTypes, List[FeatureType]] = {}
+narrative_feature_relevance_map: dict[NarrativeTypes, list[FeatureType]] = {}

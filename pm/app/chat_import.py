@@ -41,6 +41,8 @@ from pm.records.memory_records import Entity, Feature, Narrative, SemanticRecord
 from pm.records.mental_state import FullMentalState, PersonalityProfile
 from pm.records.taxonomy import EpistemicStatus, MemoryTaxonomy, RecordType
 from pm.records.workspace import GlobalWorkspace, ShardKey
+from pm.memory.store import MemoryStore
+from pydantic import JsonValue
 
 COLUMNS = ("name", "message", "timestamp")
 
@@ -66,6 +68,7 @@ class Exchange(BaseModel):
 
     @property
     def rows(self) -> list[ChatRow]:
+        """Return the user rows first, then the companion rows."""
         return [*self.user_rows, *self.companion_rows]
 
 
@@ -165,10 +168,11 @@ def session_numbers(rows: list[ChatRow]) -> list[int]:
 
 
 def file_sha256(path: Path) -> str:
+    """Return the SHA-256 of the file's exact bytes, as a lowercase hex string."""
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def ensure_persona_entities(store, mark: ImportMark) -> tuple[int, int]:
+def ensure_persona_entities(store: MemoryStore, mark: ImportMark) -> tuple[int, int]:
     """Create the user and companion entities when they are missing.
 
     Returns ``(user_entity_id, companion_entity_id)``. The live loop finds
@@ -197,7 +201,7 @@ class ImportedExchanges(BaseModel):
     feature_ids: list[int] = Field(default_factory=list)
 
 
-def import_exchanges(store, exchanges: list[Exchange], *, import_id: str, source_sha256: str,
+def import_exchanges(store: MemoryStore, exchanges: list[Exchange], *, import_id: str, source_sha256: str,
                      personality: PersonalityProfile, imported_at: datetime) -> ImportedExchanges:
     """Write each exchange in its own batch with a new tick.
 
@@ -217,7 +221,9 @@ def import_exchanges(store, exchanges: list[Exchange], *, import_id: str, source
         correlation = f"{import_id}-x{index:05d}"
         batch = store.begin_batch(correlation, new_tick=True)
 
-        def feature(row: ChatRow, source: str, kind: SourceKind, metadata: dict, addressee: int = 0) -> Feature:
+        def feature(row: ChatRow, source: str, kind: SourceKind, metadata: dict[str, JsonValue],
+                    addressee: int = 0) -> Feature:
+            """Create one imported dialogue feature for a row of this exchange."""
             mark = ImportMark(origin=ImportOrigin.ChatLog, import_id=import_id, source_sha256=source_sha256,
                               source_row=row.row, imported_at=imported_at)
             return batch.create(Feature(
@@ -260,7 +266,7 @@ def import_exchanges(store, exchanges: list[Exchange], *, import_id: str, source
     return result
 
 
-def add_transfer_records(store, *, import_id: str, imported_at: datetime) -> list[int]:
+def add_transfer_records(store: MemoryStore, *, import_id: str, imported_at: datetime) -> list[int]:
     """Add the synthetic records that tell the companion about the move.
 
     1. A ``WorldEvent`` feature at the import time: the transfer happened.

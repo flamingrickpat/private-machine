@@ -1,6 +1,20 @@
-"""Keep process diagnostics in the agent home and record stalled threads."""
+"""Keep process diagnostics in the agent home and record stalled threads.
+
+One process owns one UTF-8 log file with a formatter that names the UTC time,
+the process, and the Python thread. Native crash traces and unhandled thread or
+process exceptions go into the same file, so a stopped session leaves one
+artifact to read.
+
+:func:`configure_logging` installs the handler and hooks that had to be
+replaced, and :func:`close_logging` restores them. The module keeps that state,
+so call it once per process, at startup and after every worker stopped.
+:func:`join_thread` reports a stuck thread's stack instead of waiting silently,
+and :func:`exit_after_repeated_signal` dumps and exits when a second stop signal
+arrives during a wedged shutdown.
+"""
 from __future__ import annotations
 
+from collections.abc import Callable
 import faulthandler
 import logging
 import os
@@ -9,10 +23,13 @@ import sys
 import threading
 import traceback
 from datetime import datetime, timezone
+from types import TracebackType
 
+#: The owned log handler, the hooks it replaced, and the levels it changed.
+#: The hooks return ``object`` because the interpreter ignores a hook's result.
 _HANDLER: logging.FileHandler | None = None
-_THREAD_HOOK = None
-_EXCEPTION_HOOK = None
+_THREAD_HOOK: Callable[[threading.ExceptHookArgs], object] | None = None
+_EXCEPTION_HOOK: Callable[[type[BaseException], BaseException, TracebackType | None], object] | None = None
 _FAULTS_WERE_ENABLED = False
 _LEVELS: dict[str, int] = {}
 
@@ -45,13 +62,16 @@ def configure_logging(home: Path) -> Path:
     _THREAD_HOOK = threading.excepthook
     _EXCEPTION_HOOK = sys.excepthook
 
-    def thread_error(args) -> None:
+    def thread_error(args: threading.ExceptHookArgs) -> None:
+        """Record an unhandled thread exception, then run the previous hook."""
         logging.getLogger(__name__).error("Unhandled thread error thread=%s", args.thread.name,
                                          exc_info=(args.exc_type, args.exc_value, args.exc_traceback))
         if _THREAD_HOOK is not None:
             _THREAD_HOOK(args)
 
-    def process_error(kind, error, trace) -> None:
+    def process_error(kind: type[BaseException], error: BaseException,
+                      trace: TracebackType | None) -> None:
+        """Record an unhandled main-thread exception, then run the previous hook."""
         logging.getLogger(__name__).error("Unhandled process error", exc_info=(kind, error, trace))
         if _EXCEPTION_HOOK is not None:
             _EXCEPTION_HOOK(kind, error, trace)

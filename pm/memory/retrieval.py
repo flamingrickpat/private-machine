@@ -3,13 +3,22 @@
 FAISS ranks vectors stored on shared records outside the MemoryStore lock. Each
 result keeps its original ID, revision, scope, and evidence links. Background
 and simulated events remain available with explicit attribution.
+
+Inputs are a :class:`pm.memory.snapshot.Snapshot` plus the caller's frontier,
+scope, and record-type filters. Outputs are JSON-ready ranking results that a
+workflow renders or a tool returns; nothing here writes a record or a vector.
+The stages stay separate on purpose: scope filtering, then lexical and
+semantic scoring, then evidence attribution in :func:`candidate`.
 """
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Iterable
 from datetime import datetime, timezone
 import math
 import re
+from threading import Event
+from typing import TYPE_CHECKING, Any, TypedDict
 
 from pm.memory.references import referenced_ids
 from pm.memory.evidence import memory_kind as memory_kind, evidence_role as evidence_role
@@ -18,6 +27,9 @@ from pm.records.memory_records import Feature
 from pm.records.graph_records import GraphNode, GraphEdge, ConceptNode
 from pm.memory.snapshot import Snapshot
 from pm.llm.http_client import ModelError
+
+if TYPE_CHECKING:
+    from pm.memory.embeddings import EmbeddingService
 
 
 _WORD = re.compile(r"[a-zA-Z][a-zA-Z'-]+")
@@ -85,7 +97,7 @@ def record_text(raw: RecordBase | dict) -> str:
 
 def scoped_records(view: Snapshot, *, frontier: tuple[int, int] | None = None,
                    scopes: set[tuple[int, str]] | None = None,
-                   record_types=MEMORY_TYPES) -> tuple[dict[int, RecordBase], dict[int, str]]:
+                   record_types: Iterable[str] = MEMORY_TYPES) -> tuple[dict[int, RecordBase], dict[int, str]]:
     """Filter before indexing. A scope contains a reality ID and a frame name.
 
     Linked summaries are eligible only when every original record is visible
@@ -128,7 +140,7 @@ def scoped_records(view: Snapshot, *, frontier: tuple[int, int] | None = None,
     return records, rejected
 
 
-def excerpt(text: str, terms: list[str], limit: int = 1200) -> str:
+def excerpt(text: str, terms: Iterable[str], limit: int = 1200) -> str:
     """Keep a matching passage rather than always truncating the record head."""
     if len(text) <= limit:
         return text
@@ -139,8 +151,22 @@ def excerpt(text: str, terms: list[str], limit: int = 1200) -> str:
     return ("…" if start else "") + text[start:start + limit] + ("…" if start + limit < len(text) else "")
 
 
-def candidate(view, key: int, raw: RecordBase | dict, *, terms=None, score=0.0, reasons=(), passage=None) -> dict:
-    """Render one result with inspectable source and historical-status fields."""
+def candidate(view: Snapshot, key: int, raw: RecordBase | dict[str, Any], *, terms: Iterable[str] | None = None,
+              score: float = 0.0, reasons: Iterable[str] = (),
+              passage: str | None = None) -> dict[str, Any]:
+    """Render one result with inspectable source and historical-status fields.
+
+    The returned mapping is the evidence contract that prompt planning and
+    tool replies consume. It always holds ``knoxel_id``, ``text`` (label plus
+    excerpt), ``revision``, ``memory_kind``, ``scope``, ``provenance``,
+    ``source_ids``, ``timestamp``, ``historical``, ``score``, ``reasons``,
+    ``deception_intent_id``, and ``evidence_role``. Later stages add ranking or
+    metadata fields; none of them change the stored record.
+
+    ``historical`` is true for a superseded, retracted, expired, or imported
+    record and for every recalled world observation: a recalled observation
+    never establishes current world state.
+    """
     if isinstance(raw, RecordBase):
         raw = raw.as_payload(include_embedding=False)
     data = raw["data"]
@@ -190,10 +216,16 @@ def candidate(view, key: int, raw: RecordBase | dict, *, terms=None, score=0.0, 
     }
 
 
-async def retrieve(view, query: str, embeddings=None, *, frontier=None, scopes=None,
-                   limit: int = 24, cancel=None, record_types=MEMORY_TYPES,
-                   method: str = "combined", reserve_context: bool = True) -> dict:
+async def retrieve(view: Snapshot, query: str, embeddings: EmbeddingService | None = None, *,
+                   frontier: tuple[int, int] | None = None, scopes: set[tuple[int, str]] | None = None,
+                   limit: int = 24, cancel: Event | None = None,
+                   record_types: Iterable[str] = MEMORY_TYPES,
+                   method: str = "combined", reserve_context: bool = True) -> dict[str, Any]:
     """Rank visible evidence with stored record vectors and lexical terms.
+
+    Returns ``matches`` (see :func:`candidate`) and ``trace``: the requested and
+    effective method, the query, coverage counts, the semantic service status,
+    the selected and competing IDs, and the rejected records with reasons.
 
     Missing vectors are embedded in full. Provider failures retain lexical
     results. Cancellation propagates. No embedding files or chunk caches exist.
@@ -210,6 +242,8 @@ async def retrieve(view, query: str, embeddings=None, *, frontier=None, scopes=N
         terms = list(dict.fromkeys(match.group(0).casefold() for match in _WORD.finditer(query)
                                    if match.group(0).casefold() not in _STOPWORDS))
     texts = {key: record_text(raw) for key, raw in records.items()}
+    # Inverse document frequency over the visible set, so a term that appears
+    # everywhere adds almost nothing and a rare term dominates the lexical leg.
     frequency = Counter(term for term in terms for text in texts.values() if term in text.casefold())
     lexical = {key: sum(math.log(1 + len(texts) / (1 + frequency[term]))
                         for term in terms if term in text.casefold()) for key, text in texts.items()}
@@ -237,6 +271,9 @@ async def retrieve(view, query: str, embeddings=None, *, frontier=None, scopes=N
         coverage = {"indexed": indexed, "total": len(texts), "missing": len(texts) - indexed}
     lex_max = max(lexical.values(), default=1) or 1
     semantic_ready = semantic_status["status"] == "ready"
+    # Prompt context keeps a semantic bias (0.65) with lexical terms as the
+    # tie-breaker. A direct tool query uses the method it asked for, and drops
+    # the semantic leg entirely when the provider is unavailable.
     scores = {key: (0.65 * semantic.get(key, 0) + 0.35 * lexical[key] / lex_max if reserve_context else
                     semantic.get(key, 0) if method == "semantic" and semantic_ready else
                     lexical[key] / lex_max if method == "lexical" or not semantic_ready else
@@ -254,6 +291,9 @@ async def retrieve(view, query: str, embeddings=None, *, frontier=None, scopes=N
     original_ids = [key for key in archive_ids if evidence_role(view, records[key]) == "user_report"]
     episode_ids = [key for key in archive_ids if records[key].type.value in {"MemoryClusterKnoxel", "CauseEffectKnoxel"}]
     source_pool = list(dict.fromkeys([*episode_ids[:source_reserve // 2], *original_ids]))[:source_reserve]
+    # Selection order is part of the result: ranked heads first, then the
+    # source pool and the recent reserve that keep recall out of a feedback
+    # loop, then the remaining ranked IDs to fill the limit.
     selected = list(dict.fromkeys([*ranked_ids[:limit - reserve - source_reserve], *source_pool,
                                    *recent[:reserve], *ranked_ids]))[:limit]
     matches = [candidate(view, key, records[key], terms=terms, score=scores[key], reasons=[
@@ -283,7 +323,27 @@ def utc_time(value: str | datetime) -> datetime:
     return when.replace(tzinfo=timezone.utc) if when.tzinfo is None else when.astimezone(timezone.utc)
 
 
-def activity(view, start: str | datetime, end: str | datetime) -> dict:
+class ActivityEvent(TypedDict):
+    """One record that shows executed work at a known UTC instant."""
+
+    id: int
+    executed_at: str
+    kind: str
+    text: str
+    provenance: dict[str, Any] | None
+
+
+class ActivitySummary(TypedDict):
+    """Executed activity of one half-open UTC interval, in time order."""
+
+    start: str
+    end: str
+    events: list[ActivityEvent]
+    source_ids: list[int]
+    summary: str
+
+
+def activity(view: Snapshot, start: str | datetime, end: str | datetime) -> ActivitySummary:
     """Return actual atomic activity within the half-open UTC interval.
 
     Background, predictions, and simulations cannot establish executed work.
@@ -292,7 +352,7 @@ def activity(view, start: str | datetime, end: str | datetime) -> dict:
     lower, upper = utc_time(start), utc_time(end)
     if lower >= upper:
         raise ValueError("The activity interval must have an increasing start and end.")
-    events = []
+    events: list[ActivityEvent] = []
     for key, raw in view.serialize_knoxels().items():
         data = raw["data"]
         kind = memory_kind(raw)

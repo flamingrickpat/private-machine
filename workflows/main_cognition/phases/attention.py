@@ -33,6 +33,7 @@ retries the whole cycle.
 """
 from __future__ import annotations
 
+from pm_workflows.python_role import RoleContext
 from pydantic import BaseModel, Field, create_model, model_validator
 
 from pm.constants import (
@@ -50,6 +51,7 @@ from pm.constants import (
 from pm.context_render.story import shard_focus
 from pm.context_render.turns import format_content
 from pm.llm.concurrency import ordered_parallel_map
+from pm.records.global_workspace import ShardChange
 from pm.records.situational_model import SituationalItem
 from pm.records.workspace import SELF_SHARD, ShardKey, WorkspaceShard
 
@@ -238,7 +240,7 @@ def shard_job(work: CycleWork, prefix: StoryPrefix, prompts: PhasePrompts, shard
                     instruction=instruction)
 
 
-def rate(context, work: CycleWork, prefix: StoryPrefix, job: ShardJob) -> StructureRatings:
+def rate(context: RoleContext, work: CycleWork, prefix: StoryPrefix, job: ShardJob) -> StructureRatings:
     """Run one rating call. Runs in a worker thread and does not change ``work``.
 
     A missing, repeated, or unknown label is invalid output and gets a
@@ -246,7 +248,7 @@ def rate(context, work: CycleWork, prefix: StoryPrefix, job: ShardJob) -> Struct
     """
     wanted = job.labels
 
-    def check(answer):
+    def check(answer: StructureRatings) -> StructureRatings:
         given = [item.structure for item in answer.ratings]
         if sorted(given) != sorted(wanted):
             raise ValueError(f"Rate each label exactly once: {', '.join(wanted)}.")
@@ -369,7 +371,7 @@ def newcomers(work: CycleWork, ratings: list[ShardRatings], bonus: dict[int, flo
     return result
 
 
-def select(work: CycleWork, ratings: list[ShardRatings], bonus: dict[int, float]):
+def select(work: CycleWork, ratings: list[ShardRatings], bonus: dict[int, float]) -> list[ShardChange]:
     """Update the shown shards in place and return their changes."""
     shards = shown_shards(work)
     updated = {shard.key for shard in shards}
@@ -406,7 +408,7 @@ def reinforce_entries(work: CycleWork, result: AttentionResult) -> list[str]:
     return names
 
 
-def run(context, work: CycleWork) -> CycleWork:
+def run(context: RoleContext, work: CycleWork) -> CycleWork:
     prompts = phase_prompts("attention")
     # The prefix reads the workspace and the feeling only. The focus check
     # changes neither, so the rating calls get the same prefix bytes.

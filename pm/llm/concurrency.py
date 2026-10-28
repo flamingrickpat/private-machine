@@ -6,22 +6,21 @@ first failure cancels siblings. All owned workers join before it propagates.
 from __future__ import annotations
 
 from asyncio import CancelledError
-from collections.abc import Callable, Iterable
+from collections.abc import AsyncIterator, Callable, Iterable, Iterator
 from concurrent.futures import ThreadPoolExecutor, wait
-from contextvars import copy_context
+from contextvars import ContextVar, copy_context
 from threading import Event, Lock
 from typing import TypeVar
 from contextlib import asynccontextmanager, contextmanager
-from contextvars import ContextVar
 import asyncio
 
 _BACKGROUND = ContextVar("background_inference", default=False)
-_ADMISSIONS = {}
+_ADMISSIONS: dict[str, "InferenceAdmission"] = {}
 _ADMISSIONS_LOCK = Lock()
 
 
 @contextmanager
-def background_inference():
+def background_inference() -> Iterator[None]:
     """Mark private-loop inference on this execution context as background work."""
     token = _BACKGROUND.set(True)
     try:
@@ -37,12 +36,13 @@ class InferenceAdmission:
     Background work yields between completions. No active call is interrupted.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._lock = Lock()
-        self._waiting = []
+        # Each waiting request holds a unique ticket and its background flag.
+        self._waiting: list[tuple[object, bool]] = []
         self._active = False
         self._active_background = False
-        self._foreground = set()
+        self._foreground: set[str] = set()
 
     @property
     def background_active(self) -> bool:
@@ -61,7 +61,7 @@ class InferenceAdmission:
             self._foreground.discard(event_id)
 
     @asynccontextmanager
-    async def slot(self, cancel: Event | None = None):
+    async def slot(self, cancel: Event | None = None) -> AsyncIterator[None]:
         """Wait in priority order. Cancellation removes the waiting request."""
         ticket = (object(), _BACKGROUND.get())
         with self._lock:

@@ -1,4 +1,14 @@
-"""Continue one native agent session until its workflow accepts the draft."""
+"""Continue one native agent session until its workflow accepts the draft.
+
+A workflow that needs a native agent keeps one conversation open: the agent
+writes a draft, the workflow validates it, and a rejection returns repair
+feedback into the same conversation. Tools, draft state, and the eventual
+commit stay with the workflow; this module only owns the turn loop.
+
+Each turn runs against a real MCP descriptor file, so the agent sees exactly
+the scoped services of this run. Only a validated draft ends the loop, and a
+cancelled run stops inference and closes the listeners before it returns.
+"""
 from __future__ import annotations
 
 import asyncio
@@ -10,6 +20,7 @@ from typing import Callable, Generic, Mapping, TypeVar
 
 from fastmcp import FastMCP
 from pm_workflows.runtime import WorkflowRuntime
+from pm_workflows.working_target import AgentTarget
 
 from pm.host.mcp_listeners import serve_services
 from pm.llm.prompt_log import log_directory
@@ -79,6 +90,7 @@ def run_draft_session(
     original_validate = validate
 
     def validate_with_memory(response: str) -> DraftValidation[T]:
+        """Reject a draft whose inspected memory sources changed before commit."""
         decision = original_validate(response)
         if decision.accepted and memory is not None:
             try:
@@ -95,8 +107,9 @@ def run_draft_session(
                                 artifact_dir, timeout_seconds, enable_write))
 
 
-async def _run(runtime, target, run_id, prompt, validate, config, artifact_dir,
-               timeout_seconds, enable_write):
+async def _run(runtime: WorkflowRuntime, target: AgentTarget, run_id: str, prompt: str,
+               validate: Callable[[str], DraftValidation[T]], config: Path, artifact_dir: Path,
+               timeout_seconds: float, enable_write: bool) -> DraftSessionResult[T]:
     """Keep the entered agent and its MCP connections through repair turns."""
     from pm_coder import build_agent, build_settings, discover_workspace, SessionStore, run_turn
 

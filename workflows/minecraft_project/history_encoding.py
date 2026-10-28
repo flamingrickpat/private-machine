@@ -64,7 +64,8 @@ def scoped_gameplay(history: dict) -> dict:
                                  if key not in {"tool", "arguments"} or value != method[key]}})
     sources, source_indexes = [], {}
 
-    def share_sources(value):
+    def share_sources(value: object) -> object:
+        """Replace repeated journal provenance with one shared source index."""
         if isinstance(value, list):
             return [share_sources(row) for row in value]
         if not isinstance(value, dict):
@@ -126,7 +127,8 @@ def scoped_gameplay(history: dict) -> dict:
     # Tools and stock recur across different body positions. Share complete
     # item facts once; a changed count, slot, or durability gets its own row.
     items, item_indexes = [], {}
-    def item_index(item):
+    def item_index(item: dict[str, object]) -> int:
+        """Return the shared index of one item fact, adding it once."""
         key = digest(item)
         if key not in item_indexes:
             item_indexes[key] = len(items)

@@ -13,13 +13,20 @@ every record that the state or the turn names. With the previous cycle
 state, it also holds the mental state before the tick. ``decoded_vectors``
 names the axes of each mental-state vector of a member record, so a reader
 sees the mini-appraisal of a codelet percept without the vector layout.
+
+Reading map: :class:`RecordPackage` is the captured collection,
+:func:`capture_records` captures the selected records of one view,
+:func:`capture_gwt` captures one workspace turn, :func:`capture_cycle` adds
+the accepted cycle state, and :func:`dump_package` writes the collection for
+review.
 """
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import datetime, timezone
 import json
 from pathlib import Path
-from typing import Iterable, Literal
+from typing import Literal, NotRequired, TypedDict
 
 from pm.memory.snapshot import Snapshot
 from pm.records.cycle_state import CycleState
@@ -39,8 +46,38 @@ from pm.records.mental_state import (
 SCHEMA = "pm.record-package.v1"
 
 
+class RecordPackage(TypedDict):
+    """One named collection of captured records, ready for review.
+
+    ``record_ids`` are the collection members in caller order, while
+    ``records`` also carries the related sources that accompany them.
+    ``revisions`` maps every included record id to its acceptance revision, so
+    a reader can tell a later revision from the captured one. The ``cycle``
+    fields exist only for a cycle collection.
+    """
+
+    schema_id: str
+    title: str
+    view: str
+    perspective: str
+    captured_at: str
+    record_ids: list[int]
+    records: list[dict]
+    revisions: dict[str, int]
+    gwt: dict | None
+    cycle: NotRequired[dict]
+    mental_state_before: NotRequired[dict | None]
+    decoded_vectors: NotRequired[dict[str, dict[str, dict[str, float]]]]
+    entity_names: NotRequired[dict[str, str]]
+
+
 def without_embeddings(value):
-    """Copy serialized data recursively, excluding only embedding fields."""
+    """Copy serialized data recursively, excluding only embedding fields.
+
+    The signature stays unannotated on purpose: the copy runs over arbitrary
+    nested serialized JSON, and the caller's value shape (mapping, list, or
+    scalar) comes back unchanged.
+    """
     if isinstance(value, dict):
         return {key: without_embeddings(item) for key, item in value.items()
                 if key not in {"embedding", "embeddings"}}
@@ -52,7 +89,7 @@ def without_embeddings(value):
 def capture_records(snapshot: Snapshot, record_ids: Iterable[int], *, title: str,
                     view: Literal["records", "chat", "gwt", "cycle"] = "records",
                     perspective: str = "developer", related_ids: Iterable[int] = (),
-                    tick_id: int | None = None) -> dict:
+                    tick_id: int | None = None) -> RecordPackage:
     """Return a detached collection from one frozen snapshot.
 
     Keep caller order and remove duplicate ids. Related sources accompany the
@@ -77,8 +114,13 @@ def capture_records(snapshot: Snapshot, record_ids: Iterable[int], *, title: str
             "gwt": without_embeddings(gwt)}
 
 
-def capture_gwt(snapshot: Snapshot, tick_id: int) -> dict:
-    """Capture the selected GWT turn and its exact members. Missing ticks raise."""
+def capture_gwt(snapshot: Snapshot, tick_id: int) -> RecordPackage:
+    """Capture the selected GWT turn and its exact members.
+
+    The members keep the turn's own order, because the workspace order is
+    evidence. A tick that the snapshot does not hold raises KeyError instead
+    of producing an empty collection.
+    """
     turn = snapshot.serialize_gwt()[tick_id]
     return capture_records(snapshot, turn["knoxel_ids"], title=f"GWT content of tick {tick_id}",
                            view="gwt", tick_id=tick_id)
@@ -112,7 +154,7 @@ def decode_vector(vector: list[float]) -> dict[str, float]:
 
 def decoded_vectors(records: list[dict]) -> dict[str, dict[str, dict[str, float]]]:
     """Return the decoded appraisal and delta vectors of each serialized record that has them, by record id."""
-    decoded = {}
+    decoded: dict[str, dict[str, dict[str, float]]] = {}
     for wrapped in records:
         data = wrapped["data"]
         if "mental_state_appraisal_vec" not in data and "mental_state_delta_vec" not in data:
@@ -151,7 +193,7 @@ def cycle_record_ids(state: CycleState, turn: GwtTurnRecord | None) -> list[int]
 
 
 def capture_cycle(snapshot: Snapshot, state: CycleState, *, title: str = "",
-                  perspective: str = "developer", previous: CycleState | None = None) -> dict:
+                  perspective: str = "developer", previous: CycleState | None = None) -> RecordPackage:
     """Return a ``cycle`` collection of one accepted cycle state from one frozen snapshot.
 
     ``state`` is a cycle state of the store, and the snapshot holds its
@@ -178,7 +220,7 @@ def capture_cycle(snapshot: Snapshot, state: CycleState, *, title: str = "",
     return package
 
 
-def dump_package(package: dict, path: Path) -> None:
+def dump_package(package: RecordPackage, path: Path) -> None:
     """Write a captured collection as UTF-8 JSON. The caller owns its path.
 
     Filesystem errors propagate. Write only after capture succeeds, and expose

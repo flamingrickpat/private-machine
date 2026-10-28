@@ -23,11 +23,17 @@ module only writes them. It adds no second ontology store.
 """
 from __future__ import annotations
 
-from pm.records.cognitive_records import OntologyBindingRecord, OntologyTermRecord
-from pm.records.mental_state import FullMentalState, StateEmotions, StateRelationship
-from pm.records.base import Provenance
-from pm.records.enums import SourceKind
+from typing import TYPE_CHECKING, Any
+
 from pm.bus.envelopes import new_id
+from pm.records.base import Provenance
+from pm.records.cognitive_records import OntologyBindingRecord, OntologyTermRecord
+from pm.records.enums import SourceKind
+from pm.records.mental_state import FullMentalState, StateEmotions, StateRelationship
+
+if TYPE_CHECKING:
+    from pm.memory.store import MemoryStore
+    from workflows.public_speech.public_context import PublicContext
 
 #: An emotion at or above this intensity gets an active binding.
 BIND_THRESHOLD = 0.35
@@ -46,7 +52,7 @@ MENTAL_MOVES: list[tuple[str, str]] = [
 ]
 
 
-def _emotion_terms() -> list[dict]:
+def _emotion_terms() -> list[dict[str, Any]]:
     """Return one ``mood_word`` seed per implemented emotion."""
     terms = []
     for name, field in StateEmotions.model_fields.items():
@@ -62,7 +68,7 @@ def _emotion_terms() -> list[dict]:
     return terms
 
 
-def _relationship_terms() -> list[dict]:
+def _relationship_terms() -> list[dict[str, Any]]:
     """Return one ``relationship_label`` seed per implemented relationship axis."""
     terms = []
     for name, field in StateRelationship.model_fields.items():
@@ -79,7 +85,7 @@ def _relationship_terms() -> list[dict]:
     return terms
 
 
-def _mental_move_terms() -> list[dict]:
+def _mental_move_terms() -> list[dict[str, Any]]:
     """Return the fixed ``mental_move`` seeds."""
     return [{
         "term": name,
@@ -91,19 +97,19 @@ def _mental_move_terms() -> list[dict]:
     } for name, definition in MENTAL_MOVES]
 
 
-def seed_terms() -> list[dict]:
+def seed_terms() -> list[dict[str, Any]]:
     """Return every seed term. Order is stable so term ids are predictable."""
     return [*_emotion_terms(), *_relationship_terms(), *_mental_move_terms()]
 
 
-def term_lines(context) -> list[str]:
+def term_lines(context: PublicContext) -> list[str]:
     """Render the ontology terms of one public context, without the bindings.
 
     A term line carries the word, its kind, and its definition and usage rule.
     The generation prompt uses this render, so the companion can draw on the
     same words the review checks.
     """
-    lines = []
+    lines: list[str] = []
     for item in context.ontology:
         if item.get("term") is None:
             continue
@@ -117,7 +123,7 @@ def term_lines(context) -> list[str]:
     return lines
 
 
-def ontology_lines(context) -> list[str]:
+def ontology_lines(context: PublicContext) -> list[str]:
     """Render the terms and the active bindings of one public context.
 
     A binding line says that the term fits the accepted state right now. The
@@ -135,9 +141,9 @@ def ontology_lines(context) -> list[str]:
     return lines
 
 
-def _existing_terms(records: dict) -> dict[str, int]:
+def _existing_terms(records: dict[int, dict[str, Any]]) -> dict[str, int]:
     """Map a term name to the committed term id."""
-    found = {}
+    found: dict[str, int] = {}
     for key, raw in records.items():
         if raw["__type__"] != "OntologyTermKnoxel":
             continue
@@ -148,7 +154,7 @@ def _existing_terms(records: dict) -> dict[str, int]:
     return found
 
 
-def _latest_state_feature(ghost, records: dict) -> dict | None:
+def _latest_state_feature(ghost: MemoryStore, records: dict[int, dict[str, Any]]) -> dict[str, Any] | None:
     """Return the newest accepted internal-state record, if one exists."""
     states = ghost.read_cycles()
     tick = states[-1].tick_id if states else None
@@ -161,8 +167,9 @@ def _latest_state_feature(ghost, records: dict) -> dict | None:
     return None
 
 
-def observe_ontology(ghost, *, threshold: float = BIND_THRESHOLD, max_bindings: int = MAX_BINDINGS,
-                     authority_id: int | None = None) -> dict:
+def observe_ontology(ghost: MemoryStore, *, threshold: float = BIND_THRESHOLD,
+                     max_bindings: int = MAX_BINDINGS,
+                     authority_id: int | None = None) -> dict[str, Any]:
     """Commit seed terms and bind notable accepted feelings.
 
     Returns a receipt with the created term ids, created binding ids, and the
@@ -185,7 +192,7 @@ def observe_ontology(ghost, *, threshold: float = BIND_THRESHOLD, max_bindings: 
         batch = ghost.begin_batch(f"ontology:{new_id()}")
         if authority_id is not None:
             batch.depend_on([], authority=authority_id, manifest={"kind": "private_ontology"})
-        created_terms = {}
+        created_terms: dict[str, int] = {}
         for item in missing:
             created = batch.create(OntologyTermRecord(
                 content=item["content"], term=item["term"], term_kind=item["term_kind"],

@@ -12,12 +12,14 @@ behavior.
 """
 from __future__ import annotations
 
+from pm.memory.snapshot import RecordView
+from pm.memory.write_batch import WriteBatch
 from pm.records.cognitive_records import ExpectationRecord
 from pm.records.base import Provenance
 from pm.records.enums import SourceKind
 
 
-def pending_expectations(record_source) -> list[ExpectationRecord]:
+def pending_expectations(record_source: RecordView) -> list[ExpectationRecord]:
     """Return all unresolved expectations, oldest first.
 
     ``record_source`` is any object with ``all_knoxels`` (a MemoryStore or a
@@ -30,7 +32,7 @@ def pending_expectations(record_source) -> list[ExpectationRecord]:
     return records
 
 
-def open_expectation(batch, *, anticipation: str, expected_outcome: str, expected_valence: float,
+def open_expectation(batch: WriteBatch, *, anticipation: str, expected_outcome: str, expected_valence: float,
                      uncertainty: float, goal_ids: list[int], evidence_ids: list[int],
                      created_from_action_id: int | None = None, tick_id: int = 0) -> ExpectationRecord:
     """Stage one new expectation. The caller commits the batch."""
@@ -50,7 +52,7 @@ def open_expectation(batch, *, anticipation: str, expected_outcome: str, expecte
     return batch.create(record)
 
 
-def resolve_expectation(batch, record: ExpectationRecord, *, status: str, observation_ids: list[int],
+def resolve_expectation(batch: WriteBatch, record: ExpectationRecord, *, status: str, observation_ids: list[int],
                         reason: str, revision: int) -> ExpectationRecord:
     """Stage one resolution. The caller commits the batch.
 

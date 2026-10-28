@@ -13,6 +13,8 @@ Phases call the model only through the run's ``llm_complete`` tool.
 """
 from __future__ import annotations
 
+from pm_workflows.python_role import RoleContext
+
 from pm.utils import yaml_util
 
 from workflows.main_cognition.cycle_work import CycleRequest, read_work, write_work
@@ -36,7 +38,7 @@ PHASES = {
 }
 
 
-def run(context) -> dict:
+def run(context: RoleContext) -> dict[str, str]:
     """Run one phase and return its role result for the kernel."""
     environment = context.runtime.environment
     if context.phase == "intake":

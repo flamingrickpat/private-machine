@@ -17,17 +17,41 @@ from __future__ import annotations
 
 import re
 
+from collections.abc import Iterable
+from typing import TYPE_CHECKING, TypedDict
+
 from pm.records.memory_records import Feature
 from pm.records.base import Provenance, RecordBase
+from pm.memory.snapshot import Snapshot
+from pm.memory.store import MemoryStore
 from pm.memory.write_batch import WriteBatch
 from pm.records.enums import FeatureSubtype, FeatureType, InterlocusType, IntentionType, SourceKind
 from pm.records.cognitive_records import BeliefRecord, BeliefShiftRecord, Intention
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     # ``public_context`` imports this module, and the schemas import
     # ``public_context``. The types are for annotations only.
     from workflows.main_cognition.schemas import AppraisalAffect, AppraisalResult, GoalChange
+
+#: A place to read committed records from: the live store or an open batch view.
+RecordSource = Snapshot | MemoryStore
+
+
+class GoalChangeReceipt(TypedDict):
+    """The outcome of one goal change in an open write batch.
+
+    ``result`` is ``added``, ``completed``, ``reprioritized``, ``deferred``,
+    ``refused``, ``retained``, or ``missing``. ``intention_id`` is the
+    intention that the change acts on, or None when no intention exists.
+    ``created`` is True only for an intention that this batch created.
+    """
+
+    change: str
+    goal: str
+    key: str
+    result: str
+    intention_id: int | None
+    created: bool
 
 
 def _clamp01(value: float) -> float:
@@ -59,7 +83,7 @@ def intention_key(intention: Intention) -> str:
     return explicit or normalize_goal_key(intention.content)
 
 
-def active_intentions(record_source) -> list[Intention]:
+def active_intentions(record_source: RecordSource) -> list[Intention]:
     """Return active Intention records from a MemoryStore view or a MemoryStore.
 
     ``record_source`` may be a batch view or a MemoryStore. Only intentions with an
@@ -76,12 +100,12 @@ def active_intentions(record_source) -> list[Intention]:
     return result
 
 
-def active_goal_texts(record_source) -> list[str]:
+def active_goal_texts(record_source: RecordSource) -> list[str]:
     """Return the content of each active goal, highest salience first."""
     return [str(item.content) for item in active_intentions(record_source)]
 
 
-def find_intention(record_source, key: str):
+def find_intention(record_source: RecordSource, key: str) -> Intention | None:
     """Return the active intention with this identity, or None."""
     for intention in active_intentions(record_source):
         if intention_key(intention) == key:
@@ -90,13 +114,13 @@ def find_intention(record_source, key: str):
 
 
 def apply_appraisal(
-    batch,
+    batch: WriteBatch,
     appraisal: AppraisalResult,
     affect: AppraisalAffect,
     *,
-    evidence_ids,
+    evidence_ids: Iterable[int] | None,
     companion_name: str,
-    memory_trace: dict | None = None,
+    memory_trace: dict[str, object] | None = None,
 ) -> Feature:
     """Stage the appraisal ``Feature`` of one cycle and return it.
 
@@ -138,8 +162,9 @@ def apply_appraisal(
     ))
 
 
-def _stage_intention(batch, *, goal, key, status, active, change, evidence_ids, appraisal_id=None,
-                     origin="main_appraisal"):
+def _stage_intention(batch: WriteBatch, *, goal: str, key: str, status: str, active: bool,
+                     change: GoalChange, evidence_ids: Iterable[int] | None,
+                     appraisal_id: int | None = None, origin: str = "main_appraisal") -> Intention:
     """Stage one intention with its identity and lifecycle metadata."""
     metadata = {
         "goal_key": key,
@@ -164,8 +189,9 @@ def _stage_intention(batch, *, goal, key, status, active, change, evidence_ids, 
     ))
 
 
-def apply_goal_changes(batch, view, changes: list[GoalChange], *, evidence_ids=None, appraisal_id: int | None = None,
-                       origin="main_appraisal") -> list[dict]:
+def apply_goal_changes(batch: WriteBatch, view: Snapshot, changes: list[GoalChange], *,
+                       evidence_ids: Iterable[int] | None = None, appraisal_id: int | None = None,
+                       origin: str = "main_appraisal") -> list[GoalChangeReceipt]:
     """Stage goal lifecycle changes and return one record per change.
 
     Each record has ``change``, ``goal``, ``key``, and ``result``. Results are
@@ -177,7 +203,7 @@ def apply_goal_changes(batch, view, changes: list[GoalChange], *, evidence_ids=N
     Each record also carries ``intention_id`` and ``created`` so the caller can
     map staged ids to committed ids after one commit.
     """
-    records: list[dict] = []
+    records: list[GoalChangeReceipt] = []
     for change in changes:
         kind = change.change.strip().lower()
         goal = change.goal.strip()
@@ -257,11 +283,10 @@ def apply_goal_changes(batch, view, changes: list[GoalChange], *, evidence_ids=N
             intention.metadata.update(reason=history[-1]["reason"], evidence_ids=list(evidence_ids or []),
                                       appraisal_id=appraisal_id, choice_history=history)
             batch.replace(intention)
-        records.append({
-            "change": kind, "goal": goal, "key": key, "result": result,
-            "intention_id": intention_id,
-            "created": created_id is not None,
-        })
+        records.append(GoalChangeReceipt(
+            change=kind, goal=goal, key=key, result=result,
+            intention_id=intention_id, created=created_id is not None,
+        ))
     return records
 
 
@@ -308,6 +333,8 @@ def revise_reflected_belief(batch: WriteBatch, previous: BeliefRecord, *, text: 
 
 
 __all__ = [
+    "GoalChangeReceipt",
+    "RecordSource",
     "subjective_belief",
     "revise_reflected_belief",
     "active_goal_texts",

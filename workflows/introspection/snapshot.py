@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import hashlib
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from pm.introspection.capabilities import (
     CapabilityContext,
@@ -20,6 +21,9 @@ from pm.introspection.capabilities import (
 from pm.introspection.grants import SourceInspector, build_default_grant, git_revision
 from pm.records.cognitive_records import BeliefRecord
 from pm.records.enums import FeatureType
+
+if TYPE_CHECKING:
+    from pm.memory.store import MemoryStore
 
 __all__ = [
     "build_capability_overlay",
@@ -56,7 +60,7 @@ def enabled_capability_names(active_modules: frozenset[str] | set[str]) -> froze
     return frozenset(name for name, owners in mapping.items() if owners & active)
 
 
-def observed_capability_receipts(ghost) -> dict[str, list[dict]]:
+def observed_capability_receipts(ghost: MemoryStore) -> dict[str, list[dict[str, Any]]]:
     """Derive observed-execution rows from real accepted records.
 
     The rows come from committed features and managed-run receipts. A planned
@@ -125,10 +129,15 @@ def _repository_revision(root: Path) -> str:
 _REVISION_CACHE: dict[str, str] = {}
 
 
-def build_capability_overlay(*, ghost, active_modules: set[str] | frozenset[str],
+def build_capability_overlay(*, ghost: MemoryStore, active_modules: set[str] | frozenset[str],
                              config_path: str | Path | None = None,
                              repo_root: str | Path | None = None) -> CapabilityOverlay:
-    """Build one dated capability overlay for the running instance."""
+    """Build one dated capability overlay for the running instance.
+
+    The overlay joins the declared capabilities, the wiring that is active in
+    this process, the observed execution receipts, and the source revision it
+    inspected. Only that combination marks a capability observed.
+    """
     root = Path(repo_root) if repo_root is not None else Path(__file__).resolve().parents[2]
     inspector = SourceInspector(
         build_default_grant(root),
@@ -142,7 +151,7 @@ def build_capability_overlay(*, ghost, active_modules: set[str] | frozenset[str]
     ))
 
 
-def overlay_public(overlay: CapabilityOverlay | None) -> dict:
+def overlay_public(overlay: CapabilityOverlay | None) -> dict[str, Any]:
     """Return a compact, speech-facing projection of the overlay.
 
     Ordinary speech uses the summary and the strongest state. Raw evidence

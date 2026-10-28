@@ -1,4 +1,16 @@
-"""Public-protocol client and owned PM subprocess lifecycle."""
+"""Public-protocol client and owned PM subprocess lifecycle.
+
+``PMProcess`` owns one participant process: it launches it against the frozen
+source and a virtual clock, waits for its ready file and runtime state, sends
+control and chat requests over HTTP, and mirrors the public event stream into a
+local queue. The engine never reads a participant's private files; public speech
+arrives only through this surface.
+
+A readiness wait and an inference wait have no harness deadline, because the real
+runtime decides when it is done. A dead process or a reported runtime failure
+raises with the evidence folder, so an attempt records a real failure instead of
+an empty turn. The package overview is in ``simulation/__init__.py``.
+"""
 from __future__ import annotations
 
 import json
@@ -9,8 +21,10 @@ import subprocess
 import sys
 import threading
 import time
+from typing import IO
 
 import httpx
+from pydantic import JsonValue
 from websockets.exceptions import ConnectionClosed
 from websockets.sync.client import connect
 
@@ -24,23 +38,32 @@ class PMProcess:
     reported runtime failure raises with its retained evidence path.
     """
 
-    def __init__(self, participant_id: str, home: Path, config: str, endpoint_file: Path, *, source_root: Path = REPO_ROOT):
-        self.id = participant_id
-        self.home = home
-        self.config = config
-        self.endpoint_file = endpoint_file
-        self.source_root = source_root
-        self.process: subprocess.Popen | None = None
-        self.url = ""
-        self.events: queue.Queue = queue.Queue()
-        self.reader_stop = threading.Event()
+    def __init__(self, participant_id: str, home: Path, config: str, endpoint_file: Path,
+                 *, source_root: Path = REPO_ROOT) -> None:
+        self.id: str = participant_id
+        self.home: Path = home
+        self.config: str = config
+        self.endpoint_file: Path = endpoint_file
+        self.source_root: Path = source_root
+        self.process: subprocess.Popen[bytes] | None = None
+        self.url: str = ""
+        # Public speech, already decoded. The engine drains this queue and owns
+        # the durable timeline; a queue element carries no ownership of state.
+        self.events: queue.Queue[dict[str, JsonValue]] = queue.Queue()
+        self.reader_stop: threading.Event = threading.Event()
         self.reader: threading.Thread | None = None
         self.reader_error: BaseException | None = None
-        self.http = httpx.Client(timeout=None, trust_env=False)
-        self._log = None
+        self.http: httpx.Client = httpx.Client(timeout=None, trust_env=False)
+        self._log: IO[bytes] | None = None
 
     def launch(self, clock: str) -> None:
-        """Start a hidden participant process and request real runtime startup."""
+        """Start a hidden participant process and request real runtime startup.
+
+        The child writes its ready file with the bound URL. This method waits for
+        that file and for the runtime to leave ``starting``; both waits have no
+        deadline beyond the process itself, because model loading time is real
+        work. ``clock`` is the coordinated ISO start time the child must adopt.
+        """
         self.endpoint_file.parent.mkdir(parents=True, exist_ok=True)
         self.endpoint_file.unlink(missing_ok=True)
         self._log = (self.endpoint_file.parent / f"{self.id}-process.log").open("ab")
@@ -69,14 +92,19 @@ class PMProcess:
         if self.reader_error is not None:
             raise RuntimeError(f"Participant {self.id} event stream failed.") from self.reader_error
 
-    def post(self, path: str, body: dict) -> dict:
+    def post(self, path: str, body: dict[str, JsonValue]) -> dict[str, JsonValue]:
         """Send one JSON request. HTTP errors remain visible to the run."""
         response = self.http.post(self.url + path, json=body)
         response.raise_for_status()
         return response.json()
 
-    def state(self) -> dict:
-        """Read runtime status and reject a reported engineering failure."""
+    def state(self) -> dict[str, JsonValue]:
+        """Read runtime status and reject a reported engineering failure.
+
+        The receipt carries the participant's virtual clock, ``idle``, and
+        optional ``next_due``. A ``failed`` status raises, because a run that
+        continued past it would record evidence the runtime never produced.
+        """
         self.check_process()
         response = self.http.get(self.url + "/control/state")
         response.raise_for_status()
@@ -86,8 +114,15 @@ class PMProcess:
         return result
 
     def listen(self, cursor: str) -> None:
-        """Replay public speech after a durable cursor into a local queue."""
-        def read():
+        """Replay public speech after a durable cursor into a local queue.
+
+        ``cursor`` is the receiver's last committed output position, so a resumed
+        attempt replays exactly the speech it has not recorded yet. The reader is
+        a non-daemon thread: ``close`` stops it before the process is reaped. A
+        receive timeout is the idle poll, not a failure; a genuine close or
+        exception is retained in ``reader_error`` for ``check_process``.
+        """
+        def read() -> None:
             try:
                 with connect(self.url.replace("http:", "ws:") + f"/v1/events?after={cursor}",
                              proxy=None, max_size=None) as websocket:

@@ -8,9 +8,16 @@ standing capability, and it never reads a credential file.
 
 The module defines no model call and writes no memory. Callers own the commit
 boundary and the interpretation.
+
+Reading map: :class:`SourceGrant` is the policy (roots, include, exclude,
+limits) and :class:`SourceInspector` is the reader that returns observation
+metadata for a granted file. :func:`build_default_grant` supplies the
+repository grant, and :func:`git_revision` supplies the code revision that
+accompanies a reading.
 """
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 import hashlib
@@ -18,16 +25,96 @@ from pathlib import Path
 import re
 import subprocess
 from threading import Event
-from typing import Callable, Iterable
+from typing import NotRequired, TypedDict
 
 __all__ = [
     "CREDENTIAL_PATTERNS",
     "SourceDenied",
+    "SourceFileEntry",
+    "SourceFileObservation",
     "SourceGrant",
+    "SourceGrantDescription",
     "SourceInspector",
+    "SourceLine",
+    "SourceReadPage",
+    "SourceTraceEvent",
     "SourceUnavailable",
     "git_revision",
 ]
+
+
+class SourceFileObservation(TypedDict):
+    """What one granted file looked like at one observation.
+
+    ``changed`` compares the current digest with the first digest of this
+    inspector session, so a caller can see a change that a later read already
+    absorbed. ``observed_at`` is the clock time of this observation, not the
+    file's own modification time.
+    """
+
+    path: str
+    absolute_path: str
+    bytes: int
+    lines: int
+    sha256: str
+    changed: bool
+    repo_revision: str
+    configuration_revision: str
+    observed_at: str
+    grant_id: str
+    truncated_lines: NotRequired[bool]
+
+
+class SourceLine(TypedDict):
+    """One numbered line of a read page. ``line`` is one-based."""
+
+    line: int
+    text: str
+
+
+class SourceReadPage(SourceFileObservation):
+    """One bounded text window plus the full-file observation metadata.
+
+    ``next_offset`` is the offset of the following page, or None at the end of
+    the file. The digest describes the whole file, not the returned window.
+    """
+
+    offset: int
+    lines_returned: int
+    next_offset: int | None
+    text: str
+    numbered_lines: list[SourceLine]
+
+
+class SourceFileEntry(TypedDict):
+    """One granted file in a listing: its grant-relative path and size."""
+
+    path: str | None
+    bytes: int
+
+
+class SourceGrantDescription(TypedDict):
+    """The serializable description of one grant for a trace or registry."""
+
+    grant_id: str
+    roots: list[str]
+    include: list[str]
+    exclude: list[str]
+    max_bytes: int
+    max_lines: int
+    label: str
+    categories: list[str]
+
+
+class SourceTraceEvent(TypedDict):
+    """One compact record of an inspection operation, for the caller's trace."""
+
+    operation: str
+    path: str
+    sha256: str
+    repo_revision: str
+    observed_at: str
+    grant_id: str
 
 
 class SourceDenied(PermissionError):
@@ -65,7 +152,7 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _glob_regex(pattern: str) -> "re.Pattern[str]":
+def _glob_regex(pattern: str) -> re.Pattern[str]:
     """Compile one POSIX glob with ``**`` crossing directory boundaries.
 
     ``pathlib.PurePosixPath.match`` treats ``**`` as a single segment, so the
@@ -83,7 +170,7 @@ def _glob_regex(pattern: str) -> "re.Pattern[str]":
     return re.compile("^" + "".join(chunks) + "$", re.IGNORECASE)
 
 
-_GLOB_CACHE: dict[str, "re.Pattern[str]"] = {}
+_GLOB_CACHE: dict[str, re.Pattern[str]] = {}
 
 
 def _match(pattern: str, relative: str) -> bool:
@@ -184,7 +271,7 @@ class SourceGrant:
                 raise SourceDenied(f"The source grant excludes {reference}.")
         raise SourceDenied(f"The source grant does not cover {reference}.")
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> SourceGrantDescription:
         """Return a serializable description for a trace or a grant registry."""
         return {
             "grant_id": self.grant_id,
@@ -220,7 +307,7 @@ class SourceInspector:
     repo_revision: str = ""
     configuration_revision: str = ""
     cancel: Event | None = None
-    trace: Callable[[dict], None] | None = None
+    trace: Callable[[SourceTraceEvent], None] | None = None
     clock: Callable[[], datetime] = _utcnow
     _reads: dict[str, str] = field(default_factory=dict, init=False, repr=False)
 
@@ -229,7 +316,8 @@ class SourceInspector:
         if self.cancel is not None and self.cancel.is_set():
             raise SourceDenied("The source inspection was cancelled.")
 
-    def _observe(self, resolved: Path) -> dict:
+    def _observe(self, resolved: Path) -> SourceFileObservation:
+        """Read one resolved path's bytes and return its observation metadata."""
         relative = self.grant.relative(resolved)
         assert relative is not None  # ``resolve`` already enforced the grant.
         try:
@@ -254,12 +342,17 @@ class SourceInspector:
             "grant_id": self.grant.grant_id,
         }
 
-    def digest(self, reference: str | Path) -> dict:
-        """Return the observation metadata for one granted file."""
+    def digest(self, reference: str | Path) -> SourceFileObservation:
+        """Return the observation metadata for one granted file.
+
+        The digest is the provenance a capability finding or a belief keeps.
+        A denied, missing, or unreadable reference raises instead of returning
+        an empty digest.
+        """
         resolved = self.grant.resolve(reference)
         return self._observe(resolved)
 
-    def read(self, reference: str | Path, *, offset: int = 0, length: int | None = None) -> dict:
+    def read(self, reference: str | Path, *, offset: int = 0, length: int | None = None) -> SourceReadPage:
         """Return a bounded text page of one granted file.
 
         The result carries the full-file digest, not the page digest, so a
@@ -285,8 +378,8 @@ class SourceInspector:
             if length < 0:
                 raise ValueError("The source read length must not be negative.")
             window = window[:length]
-        numbered = [{"line": offset + index + 1, "text": value} for index, value in enumerate(window)]
-        result = {
+        numbered = [SourceLine(line=offset + index + 1, text=value) for index, value in enumerate(window)]
+        result: SourceReadPage = {
             **metadata,
             "offset": offset,
             "lines_returned": len(numbered),
@@ -295,19 +388,22 @@ class SourceInspector:
             "numbered_lines": numbered,
         }
         if self.trace is not None:
-            self.trace({"operation": "read", **{key: result[key] for key in
-                        ("path", "sha256", "repo_revision", "observed_at", "grant_id")}})
+            # The trace keeps the provenance fields only; the page stays the
+            # caller's result so a large reading never lands in the trace.
+            self.trace(SourceTraceEvent(operation="read", path=result["path"], sha256=result["sha256"],
+                                        repo_revision=result["repo_revision"],
+                                        observed_at=result["observed_at"], grant_id=result["grant_id"]))
         return result
 
-    def list_files(self, *, limit: int = 200) -> list[dict]:
-        """List granted files with digests, bounded by ``limit``.
+    def list_files(self, *, limit: int = 200) -> list[SourceFileEntry]:
+        """List granted files with their sizes, bounded by ``limit``.
 
         Directories are skipped. The listing stays inside the roots and the
         grant policy, so a caller cannot discover a credential file's path.
         """
         if limit < 1:
             raise ValueError("The file listing limit must be positive.")
-        found: list[dict] = []
+        found: list[SourceFileEntry] = []
         for root in self.grant.roots:
             for path in sorted(root.rglob("*")):
                 self.check_cancelled()

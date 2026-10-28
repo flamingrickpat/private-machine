@@ -1,19 +1,41 @@
-"""problem - mental-state vectors need readable traces, bounded self-report candidates, and an immersion judge; solution - render deterministic experienced-dynamics language, generate first-person candidates, and judge them against source dynamics.
+"""Turn mental-state vectors into readable, non-leaking language.
 
-archetype: service-provider
-owns: deterministic verbalization of mental-state axes, the narrow primitive appraisal trace-quality gate, bounded first-person self-report candidate generation, and the immersion judge/rerank contract that selects grounded candidates and rejects provenance leaks.
-not own: LLM judging, character-card prose, runtime orchestration, or persistence.
-fails when: callers pass empty state sequences for trace rendering, trace text leaks schema/provenance, candidate generation receives state lacking primitive dynamics, or judge receives no grounded candidates.
-domain: vector axes are internal storage; traces expose body, attention, pressure, and regulation dynamics so scenario tests do not pass on field dumps alone. Self-report candidates translate the same dynamics into bounded first-person prose. The immersion judge selects candidates grounded in experienced dynamics and rejects provenance leaks, schema dumps, emotion-label-only summaries, and generic pleasant prose.
-invariant: trace gates, candidate generation, and the judge stay deterministic and reject implementation provenance without becoming the full self-reportability pipeline.
+A :class:`~pm.records.mental_state.FullMentalState` is stored as named axes
+with numeric values. A prompt or a self-report cannot read those numbers, and
+showing them would expose implementation detail. This module renders the same
+dynamics as ordinary prose, deterministically and without a model call.
+
+**What it owns.**
+
+- :data:`CORE_SPECS` and the other lexicon tables map one axis to its
+  baseline, its positive and negative wording, its delta wording, and its
+  dead zones. A deviation below the dead zone is noise and renders as
+  nothing. :func:`verbalize_full_state` and the other ``verbalize_*``
+  functions turn a state, a delta, or a sequence into that wording.
+- :func:`verbalize_primitive_appraisal_trace` states the strongest primitive
+  body, attention, pressure, and regulation changes of a state sequence. It
+  is the narrow trace that self-report reasoning is allowed to rely on.
+- :func:`generate_self_report_candidates` writes bounded first-person
+  candidates from the active primitive axes.
+- :func:`judge_self_report_candidates` selects the candidate that is grounded
+  in the experienced dynamics trace. It rejects provenance leaks, schema
+  dumps, emotion-label-only summaries, and trace keyword repetition.
+- :func:`appraisal_trace_passes_quality_gate` is the trace-quality gate that
+  scenario checks use.
+
+**Boundary.** Everything here is deterministic. It does not call a model, own
+character-card prose, run the cycle, or persist anything. The caller supplies
+the state sequences; an empty sequence renders as an empty string rather than
+a made-up state.
 """
 
 from __future__ import annotations
 
 import math
 import re
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Literal, Sequence, Optional
+from typing import Literal
 
 from pm.records.mental_state import AppraisalGeneral, AppraisalSocial, FullMentalState, MentalState, PersonalityProfile, StateCognition, StateCore, StateEmotions, StateExpression, StateExpressionExt, StateNeeds, StateNeurochemical, StateRelationship
 
@@ -23,8 +45,13 @@ Mode = Literal["absolute", "delta"]
 
 @dataclass(frozen=True)
 class SelfReportJudgeResult:
-    """Result of the immersion judge/rerank over self-report candidates."""
-    selected_candidate: Optional[str]
+    """Result of the immersion judge/rerank over self-report candidates.
+
+    ``selected_candidate`` is the accepted candidate text, or None when every
+    candidate failed a gate. ``decision`` is ``selected`` or ``all_failed``;
+    ``reason`` explains the choice or lists the rejections.
+    """
+    selected_candidate: str | None
     decision: str
     reason: str
 
@@ -461,6 +488,11 @@ def verbalize_relationship_delta(delta: StateRelationship) -> str:
 
 
 def verbalize_full_state(state: FullMentalState) -> str:
+    """Render one mental state as prose, strongest axis of each group first.
+
+    Groups join with ". ". An empty group contributes nothing, so a state with
+    no deviation renders as an empty string rather than as filler.
+    """
     parts = [
         verbalize_core_state(state.state_core),
         verbalize_emotional_state(state.state_emotions),
@@ -480,6 +512,7 @@ def verbalize_full_state(state: FullMentalState) -> str:
 
 
 def verbalize_full_delta(delta: FullMentalState) -> str:
+    """Render one mental-state delta as prose: what moved, not where the state sits."""
     parts = [
         verbalize_core_delta(delta.state_core),
         verbalize_emotional_delta(delta.state_emotions),
@@ -519,6 +552,11 @@ def verbalize_relationship_sequence(states: Sequence[StateRelationship], mode: M
 
 
 def verbalize_state_sequence(states: Sequence[FullMentalState], mode: Mode = "absolute") -> str:
+    """Render a state sequence: ``absolute`` for levels, ``delta`` for movement.
+
+    The relationship group follows the state's own relationship, so a sequence
+    without one simply omits it.
+    """
     if not states:
         return ""
 
@@ -542,14 +580,14 @@ def verbalize_state_sequence(states: Sequence[FullMentalState], mode: Mode = "ab
     return " ".join(parts)
 
 
-def _primitive_rise(states: Sequence[FullMentalState], getter) -> float:
+def _primitive_rise(states: Sequence[FullMentalState], getter: Callable[[FullMentalState], float]) -> float:
     values = [float(getter(state) or 0.0) for state in states]
     if not values:
         return 0.0
     return max(values) - values[0]
 
 
-def _primitive_peak(states: Sequence[FullMentalState], getter) -> float:
+def _primitive_peak(states: Sequence[FullMentalState], getter: Callable[[FullMentalState], float]) -> float:
     values = [float(getter(state) or 0.0) for state in states]
     return max(values) if values else 0.0
 
@@ -559,6 +597,13 @@ def _primitive_phrase(name: str, value: float, verb: str = "rose") -> str:
 
 
 def verbalize_primitive_appraisal_trace(states: Sequence[FullMentalState]) -> str:
+    """Return the experienced-dynamics trace of a state sequence.
+
+    The trace names the primitive body, attention, pressure, and regulation
+    changes that crossed their reporting thresholds, in a fixed order. It is
+    the only evidence that self-report candidates may be grounded in, and it
+    must pass :func:`appraisal_trace_passes_quality_gate`.
+    """
     if not states:
         return ""
 
@@ -864,6 +909,11 @@ def judge_self_report_candidates(
 
 
 def appraisal_trace_passes_quality_gate(trace: str) -> bool:
+    """Return True when a trace is non-empty, names primitive dynamics, and leaks nothing.
+
+    A leak is an implementation field name, a module or agent id, a schema
+    word, or a raw number with a percent sign or an ``axis=value`` shape.
+    """
     text = trace.strip()
     if not text:
         return False

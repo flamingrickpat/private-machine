@@ -18,7 +18,7 @@ import random
 from collections.abc import Callable
 from pathlib import Path
 from time import monotonic
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 
 from pm.constants import CSM_MERGE_SIMILARITY
 from pm.memory.embeddings import EmbeddingService, cosine_similarity
@@ -33,12 +33,49 @@ SAMPLE_VECTORS = 160
 SAMPLE_SEED = 20261024
 
 
+class VectorSampleStats(TypedDict):
+    """Raw pairwise cosine statistics of a fixed sample of stored vectors.
+
+    ``merge_share`` is the fraction of sampled pairs at or over
+    :data:`pm.constants.CSM_MERGE_SIMILARITY`, so it says how much of memory
+    the situational model would merge into one item.
+    """
+
+    vectors: float
+    sampled: float
+    dimensions: float
+    mean: float
+    max: float
+    merge_share: float
+
+
+class EmbeddingRebuildReport(TypedDict):
+    """The result of one completed vector rebuild, as the operator reads it.
+
+    ``embedded`` counts records that received a new vector. ``backup`` is the
+    checkpoint that still holds the previous model's vectors, or an empty
+    string when no backup was written. ``before`` and ``after`` are the same
+    measurement on the same deterministic sample.
+    """
+
+    checkpoint: str
+    model_before: str
+    model_after: str
+    dimensions: int
+    records: int
+    embedded: int
+    seconds: float
+    backup: str
+    before: VectorSampleStats
+    after: VectorSampleStats
+
+
 def _print(message: str = "", *, end: str = "\n") -> None:
     """Write one progress line. Every line flushes, so a long run stays readable."""
     print(message, end=end)
 
 
-def vector_sample_stats(store: MemoryStore, *, limit: int = SAMPLE_VECTORS) -> dict[str, float]:
+def vector_sample_stats(store: MemoryStore, *, limit: int = SAMPLE_VECTORS) -> VectorSampleStats:
     """Measure raw pairwise similarity on a fixed random sample of stored vectors.
 
     A healthy encoder keeps unrelated memories far below the merge threshold,
@@ -65,7 +102,8 @@ def vector_sample_stats(store: MemoryStore, *, limit: int = SAMPLE_VECTORS) -> d
     }
 
 
-def _report_line(label: str, stats: dict[str, float]) -> None:
+def _report_line(label: str, stats: VectorSampleStats) -> None:
+    """Print one before/after measurement line of the rebuild report."""
     _print(f"  {label}: {int(stats['sampled'])} of {int(stats['vectors'])} vectors"
            f" at {int(stats['dimensions'])} dims, mean cosine {stats['mean']:.3f},"
            f" max {stats['max']:.3f}, at or over the {CSM_MERGE_SIMILARITY:.2f} merge"
@@ -73,7 +111,7 @@ def _report_line(label: str, stats: dict[str, float]) -> None:
 
 
 def rebuild_store_embeddings(store: MemoryStore, embeddings: EmbeddingService, *,
-                             progress: Callable[[int, int], None] | None = None) -> dict:
+                             progress: Callable[[int, int], None] | None = None) -> EmbeddingRebuildReport:
     """Rebuild every vector of ``store`` with ``embeddings``. Return the run report.
 
     The store keeps the vectors of the previous model in a backup checkpoint.
@@ -85,7 +123,7 @@ def rebuild_store_embeddings(store: MemoryStore, embeddings: EmbeddingService, *
     backup = store.backup()
     started = monotonic()
     embedded = store.rebuild_embeddings(embeddings, progress=progress)
-    report = {
+    report: EmbeddingRebuildReport = {
         "checkpoint": str(store.checkpoint) if store.checkpoint is not None else "",
         "model_before": model_before,
         "model_after": embeddings.config.model,
@@ -143,6 +181,7 @@ def run_embedding_rebuild(plan: "LaunchPlan") -> int:
     _print("  probe: " + ", ".join(f"{key}={value:.4f}" for key, value in probe.items()))
 
     def progress(done: int, total: int) -> None:
+        """Redraw one progress line in place while vectors are written."""
         _print(f"  embedded {done}/{total}", end="\r")
 
     report = rebuild_store_embeddings(store, embeddings, progress=progress)

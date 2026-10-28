@@ -44,6 +44,8 @@ from pm.constants import (
     EXPECTATION_SUPPORTED,
     EXPECTATION_VALENCE_MULT,
 )
+from pm_workflows.python_role import RoleContext
+
 from pm.context_render.turns import format_content
 from pm.records.situational_model import cosine
 from pydantic import create_model, model_validator
@@ -164,7 +166,7 @@ def outcome_of(expectation: OpenExpectation, fulfillment_score: float, directnes
         observation_ids=list(observation_ids))
 
 
-def check(context, work: CycleWork, prefix: StoryPrefix, prompts: PhasePrompts,
+def check(context: RoleContext, work: CycleWork, prefix: StoryPrefix, prompts: PhasePrompts,
           expectations: list[OpenExpectation]) -> list[ExpectationOutcome]:
     """Check the relevant expectations against the new stimuli. Return one outcome for each.
 
@@ -176,7 +178,7 @@ def check(context, work: CycleWork, prefix: StoryPrefix, prompts: PhasePrompts,
         return []
     wanted = sorted(item.record_id for item in expectations)
 
-    def exact(answer):
+    def exact(answer: ExpectationCheckAnswer) -> ExpectationCheckAnswer:
         given = sorted(item.expectation_id for item in answer.fulfillments)
         if given != wanted:
             raise ValueError(f"Give exactly one entry for each expectation id: {', '.join(map(str, wanted))}.")
@@ -223,7 +225,7 @@ def render_outcomes(outcomes: list[ExpectationOutcome]) -> str:
     return "\n".join(lines) or "(nothing in particular)"
 
 
-def anticipate(context, work: CycleWork, prefix: StoryPrefix, prompts: PhasePrompts, *, decision: str,
+def anticipate(context: RoleContext, work: CycleWork, prefix: StoryPrefix, prompts: PhasePrompts, *, decision: str,
                action: str, target: str, count: int, entity_ids: list[int],
                embedder: Embedder) -> list[ExpectationDraft]:
     """Return the reactions that the companion now expects to one routed action.

@@ -189,7 +189,7 @@ Admits = Callable[[ShardKey, int], bool]
 class _ShardFill:
     """The content of one shard while the selection runs."""
 
-    def __init__(self, shard: WorkspaceShard, requirements: list[WorkspaceRequirement]):
+    def __init__(self, shard: WorkspaceShard, requirements: list[WorkspaceRequirement]) -> None:
         self.shard = shard
         self.requirements = requirements
         self.items: list[WorkspaceItem] = []

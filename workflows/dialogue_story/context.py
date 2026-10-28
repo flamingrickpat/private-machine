@@ -11,19 +11,24 @@ from __future__ import annotations
 from pm import vclock
 
 from datetime import datetime
+from threading import Event
+from typing import TYPE_CHECKING, Any
 
 from pm.memory.embeddings import EmbeddingService
 from pm.memory.retrieval import distinctive_terms
 
 from workflows.dialogue_story.schemas import DialogueTurn, StoryRequest
 
+if TYPE_CHECKING:
+    from pm.memory.store import MemoryStore
+
 
 async def plan_story_request(
-    ghost,
+    ghost: MemoryStore,
     embedding: EmbeddingService,
-    situation: dict,
+    situation: dict[str, Any],
     *,
-    cancel=None,
+    cancel: Event | None = None,
 ) -> StoryRequest:
     """Build the typed Story request for one fixed situation.
 

@@ -17,6 +17,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import TypeVar
 
+from pm_workflows.python_role import RoleContext
 from pydantic import BaseModel
 
 from pm.constants import CODELET_TEXT_ATTEMPTS, Sampler
@@ -69,9 +70,9 @@ def grounding_turn(work: CycleWork, *, emotion: bool, capabilities: bool = False
     return Turn(Role.User, grounding + render_context(selected, kinds))
 
 
-def complete(context, work: CycleWork, messages: Sequence[TurnInput], schema: type[Result], *,
+def complete(context: RoleContext, work: CycleWork, messages: Sequence[TurnInput], schema: type[Result], *,
              grounded: bool = False, emotion: bool = True, grounding_at: int = 1, capabilities: bool = False,
-             validation_context: dict | None = None) -> Result:
+             validation_context: dict[str, object] | None = None) -> Result:
     """Call the model for one phase and return the validated answer.
 
     ``grounded`` inserts the private grounding turn at index ``grounding_at``
@@ -93,7 +94,7 @@ def complete(context, work: CycleWork, messages: Sequence[TurnInput], schema: ty
                          temperature=Sampler.TempInstruct, enable_thinking=False)
 
 
-def complete_prose(context, messages: Sequence[TurnInput]) -> str:
+def complete_prose(context: RoleContext, messages: Sequence[TurnInput]) -> str:
     """Call the model for prose and return the non-empty answer.
 
     The settings match :func:`complete`. Codelet calls get no grounding turn,

@@ -1,9 +1,45 @@
-"""Serialized exchange values. Unsupported live objects fail on publication."""
+"""The serialized message value that crosses the bus, and its JSON form.
+
+An ``Envelope`` is one independently delivered message. It reaches a
+subscriber only as JSON text (see ``pm.bus.bus``), so each subscriber owns a
+detached copy of the payload and cannot change another subscriber's view.
+
+Owns: the envelope fields, the recreated-envelope contract, and the JSON shape
+of a serialized envelope. Does not own: routing, mailboxes, retry, or durable
+replay; those live in ``pm.bus.bus`` and in the modules that publish.
+
+Invariant: every payload value must be JSON serializable. Publication fails
+loudly with ``TypeError`` on a live object, because a message that cannot be
+recreated for the next subscriber must never look deliverable.
+"""
 from __future__ import annotations
 
 import json
 import uuid
-from typing import Literal
+from typing import Literal, TypedDict, TypeAlias
+
+#: A value that survives a JSON round trip. Payloads are built by workflows and
+#: modules, so the concrete keys differ per topic; the value domain does not.
+JsonScalar: TypeAlias = str | int | float | bool | None
+JsonValue: TypeAlias = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
+
+#: One envelope payload: JSON values keyed by a topic-specific field name.
+JsonObject: TypeAlias = dict[str, JsonValue]
+
+EnvelopeKind: TypeAlias = Literal["data", "telemetry", "control"]
+
+
+class EnvelopeJson(TypedDict):
+    """The JSON object that ``Envelope.to_json`` writes and ``from_json`` reads."""
+
+    id: str
+    source: str
+    kind: EnvelopeKind
+    topic: str
+    correlation_id: str
+    payload: JsonObject
+    target: str | None
+    causation_id: str | None
 
 
 def new_id() -> str:
@@ -16,17 +52,26 @@ class Envelope:
 
     __slots__ = ("id", "source", "kind", "topic", "correlation_id", "payload", "target", "causation_id")
 
+    id: str
+    source: str
+    kind: EnvelopeKind
+    topic: str
+    correlation_id: str
+    payload: JsonObject
+    target: str | None
+    causation_id: str | None
+
     def __init__(
         self,
         id: str,
         source: str,
-        kind: Literal["data", "telemetry", "control"],
+        kind: EnvelopeKind,
         topic: str,
         correlation_id: str,
-        payload: dict,
+        payload: JsonObject,
         target: str | None = None,
         causation_id: str | None = None,
-    ):
+    ) -> None:
         self.id = id
         self.source = source
         self.kind = kind
@@ -46,14 +91,49 @@ class Envelope:
         return f"Envelope({self.topic!r}, {self.id[:8]})"
 
     def to_json(self) -> str:
-        return json.dumps({name: getattr(self, name) for name in self.__slots__}, allow_nan=False)
+        """Serialize this envelope. A non-JSON payload value raises ``TypeError``.
+
+        The key order is fixed here and in ``from_json``, so a serialized
+        envelope reads the same in traces and in a debugger.
+        """
+        data: EnvelopeJson = {
+            "id": self.id,
+            "source": self.source,
+            "kind": self.kind,
+            "topic": self.topic,
+            "correlation_id": self.correlation_id,
+            "payload": self.payload,
+            "target": self.target,
+            "causation_id": self.causation_id,
+        }
+        return json.dumps(data, allow_nan=False)
 
     @classmethod
     def from_json(cls, text: str) -> "Envelope":
-        return cls(**json.loads(text))
+        """Rebuild an envelope from ``to_json`` text. A missing key raises ``KeyError``."""
+        data: EnvelopeJson = json.loads(text)
+        return cls(
+            id=data["id"],
+            source=data["source"],
+            kind=data["kind"],
+            topic=data["topic"],
+            correlation_id=data["correlation_id"],
+            payload=data["payload"],
+            target=data["target"],
+            causation_id=data["causation_id"],
+        )
 
 
-def new_envelope(source, kind, topic, correlation_id, payload, target=None, causation_id=None):
+def new_envelope(
+    source: str,
+    kind: EnvelopeKind,
+    topic: str,
+    correlation_id: str,
+    payload: JsonObject,
+    target: str | None = None,
+    causation_id: str | None = None,
+) -> Envelope:
+    """Build an envelope with a fresh id for a module that publishes once."""
     return Envelope(
         id=new_id(), source=source, kind=kind, topic=topic,
         correlation_id=correlation_id, payload=payload, target=target, causation_id=causation_id,

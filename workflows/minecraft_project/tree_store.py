@@ -12,7 +12,7 @@ import time
 from workflows.minecraft_project.schemas import Node, TaskTree
 
 
-def digest(value) -> str:
+def digest(value: object) -> str:
     """Hash canonical JSON so unchanged specifications retain their identity."""
     return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
@@ -62,19 +62,21 @@ def validate_tree(tree: TaskTree) -> dict[str, set[str]]:
         list(TopologicalSorter({key: set(node.children) for key, node in nodes.items()}).static_order())
     except CycleError as error:
         raise ValueError("The task hierarchy has a cycle.") from error
-    reached = set()
-    def descendants(key):
+    reached: set[str] = set()
+
+    def descendants(key: str) -> set[str]:
+        """Return the keys of the leaf subtree below ``key``, recording the visit."""
         reached.add(key)
         node = nodes[key]
         return {key} if node.kind == "leaf" else set().union(*(descendants(child) for child in node.children))
     descendants(tree.goal_id)
     if reached != nodes.keys():
         raise ValueError("All nodes must belong to the root goal.")
-    graph = {}
+    graph: dict[str, set[str]] = {}
     for key, node in nodes.items():
         if node.kind != "leaf":
             continue
-        dependencies = set()
+        dependencies: set[str] = set()
         cursor = key
         while cursor is not None:
             for dependency in nodes[cursor].depends_on:
@@ -102,8 +104,10 @@ def validate_tree(tree: TaskTree) -> dict[str, set[str]]:
             if node.kind == "leaf":
                 allowed = descendants(source) <= graph[node.id]
             else:
-                subtree = set()
-                def collect(key):
+                subtree: set[str] = set()
+
+                def collect(key: str) -> None:
+                    """Add every descendant of ``key`` to ``subtree``."""
                     for child in nodes[key].children:
                         subtree.add(child)
                         collect(child)
@@ -133,9 +137,9 @@ def acceptance_requirements(tree: TaskTree, leaf_graph: dict | None = None) -> d
     if leaf_graph is None:
         leaf_graph = validate_tree(tree)
     nodes = {node.id: node for node in tree.nodes}
-    result = {}
+    result: dict[str, set[str]] = {}
     for key, node in nodes.items():
-        required = set(leaf_graph[key]) if node.kind == "leaf" else set(node.children)
+        required: set[str] = set(leaf_graph[key]) if node.kind == "leaf" else set(node.children)
         required.update(row.node_id for row in node.criteria if row.kind == "accepted")
         cursor = key
         while cursor is not None:
@@ -154,13 +158,19 @@ class TreeStore:
     A replacement actor observes retained world effects before choosing work.
     """
 
-    def __init__(self, root: Path):
+    def __init__(self, root: Path) -> None:
+        """Open the evidence index of one task folder, creating the empty state.
+
+        ``state`` holds the mutable index: revision, acceptance certificates,
+        attempts, decisions, and the instruction revision. It is written back
+        by :meth:`save`, so a reader always sees a committed index.
+        """
         self.root = Path(root)
         self.path = self.root / "planning/state.json"
         self.state = json.loads(self.path.read_text(encoding="utf-8")) if self.path.exists() else {
             "revision": 0, "acceptances": {}, "attempts": [], "decisions": [], "feedback": "", "instruction_revision": -1}
 
-    def write(self, relative: str, value) -> None:
+    def write(self, relative: str, value: object) -> None:
         """Commit JSON atomically; retry a file lock without replaying a role.
 
         A persistent lock raises RuntimeError. PermissionError would trigger
@@ -231,7 +241,8 @@ class TreeStore:
         if target:
             selected = old[target]
             permitted = {target}
-            def collect(key):
+            def collect(key: str) -> None:
+                """Add one refined subtree to the permitted id set."""
                 permitted.add(key)
                 for child in new[key].children:
                     collect(child)

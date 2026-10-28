@@ -1,10 +1,14 @@
 """Execute one real pm-coder session, then verify the requested bytes."""
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import replace
 import hashlib
 import json
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+from pm_workflows.python_role import RoleContext
 
 from pm.constants import Sampler
 from pm.utils import yaml_util
@@ -12,6 +16,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from pm_workflows.drivers import PmCoderDriver
 from pm_workflows.inputs import relative_path
 from pm.llm.prompt_log import log_directory
+
+if TYPE_CHECKING:
+    from pm.memory.bash_view import MemoryBashEnvironment
+    from pm.llm.stage_model import LazyStageModel
 
 
 class NoteSpec(BaseModel):
@@ -22,7 +30,7 @@ class NoteSpec(BaseModel):
     text: str = Field(min_length=1)
 
 
-def _write_note(context) -> dict:
+def _write_note(context: RoleContext) -> dict[str, Any]:
     """Lease the model, run the agent, and publish independently verified evidence.
 
     Cancellation stops before the next cooperative boundary. File effects can
@@ -76,7 +84,7 @@ def _write_note(context) -> dict:
     return {"status": "done", "summary": report["summary"]}
 
 
-def run(context) -> dict:
+def run(context: RoleContext) -> dict[str, Any]:
     """Retain expected input, model, and I/O failures as rejected task evidence.
 
     Cancellation still propagates to the worker. Unexpected logic errors keep
@@ -96,10 +104,20 @@ def run(context) -> dict:
         return {"status": "done", "summary": report["summary"]}
 
 
-def build_note_tools(model):
-    """Bind exact instruction extraction. This tool never writes the note."""
-    def factory(run_id, environment):
-        def note_spec(instruction: str):
+def build_note_tools(
+    model: LazyStageModel | None,
+) -> Callable[[str, MemoryBashEnvironment], dict[str, Callable[..., dict[str, Any]]]]:
+    """Bind exact instruction extraction. This tool never writes the note.
+
+    ``model`` is None in dummy cognition, where no run ever calls the
+    tool; the extraction then fails at the model access, not silently.
+    """
+
+    def factory(run_id: str, environment: MemoryBashEnvironment) -> dict[str, Callable[..., dict[str, Any]]]:
+        """Return the extraction tool of one note run."""
+
+        def note_spec(instruction: str) -> dict[str, Any]:
+            """Return the parsed note request: whether to write, where, and exactly what text."""
             from workflows.main_cognition.model_json import extract_json
             raw = model.complete([
                 {"role": "system", "content": "Determine whether this original message requests a new note-file write. "

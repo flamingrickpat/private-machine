@@ -65,7 +65,8 @@ def act(context: RoleContext, store: TreeStore) -> dict:
     child_environment = FolderEnvironment(store.root / relative, "bash")
     parent_boundary = context.runtime.tools["managed_instructions"]
     parent_revision = store.state["instruction_revision"]
-    def instructions(wait=False, close=False):
+    def instructions(wait: bool = False, close: bool = False) -> dict[str, object]:
+        """Return the parent instruction for this leaf, refusing a changed revision."""
         current = parent_boundary()
         if current["revision"] != parent_revision:
             raise InstructionsChanged("The project instruction changed. Replan from retained world effects.")

@@ -2,17 +2,61 @@
 
 The module proposes memory through the existing MemoryStore batch. It never commits
 separately, infers external facts from companion prose, or invents activity.
+
+Every function stages records into an open
+:class:`~pm.memory.write_batch.WriteBatch` and leaves the commit to the host.
+A repeated commit returns the earlier receipt, so staging is idempotent per
+batch.
 """
 from __future__ import annotations
 
+from typing import TypedDict
+
+from pm.memory.snapshot import Snapshot
+from pm.memory.write_batch import WriteBatch
 from pm.records.memory_records import ActionSchemaRecord, Feature, MemoryClusterRecord
 from pm.records.base import Provenance
 from pm.records.enums import ClusterType, FeatureType, SourceKind
 from pm.records.cognitive_records import BeliefRecord, BeliefShiftRecord
-from workflows.main_cognition.schemas import ActionMetadata, RecordMetadataView
+from workflows.main_cognition.schemas import ActionMetadata, BeliefUpdate, RecordMetadataView
 
 
-def consolidate_cycle(batch, source_ids: list[int], appraisal: Feature, affect_summary: str) -> list[int]:
+class RejectedBeliefUpdate(TypedDict):
+    """One proposed belief update that the batch refused to stage, with the reason."""
+
+    source_id: int
+    reason: str
+
+
+class BeliefUpdateReceipt(TypedDict):
+    """The outcome of the belief updates of one cycle.
+
+    ``accepted_ids`` are the belief records that carry the accepted reports,
+    in proposal order. ``rejected`` keeps every refused proposal with its
+    cause, so a refused report is evidence rather than silence.
+    """
+
+    accepted_ids: list[int]
+    rejected: list[RejectedBeliefUpdate]
+
+
+class UtteranceMetadata(TypedDict, total=False):
+    """The metadata of one stored utterance.
+
+    ``memory_kind`` and ``factual_promotion`` are always present. The other
+    keys exist only when a prior action proves a retained deceptive intent.
+    """
+
+    memory_kind: str
+    factual_promotion: bool
+    action_schema_id: int
+    deception_intent_id: int
+    deception_purpose: str
+    known_fact_ids: list[int]
+
+
+def consolidate_cycle(batch: WriteBatch, source_ids: list[int], appraisal: Feature,
+                      affect_summary: str) -> list[int]:
     """Stage one episodic summary for real inputs and accepted affect.
 
     The cluster retains original evidence links and source timestamps. A
@@ -48,7 +92,8 @@ def consolidate_cycle(batch, source_ids: list[int], appraisal: Feature, affect_s
     return created
 
 
-def update_beliefs(batch, updates, *, user_name: str, permitted_source_ids: set[int] | None = None) -> dict:
+def update_beliefs(batch: WriteBatch, updates: list[BeliefUpdate], *, user_name: str,
+                   permitted_source_ids: set[int] | None = None) -> BeliefUpdateReceipt:
     """Stage exact user reports and correction links, or record a rejection.
 
     Quotes must occur verbatim in live user dialogue. Companion speech, seed
@@ -57,7 +102,8 @@ def update_beliefs(batch, updates, *, user_name: str, permitted_source_ids: set[
     With a source grant, an unlisted ID is rejected before lookup.
     Proposals take effect only when the caller commits the batch.
     """
-    accepted, rejected = [], []
+    accepted: list[int] = []
+    rejected: list[RejectedBeliefUpdate] = []
     for update in updates:
         if permitted_source_ids is not None and update.source_id not in permitted_source_ids:
             rejected.append({"source_id": update.source_id, "reason": "source is outside the current stimulus grant"})
@@ -102,16 +148,16 @@ def update_beliefs(batch, updates, *, user_name: str, permitted_source_ids: set[
                 causal_knoxel_ids=[source.id, belief.id], accepted=True, scope=source.scope,
                 provenance=source.provenance,
             ))
-    return {"accepted_ids": accepted, "rejected": rejected}
+    return BeliefUpdateReceipt(accepted_ids=accepted, rejected=rejected)
 
 
-def utterance_metadata(view, action_id: int | None) -> dict:
+def utterance_metadata(view: Snapshot, action_id: int | None) -> UtteranceMetadata:
     """Retain a prior presentation intent without granting its content truth.
 
     Only an action already present in the read view can justify deception.
     Adding an intent after the utterance cannot alter this stored attribution.
     """
-    result = {"memory_kind": "utterance", "factual_promotion": False}
+    result: UtteranceMetadata = {"memory_kind": "utterance", "factual_promotion": False}
     action = view.get_knoxel_by_id(action_id) if action_id is not None else None
     if isinstance(action, ActionSchemaRecord):
         result["action_schema_id"] = action.id

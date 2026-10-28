@@ -10,6 +10,8 @@ lets the model invent an operation name.
 """
 from __future__ import annotations
 
+from typing import Any
+
 from workflows.inner_thought.schemas import TriggerCandidate, InnerRequest
 
 #: An active goal older than this many ticks with low fulfilment is unresolved.
@@ -26,7 +28,8 @@ RUMINATION_REPEATS = 3
 STARTUP_GAP_SECONDS = 3600.0
 
 
-def _as_float(value, default: float = 0.0) -> float:
+def _as_float(value: object, default: float = 0.0) -> float:
+    """Coerce a prompt-supplied number, or return ``default`` when it is not one."""
     try:
         return float(value)
     except (TypeError, ValueError):
@@ -141,7 +144,7 @@ def evaluate_triggers(request: InnerRequest) -> list[TriggerCandidate]:
     return [item for item in candidates if item.operations]
 
 
-def _capability_doubt(request) -> TriggerCandidate | None:
+def _capability_doubt(request: InnerRequest) -> TriggerCandidate | None:
     """Fire when the inspected capability evidence is stale or unobserved.
 
     The trigger reads the public overlay the host already built. It never
@@ -166,7 +169,7 @@ def _capability_doubt(request) -> TriggerCandidate | None:
     )
 
 
-def _repeated_source(recent_thoughts) -> int | str | None:
+def _repeated_source(recent_thoughts: list[dict[str, Any]]) -> int | str | None:
     """Return the id that appears in enough recent thoughts to count as rumination."""
     counts: dict[str, int] = {}
     for thought in recent_thoughts:

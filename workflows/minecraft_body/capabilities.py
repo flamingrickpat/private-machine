@@ -7,10 +7,15 @@ import asyncio
 import os
 import socket
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING, Any
 
 import anyio
 import httpx
 from mcp.shared.exceptions import McpError
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+    from pm.memory.store import MemoryStore
 
 
 def _transport_failure(error: BaseException) -> bool:
@@ -24,7 +29,7 @@ def _transport_failure(error: BaseException) -> bool:
     return isinstance(error, RuntimeError) and error.__cause__ is not None and _transport_failure(error.__cause__)
 
 
-def capability_snapshot(ghost, workflow_names) -> dict:
+def capability_snapshot(ghost: MemoryStore, workflow_names: Iterable[str]) -> dict[str, Any]:
     """Discover MCP tools and game transport. No world action runs here.
 
     Discovery has a five-second deadline. A connection proves availability,
@@ -37,7 +42,8 @@ def capability_snapshot(ghost, workflow_names) -> dict:
     result = {"status": "disconnected", "endpoint": url, "tools": [],
               "visual_interpretation": False, "observed_at": vclock.now_aware().isoformat()}
 
-    async def discover():
+    async def discover() -> list[str]:
+        """Return the tool names that the body endpoint advertises."""
         from fastmcp import Client
         async with Client(url) as client:
             return [item.name for item in await client.list_tools()]

@@ -8,16 +8,23 @@ from __future__ import annotations
 from pm import vclock
 
 from datetime import datetime, timezone
+from threading import Event
+from typing import TYPE_CHECKING, Any
 
+from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope, new_id
 from pm.memory.snapshot import GhostConflict
 from pm.records.memory_records import Feature
-from pm.records.base import Provenance
+from pm.records.base import Provenance, RecordBase
 from pm.records.enums import FeatureType, InterlocusType, SourceKind
 from workflows.main_cognition.experience import utterance_metadata
 
+if TYPE_CHECKING:
+    from pm.memory.store import MemoryStore
+    from workflows.public_speech.public_context import PublicContext
 
-def exchange_record(ghost, correlation: str):
+
+def exchange_record(ghost: MemoryStore, correlation: str) -> RecordBase | None:
     """Return the accepted user record for a correlated exchange, if present."""
     source = next((item for item in ghost.all_features
                  if item.feature_type == FeatureType.Dialogue
@@ -26,10 +33,11 @@ def exchange_record(ghost, correlation: str):
     return ghost.snapshot({source.id}).get(source.id) if source is not None else None
 
 
-def commit_public_reply(ghost, text: str, correlation: str, *, commit_id: str,
-                        action_id: int | None = None, context=None, recovery: str = "",
-                        review_reason: str = "", review_judgment: str = "",
-                        addressee_entity_id: int | None = None, cancel=None) -> int | None:
+def commit_public_reply(ghost: MemoryStore, text: str, correlation: str, *, commit_id: str,
+                        action_id: int | None = None, context: PublicContext | None = None,
+                        recovery: str = "", review_reason: str = "", review_judgment: str = "",
+                        addressee_entity_id: int | None = None,
+                        cancel: Event | None = None) -> int | None:
     """Commit speech and exchange resolution together, or reject stale input.
 
     ``addressee_entity_id`` is the entity that the reply answers, or None for
@@ -87,7 +95,7 @@ def commit_public_reply(ghost, text: str, correlation: str, *, commit_id: str,
         return receipt.added_ids[0]
 
 
-def validate_public_context(ghost, context) -> None:
+def validate_public_context(ghost: MemoryStore, context: PublicContext) -> None:
     """Reject changed sources before publication or grounding recovery.
 
     The caller holds the MemoryStore lock. Recovery must not replace old revision
@@ -104,13 +112,14 @@ def validate_public_context(ghost, context) -> None:
                 raise GhostConflict(f"Public evidence {key} changed during generation.")
 
 
-def publish_reply(bus, source: str, correlation: str, reply_id: int, *, cause=None, **fields):
+def publish_reply(bus: BusSystem, source: str, correlation: str, reply_id: int, *,
+                  cause: str | None = None, **fields: Any) -> None:
     """Publish a committed utterance. Its pending marker survives delivery failure."""
     bus.put(Envelope(id=new_id(), source=source, kind="data", topic="dialogue.reply",
                      correlation_id=correlation, payload={"knoxel_id": reply_id, **fields}, causation_id=cause))
 
 
-def acknowledge_reply(ghost, reply_id: int) -> None:
+def acknowledge_reply(ghost: MemoryStore, reply_id: int) -> None:
     """Mark a delivered utterance without changing its text or factual status."""
     with ghost.lock:
         reply = ghost.snapshot({reply_id}).get(reply_id) if reply_id in ghost.revisions else None

@@ -1,7 +1,41 @@
 """The companion assembly: which bus modules run, which workflows are managed, and their wiring.
 
-``build_app`` constructs one application in a fixed order. The runtime entry
-points in ``pm.app`` receive this module; the runtime never imports it.
+This module owns the composition of one running companion. It knows nothing
+about cognition itself; it decides which bus modules exist, which managed
+workflows the supervisor may start, and which capabilities each module
+receives. The pieces it assembles live in ``pm/`` (runtime mechanics) and in
+the sibling ``workflows/`` packages (behavior).
+
+Owned state, all local to ``build_app``:
+
+- the ``MemoryStore`` (``ghost``) and its embedding service,
+- the ``BusSystem`` and the ordered module list that subscribes to it,
+- the ``ManagedRunSupervisor`` and its workflow specifications,
+- the ``Steward`` gate and the consolidation owner for terminal runs.
+
+Inputs: a persona seed or checkpoint, a runtime root, a cognition mode
+(``real`` or ``dummy``), and the model configuration path. Output: one
+``Application``; the caller owns execution, shutdown, and checkpoints.
+
+Boundaries and side effects: real cognition loads the model configuration,
+initialises embeddings, probes a configured Minecraft body, and records
+lifecycle evidence. Dummy cognition builds fixed prototype modules and makes
+no model call. Assembly order matters: modules are appended in the order the
+bus should see them, and the overlay rebuild, run recovery, and parked-run
+restoration happen only after every module exists.
+
+Invariants:
+
+- ``build_app`` raises on an unusable argument combination instead of
+  substituting a quieter behavior.
+- Every managed workflow name in the action catalogue comes from the
+  supervisor, so configuration alone can add or remove steerable work.
+- A module receives its collaborators before it subscribes to the bus.
+
+Reading map: ``_managed_workflows`` (managed run specifications),
+``_cognition_workflow_options`` (the main-cognition action catalogue),
+``_cognition_modules`` (the cognitive module set per cognition mode),
+``_minecraft_endpoint`` (body endpoint resolution), then ``build_app``.
 """
 from __future__ import annotations
 
@@ -10,6 +44,8 @@ from pm import vclock
 from datetime import datetime
 import time
 from pathlib import Path
+from collections.abc import Callable, Mapping
+from typing import TYPE_CHECKING, Any, NamedTuple, TypedDict
 
 from pm.constants import Sampler
 from pm.memory.store import MemoryStore
@@ -30,11 +66,18 @@ from pm.host.application import Application
 from workflows.steward.gate import Steward
 from pm.llm.workflow_sessions import WorkflowModels
 from pm.memory.bash_view import MemoryBashTarget
-from pm.runs.workflow_module import PROJECT_ROOT, WorkflowModule
+from pm.runs.workflow_module import PROJECT_ROOT, CognitiveWorkflow, WorkflowModule
 from pm.app.operator_config import default_config_path
 from pm.paths import REPO_ROOT
 from workflows.cognitive_control.schemas import ControlConfig
 from pm.llm.mcp_config import ToolCallConfig
+
+if TYPE_CHECKING:
+    from pm.introspection.capabilities import CapabilityOverlay
+    from pm.llm.config import ModelConfig
+    from pm.llm.stage_model import LazyStageModel
+    from pm.memory.embeddings import EmbeddingService
+    from workflows.tool_call.catalogue import ToolCatalogue
 
 
 BANNER = "DUMMY COGNITION \u2014 no LLM calls\n"
@@ -46,9 +89,20 @@ REAL_BANNER = "REAL COGNITION \u2014 model activates on first request\n"
 DEFAULT_SEED = REPO_ROOT / "test_data" / "personas" / "spamuel" / "canon.yaml"
 
 
-def _managed_workflows(stage_model=None, embeddings=None, ghost=None, tool_call: ToolCallConfig | None = None,
-                       minecraft_endpoint: str | None = None, *, enable_minecraft: bool = True) -> dict:
-    """Return the managed workflow specifications by name.
+def _managed_workflows(
+    stage_model: LazyStageModel | None = None,
+    embeddings: EmbeddingService | None = None,
+    ghost: MemoryStore | None = None,
+    tool_call: ToolCallConfig | None = None,
+    minecraft_endpoint: str | None = None,
+    *,
+    enable_minecraft: bool = True,
+) -> dict[str, WorkflowSpec]:
+    """Return the managed workflow specifications, keyed by workflow name.
+
+    The mapping is keyed by the workflow name that the supervisor, the action
+    catalogue, and the prompt descriptions all use; membership is dynamic, so
+    it stays a real dict rather than a fixed record.
 
     ``tool_call`` is registered only when its configuration names at least
     one MCP server. Without tools, routing never offers it, so the companion
@@ -58,13 +112,16 @@ def _managed_workflows(stage_model=None, embeddings=None, ghost=None, tool_call:
     ``minecraft_endpoint`` is the body endpoint that the assembly resolved from
     the ``minecraft`` section of the model configuration. The body workflows
     take it as an argument, so a real run needs no environment variable.
+
+    ``stage_model`` and ``embeddings`` are None in dummy cognition; the tool
+    factories then report the missing model when a run actually needs one.
     """
     from workflows.minecraft.host import build_minecraft_module_tools, persona_context, project_memory_config
     from workflows.note_task.steps import build_note_tools
     from workflows.memory_reconsolidation.host import build_reconsolidation_tools
 
     base = PROJECT_ROOT / "workflows" / "local_task"
-    optional = {}
+    optional: dict[str, WorkflowSpec] = {}
     if tool_call is not None and tool_call.mcp_servers:
         from workflows.tool_call.host import WORKFLOW_NAME, build_workflow_spec
         optional[WORKFLOW_NAME] = build_workflow_spec(tool_call)
@@ -115,8 +172,15 @@ def _managed_workflows(stage_model=None, embeddings=None, ghost=None, tool_call:
     return result
 
 
-def _cognition_workflow_options(supervisor, tool_catalogue=None) -> list[dict]:
+def _cognition_workflow_options(
+    supervisor: ManagedRunSupervisor,
+    tool_catalogue: ToolCatalogue | None = None,
+) -> list[dict[str, str]]:
     """Build the main-cognition action space from the live configuration.
+
+    Every entry is one ``{"name", "description"}`` option that the route prompt
+    shows and that ``WorkflowOption`` validates; the description is prose for
+    the model, never an execution contract.
 
     Dialogue and self-management are always available. Managed workflow names
     come from the supervisor, so a configured workflow can steer work without
@@ -126,7 +190,7 @@ def _cognition_workflow_options(supervisor, tool_catalogue=None) -> list[dict]:
     tools in the ``tool_call`` description. Only the route prompt shows the
     descriptions; the decide prompt never names tools.
     """
-    options = [
+    options: list[dict[str, str]] = [
         {"name": "dialogue_story", "description": "Generate one in-character Story reply."},
         {"name": "dialogue_assistant", "description": "Assistant reply with scoped tools. Inventory questions use arguments.minecraft_read=inventory; position, health, and surroundings use minecraft_read=state. Both make one live read without a managed task."},
         {"name": "self_management", "description": "Start, status, update, terminate, or explicitly resume an interrupted body run."},
@@ -138,7 +202,7 @@ def _cognition_workflow_options(supervisor, tool_catalogue=None) -> list[dict]:
                         "memory_reconsolidation": "Sort through memories and sleep on them: builds topic and day summaries, facts, and updated self and relationship narratives from the stored history. Slow; runs in the background. Use ToolCall when the character decides to sort through memories, sleep on what happened, or reflect on the past days.",
                         "minecraft": "One sustained survival specialist leaf. Standalone completion requires an explicit supported verifier, currently wood_return. Use minecraft_project for other goals that need verified completion.",
                         "minecraft_project": "Generic Minecraft project planner. Durable subtasks, verified prerequisites, fresh specialists, and independent world verification. Use for multi-step goals."}
-        description = descriptions.get(name, f"Managed workflow {name}.")
+        description: str = descriptions.get(name, f"Managed workflow {name}.")
         if name == "tool_call":
             from workflows.tool_call.host import WORKFLOW_DESCRIPTION
             # Without a catalogue (the static list at construction), no
@@ -153,14 +217,60 @@ def _cognition_workflow_options(supervisor, tool_catalogue=None) -> list[dict]:
     return options
 
 
-def _cognition_modules(cognition, *, ghost, target, bus, on_error, clock,
-                      runtime_root, workflow_paths, stage_model, config_path,
-                      supervisor, codelet_definitions=None, thought_period=30.0, embeddings=None,
-                      workflow_models=None, minecraft_endpoint=None):
-    """Return the (main_cog, story, assistant, self_management, inner, mental) modules.
+class DummyWorkflowPaths(TypedDict):
+    """Keyword arguments that every dummy prototype module constructor shares.
+
+    The prototype modules differ only in their loop details, so the assembly
+    builds this one keyword set per workflow folder and unpacks it.
+    """
+
+    working_target: MemoryBashTarget
+    workflow: Path
+    tools_factory: Callable[..., Mapping[str, Callable[..., object]]]
+    runtime_root: Path
+    ghost: MemoryStore
+
+
+class CognitionModules(NamedTuple):
+    """The cognitive modules of one assembly, named by their role.
+
+    Dummy cognition leaves the optional roles as None instead of substituting
+    a stand-in module, so a caller that needs one fails visibly.
+    """
+
+    main_cog: CognitiveWorkflow
+    dialogue: CognitiveWorkflow
+    assistant: CognitiveWorkflow | None
+    self_management: CognitiveWorkflow | None
+    inner_thought: CognitiveWorkflow
+    focus_management: CognitiveWorkflow | None
+
+
+def _cognition_modules(
+    cognition: str,
+    *,
+    ghost: MemoryStore,
+    target: MemoryBashTarget,
+    bus: BusSystem,
+    on_error: Callable[[BaseException], None],
+    clock: Callable[[], float],
+    runtime_root: Path,
+    workflow_paths: Callable[[str], DummyWorkflowPaths],
+    stage_model: LazyStageModel | None,
+    config_path: str,
+    supervisor: ManagedRunSupervisor,
+    codelet_definitions: str | None = None,
+    thought_period: float = 30.0,
+    embeddings: EmbeddingService | None = None,
+    workflow_models: WorkflowModels | None = None,
+    minecraft_endpoint: str | None = None,
+) -> CognitionModules:
+    """Return the cognitive modules of one assembly, by role.
 
     ``minecraft_endpoint`` is the resolved body endpoint, or None when this
     character has no Minecraft body. The assistant reads the world through it.
+    ``stage_model`` is None only in dummy cognition, which builds fixed
+    prototype loops and no private thought planning.
     """
     if cognition == "real":
         from workflows.dialogue_story.host import build_story_tools
@@ -246,7 +356,7 @@ def _cognition_modules(cognition, *, ghost, target, bus, on_error, clock,
             runtime_root=runtime_root, ghost=ghost, embeddings=embeddings,
             workflow_models=workflow_models,
         )
-        return main_cog, story, assistant, self_management, inner_thought, focus_management
+        return CognitionModules(main_cog, story, assistant, self_management, inner_thought, focus_management)
     main_cog = DummyMainCogLoop(
         "main_cog", bus, on_error, clock, None,
         **workflow_paths("main_cognition"),
@@ -259,10 +369,10 @@ def _cognition_modules(cognition, *, ghost, target, bus, on_error, clock,
         "inner_thought", bus, on_error, clock, thought_period,
         **workflow_paths("inner_thought"),
     )
-    return main_cog, dialogue, None, None, inner_thought, None
+    return CognitionModules(main_cog, dialogue, None, None, inner_thought, None)
 
 
-def _minecraft_endpoint(loaded) -> str | None:
+def _minecraft_endpoint(loaded: ModelConfig) -> str | None:
     """Return the Minecraft body endpoint for this run, or None for no body.
 
     The ``minecraft`` section of the model configuration is the normal source,
@@ -279,27 +389,27 @@ def _minecraft_endpoint(loaded) -> str | None:
 
 
 def build_app(
-    seed_path,
-    runtime_root,
+    seed_path: str | Path,
+    runtime_root: str | Path,
     thought_period: float = 30.0,
     task_period: float = 0.1,
-    clock=vclock.monotonic,
-    emit_reply=print,
-    ghost=None,
-    checkpoint_path=None,
+    clock: Callable[[], float] = vclock.monotonic,
+    emit_reply: Callable[[str], None] = print,
+    ghost: MemoryStore | None = None,
+    checkpoint_path: str | Path | None = None,
     *,
     cognition: str = "dummy",
-    stage_model=None,
+    stage_model: LazyStageModel | None = None,
     config_path: str | None = None,
     workflow_models: WorkflowModels | None = None,
     record_lifecycle: bool = True,
     world_poll_seconds: float | None = 120.0,
     world_quiet_seconds: float = 120.0,
     codelet_definitions: str | None = None,
-    cognitive_control_config: ControlConfig | dict | None = None,
+    cognitive_control_config: ControlConfig | dict[str, Any] | None = None,
     tool_call: ToolCallConfig | None = None,
     enable_minecraft: bool = True,
-    bus_observer=None,
+    bus_observer: Callable[[Envelope, str], None] | None = None,
 ) -> Application:
     """Construct an application without service activation.
 
@@ -317,6 +427,9 @@ def build_app(
     ``tool_call`` gives the companion MCP tools. ``None`` reads the
     ``tool_call`` section of the model configuration in real cognition;
     dummy cognition has no tools.
+    ``ghost``, ``checkpoint_path``, and ``seed_path`` select where the memory
+    store comes from: an existing store, a checkpoint to load, or the persona
+    seed. Supplying both a store and a checkpoint path raises ValueError.
     """
     if cognition not in {"real", "dummy"}:
         raise ValueError("cognition must be 'real' or 'dummy'.")
@@ -397,10 +510,18 @@ def build_app(
         workflow_models=workflow_models,
     )
 
-    def _on_terminal(receipt):
+    def _on_terminal(receipt: dict[str, Any]) -> None:
+        """Consolidate the artifacts of a run whose receipt reached a terminal state."""
         consolidator.consolidate(receipt["run_id"], receipt["artifact_path"])
 
-    def _event_sink(event):
+    def _event_sink(event: dict[str, Any]) -> None:
+        """Enrich one supervisor event and put it on the bus as telemetry.
+
+        The supervisor owns the durable event record; this sink only adds the
+        artifact path and the wall-clock time, then forwards a copy. A run
+        without a readable receipt still emits its event, because losing
+        telemetry must not change how the run finished.
+        """
         if event.get("event") == "gameplay_progress":
             run = supervisor.status(event["run_id"])
             consolidator.consolidate(event["run_id"], run["artifact_path"])
@@ -421,7 +542,8 @@ def build_app(
     supervisor.event_sink = _event_sink
     steward = Steward(supervisor, clock=clock)
 
-    def workflow_paths(name: str):
+    def workflow_paths(name: str) -> DummyWorkflowPaths:
+        """Return the constructor keywords of the dummy prototype workflow ``name``."""
         return {
             "working_target": target,
             "workflow": PROJECT_ROOT / "workflows" / "demo" / f"{name}.workflow.md",
@@ -477,7 +599,7 @@ def build_app(
         control.cancel_private = inner_thought.yield_run
         main_cog.cognitive_control = control
         inner_thought.cognitive_control = control
-        def release_private_results(envelopes):
+        def release_private_results(envelopes: list[Envelope]) -> None:
             """Release unpublished private results after a discarded main cycle."""
             inner_thought.release_results(envelopes)
             if focus_management is not None:
@@ -496,7 +618,7 @@ def build_app(
             endpoint = minecraft_endpoint
             transport = build_minecraft_tools(endpoint, request_timeout_seconds=30)["minecraft_call"]
 
-            def observe_world():
+            def observe_world() -> dict[str, Any]:
                 # Reads share the command lock with actor calls. They never
                 # claim the mutation lease or bypass an in-flight action.
                 from pm_workflows.runtime import WorkflowTerminated
@@ -517,7 +639,7 @@ def build_app(
         from workflows.introspection.snapshot import build_capability_overlay, overlay_public
         from workflows.public_speech.reply_recovery import ReplyRecovery
 
-        def provider():
+        def provider() -> dict[str, Any]:
             # The overlay is rebuilt by the private loop and cached on the app.
             # A public reply reads the cache, so no repository scan delays speech.
             snapshot = capability_snapshot(ghost, supervisor.workflows)
@@ -533,7 +655,7 @@ def build_app(
             catalogue = ToolCatalogue(tool_call)
             main_cog.workflow_catalogue_provider = lambda: [
                 WorkflowOption.model_validate(item) for item in _cognition_workflow_options(supervisor, catalogue)]
-        def retrieval_query(text):
+        def retrieval_query(text: str) -> dict[str, str]:
             from workflows.main_cognition.model_json import StageOutputError, extract_json
             raw = stage_model.complete([
                 {"role": "system", "content": "Rewrite this message as a short memory search query. "
@@ -612,7 +734,7 @@ def build_app(
     app.supervisor = supervisor
     app.stop_workers = supervisor.stop
 
-    def finish_workers():
+    def finish_workers() -> None:
         """Join all owned work before recording a successful clean stop."""
         supervisor.shutdown(preserve_parked=app.drained.is_set())
         if record_lifecycle and app.error is None:
@@ -632,7 +754,7 @@ def build_app(
 
         active_module_ids = frozenset(module.module_id for module in modules)
 
-        def rebuild_overlay():
+        def rebuild_overlay() -> CapabilityOverlay:
             previous = getattr(app, "capability_overlay", None)
             overlay = build_capability_overlay(
                 ghost=ghost, active_modules=active_module_ids, config_path=resolved_config)

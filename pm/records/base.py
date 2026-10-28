@@ -7,7 +7,14 @@ not own: concrete cognitive payload fields, persistence backends, module schedul
 fails when: pydantic rejects malformed base fields or a subclass name is missing from the RecordKind registry.
 domain: every memory object shares a base identity, causal time range, trace tags, and optional owner-backed lookup surface before specialized knoxel models add domain payload.
 invariant: RecordBase.type resolves through the public RecordKind registry, and owner-backed access assumes RecordOwner stores knoxels by stable ids.
+
+This module is also the canonical overview of the ``pm.records`` package: every
+other record module adds payload fields to ``RecordBase`` and explains only its
+own contribution. Reading map: ``enums.py`` holds the subtype vocabularies,
+``lineage.py`` the episode links, ``cycle_state.py`` the per-tick container that
+references these records, and each remaining module holds one record family.
 """
+from __future__ import annotations
 
 from pm import vclock
 
@@ -15,12 +22,7 @@ from datetime import datetime, timezone
 import pickle
 import logging
 from enum import StrEnum
-from typing import Dict, Any
-from typing import Self
-from typing import List
-from typing import (
-    Optional,
-)
+from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
@@ -68,8 +70,11 @@ def get_causal_datetime() -> datetime:
 
 
 def get_real_datetime() -> datetime:
-    """
-    Real world time, for system.
+    """Return real wall-clock time as naive UTC, for system bookkeeping.
+
+    Records keep naive UTC everywhere, so local wall time must never reach a
+    timestamp field: restart-gap comparisons and the reconsolidation time
+    buckets compare these values directly.
     """
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
@@ -99,7 +104,7 @@ class Provenance(BaseModel):
     """
     model_config = ConfigDict(frozen=True)
     source_kind: SourceKind
-    source_ref: Optional[str] = Field(default=None, description="e.g. task id, workflow run id, entity id")
+    source_ref: str | None = Field(default=None, description="e.g. task id, workflow run id, entity id")
 
 
 class RecordKind(StrEnum):
@@ -139,7 +144,7 @@ class RecordKind(StrEnum):
 
 class RecordBase(BaseModel):
     _trace_tags: set[str] = PrivateAttr(default_factory=set)
-    _owner: Optional["RecordOwner"] = PrivateAttr(default=None)
+    _owner: RecordOwner | None = PrivateAttr(default=None)
 
     id: int = -1
     tick_id: int = -1
@@ -153,12 +158,12 @@ class RecordBase(BaseModel):
     timestamp_world_begin: datetime = Field(default_factory=get_causal_datetime)
     timestamp_world_end: datetime = Field(default_factory=get_causal_datetime)
     last_accessed: datetime = Field(default_factory=get_real_datetime)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
     lineage: RecordLineage | None = None
     scope: RecordScope = Field(default_factory=RecordScope, description="Reality + frame scoping; default real/in_world.")
-    provenance: Optional[Provenance] = Field(default=None, description="Who/what created this knoxel.")
+    provenance: Provenance | None = Field(default=None, description="Who/what created this knoxel.")
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.id) + hash(self.timestamp_creation)
 
     @property
@@ -189,10 +194,11 @@ class RecordBase(BaseModel):
     def get_story_element(self) -> str:
         return f"{persisted_type_name(type(self))}: {self.content}"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{persisted_type_name(type(self))}: {self.content}"
 
-    def to_json(self):
+    def to_json(self) -> int:
+        """Return the record id. Snapshots carry payloads, not this scalar."""
         return self.id
 
     def __getstate__(self) -> dict[str, Any]:
@@ -270,7 +276,7 @@ class RecordBase(BaseModel):
         return ""
 
     @property
-    def trace_tags(self) -> List[str]:
+    def trace_tags(self) -> list[str]:
         return sorted(self._trace_tags)
 
     def add_trace_tag(self, tag: str) -> None:
@@ -290,21 +296,24 @@ class RecordOwner:
         """Resolve an exact reference. MemoryStore also retains historical versions."""
         return self.all_knoxels.get(knoxel_id)
 
-    def __init__(self):
-        self.all_knoxels: Dict[int, RecordBase] = {}
+    def __init__(self) -> None:
+        self.all_knoxels: dict[int, RecordBase] = {}
 
     @property
-    def sorted_knoxels_raw(self):
+    def sorted_knoxels_raw(self) -> list[RecordBase]:
+        """Return the owned knoxels ordered by real creation time."""
         tmp = list(self.all_knoxels.values())
         tmp.sort(key=lambda x: x.timestamp_creation)
         return tmp
 
     @property
-    def sorted_knoxels_causal(self):
+    def sorted_knoxels_causal(self) -> list[RecordBase]:
+        """Return the owned knoxels in world-time order, which is story order."""
         tmp = list(self.all_knoxels.values())
         tmp.sort(key=lambda x: x.timestamp_world_begin)
         return tmp
 
     @property
-    def max_knoxel_id(self):
+    def max_knoxel_id(self) -> int:
+        """Return the highest record id. An empty owner raises ``ValueError``."""
         return max([k.id for k in self.all_knoxels.values()])

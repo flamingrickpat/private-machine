@@ -12,7 +12,8 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
-from typing import Any, Callable
+from collections.abc import AsyncIterator, Callable
+from typing import Any
 
 import httpx
 from pm.constants import MINECRAFT_REQUEST_SECONDS
@@ -28,7 +29,7 @@ BODY_TOOL = "minecraft_observe"
 
 
 @asynccontextmanager
-async def _client(mcp_url: str, *, timeout: int = MCP_REQUEST_TIMEOUT_SECONDS):
+async def _client(mcp_url: str, *, timeout: int = MCP_REQUEST_TIMEOUT_SECONDS) -> AsyncIterator[Any]:
     """Translate transport failure without hiding cancellation or logic errors.
 
     FastMCP wraps connection errors in RuntimeError. Keep the upstream cause
@@ -46,8 +47,9 @@ async def _client(mcp_url: str, *, timeout: int = MCP_REQUEST_TIMEOUT_SECONDS):
         raise TaskServiceError("Minecraft connection failed. The task outcome is unverified.") from error
 
 
-def _extract_images(content: list) -> list[dict]:
-    images: list[dict] = []
+def _extract_images(content: list[Any]) -> list[dict[str, str]]:
+    """Return the image blocks of one MCP result as media type and base64 data."""
+    images: list[dict[str, str]] = []
     for block in content or []:
         if getattr(block, "type", None) != "image":
             continue
@@ -91,7 +93,7 @@ def build_minecraft_tools(
     a shorter deadline. A transport error leaves external outcomes unverified.
     """
 
-    async def _call(name: str, arguments: dict, token: dict | None = None) -> dict:
+    async def _call(name: str, arguments: dict[str, Any], token: dict[str, str] | None = None) -> dict[str, Any]:
         async with _client(mcp_url, timeout=request_timeout_seconds) as client:
             dispatch_name, dispatch_arguments = name, arguments or {}
             if token is not None:
@@ -108,18 +110,19 @@ def build_minecraft_tools(
                 "images": _extract_images(result.content),
             }
 
-    def minecraft_call(name: str, arguments: dict | None = None) -> dict:
+    def minecraft_call(name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Call one body tool and return the retained structured result."""
         return asyncio.run(_call(name, dict(arguments or {})))
 
-    def minecraft_fenced_call(name: str, arguments: dict, token: dict) -> dict:
+    def minecraft_fenced_call(name: str, arguments: dict[str, Any], token: dict[str, str]) -> dict[str, Any]:
         """Send the pinned epoch to the server with the original tool schema."""
         return asyncio.run(_call(name, arguments, token))
 
-    def minecraft_claim(token: dict) -> dict:
+    def minecraft_claim(token: dict[str, str]) -> dict[str, Any]:
         """Wait for old server work before activating this local lease."""
         return minecraft_call("minecraft_body_claim", {key: token[key] for key in ("owner", "epoch", "session")})
 
-    def minecraft_release(token: dict) -> dict:
+    def minecraft_release(token: dict[str, str]) -> dict[str, Any]:
         """Release remote ownership after external cleanup. Retain its epoch."""
         return minecraft_call("minecraft_body_release", {key: token[key] for key in ("owner", "epoch", "session")})
 
@@ -129,8 +132,10 @@ def build_minecraft_tools(
                 return [tool.name for tool in await client.list_tools()]
         return asyncio.run(_list())
 
-    def minecraft_tool_schemas() -> list[dict]:
-        async def _list() -> list[dict]:
+    def minecraft_tool_schemas() -> list[dict[str, Any]]:
+        """Return the server's public tool schemas, without body bookkeeping tools."""
+
+        async def _list() -> list[dict[str, Any]]:
             async with _client(mcp_url, timeout=request_timeout_seconds) as client:
                 return [{"name": tool.name, "description": tool.description,
                          "parameters": tool.inputSchema} for tool in await client.list_tools()
@@ -155,10 +160,10 @@ def build_minecraft_tools(
     return tools
 
 
-def _build_plan_tool(plan_model) -> Callable[..., str]:
+def _build_plan_tool(plan_model: Callable[..., str] | None) -> Callable[..., str]:
     """Let a model choose one allowed action, with a deterministic fallback."""
 
-    def minecraft_plan(observation: str, allowed_tools: list[dict], goal: str) -> str:
+    def minecraft_plan(observation: str, allowed_tools: list[dict[str, Any]], goal: str) -> str:
         if plan_model is None:
             raise RuntimeError("Minecraft planning needs a configured model or an explicit action_tool.")
         import json

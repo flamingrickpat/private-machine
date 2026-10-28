@@ -12,6 +12,7 @@ applies the changes. This phase never writes memory.
 """
 from __future__ import annotations
 
+from pm_workflows.python_role import RoleContext
 from pydantic import create_model, model_validator
 
 from pm.context_render import render_context
@@ -91,7 +92,7 @@ CheckedGoals = create_model("CheckedGoals", __base__=GoalsResult,
                             __validators__={"allowed": model_validator(mode="after")(validate_changes)})
 
 
-def run(context, work: CycleWork) -> CycleWork:
+def run(context: RoleContext, work: CycleWork) -> CycleWork:
     prefix = StoryPrefix(work)
     answer = complete(context, work, build_messages(work, phase_prompts("goals"), prefix), CheckedGoals,
                       grounded=True, emotion=False, grounding_at=len(prefix.turns))

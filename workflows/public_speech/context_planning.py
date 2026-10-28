@@ -22,8 +22,11 @@ from __future__ import annotations
 
 from pm import vclock
 
+from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
+from threading import Event
+from typing import TYPE_CHECKING, Any
 
 import tiktoken
 from pydantic import BaseModel, ConfigDict, Field
@@ -35,6 +38,10 @@ from pm.records.memory_records import Feature
 from pm.memory.context_plan import ContextPlan, Focus, PlanSpec, plan_context
 from pm.memory.retrieval import candidate, memory_kind, record_text, scoped_records
 from workflows.public_speech.public_context import DialogueTurn, EvidenceItem
+
+if TYPE_CHECKING:
+    from pm.memory.embeddings import EmbeddingService
+    from pm.memory.snapshot import RecordView
 
 PLANS_FILE = Path(__file__).resolve().parent / "context_plans.yaml"
 THOUGHT_TYPES = {"Thought", "InnerMonologue"}
@@ -82,8 +89,9 @@ def focus_queries(focus: FocusInput) -> list[tuple[float, str]]:
     return [(weight, text.strip()) for weight, text in queries if text and text.strip()]
 
 
-def _scopes(view, ids) -> set[tuple[int, str]]:
-    scopes = set()
+def _scopes(view: RecordView, ids: Sequence[int]) -> set[tuple[int, str]]:
+    """Return the reality scopes of the current stimuli, or the in-world default."""
+    scopes: set[tuple[int, str]] = set()
     for key in ids:
         record = view.get_knoxel_by_id(key)
         if record is not None:
@@ -91,14 +99,20 @@ def _scopes(view, ids) -> set[tuple[int, str]]:
     return scopes or {(-1, "in_world")}
 
 
-def _turn(view, key: int, record: RecordBase) -> DialogueTurn:
+def _turn(view: RecordView, key: int, record: RecordBase) -> DialogueTurn:
+    """Render one record as a transcript line, marked as speech or thought."""
     kind = "thought" if isinstance(record, Feature) and record.feature_type.value in THOUGHT_TYPES else "speech"
     speaker = record.source if isinstance(record, Feature) else "unknown"
     return DialogueTurn(speaker=speaker, text=" ".join(record.content.split()), knoxel_id=key,
                         timestamp=record.timestamp_world_begin.isoformat(), kind=kind)
 
 
-async def _embed_focus(embeddings, queries, cancel) -> tuple[list[tuple[float, list[float]]], dict]:
+async def _embed_focus(
+    embeddings: EmbeddingService | None,
+    queries: list[tuple[float, str]],
+    cancel: Event | None,
+) -> tuple[list[tuple[float, list[float]]], dict[str, Any]]:
+    """Embed the focus queries, reporting an unavailable service instead of failing."""
     if embeddings is None:
         return [], {"status": "disabled"}
     try:
@@ -108,8 +122,9 @@ async def _embed_focus(embeddings, queries, cancel) -> tuple[list[tuple[float, l
         return [], {"status": "unavailable", "error": str(error), "fallback": "lexical"}
 
 
-async def plan_reply_context(view, plan_name: str, focus: FocusInput, embeddings=None, *,
-                             now: datetime | None = None, cancel=None,
+async def plan_reply_context(view: RecordView, plan_name: str, focus: FocusInput,
+                             embeddings: EmbeddingService | None = None, *,
+                             now: datetime | None = None, cancel: Event | None = None,
                              total_tokens: int | None = None) -> PlannedContext:
     """Plan one reply's context from a frozen MemoryStore view.
 
@@ -127,7 +142,8 @@ async def plan_reply_context(view, plan_name: str, focus: FocusInput, embeddings
             token_cache[key] = record_tokens(record_text(records[key]))
         return token_cache[key]
 
-    def vector_of(key: int):
+    def vector_of(key: int) -> list[float] | None:
+        """Return the stored vector of one record, or None when it has none."""
         return view.get(key).embedding or None
 
     queries = focus_queries(focus)
@@ -140,7 +156,7 @@ async def plan_reply_context(view, plan_name: str, focus: FocusInput, embeddings
     dialogue_lanes = [lane for lane in spec.lanes if lane.select == "recent"]
     dialogue_names = {lane.name for lane in dialogue_lanes}
     dialogue = [_turn(view, key, records[key]) for lane in plan.lanes if lane.name in dialogue_names for key in lane.ids]
-    evidence = []
+    evidence: list[EvidenceItem] = []
     for lane in plan.lanes:
         if lane.name in dialogue_names:
             continue
@@ -161,7 +177,8 @@ async def plan_reply_context(view, plan_name: str, focus: FocusInput, embeddings
     return PlannedContext(dialogue=dialogue, evidence=evidence, trace=_trace(plan, semantic, embedded))
 
 
-def _trace(plan: ContextPlan, semantic: dict, embedded: int) -> dict:
+def _trace(plan: ContextPlan, semantic: dict[str, Any], embedded: int) -> dict[str, Any]:
+    """Return the plan receipt that the reply trace shows beside the context."""
     return {
         "plan": plan.spec, "semantic": semantic, "new_embeddings": embedded, "rounds": plan.rounds,
         "lanes": [{"name": lane.name, "budget": lane.budget, "used": lane.used, "selected": len(lane.ids),

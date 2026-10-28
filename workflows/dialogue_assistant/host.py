@@ -9,9 +9,11 @@ from __future__ import annotations
 
 from pm import vclock
 
+from collections.abc import Callable, Sequence
 from datetime import datetime
-from typing import Callable
 from functools import partial
+from threading import Event
+from typing import TYPE_CHECKING
 
 from pm.memory.store_tools import build_mcp, build_tools
 from pm.runs.management_api import build_management_tools, management_mcp
@@ -20,14 +22,33 @@ from workflows.dialogue_assistant.schemas import AssistantMessage, AssistantRepo
 from workflows.dialogue_assistant.steps import ToolExecutionError, load_prompts, unsupported_management_claims
 from workflows.dialogue_assistant.tools import reply_tools
 from workflows.main_cognition.schemas import ActionRequest
-from workflows.public_speech.public_context import ability_lines, time_lines
+from workflows.public_speech.public_context import DialogueTurn, ability_lines, time_lines
 from workflows.public_speech.public_dialogue import PublicDialogue, _clip
 
+if TYPE_CHECKING:
+    from pm.llm.stage_model import LazyStageModel
+    from pm.memory.bash_view import MemoryBashEnvironment
+    from pm.runs.supervisor import ManagedRunSupervisor
 
-def build_assistant_tools(model, supervisor, *, cancel_provider=None, minecraft_endpoint=None) -> Callable[[object, object], dict]:
-    """Return ``tools_factory(environment, batch)`` for Assistant dialogue."""
 
-    def factory(environment, batch) -> dict:
+def build_assistant_tools(
+    model: LazyStageModel,
+    supervisor: ManagedRunSupervisor,
+    *,
+    cancel_provider: Callable[[], Event | None] | None = None,
+    minecraft_endpoint: str | None = None,
+) -> Callable[[MemoryBashEnvironment, object], dict[str, Callable[..., object]]]:
+    """Return ``tools_factory(environment, batch)`` for Assistant dialogue.
+
+    The factory binds completion tools, the management API, and the scoped
+    memory tools of one invocation. ``cancel_provider`` supplies the run's
+    cancellation event; ``minecraft_endpoint`` is the resolved body endpoint,
+    and None gives the role a tool that reports the missing body instead of
+    letting it claim a world read it never made.
+    """
+
+    def factory(environment: MemoryBashEnvironment, batch: object) -> dict[str, Callable[..., object]]:
+        """Return the tools of one Assistant invocation."""
         cancel = cancel_provider() if cancel_provider is not None else None
         tools = {"assistant_complete": model.build_tool_completion(cancel=cancel)}
         tools["public_complete"] = model.build_async_tool(cancel=cancel)
@@ -41,7 +62,7 @@ def build_assistant_tools(model, supervisor, *, cancel_provider=None, minecraft_
             # The manifest always grants this tool name, so the role needs a
             # callable. Without a body it fails as a tool receipt, and the
             # assistant cannot claim an inventory that it never read.
-            def minecraft_observe(include_image: bool = False):
+            def minecraft_observe(include_image: bool = False) -> dict[str, object]:
                 """Report that this character has no configured body."""
                 raise ToolExecutionError(
                     "No Minecraft body is configured for this character. "
@@ -52,8 +73,12 @@ def build_assistant_tools(model, supervisor, *, cancel_provider=None, minecraft_
         from workflows.minecraft_body.lease import BODY_LEASES
         endpoint = minecraft_endpoint
         minecraft = build_minecraft_tools(endpoint)
-        def minecraft_observe(include_image: bool = False):
-            """Read current numeric state. The public text model gets no pixels."""
+        def minecraft_observe(include_image: bool = False) -> dict[str, object]:
+            """Read current numeric state. The public text model gets no pixels.
+
+            The read shares the body command lock, so it never claims the
+            mutation lease or bypasses an actor call already in flight.
+            """
             with BODY_LEASES.command(endpoint):
                 result = minecraft["minecraft_call"]("minecraft_observe", {"include_image": False})
                 owner = BODY_LEASES.owner(endpoint)
@@ -66,10 +91,13 @@ def build_assistant_tools(model, supervisor, *, cancel_provider=None, minecraft_
     return factory
 
 
-def build_assistant_mcp_factory(supervisor) -> Callable[[object], dict]:
+def build_assistant_mcp_factory(
+    supervisor: ManagedRunSupervisor,
+) -> Callable[[object], dict[str, object]]:
     """Return ``mcp_services_factory(environment)`` for one Assistant run."""
 
-    def factory(environment) -> dict:
+    def factory(environment: object) -> dict[str, object]:
+        """Return the MCP servers this run's role may call."""
         return {
             "workflow_management": management_mcp(supervisor),
             "ghost": build_mcp(environment),
@@ -98,7 +126,7 @@ class AssistantDialogue(PublicDialogue):
             return envelope.target in {None, self.module_id, self.WORKFLOW_NAME}
         return super().accepts(envelope)
 
-    def prepare_input(self, batch: list[Envelope]) -> dict:
+    def prepare_input(self, batch: list[Envelope]) -> dict[str, object]:
         """Build the typed Assistant request from the typed action request.
 
         The reply answers the partner of the request. The prior chat window,
@@ -134,7 +162,8 @@ class AssistantDialogue(PublicDialogue):
         )
         return request.model_dump(mode="json")
 
-    def _prior_dialogue(self, current: str, turns, partner_name: str) -> list[AssistantMessage]:
+    def _prior_dialogue(self, current: str, turns: Sequence[DialogueTurn],
+                        partner_name: str) -> list[AssistantMessage]:
         """Turn the speech of the transcript into user and assistant chat messages.
 
         A line of the partner becomes a user message. A line of the companion
@@ -150,7 +179,7 @@ class AssistantDialogue(PublicDialogue):
             messages.append(AssistantMessage(role=role, content=_clip(turn.text, 1500)))
         return messages
 
-    def publish_output(self, report: dict, batch: list[Envelope]) -> None:
+    def publish_output(self, report: dict[str, object], batch: list[Envelope]) -> None:
         parsed = AssistantReport.model_validate(report)
         correlation = batch[0].correlation_id if batch else ""
         cause = batch[0].id if batch else None

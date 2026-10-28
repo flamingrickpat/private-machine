@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import datetime
 import math
-from typing import TYPE_CHECKING, Dict, List, Sequence, Type, TypeVar, Optional, Tuple
+from typing import TYPE_CHECKING, Sequence, TypeVar
 from pydantic import BaseModel, Field
 
 from pm.constants import (
@@ -53,7 +53,7 @@ class MentalState(BaseModel):
     """
     @classmethod
     def get_vector_positions(cls):
-        positions: Dict[str, int] = {}
+        positions: dict[str, int] = {}
         if hasattr(cls, "model_fields"):
             for name, finfo in getattr(cls, "model_fields").items():
                 extra = getattr(finfo, "json_schema_extra", None) or {}
@@ -68,7 +68,7 @@ class MentalState(BaseModel):
         return positions
 
     @classmethod
-    def init_from_vector(cls: Type[T], values: Sequence[float]) -> T:
+    def init_from_vector(cls: type[T], values: Sequence[float]) -> T:
         """
         Some values are 0 - 1. To be able to model deltas, skip check.
         :param values:
@@ -81,7 +81,7 @@ class MentalState(BaseModel):
                 res.__dict__[k] = values[pos[k]]
         return res
 
-    def to_vector(self) -> List[float]:
+    def to_vector(self) -> list[float]:
         out = [0.0] * VectorModelReservedSize
         cls = self.__class__
         pos = cls.get_vector_positions()
@@ -315,7 +315,7 @@ class StateEmotions(LatentMentalState):
         pass
 
 class StateRelationship(LatentMentalState):
-    entity_id: Optional[int] = Field(default=None, description="Stable identifier for the other agent/user.", json_schema_extra={"vector_position": VectorModelRelationshipEntityID})
+    entity_id: int | None = Field(default=None, description="Stable identifier for the other agent/user.", json_schema_extra={"vector_position": VectorModelRelationshipEntityID})
     affection: float = Field(0.0, ge=-1.0, le=1.0, description="Affective valence toward this partner.", json_schema_extra={"vector_position": 601})
     trust: float = Field(0.0, ge=-1.0, le=1.0, description="Trust specific to this partner.", json_schema_extra={"vector_position": 602})
     reliability_belief: float = Field(0.0, ge=-1.0, le=1.0, description="Expectation that partner follows through.", json_schema_extra={"vector_position": 603})
@@ -362,7 +362,7 @@ class FullMentalState(BaseModel):
     state_emotions: StateEmotions = Field(default_factory=StateEmotions)
     state_cognition: StateCognition = Field(default_factory=StateCognition)
     state_needs: StateNeeds = Field(default_factory=StateNeeds)
-    state_relationship: Optional[StateRelationship] = Field(default=None)
+    state_relationship: StateRelationship | None = Field(default=None)
 
     state_personality: PersonalityProfile = Field(default_factory=make_personality_profile)
     state_expression: StateExpression = Field(default_factory=StateExpression)
@@ -378,7 +378,7 @@ class FullMentalState(BaseModel):
         return res
 
     @classmethod
-    def init_from_list(cls, lst: List[float]):
+    def init_from_list(cls, lst: list[float]):
         """
         Never do type checking.
         :param lst:
@@ -406,10 +406,10 @@ class FullMentalState(BaseModel):
         return res
 
     @classmethod
-    def init_delta_from_list(cls, lst: List[float]):
+    def init_delta_from_list(cls, lst: list[float]):
         return cls.init_from_list(lst)
 
-    def apply_list(self, lst: List[float]):
+    def apply_list(self, lst: list[float]):
         for state in [self.appraisal_general, self.appraisal_social, self.state_neurochemical, self.state_core, self.state_emotions, self.state_cognition, self.state_needs, self.state_expression_ext]:
             state.from_vector(lst)
 
@@ -430,7 +430,7 @@ def _blend(prev: float, target: float, k: float) -> float:
 def _clip(x, lo, hi):
     return lo if x < lo else (hi if x > hi else x)
 
-def _median(x: List[float]) -> float:
+def _median(x: list[float]) -> float:
     n = len(x)
     if n == 0:
         return 0.0
@@ -513,7 +513,7 @@ def _derive_expression_ext(
     em: StateEmotions, core: StateCore, neu: StateNeurochemical,
     ap: AppraisalGeneral, soc: AppraisalSocial,
     pers: PersonalityProfile,
-    rel: Optional[StateRelationship] = None,
+    rel: StateRelationship | None = None,
 ) -> StateExpressionExt:
     base = _derive_expression_universal(em, core, neu, ap)
 
@@ -663,7 +663,7 @@ def _derive_expression_ext(
     )
 
 
-def compute_state_delta(current_ms: FullMentalState, relationship_entity_id: Optional[int] = None) -> Tuple[FullMentalState, FullMentalState]:
+def compute_state_delta(current_ms: FullMentalState, relationship_entity_id: int | None = None) -> tuple[FullMentalState, FullMentalState]:
     """
     Maps current appraisals (+ social + neuromods) and current core readout to:
       - StateCore (valence/arousal/dominance) readouts/deltas
@@ -834,12 +834,12 @@ def compute_state_delta(current_ms: FullMentalState, relationship_entity_id: Opt
     state_delta = FullMentalState.init_delta_from_list(delta)
     return state_result, state_delta
 
-def _collect_axis_bounds() -> Dict[int, Tuple[Optional[float], Optional[float]]]:
+def _collect_axis_bounds() -> dict[int, tuple[float | None, float | None]]:
     """
     Build a map from global vector index -> (ge, le) by scanning your models.
     Only positions that appear in your models will be returned.
     """
-    bounds: Dict[int, Tuple[Optional[float], Optional[float]]] = {}
+    bounds: dict[int, tuple[float | None, float | None]] = {}
     classes = [
         AppraisalGeneral, AppraisalSocial, StateNeurochemical, StateCore,
         StateEmotions, StateCognition, StateNeeds, StateRelationship
@@ -870,13 +870,13 @@ def _collect_axis_bounds() -> Dict[int, Tuple[Optional[float], Optional[float]]]
 EMA_STATE_MODELS = (StateCore, StateEmotions, StateNeeds, StateRelationship)
 
 
-def _collect_axis_defaults() -> Dict[int, float]:
+def _collect_axis_defaults() -> dict[int, float]:
     """Return a map from vector position to the field default, for the axes that the EMA sums.
 
     The EMA readout puts an axis without deviation at its default. The
     relationship entity id is an identifier, not an axis, so it is left out.
     """
-    defaults: Dict[int, float] = {}
+    defaults: dict[int, float] = {}
     for cls in EMA_STATE_MODELS:
         for _, finfo in cls.model_fields.items():
             pos = int(finfo.json_schema_extra["vector_position"])
@@ -899,16 +899,16 @@ def _naive_utc(value: datetime.datetime) -> datetime.datetime:
 
 
 def ema_baselined_normalize(
-    history: List[Tuple[datetime.datetime, List[float]]],
+    history: list[tuple[datetime.datetime, list[float]]],
     vec_len: int,
     half_life_s: float,
-    axis_bounds: Dict[int, Tuple[Optional[float], Optional[float]]],
-    axis_defaults: Dict[int, float],
-    start_level: Optional[List[float]] = None,
-    now: Optional[datetime.datetime] = None,
+    axis_bounds: dict[int, tuple[float | None, float | None]],
+    axis_defaults: dict[int, float],
+    start_level: list[float] | None = None,
+    now: datetime.datetime | None = None,
     sigma_floor: float = MENTAL_STATE_SIGMA_FLOOR,
     tanh_gain: float = MENTAL_STATE_TANH_GAIN,
-) -> List[float]:
+) -> list[float]:
     """Return the time-aware, EMA-baselined readout of a delta history.
 
     ``history`` holds ``(time, delta vector)`` pairs. The function sorts them
@@ -953,7 +953,7 @@ def ema_baselined_normalize(
         for i in axes:
             ema[i] += alpha * (level[i] - ema[i])
 
-    dev_samples: Dict[int, List[float]] = {i: [] for i in axes}
+    dev_samples: dict[int, list[float]] = {i: [] for i in axes}
     for t, delta in history:
         catch_up(max(0.0, (t - last_t).total_seconds()))
         last_t = t
@@ -994,10 +994,10 @@ class MentalStateSample(BaseModel):
     """
 
     timestamp: datetime.datetime = Field(default_factory=datetime.datetime.utcnow)
-    entity_ids: List[int] = Field(default_factory=list)
-    delta: Dict[int, float] = Field(default_factory=dict)
+    entity_ids: list[int] = Field(default_factory=list)
+    delta: dict[int, float] = Field(default_factory=dict)
 
-    def vector(self) -> List[float]:
+    def vector(self) -> list[float]:
         """Return the delta as a full vector of ``VectorModelReservedSize`` values."""
         out = [0.0] * VectorModelReservedSize
         for pos, value in self.delta.items():
@@ -1005,13 +1005,13 @@ class MentalStateSample(BaseModel):
         return out
 
 
-def sparse_delta(vector: Sequence[float]) -> Dict[int, float]:
+def sparse_delta(vector: Sequence[float]) -> dict[int, float]:
     """Return the non-zero, finite positions of a delta vector, without the entity id slot."""
     return {pos: float(value) for pos, value in enumerate(vector)
             if pos != VectorModelRelationshipEntityID and value and math.isfinite(value)}
 
 
-def alpha_clamp_delta(vector: Sequence[float]) -> List[float]:
+def alpha_clamp_delta(vector: Sequence[float]) -> list[float]:
     """ALPHA RUN ONLY. Return ``vector`` with every axis clamped to +-``ALPHA_MAX_STIMULUS_DELTA``.
 
     !!! TEMPORARY FAILSAFE FOR THE ALPHA RUN. FIX PROPERLY LATER. !!!
@@ -1090,8 +1090,8 @@ def percept_state_sample(percept: "CodeletPercept") -> MentalStateSample:
                          percept.mental_state_appraisal_vec, percept.mental_state_delta_vec)
 
 
-def features_to_history(features: List["Feature"],
-                        percepts: Sequence["CodeletPercept"] = ()) -> List[MentalStateSample]:
+def features_to_history(features: list["Feature"],
+                        percepts: Sequence["CodeletPercept"] = ()) -> list[MentalStateSample]:
     """Return the EMA samples of the causal features and percepts, oldest first.
 
     Only causal records count: they entered the story. A codelet percept
@@ -1110,7 +1110,7 @@ def features_to_history(features: List["Feature"],
     return sorted(samples, key=lambda sample: sample.timestamp)
 
 
-def reference_half_life_seconds(ego_strength: Optional[float] = None) -> float:
+def reference_half_life_seconds(ego_strength: float | None = None) -> float:
     """Return the EMA half-life of the mental state, in seconds.
 
     The old ``cognitive_cycle`` scaled the reference time frame by
@@ -1125,7 +1125,7 @@ def reference_half_life_seconds(ego_strength: Optional[float] = None) -> float:
 
 
 def compute_mental_state(
-    samples: List[MentalStateSample],
+    samples: list[MentalStateSample],
     *,
     now: datetime.datetime,
     half_life_s: float,
@@ -1183,7 +1183,7 @@ def derive_expression(state: FullMentalState) -> None:
 
 
 def compute_relationship_state(
-    samples: List[MentalStateSample],
+    samples: list[MentalStateSample],
     entity_id: int,
     *,
     now: datetime.datetime,
@@ -1203,7 +1203,7 @@ def compute_relationship_state(
 
 
 # Fix your earlier bug: make sure FullMentalState.init_from_list returns the instance.
-def _init_ms_from_vec(vec: List[float]) -> "FullMentalState":
+def _init_ms_from_vec(vec: list[float]) -> "FullMentalState":
     ms = FullMentalState()
     for state in [
         ms.appraisal_general, ms.appraisal_social, ms.state_neurochemical,
@@ -1248,7 +1248,7 @@ def _relationship_signal(sample: MentalStateSample) -> float:
 
 
 def compute_partner_expectation_profile(
-    samples: List[MentalStateSample],
+    samples: list[MentalStateSample],
     entity_id: int,
     reference_timeframe_minutes: int = 60 * 24,
     *,
@@ -1299,7 +1299,7 @@ def compute_partner_expectation_profile(
 
 
 
-def compute_attention_bias(ms: FullMentalState) -> Tuple[float, float]:
+def compute_attention_bias(ms: FullMentalState) -> tuple[float, float]:
     """
     Compute internal attention-selection biases from latent/active state.
     Returns:

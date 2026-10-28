@@ -8,7 +8,8 @@ from __future__ import annotations
 import re
 import json
 import hashlib
-from typing import TYPE_CHECKING, Literal
+from collections.abc import Iterable
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -21,7 +22,10 @@ from workflows.main_cognition.cycle_commits import active_goal_texts
 
 if TYPE_CHECKING:
     # main_cognition.schemas imports Presentation from this module.
+    from pm.memory.store import MemoryStore
+    from pm.records.mental_state import FullMentalState
     from workflows.main_cognition.schemas import ActionRequest
+    from workflows.public_speech.context_planning import PlannedContext
 
 
 class DialogueTurn(BaseModel):
@@ -122,7 +126,7 @@ class PublicContext(BaseModel):
     plan: dict = Field(default_factory=dict)
 
 
-def source_fingerprint(record) -> str:
+def source_fingerprint(record: RecordBase) -> str:
     """Hash accepted content without delivery and exchange bookkeeping.
 
     Acknowledgment changes metadata while another utterance reads the same
@@ -146,7 +150,7 @@ def render_public_context(context: PublicContext, kinds: ContextKind = ContextKi
     original context still owns revisions and publication guards. When a
     cognition phase supplies newer affect, it excludes this emotion section.
     """
-    selected: dict = {"companion_name": context.companion_name, "user_name": context.user_name}
+    selected: dict[str, Any] = {"companion_name": context.companion_name, "user_name": context.user_name}
     if context.partner_name and context.partner_name != context.user_name:
         selected["partner_name"] = context.partner_name
     if kinds & ContextKind.Dialogue:
@@ -168,8 +172,10 @@ def render_public_context(context: PublicContext, kinds: ContextKind = ContextKi
     return render_context(selected, kinds, schema_path=schema_path, dedupe=dedupe)
 
 
-def build_public_context(ghost, request: ActionRequest | None = None, *, capabilities: dict | None = None,
-                         planned=None, late_ids: list[int] = ()) -> PublicContext:
+def build_public_context(ghost: MemoryStore, request: ActionRequest | None = None, *,
+                         capabilities: dict[str, Any] | None = None,
+                         planned: PlannedContext | None = None,
+                         late_ids: list[int] = ()) -> PublicContext:
     """Freeze one accepted snapshot without importing raw private thoughts.
 
     ``request`` is the typed action request of the utterance, or None for a
@@ -323,7 +329,7 @@ def build_public_context(ghost, request: ActionRequest | None = None, *, capabil
     )
 
 
-def feelings_in_words(state) -> str:
+def feelings_in_words(state: FullMentalState) -> str:
     """Describe an accepted mental state in words, for example "strong fear and mild guilt".
 
     Core affect and emotions only. Need and appraisal axes read like
@@ -349,7 +355,7 @@ _KIND_WORDS = {
 _HIDDEN_KINDS = {"internal_state"}
 
 
-def format_moment(value) -> str:
+def format_moment(value: object) -> str:
     """Render a record timestamp as plain words, for example "30 May 2026, 21:03"."""
     if not value:
         return ""
@@ -397,7 +403,8 @@ def time_lines(now: str, turns: list[DialogueTurn], templates: dict, names: dict
     return lines
 
 
-def memory_lines(context: PublicContext, *, exclude_ids=(), exclude_texts=(), lanes=None) -> list[str]:
+def memory_lines(context: PublicContext, *, exclude_ids: Iterable[int] = (),
+                 exclude_texts: Iterable[str] = (), lanes: set[str] | None = None) -> list[str]:
     """Render evidence records as dated plain-language lines, oldest first.
 
     The machine label of each record (kind, source, evidence id) becomes a
@@ -415,7 +422,7 @@ def memory_lines(context: PublicContext, *, exclude_ids=(), exclude_texts=(), la
     excluded = {int(key) for key in exclude_ids}
     shown = {" ".join(str(text).split()) for text in exclude_texts}
     people = {context.companion_name, context.user_name, context.partner_name} - {""}
-    rows = []
+    rows: list[tuple[str, str]] = []
     for item in context.evidence:
         if item.knoxel_id in excluded or item.memory_kind in _HIDDEN_KINDS:
             continue
@@ -442,14 +449,15 @@ def memory_lines(context: PublicContext, *, exclude_ids=(), exclude_texts=(), la
     return [line for _, line in sorted(rows, key=lambda row: row[0])]
 
 
-def memory_sections(context: PublicContext, sections: list[dict], *, exclude_ids=(), exclude_texts=()) -> list[str]:
+def memory_sections(context: PublicContext, sections: list[dict[str, str]], *,
+                    exclude_ids: Iterable[int] = (), exclude_texts: Iterable[str] = ()) -> list[str]:
     """Render one titled block per context-plan lane, skipping empty lanes.
 
     ``sections`` is the ordered list of ``{"lane", "title"}`` mappings from a
     workflow prompt file. Titles may use ``{companion_name}`` and ``{partner_name}``.
     """
     names = {"companion_name": context.companion_name, "partner_name": context.partner_name}
-    blocks = []
+    blocks: list[str] = []
     for section in sections:
         lines = memory_lines(context, exclude_ids=exclude_ids, exclude_texts=exclude_texts, lanes={section["lane"]})
         if lines:

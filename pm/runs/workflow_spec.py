@@ -21,6 +21,7 @@ def scoped_children(runtime: WorkflowRuntime, root: Path) -> WorkflowRuntime:
     from pm_workflows.inputs import relative_path
 
     def child(scope: str) -> WorkflowRuntime:
+        """Open one nested child runtime under its own folder."""
         path = root / "children" / relative_path(scope)
         child_runtime = replace(runtime, environment=FolderEnvironment(path, "bash"))
         return scoped_children(child_runtime, path)

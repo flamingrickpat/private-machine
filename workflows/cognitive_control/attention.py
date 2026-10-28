@@ -10,6 +10,7 @@ from pm.records.copying import pickle_copy
 from collections.abc import Sequence
 from datetime import datetime
 import json
+from typing import Any
 from pydantic import BaseModel
 
 from pm.constants import Sampler
@@ -38,7 +39,7 @@ FOCUS_INSTRUCTION = (
     'Answer with only this JSON object and nothing else: {{"accept": true, "reason": "one sentence"}}')
 
 
-def resolve_focus(context, active: FocusState | None, proposals: list[FocusProposalRef],
+def resolve_focus(context: Any, active: FocusState | None, proposals: list[FocusProposalRef],
                   evidence: BaseModel, prefix: Sequence[Turn] = ()) -> FocusState | None:
     """Return effective advice after appraisal and codelet contextualization.
 
@@ -83,7 +84,8 @@ def resolve_focus(context, active: FocusState | None, proposals: list[FocusPropo
     return effective
 
 
-def active_focus(store, now=None, *, maximum_strength: float | None = None) -> FocusState | None:
+def active_focus(store: RecordView, now: datetime | None = None, *,
+                 maximum_strength: float | None = None) -> FocusState | None:
     """Read the latest accepted advice, or None. Expired advice has no effect.
 
     The advice record stores a ``FocusState`` as ``metadata["focus"]``. The

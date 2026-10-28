@@ -25,16 +25,22 @@ import time
 import traceback
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
+from pm import vclock
 from pm.app.character_home import CharacterFile, CharacterHome, parse_personality
 from pm.constants import DEFAULT_SUPPORTED_CAPABILITIES, DEFAULT_UNSUPPORTED_CAPABILITIES, RECONSOLIDATION_WORKERS
 from pm.memory.reconsolidation import ReconsolidationReport, reconsolidate
 from pm.records.enums import FeatureType
 from pm.utils import yaml_util
+
+if TYPE_CHECKING:
+    from pm.llm.stage_model import LazyStageModel
+    from pm.memory.embeddings import EmbeddingService
+    from pm.memory.store import MemoryStore
 
 
 class CapabilityFile(BaseModel):
@@ -82,7 +88,9 @@ class ImportReceipt(BaseModel):
     transfer_ids: list[int] = Field(default_factory=list)
     reconsolidation: ReconsolidationReport | None = None
     model_requests: int = 0
-    started_at: datetime = Field(default_factory=datetime.utcnow)
+    # Receipts record naive UTC, the same convention as the world-time fields
+    # of the records they describe.
+    started_at: datetime = Field(default_factory=vclock.utcnow)
     finished_at: datetime | None = None
     wall_seconds: float = 0.0
     error: str = ""
@@ -93,7 +101,8 @@ class _CardDumper(yaml.SafeDumper):
     """Write multi-line texts as YAML block literals, so the card stays readable and editable."""
 
 
-def _represent_text(dumper: yaml.SafeDumper, value: str):
+def _represent_text(dumper: yaml.SafeDumper, value: str) -> yaml.nodes.ScalarNode:
+    """Write one string, as a YAML block literal when it holds a newline."""
     style = "|" if "\n" in value else None
     return dumper.represent_scalar("tag:yaml.org,2002:str", value, style=style)
 
@@ -149,7 +158,7 @@ def init_home(home: CharacterHome, *, companion_name: str, user_name: str, card:
     home.create_store()
 
 
-def build_models(config_path: str):
+def build_models(config_path: str) -> "tuple[LazyStageModel, EmbeddingService]":
     """Return ``(stage_model, embeddings)`` for a model config file.
 
     The stage model activates on its first call. Embedding vectors stay on
@@ -181,7 +190,7 @@ def import_chat(home: CharacterHome, csv_path: Path, config_path: str, *, limit:
     from pm.app.chat_import import (add_transfer_records, file_sha256, group_exchanges, import_exchanges,
                                     read_chat_csv, synthesize_times)
     started = time.monotonic()
-    now = now or datetime.utcnow()
+    now = now or vclock.utcnow()
     sha = file_sha256(csv_path)
     import_id = f"import-{now.strftime('%Y%m%dT%H%M%S')}-{sha[:8]}"
     home.import_dir.mkdir(parents=True, exist_ok=True)
@@ -229,7 +238,7 @@ def import_chat(home: CharacterHome, csv_path: Path, config_path: str, *, limit:
         _embed_records(store, embeddings, receipt.transfer_ids)
         receipt.status = "completed"
         receipt.model_requests = stage.request_count
-        receipt.finished_at = datetime.utcnow()
+        receipt.finished_at = vclock.utcnow()
         receipt.wall_seconds = round(time.monotonic() - started, 1)
         store.checkpoint = home.ghost_pickle
         batch = store.begin_batch(f"{import_id}-save")
@@ -243,7 +252,7 @@ def import_chat(home: CharacterHome, csv_path: Path, config_path: str, *, limit:
         receipt.error = f"{type(error).__name__}: {error}"
         receipt.traceback = traceback.format_exc()
         receipt.model_requests = stage.request_count if stage is not None else 0
-        receipt.finished_at = datetime.utcnow()
+        receipt.finished_at = vclock.utcnow()
         receipt.wall_seconds = round(time.monotonic() - started, 1)
         path.write_text(receipt.model_dump_json(indent=2), encoding="utf-8")
         raise
@@ -251,7 +260,7 @@ def import_chat(home: CharacterHome, csv_path: Path, config_path: str, *, limit:
     return receipt
 
 
-def _embed_records(store, embeddings, ids: list[int]) -> None:
+def _embed_records(store: "MemoryStore", embeddings: "EmbeddingService", ids: list[int]) -> None:
     """Store every missing vector on its record before the final import save."""
     import asyncio
     asyncio.run(embeddings.prepare_index(store.snapshot(set(ids)).all_knoxels))
@@ -273,6 +282,7 @@ def reconsolidate_home(home: CharacterHome, config_path: str) -> Reconsolidation
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Return the parser of the three character commands."""
     parser = argparse.ArgumentParser(prog="python -m pm.app.character_cli",
                                      description="Quick start of an existing character in pm.")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -317,7 +327,7 @@ def main(argv: list[str] | None = None) -> int:
         close_logging()
 
 
-def _run_command(args) -> int:
+def _run_command(args: argparse.Namespace) -> int:
     """Run the parsed character command under the caller's diagnostics."""
     home = CharacterHome(args.home)
     if args.command == "init":

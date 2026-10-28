@@ -110,6 +110,23 @@ Comments must explain facts that a human needs to modify the implementation safe
 A comment that repeats an assignment does not explain an invariant or a design decision.
 Precise type annotations and source-generated API references complement that explanation.
 
+### Typed contracts
+
+Use a named type when a value has a stable set of fields.
+
+- Use a Pydantic model for data that is validated, persisted, or shown to a model.
+- Use a `TypedDict` for a fixed JSON-shaped mapping that stays a mapping at runtime.
+- Use a `Protocol` for a boundary that several implementations satisfy.
+- Use `dict[str, JsonValue]` only for genuinely open JSON, such as a provider request or an HTTP body. Document the expected keys beside the boundary.
+
+Do not return an anonymous dictionary for an internal domain record.
+Do not use `Any`, `getattr`, or `# type: ignore` to pass a known interface.
+When reflection is unavoidable, name the invariant and the reason in a comment.
+
+Public modules, classes, and functions need accurate annotations and a docstring.
+A module docstring states what the module owns, its inputs and outputs, its side effects, its failure modes, and where the canonical subsystem overview lives.
+Do not repeat the whole overview in every file.
+
 ## Document the real implementation
 
 Every delivered mechanism needs a detailed explanation of its actual execution path and operational behavior.

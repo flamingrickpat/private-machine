@@ -24,7 +24,7 @@ import hashlib
 import mimetypes
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
 from pm.constants import BODY_EPISODE_TAGGED_IMAGES, MINECRAFT_MCP_SERVER
 from pm.records.media import MediaProvenance, RecordImage, attach_images, image_from_bytes, with_tags
@@ -35,6 +35,9 @@ from pm.records.memory_records import Feature
 from pm.records.base import Provenance
 from pm.records.world_records import BodyEpisodeRecord, WorldObjectRecord, WorldPlaceRecord
 from pm.records.enums import FeatureType, InterlocusType, SourceKind
+
+if TYPE_CHECKING:
+    from pm.memory.store import MemoryStore
 
 TEXT_SUFFIXES = frozenset({".md", ".txt", ".yaml", ".yml", ".json"})
 IMAGE_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".webp", ".gif"})
@@ -78,7 +81,8 @@ class ConsolidationReceipt:
 class Consolidator:
     """One consolidator bound to one MemoryStore."""
 
-    def __init__(self, ghost, *, clock: Callable[[], float]) -> None:
+    def __init__(self, ghost: MemoryStore, *, clock: Callable[[], float]) -> None:
+        """Retain the store whose records the consolidation commits into."""
         self.ghost = ghost
         self.clock = clock
 

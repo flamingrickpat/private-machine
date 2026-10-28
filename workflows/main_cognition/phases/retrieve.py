@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import json
 
+from pm_workflows.python_role import RoleContext
+
 from pm.context_render import render_context
 from pm.context_render.turns import Turn, format_content
 
@@ -95,7 +97,7 @@ def retain_valid_selection(result: ContextResult, candidates: list[MemoryCandida
         "memories": [str(sources[key]) for key in retained]}), dropped
 
 
-def select(context, work: CycleWork, prompts: PhasePrompts) -> ContextResult:
+def select(context: RoleContext, work: CycleWork, prompts: PhasePrompts) -> ContextResult:
     """Ask the model for a selection and repair invalid ids once.
 
     Diagnostic files go to ``outbox/`` of the working target.
@@ -131,7 +133,7 @@ def select(context, work: CycleWork, prompts: PhasePrompts) -> ContextResult:
     return result
 
 
-def run(context, work: CycleWork) -> CycleWork:
+def run(context: RoleContext, work: CycleWork) -> CycleWork:
     """Select memories and bind them to their original candidate records."""
     result = select(context, work, phase_prompts("retrieve"))
     by_id = {item.knoxel_id: item for item in work.request.memory_candidates}

@@ -1,4 +1,12 @@
-"""Discover persona homes and fork trusted checkpoints without changing sources."""
+"""Discover persona homes and fork trusted checkpoints without changing sources.
+
+A persona home is a folder with ``character.yaml`` and a ``ghost.pickle``. The
+simulation never edits a source home: ``fork_home`` loads the clean causal view
+of a checkpoint and writes a separate home, and ``canon_home`` builds the
+synthetic Spamuel canon once and caches the conversion by content hash.
+
+The package overview is in ``simulation/__init__.py``.
+"""
 from __future__ import annotations
 
 import hashlib
@@ -19,9 +27,14 @@ DEFAULT_RUNS = REPO_ROOT / ".runtime" / "simulation"
 CANON = REPO_ROOT / "test_data" / "personas" / "spamuel" / "canon.yaml"
 
 
-def homes(root: Path) -> list[dict]:
-    """List character homes. Cache, run, and log folders are not personas."""
-    result = []
+def homes(root: Path) -> list[dict[str, str]]:
+    """List character homes. Cache, run, and log folders are not personas.
+
+    Each row carries the resolved ``id`` path, the companion ``name``, the
+    ``folder`` name, and the ``user`` name. A folder without a checkpoint is
+    skipped, because a home without a ghost cannot be forked.
+    """
+    result: list[dict[str, str]] = []
     for card in sorted(root.rglob("character.yaml")) if root.exists() else []:
         home = CharacterHome(card.parent)
         if home.ghost_pickle.exists():

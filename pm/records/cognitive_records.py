@@ -1,54 +1,38 @@
+"""Epistemic, attentional, and ontology records of the companion state.
+
+owns: the records that hold what the companion takes to be the case
+(``BeliefRecord``, ``BeliefShiftRecord``, ``ExpectationRecord``), what it
+currently pays attention to (``AttentionRecord``, ``AttentionFrameRecord``),
+and its private vocabulary (``OntologyTermRecord``, ``OntologyBindingRecord``),
+plus the ``Intention`` goal record. See ``pm.records.base`` for the package
+overview.
+
+The design keeps linked ids instead of deep nesting and enough scalar fields
+for heuristics and model-guided ranking, so one record can be scored, rendered,
+and traced without loading a graph. ``content`` always holds the text that a
+prompt would show.
+
+Integration note: every class here needs a member in ``RecordKind``
+(``pm.records.base``), because ``RecordBase.type`` resolves the class name
+through that registry. The string values of the subtypes are persisted data.
+"""
 from __future__ import annotations
-
-from pm.records.enums import IntentionType
-
-"""
-Additional knoxel types and narrative feature subtype seeds for the companion architecture.
-
-Design goals
-------------
-This module is intentionally pragmatic rather than elegant.
-
-It extends the existing knoxel ecosystem with a few new runtime-persistent object types that
-fit the current project style:
-- broad BaseModel objects with string-heavy fields
-- linked IDs instead of deep nesting
-- partially overlapping conceptual roles
-- enough scalar fields for heuristics and LLM-guided ranking
-- rich docstrings so downstream tooling can gather schema intent dynamically
-
-Important integration note
---------------------------
-These classes inherit from ``KnoxelBase``. In the current project, ``KnoxelBase.type`` resolves
-the class name through the central ``KnoxelType`` enum in ``knoxel_core.py``. If you want the
-``type`` property to work for these classes, add matching enum entries there.
-
-Suggested additions in KnoxelType:
-- BeliefKnoxel
-- BeliefShiftKnoxel
-- AttentionKnoxel
-- AttentionFrameKnoxel
-- OntologyTermKnoxel
-- OntologyBindingKnoxel
-- PromptFeatureKnoxel
-
-This file does not monkey-patch the central enum on purpose.
-"""
-
-from enum import StrEnum, auto
-from typing import Any, Dict, List, Optional
 
 from pydantic import Field
 
 from pm.records.base import RecordBase
+from pm.records.enums import IntentionType
 
 
 class Intention(RecordBase):
-    """
-    Active goal or expectation tracked across future ticks.
-    and lifecycle markers (status/timeout). Often created by actions and later evaluated
-    against observed outcomes.
-    Can be hierarchical with big intentiosn and sub intentions.
+    """An active goal that later cycles fulfill, discard, or replace.
+
+    It carries its own scalar signals (urgency, incentive salience, fulfillment,
+    grandness, control), so a prompt or a selector can rank goals without
+    recomputing them. ``precursor_ids`` and ``owner_ids`` make consolidated
+    goals traceable: the intentions that were merged into this one and the
+    larger intentions that this one belongs to. ``active`` is the lifecycle
+    marker; ``timeout`` is the number of ticks the goal may stay open.
     """
     entity_id: int = Field(description="Usually the ID of the AI companion, might be used later to track intentions of other entites.")
     active: bool = Field(default=True, description="Intentions are disable when fulfilled, discarded or replaced/refactored into new intention.")
@@ -59,8 +43,8 @@ class Intention(RecordBase):
     grandness: float = Field(default=0.0, ge=0.0, le=1.0, description="Size of goal, with 0.0 being getting a glass of water and 1.0 being solving world hunger. Dynamically adjusted if subgoal.")
     control: float = Field(default=0.5, ge=0.0, le=1.0, description="How much entity can affect fulfillment.")
     intention_type: IntentionType = Field(description="Internal goal, drive, attractor, external expectation, state")
-    precursor_ids: List[int] = Field(default_factory=list, description="IDs of coalesced past intentions or other forms of precursor due to consolidation.")
-    owner_ids: List[int] = Field(default_factory=list, description="IDs of 'owning' intentions in case this is intention is a subset of others due to consolidation.")
+    precursor_ids: list[int] = Field(default_factory=list, description="IDs of coalesced past intentions or other forms of precursor due to consolidation.")
+    owner_ids: list[int] = Field(default_factory=list, description="IDs of 'owning' intentions in case this is intention is a subset of others due to consolidation.")
     status: str = Field(default="active", description="active, completed, failed, pending")
     timeout: int = Field(default=100, description="Ticks until this intention expires")
 
@@ -139,12 +123,12 @@ class BeliefRecord(RecordBase):
     certainty: float = Field(default=0.5, ge=0.0, le=1.0, description="How settled or resolved this belief feels to the system.")
     importance: float = Field(default=0.5, ge=0.0, le=1.0, description="How much this belief matters for current cognition or action.")
     valence: float = Field(default=0.0, ge=-1.0, le=1.0, description="Affective sign attached to the implications of the belief.")
-    about_entity_ids: List[int] = Field(default_factory=list, description="IDs of entities this belief concerns.")
-    supporting_knoxel_ids: List[int] = Field(default_factory=list, description="IDs that support or motivate this belief.")
-    contradicting_knoxel_ids: List[int] = Field(default_factory=list, description="IDs that currently conflict with this belief.")
+    about_entity_ids: list[int] = Field(default_factory=list, description="IDs of entities this belief concerns.")
+    supporting_knoxel_ids: list[int] = Field(default_factory=list, description="IDs that support or motivate this belief.")
+    contradicting_knoxel_ids: list[int] = Field(default_factory=list, description="IDs that currently conflict with this belief.")
     source: str = Field(default="unknown", description="Origin hint for debugging, critique, and trust heuristics.")
     active: bool = Field(default=True, description="Whether the belief is currently live in reasoning and prompt building.")
-    superseded_by_id: Optional[int] = Field(default=None, description="If replaced, points at the newer belief knoxel.")
+    superseded_by_id: int | None = Field(default=None, description="If replaced, points at the newer belief knoxel.")
 
 
 class ExpectationRecord(RecordBase):
@@ -190,14 +174,14 @@ class ExpectationRecord(RecordBase):
     status: str = Field(default="pending", description="pending, supported, contradicted, unmet, or superseded.")
     expected_valence: float = Field(default=0.0, ge=-1.0, le=1.0, description="Expected feeling if the outcome occurs.")
     uncertainty: float = Field(default=0.5, ge=0.0, le=1.0, description="How unsure the expectation was when recorded.")
-    goal_ids: List[int] = Field(default_factory=list, description="Intention ids this expectation is attached to.")
-    created_from_action_id: Optional[int] = Field(default=None, description="ActionSchemaRecord id that created this expectation, when an action motivated it.")
-    evidence_ids: List[int] = Field(default_factory=list, description="Accepted records that motivated the anticipation.")
-    observation_ids: List[int] = Field(default_factory=list, description="Accepted records that resolved the expectation.")
-    resolved_tick_id: Optional[int] = Field(default=None, description="The tick whose observation resolved this expectation.")
+    goal_ids: list[int] = Field(default_factory=list, description="Intention ids this expectation is attached to.")
+    created_from_action_id: int | None = Field(default=None, description="ActionSchemaRecord id that created this expectation, when an action motivated it.")
+    evidence_ids: list[int] = Field(default_factory=list, description="Accepted records that motivated the anticipation.")
+    observation_ids: list[int] = Field(default_factory=list, description="Accepted records that resolved the expectation.")
+    resolved_tick_id: int | None = Field(default=None, description="The tick whose observation resolved this expectation.")
     fulfillment: float = Field(default=0.0, ge=0.0, le=1.0, description="How far observations satisfied the expectation so far.")
     urgency: float = Field(default=0.3, ge=0.0, le=1.0, description="How soon the outcome is due.")
-    about_entity_ids: List[int] = Field(default_factory=list, description="Entities whose reaction is expected.")
+    about_entity_ids: list[int] = Field(default_factory=list, description="Entities whose reaction is expected.")
 
     def get_story_element(self) -> str:
         return f"[Expectation:{self.status}] {self.content}"
@@ -248,13 +232,13 @@ class BeliefShiftRecord(RecordBase):
         from commit but still want history retained.
     """
 
-    target_belief_id: Optional[int] = Field(default=None, description="Existing belief affected by this shift, if present.")
+    target_belief_id: int | None = Field(default=None, description="Existing belief affected by this shift, if present.")
     proposed_belief_key: str = Field(default="", description="Lookup key for a belief that may be created or updated.")
     shift_type: str = Field(default="add", description="Seed label for the kind of change being proposed.")
     delta_confidence: float = Field(default=0.0, ge=-1.0, le=1.0, description="Suggested confidence change.")
     delta_importance: float = Field(default=0.0, ge=-1.0, le=1.0, description="Suggested importance change.")
     reason: str = Field(default="", description="Compact explanation of why the belief shift is being proposed.")
-    causal_knoxel_ids: List[int] = Field(default_factory=list, description="Knoxels that causally motivated the shift.")
+    causal_knoxel_ids: list[int] = Field(default_factory=list, description="Knoxels that causally motivated the shift.")
     accepted: bool = Field(default=False, description="Whether the shift has already been committed.")
 
 
@@ -302,7 +286,7 @@ class AttentionRecord(RecordBase):
         Light provenance field naming the nominating process.
     """
 
-    target_knoxel_ids: List[int] = Field(default_factory=list, description="Knoxels nominated for attention by this object.")
+    target_knoxel_ids: list[int] = Field(default_factory=list, description="Knoxels nominated for attention by this object.")
     attention_kind: str = Field(default="goal_relevance", description="Seed label describing why the targets deserve attention.")
     score: float = Field(default=0.5, ge=0.0, le=1.0, description="Overall priority estimate for competition heuristics.")
     novelty: float = Field(default=0.0, ge=0.0, le=1.0, description="How unexpected or fresh the nominated content is.")
@@ -346,9 +330,9 @@ class AttentionFrameRecord(RecordBase):
         Lightweight lifetime hint. Useful if you want sticky attention without making it permanent.
     """
 
-    focus_knoxel_ids: List[int] = Field(default_factory=list, description="Knoxels currently inside the active attention frame.")
-    winning_attention_ids: List[int] = Field(default_factory=list, description="Attention nominations that shaped this frame.")
-    active_goal_ids: List[int] = Field(default_factory=list, description="Goals or intentions currently steering the frame.")
+    focus_knoxel_ids: list[int] = Field(default_factory=list, description="Knoxels currently inside the active attention frame.")
+    winning_attention_ids: list[int] = Field(default_factory=list, description="Attention nominations that shaped this frame.")
+    active_goal_ids: list[int] = Field(default_factory=list, description="Goals or intentions currently steering the frame.")
     control_mode: str = Field(default="reactive", description="Broad control regime for the current frame.")
     frame_reason: str = Field(default="", description="Compact explanation of why this frame is active.")
     expires_after_ticks: int = Field(default=1, ge=0, description="Approximate lifetime hint before the frame should be reconsidered.")
@@ -400,8 +384,8 @@ class OntologyTermRecord(RecordBase):
     term_kind: str = Field(default="quale", description="Seed label for the rough role of the term.")
     definition: str = Field(default="", description="Current local definition of the term.")
     usage_rule: str = Field(default="", description="Guidance for when the term is appropriate to use.")
-    example_knoxel_ids: List[int] = Field(default_factory=list, description="Example usages or anchor episodes for the term.")
-    related_term_ids: List[int] = Field(default_factory=list, description="IDs of nearby or competing ontology terms.")
+    example_knoxel_ids: list[int] = Field(default_factory=list, description="Example usages or anchor episodes for the term.")
+    related_term_ids: list[int] = Field(default_factory=list, description="IDs of nearby or competing ontology terms.")
     embedding_query_hint: str = Field(default="", description="Helpful retrieval hint for vector search or semantic lookup.")
     stability: float = Field(default=0.5, ge=0.0, le=1.0, description="How stable or entrenched this term currently is.")
     preferred: bool = Field(default=False, description="Whether this is the currently preferred label among alternatives.")
@@ -439,7 +423,7 @@ class OntologyBindingRecord(RecordBase):
     """
 
     term_id: int = Field(description="Ontology term currently being applied.")
-    bound_knoxel_ids: List[int] = Field(default_factory=list, description="Current-state knoxels that justify the binding.")
+    bound_knoxel_ids: list[int] = Field(default_factory=list, description="Current-state knoxels that justify the binding.")
     binding_kind: str = Field(default="quale_match", description="Seed label for the kind of fit represented here.")
     fit_score: float = Field(default=0.5, ge=0.0, le=1.0, description="How well the term fits the current state.")
     explanation: str = Field(default="", description="Compact explanation of why the term fits.")

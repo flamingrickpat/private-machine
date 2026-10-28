@@ -230,7 +230,8 @@ def plan(context: RoleContext, store: TreeStore) -> dict:
                 raise ValueError("Replanning must add, revise, or defer a concrete leaf. An explanation alone cannot release another attempt.")
         guard = context.runtime.tools.get("memory_guard")
         revisions = store.state.get("planning_memory_revisions", {})
-        def commit_plan():
+        def commit_plan() -> None:
+            """Commit the proposed tree while the instruction revision still holds."""
             # Managed control holds its lock before the memory-owner lock.
             # This order matches supervisor updates and avoids a lock cycle.
             with (guard(revisions) if guard is not None else nullcontext()):

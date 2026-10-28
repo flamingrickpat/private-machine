@@ -134,6 +134,7 @@ nav:
       - Structural refactor:
           - Plan: work_items/refactor/index.md
           - Relocation map: work_items/refactor/relocation-map.md
+          - Typing and docstring pass: work_items/refactor/typing-and-docstrings.md
       - Plan and implementation: work_items/plan.md
       - Companion alpha plan:
           - Overview and order: work_items/alpha-plan/index.md

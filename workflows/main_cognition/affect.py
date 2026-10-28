@@ -51,6 +51,7 @@ from pm.records.mental_state import (
     AppraisalGeneral,
     AppraisalSocial,
     FullMentalState,
+    StateCore,
     StateEmotions,
     StateExpressionExt,
     StateNeeds,
@@ -68,7 +69,7 @@ REGULATION_REFLECTIVE = "reflective"
 REGULATION_BLENDED = "blended"
 
 
-def _bounded(container, name: str, value: float) -> float:
+def _bounded(container: StateCore | StateEmotions | StateNeeds, name: str, value: float) -> float:
     """Clamp ``value`` into the declared bounds of one field of ``container``."""
     model = type(container)
     low, high = model.get_axis_bounds(model.model_fields[name].json_schema_extra["vector_position"])

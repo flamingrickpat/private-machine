@@ -11,6 +11,7 @@ from workflows.inner_thought.rendering import candidates as render_candidates, s
 import json
 
 from pm.constants import Sampler
+from pm_workflows.python_role import RoleContext
 from pm.context_render.turns import Role, Turn, format_content
 
 from workflows.inner_thought.schemas import InnerRequest, IntegrationResult, ThoughtResult, TriggerChoice
@@ -50,7 +51,8 @@ def build_messages(request: dict, prompts: dict) -> list[Turn]:
     return [Turn(Role.System, system.strip()), Turn(Role.User, user.strip())]
 
 
-def run(context) -> dict:
+def run(context: RoleContext) -> dict[str, str]:
+    """Integrate the chosen trigger and thought into the private report."""
     request = read_request(context.runtime.environment)
     prompts = load_prompts()
     messages = build_messages(request, prompts)

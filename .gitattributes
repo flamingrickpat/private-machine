@@ -3,3 +3,5 @@ docs/work_items/alpha-plan/baseline/original-brief.md -text whitespace=-blank-at
 # Keep compiled resource bytes equal to their provenance hashes after checkout.
 workflows/minecraft/resources/*.md text eol=lf whitespace=-blank-at-eof
 workflows/minecraft/guidance/* text eol=lf
+# The milestone spec is prose with intentional Markdown hard line breaks.
+docs/continuous-character-milestone.md -text whitespace=-blank-at-eol

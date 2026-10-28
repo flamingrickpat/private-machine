@@ -12,11 +12,15 @@ them and weakens the boost for each skipped codelet
 class CodeletActivation:
     """One step strength between two codelets of a chain."""
 
-    def __init__(self, strength):
+    def __init__(self, strength: float) -> None:
         self.strength = strength
 
 
-def get_codelet_pathways():
+#: A chain is a flat list of alternating codelet names and step strengths.
+CodeletChain = list[str | CodeletActivation]
+
+
+def get_codelet_pathways() -> dict[str, list[CodeletChain]]:
     return {
     "love": [
         # need-for-affiliation monitor → flags rising affiliation deficit

@@ -17,7 +17,7 @@ from __future__ import annotations
 import asyncio
 from threading import BoundedSemaphore, Event, Lock
 from contextlib import asynccontextmanager
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass
 from pm.llm.contracts import ContextMeasurement, ModelProtocolContext
 
@@ -32,9 +32,14 @@ from pm.llm.concurrency import inference_admission
 async def complete_with_retry(
     client: ChatClient,
     messages: Sequence[TurnInput],
-    generation: dict,
+    generation: dict[str, object],
 ) -> str:
-    """One completion with a bounded empty-content retry."""
+    """One completion with a bounded empty-content retry.
+
+    An empty completion is stochastic, so one fresh sample is worth asking
+    for. A second empty answer fails loudly: the prompt or the generation
+    configuration needs a human look, and no fallback text replaces it.
+    """
     last: EmptyCompletionError | None = None
     for attempt in range(2):
         try:
@@ -68,7 +73,7 @@ class LazyStageModel:
         self._slots = BoundedSemaphore(max_concurrency)
 
     @asynccontextmanager
-    async def slot(self, cancel=None):
+    async def slot(self, cancel: Event | None = None) -> AsyncIterator[None]:
         """Admit one request across module threads. Waiting consumes no worker thread."""
         while not self._slots.acquire(blocking=False):
             if cancel is not None and cancel.is_set():
@@ -112,7 +117,7 @@ class LazyStageModel:
             client = self._client
         return client.client.request_count if client is not None else 0
 
-    def ensure_client(self, *, cancel=None) -> ChatClient:
+    def ensure_client(self, *, cancel: Event | None = None) -> ChatClient:
         """Activate and cache the client. Cancellation also stops readiness waits.
 
         Activation waits as long as the endpoint is down, so the first

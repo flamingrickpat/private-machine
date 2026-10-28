@@ -1,14 +1,44 @@
+"""Every tunable number of the runtime, in one place, with its meaning.
+
+owns: the constants that the cycle, the workspace, the codelet selector, the
+appraisal, the memory reconsolidation, the web chat, and the prompt budgets
+read. Each constant carries the unit, the range, and where a past decision set
+its value. Does not own the algorithm that uses a constant; the module that
+uses it explains what it does with it.
+
+Invariant: a value changes here, not at a call site, so one edit retunes every
+reader. The blocks marked ALPHA ONLY are temporary failsafe clamps and are meant
+to be deleted once the affect design is calibrated (grep ``ALPHA_``).
+"""
+from collections.abc import Callable
+
+
 class staticproperty(property):
-    def __get__(self, owner_self, owner_cls):
-        return self.fget()
+    """A property whose getter takes no instance, so it reads like a constant.
+
+    ``Sampler.TempReasoning`` and ``instance.TempReasoning`` both return the
+    value. The getter runs on every access, which is why a sampler stays cheap.
+    """
+
+    def __init__(self, getter: Callable[..., float]) -> None:
+        super().__init__(getter)
+        self._getter = getter
+
+    def __get__(self, owner_self: object, owner_cls: type | None = None) -> float:
+        """Return the current value of the wrapped getter."""
+        return self._getter()
 
 class Sampler:
+    """Sampling temperatures of the model calls, grouped for one settings file."""
+
     @staticproperty
-    def TempReasoning():
+    def TempReasoning() -> float:
+        """Sampling temperature of reasoning calls, where variety is wanted."""
         return 1.0
 
     @staticproperty
-    def TempInstruct():
+    def TempInstruct() -> float:
+        """Sampling temperature of instruction-following calls, which need less variety."""
         return 0.7
 
 

@@ -40,6 +40,7 @@ import uuid
 from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
 from threading import Event
+from typing import TYPE_CHECKING, cast
 
 from pydantic import BaseModel, ConfigDict
 
@@ -52,18 +53,23 @@ from pm.memory.reconsolidation.model_calls import ModelCalls
 from pm.memory.reconsolidation.schemas import (FactFiling, FactsAnswer, FilingAnswer, MentalStateAnswer,
                                                NarrativeAnswer, NarrativeDefinition, ReconsolidationConfig,
                                                ReconsolidationPrompts, ReconsolidationReport, SummaryAnswer,
-                                               load_prompts)
+                                               load_prompts, naive_utc_now)
 from pm.memory.reconsolidation.story import count_tokens, feature_line, feature_text, render_story, render_summaries
 from pm.memory.media_alt import complete_alt_text
 from pm.records.media import image_ids
 from pm.memory.reconsolidation.temporal import (BUILD_ORDER, CHILD_LEVEL, LEVEL_TOPICAL, TimeRange,
                                                 closed_ranges)
-from pm.records.base import Provenance
+from pm.records.base import Provenance, RecordBase
 from pm.records.cycle_state import CycleState
 from pm.records.enums import ClusterType, SourceKind
 from pm.records.lineage import RecordLineage
 from pm.records.memory_records import DeclarativeFactRecord, Feature, MemoryClusterRecord, Narrative, SemanticRecord
 from pm.records.taxonomy import MemoryTaxonomy, MemoryVolatility, PmCategory
+
+if TYPE_CHECKING:
+    from pm.memory.embeddings import EmbeddingService
+    from pm.memory.store import MemoryStore
+    from pm.memory.write_batch import WriteBatch
 
 #: Lineage operations of the records that a run creates.
 OPERATION_TOPICAL = "memory_reconsolidation.topical"
@@ -83,7 +89,8 @@ class RecordMetadataView(BaseModel):
     dedup_key: str = ""
 
 
-def _metadata(record) -> RecordMetadataView:
+def _metadata(record: RecordBase) -> RecordMetadataView:
+    """Read the few metadata fields that reconsolidation classifies on."""
     return RecordMetadataView.model_validate(record.metadata)
 
 
@@ -106,7 +113,7 @@ def _ids(text: str | None) -> list[int]:
     return [int(item) for item in (text or "").split(",") if item.strip()]
 
 
-def unclustered_events(store, config: ReconsolidationConfig | None = None) -> list[Feature]:
+def unclustered_events(store: MemoryStore, config: ReconsolidationConfig | None = None) -> list[Feature]:
     """Return the causal events that no consolidated topical cluster holds, oldest first.
 
     Port of ``_get_unclustered_event_knoxels``.
@@ -121,7 +128,7 @@ def unclustered_events(store, config: ReconsolidationConfig | None = None) -> li
     return sorted(events, key=lambda item: (item.timestamp_world_begin, item.id))
 
 
-def reconsolidation_due(store, config: ReconsolidationConfig | None = None) -> bool:
+def reconsolidation_due(store: MemoryStore, config: ReconsolidationConfig | None = None) -> bool:
     """Return whether enough events wait for a run (port of ``consolidate_memory_if_needed``)."""
     config = config or ReconsolidationConfig()
     return len(unclustered_events(store, config)) >= config.trigger_events
@@ -141,9 +148,10 @@ def _record_id(text: str, moment: datetime) -> str:
 class _Run:
     """The state of one run: the store, the model, the names, and the report."""
 
-    def __init__(self, store, calls: ModelCalls, embeddings, config: ReconsolidationConfig,
-                 prompts: ReconsolidationPrompts, report: ReconsolidationReport, now: datetime,
-                 cancel: Event | None, log: Callable[[str], None]):
+    def __init__(self, store: MemoryStore, calls: ModelCalls, embeddings: EmbeddingService,
+                 config: ReconsolidationConfig, prompts: ReconsolidationPrompts,
+                 report: ReconsolidationReport, now: datetime, cancel: Event | None,
+                 log: Callable[[str], None]) -> None:
         self.store = store
         self.calls = calls
         self.embeddings = embeddings
@@ -187,13 +195,15 @@ class _Run:
         return list(asyncio.run(gather()))
 
     def lineage(self, operation: str, sources: Sequence[int], parents: Sequence[int] = ()) -> RecordLineage:
+        """Name the run, the stage, and the records a derived record comes from."""
         return RecordLineage(episode_id=f"{RECEIPT_PREFIX}{self.report.run_id}", operation=operation,
                              source_event_ids=sorted(set(sources)), parent_record_ids=sorted(set(parents)))
 
     def provenance(self) -> Provenance:
+        """Mark a derived record as system output of this run, not as testimony."""
         return Provenance(source_kind=SourceKind.System, source_ref=f"{RECEIPT_PREFIX}{self.report.run_id}")
 
-    def commit(self, name: str, build: Callable[[object], None]) -> list[int]:
+    def commit(self, name: str, build: Callable[[WriteBatch], None]) -> list[int]:
         """Stage records with ``build(batch)`` and commit them. Return the new ids."""
         batch = self.store.begin_batch(f"{RECEIPT_PREFIX}{self.report.run_id}:{name}", cancel=self.cancel)
         build(batch)
@@ -208,6 +218,7 @@ class _Run:
         return sorted(features, key=lambda item: (item.timestamp_world_begin, item.id))
 
     def clusters(self) -> list[MemoryClusterRecord]:
+        """Return every accepted cluster, oldest first."""
         with self.store.lock:
             records = [item for item in self.store.all_knoxels.values() if isinstance(item, MemoryClusterRecord)]
         return sorted(records, key=lambda item: (item.timestamp_world_begin, item.id))
@@ -275,7 +286,7 @@ class _Run:
                 features = [item for item in story_features if low <= item.tick_id <= high]
                 plans.append((block, features, low, high))
 
-            def summarize(plan):
+            def summarize(plan: tuple[list[Feature], list[Feature], int, int]) -> tuple[str, str]:
                 _, features, low, high = plan
                 story = render_story(features, self.time_format, resolve=self.store.find_image)
                 summary = self.calls.json(self.system, self.fill(self.prompts.topic_summary, intro=self.intro,
@@ -285,7 +296,7 @@ class _Run:
             results = self.calls.map(summarize, plans)
             self.embed([description for _, description in results])
 
-            def build(batch):
+            def build(batch: WriteBatch) -> None:
                 for (block, features, low, high), (summary, description) in zip(plans, results):
                     ids = [item.id for item in features]
                     batch.create(MemoryClusterRecord(
@@ -314,7 +325,7 @@ class _Run:
                 clusters = self.clusters()
                 plans = [self._temporal_plan(item, features, clusters) for item in group]
 
-                def summarize(plan):
+                def summarize(plan: tuple[TimeRange, list[Feature], list[MemoryClusterRecord], str]) -> tuple[str, str]:
                     span, inside, children, story = plan
                     template = self.prompts.temporal_children if children else self.prompts.temporal_raw
                     summary = self.calls.json(self.system, self.fill(
@@ -327,7 +338,7 @@ class _Run:
                 results = self.calls.map(summarize, plans)
                 self.embed([description for _, description in results])
 
-                def build(batch):
+                def build(batch: WriteBatch) -> None:
                     for (span, inside, children, _), (summary, description) in zip(plans, results):
                         event_ids = [item.id for item in inside]
                         child_ids = [item.id for item in children]
@@ -347,7 +358,9 @@ class _Run:
                 self.report.temporal_ids += self.commit(f"temporal-{level}-{group_index}", build)
                 self.log(f"temporal clusters: {len(self.report.temporal_ids)}")
 
-    def _temporal_plan(self, span: TimeRange, features: list[Feature], clusters: list[MemoryClusterRecord]):
+    def _temporal_plan(self, span: TimeRange, features: list[Feature],
+                       clusters: list[MemoryClusterRecord],
+                       ) -> tuple[TimeRange, list[Feature], list[MemoryClusterRecord], str]:
         """Return ``(range, events, children, story)`` for one range.
 
         A range whose raw story fits ``summary_token_limit`` reads the raw
@@ -393,7 +406,7 @@ class _Run:
             events = [sorted((item for item in records if isinstance(item, Feature) and item.feature_type in kinds),
                              key=lambda item: (item.timestamp_world_begin, item.id)) for records in sources]
 
-            def extract(plan):
+            def extract(plan: tuple[MemoryClusterRecord, list[Feature]]) -> list[tuple[str, FactFiling, list[Feature]]]:
                 cluster, scene = plan
                 if not scene:
                     return []
@@ -412,12 +425,14 @@ class _Run:
 
             results = self.calls.map(extract, list(zip(group, events)))
 
-            def build(batch):
+            def build(batch: WriteBatch) -> None:
                 self._stage_facts(batch, group, results, subjects, existing)
             self.commit(f"facts-{group_index}", build)
             self.log(f"facts: {len(self.report.fact_ids)}")
 
-    def _stage_facts(self, batch, clusters, results, subjects: dict[str, int], existing: dict[str, int]) -> None:
+    def _stage_facts(self, batch: WriteBatch, clusters: list[MemoryClusterRecord],
+                     results: list[list[tuple[str, FactFiling, list[Feature]]]],
+                     subjects: dict[str, int], existing: dict[str, int]) -> None:
         """Create the facts and their canonical semantic records in ``batch``.
 
         A claim with a known ``(subject, essence)`` key adds the fact to the
@@ -435,7 +450,12 @@ class _Run:
                 key = MemoryTaxonomy.dedup_key(subject, filing.essence)
                 if key in existing:
                     record_id = existing[key]
-                    record = open_records[record_id] if record_id in open_records else view.get(record_id).copy_for_edit()
+                    if record_id in open_records:
+                        record = open_records[record_id]
+                    else:
+                        # ``existing`` maps dedup keys to SemanticRecord ids only,
+                        # so the shared record under that id is a semantic record.
+                        record = cast(SemanticRecord, view.get(record_id)).copy_for_edit()
                     record.source_knoxel_ids.append(fact.id)
                     if text not in record.source_texts and text != record.content:
                         record.source_texts.append(text)
@@ -565,8 +585,12 @@ class _Run:
                 provenance=self.provenance(),
                 lineage=self.lineage(OPERATION_NARRATIVE, [item.id for item in buffer],
                                      [latest.id] if latest is not None else []))
+
+            def stage_version(batch: WriteBatch) -> None:
+                batch.create(record)
+
             ids = self.commit(f"narrative-{definition.type.value}-{definition.target}-{len(created)}",
-                              lambda batch: batch.create(record))
+                              stage_version)
             created += ids
             with self.store.lock:
                 latest = self.store.get_knoxel_by_id(ids[0])
@@ -585,7 +609,8 @@ class _Run:
         self.store.save()
 
 
-def reconsolidate(store, *, complete: TextCompletion, embeddings, config: ReconsolidationConfig | None = None,
+def reconsolidate(store: MemoryStore, *, complete: TextCompletion, embeddings: EmbeddingService,
+                  config: ReconsolidationConfig | None = None,
                   force: bool = False, cancel: Event | None = None, now: datetime | None = None,
                   prompts: ReconsolidationPrompts | None = None,
                   log: Callable[[str], None] | None = None) -> ReconsolidationReport:
@@ -609,7 +634,7 @@ def reconsolidate(store, *, complete: TextCompletion, embeddings, config: Recons
     prompts = prompts or load_prompts()
     calls = ModelCalls(complete, cancel=cancel)
     report = ReconsolidationReport(run_id=uuid.uuid4().hex[:12], forced=force)
-    run = _Run(store, calls, embeddings, config, prompts, report, now or datetime.utcnow(), cancel,
+    run = _Run(store, calls, embeddings, config, prompts, report, now or naive_utc_now(), cancel,
                log or (lambda message: None))
     # Memory reads images only as alt text. Write the missing ones first,
     # so no "no description yet" reaches a summary, fact, or narrative.
@@ -628,9 +653,9 @@ def reconsolidate(store, *, complete: TextCompletion, embeddings, config: Recons
     run.narratives()
     run.prepare_index(report.created_ids)
     report.model_calls = calls.calls
-    report.finished_at = datetime.utcnow()
+    report.finished_at = naive_utc_now()
 
-    def receipt(batch):
+    def receipt(batch: WriteBatch) -> None:
         batch.set_consolidation_receipt(f"{RECEIPT_PREFIX}{report.run_id}",
                                         {"run_id": report.run_id, "kind": "memory_reconsolidation",
                                          **report.model_dump(mode="json")})

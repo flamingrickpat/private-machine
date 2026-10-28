@@ -18,17 +18,25 @@ module builds a per-capability overlay with one evidence list per state:
     No state reached, or a stale evidence source.
 
 The builder is deterministic. It reads no model and writes no memory. The
-caller supplies the active wiring and the real receipts.
+caller supplies the active wiring and the real receipts, and every claim keeps
+the source reference or revision it was read from.
+
+Reading map: :class:`CapabilityState` names the states,
+:class:`CapabilityEvidence` is one evidence item, :class:`CapabilityDeclaration`
+says how to gather the evidence for one capability, :class:`CapabilityContext`
+carries the live wiring and receipts, :class:`CapabilityFinding` groups the
+items per state, and :class:`CapabilityOverlay` adds the date and the
+staleness check that a later inspection compares against.
 """
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import StrEnum
 import hashlib
 import json
-from pathlib import Path
-from typing import Callable, Iterable, Mapping
+from typing import TypedDict
 
 from pm.introspection.grants import SourceDenied, SourceInspector, SourceUnavailable
 
@@ -41,6 +49,41 @@ __all__ = [
     "build_overlay",
     "default_capability_declarations",
 ]
+
+#: One real execution row that a caller supplies for the observed state.
+#: ``reference`` names the receipt, ``detail`` says what it showed, and
+#: ``revision`` is the receipt revision when one exists.
+ObservedRow = Mapping[str, object]
+
+
+class CapabilityEvidenceRow(TypedDict):
+    """One serialized evidence item, tagged with the state it supports."""
+
+    state: str
+    reference: str
+    detail: str
+    revision: str
+    observed_at: str
+
+
+class CapabilityFindingRow(TypedDict):
+    """One serialized finding: the evidence rows per state and the summary."""
+
+    name: str
+    summary: str
+    strongest: str
+    evidence: dict[str, list[CapabilityEvidenceRow]]
+    revision: str
+    observed_at: str
+    stale: bool
+
+
+class CapabilityOverlayRow(TypedDict):
+    """One serialized overlay with its build time and staleness summary."""
+
+    built_at: str
+    stale_names: list[str]
+    findings: dict[str, CapabilityFindingRow]
 
 
 def _utcnow() -> datetime:
@@ -70,7 +113,12 @@ _STRENGTH = (
 
 @dataclass(frozen=True)
 class CapabilityEvidence:
-    """One evidence item for one capability state."""
+    """One evidence item for one capability state.
+
+    ``reference`` is a grant-relative path, an ``enabled:<name>`` marker, or a
+    receipt id. ``revision`` is the digest the evidence was read at, so a later
+    inspection can prove the belief stale instead of silently refreshing it.
+    """
 
     state: CapabilityState
     reference: str
@@ -78,7 +126,8 @@ class CapabilityEvidence:
     revision: str = ""
     observed_at: datetime = field(default_factory=_utcnow)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> CapabilityEvidenceRow:
+        """Return the serialized row for a trace, a package, or a belief."""
         return {
             "state": self.state.value,
             "reference": self.reference,
@@ -102,9 +151,14 @@ class CapabilityDeclaration:
     summary: str
     intended_refs: tuple[str, ...] = ()
     implemented_refs: tuple[str, ...] = ()
-    observed: Callable[["CapabilityContext"], list[dict]] | None = None
+    observed: Callable[["CapabilityContext"], Sequence[ObservedRow]] | None = None
 
     def collect(self, context: "CapabilityContext") -> list[CapabilityEvidence]:
+        """Return the evidence this declaration can show for this context.
+
+        A missing or denied file becomes an ``unavailable`` item rather than
+        support for the state it was declared for.
+        """
         evidence: list[CapabilityEvidence] = []
         for state, refs in ((CapabilityState.Intended, self.intended_refs),
                             (CapabilityState.Implemented, self.implemented_refs)):
@@ -161,7 +215,7 @@ class CapabilityContext:
     inspector: SourceInspector | None = None
     enabled_names: frozenset[str] = frozenset()
     enabled_details: Mapping[str, str] = field(default_factory=dict)
-    observed_receipts: Mapping[str, list[dict]] = field(default_factory=dict)
+    observed_receipts: Mapping[str, Sequence[ObservedRow]] = field(default_factory=dict)
     unavailable_reasons: Mapping[str, str] = field(default_factory=dict)
 
 
@@ -176,17 +230,19 @@ class CapabilityFinding:
 
     name: str
     summary: str
-    evidence: dict[str, list[dict]]
+    evidence: dict[str, list[CapabilityEvidenceRow]]
     strongest: CapabilityState
     revision: str
     observed_at: datetime = field(default_factory=_utcnow)
     stale: bool = False
 
     def has(self, state: CapabilityState | str) -> bool:
+        """Return whether this finding holds at least one item for ``state``."""
         key = state.value if isinstance(state, CapabilityState) else str(state)
         return bool(self.evidence.get(key))
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> CapabilityFindingRow:
+        """Return the serialized finding with every state list separate."""
         return {
             "name": self.name,
             "summary": self.summary,
@@ -200,7 +256,8 @@ class CapabilityFinding:
 
 def _finding(declaration: CapabilityDeclaration, collected: list[CapabilityEvidence],
              unavailable_reason: str | None) -> CapabilityFinding:
-    grouped: dict[str, list[dict]] = {state.value: [] for state in CapabilityState}
+    """Group one declaration's evidence by state and pick the strongest state."""
+    grouped: dict[str, list[CapabilityEvidenceRow]] = {state.value: [] for state in CapabilityState}
     for item in collected:
         grouped[item.state.value].append(item.to_dict())
     reached = [state for state in _STRENGTH if grouped[state.value]]
@@ -210,22 +267,24 @@ def _finding(declaration: CapabilityDeclaration, collected: list[CapabilityEvide
         strongest = CapabilityState.Unavailable
     elif unavailable_reason:
         strongest = CapabilityState.Unavailable
-        grouped[CapabilityState.Unavailable.value].append({
-            "state": CapabilityState.Unavailable.value,
-            "reference": f"unavailable:{declaration.name}",
-            "detail": unavailable_reason,
-            "revision": "",
-            "observed_at": _utcnow().isoformat(),
-        })
+        grouped[CapabilityState.Unavailable.value].append(CapabilityEvidenceRow(
+            state=CapabilityState.Unavailable.value,
+            reference=f"unavailable:{declaration.name}",
+            detail=unavailable_reason,
+            revision="",
+            observed_at=_utcnow().isoformat(),
+        ))
     else:
+        # No state was reached and nothing explains the gap. Say so instead of
+        # reporting the capability as merely unimplemented.
         strongest = CapabilityState.Uncertain
-        grouped[CapabilityState.Uncertain.value].append({
-            "state": CapabilityState.Uncertain.value,
-            "reference": f"uncertain:{declaration.name}",
-            "detail": "No plan, source, wiring, or receipt was found.",
-            "revision": "",
-            "observed_at": _utcnow().isoformat(),
-        })
+        grouped[CapabilityState.Uncertain.value].append(CapabilityEvidenceRow(
+            state=CapabilityState.Uncertain.value,
+            reference=f"uncertain:{declaration.name}",
+            detail="No plan, source, wiring, or receipt was found.",
+            revision="",
+            observed_at=_utcnow().isoformat(),
+        ))
     revision = _revision_of(grouped)
     return CapabilityFinding(
         name=declaration.name, summary=declaration.summary, evidence=grouped,
@@ -233,7 +292,7 @@ def _finding(declaration: CapabilityDeclaration, collected: list[CapabilityEvide
     )
 
 
-def _revision_of(grouped: Mapping[str, list[dict]]) -> str:
+def _revision_of(grouped: Mapping[str, Sequence[CapabilityEvidenceRow]]) -> str:
     # Observation time is volatile, so it stays out of the revision. The
     # source or configuration digest is the meaningful change signal.
     normalized = {
@@ -276,7 +335,8 @@ class CapabilityOverlay:
         rebuilt.previous = self
         return rebuilt
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> CapabilityOverlayRow:
+        """Return the serialized overlay, keyed by capability name."""
         return {
             "built_at": self.built_at.isoformat(),
             "stale_names": self.stale_names(),
@@ -302,9 +362,12 @@ def default_capability_declarations() -> list[CapabilityDeclaration]:
     here as well, so the overlay never reports a stale plan as wiring.
     """
 
-    def observed_from_receipts(name: str) -> Callable[[CapabilityContext], list[dict]]:
-        def collect(context: CapabilityContext) -> list[dict]:
+    def observed_from_receipts(name: str) -> Callable[[CapabilityContext], Sequence[ObservedRow]]:
+        """Return a reader for the real receipts that a caller files under ``name``."""
+
+        def collect(context: CapabilityContext) -> Sequence[ObservedRow]:
             return list(context.observed_receipts.get(name, []))
+
         return collect
 
     return [

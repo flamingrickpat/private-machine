@@ -32,6 +32,8 @@ memory.
 """
 from __future__ import annotations
 
+from pm_workflows.python_role import RoleContext
+
 from pm.context_render.turns import Turn, format_content
 from pm.records.mental_state import (
     MentalStateSample,
@@ -163,7 +165,7 @@ def update_affect(work: CycleWork, appraisal: AppraisalResult) -> AppraisalAffec
     )
 
 
-def run(context, work: CycleWork) -> CycleWork:
+def run(context: RoleContext, work: CycleWork) -> CycleWork:
     prompts = phase_prompts("appraise")
     prefix = StoryPrefix(work)
     relevant = expectations.relevant_expectations(work, Embedder(context, work.records))

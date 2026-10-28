@@ -10,8 +10,11 @@ The request and the shared phase state are in
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Self
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, model_serializer, model_validator
+from pydantic import (
+    BaseModel, ConfigDict, Field, SerializerFunctionWrapHandler, ValidationInfo, model_serializer, model_validator,
+)
 
 from pm.constants import CODELET_BUDGET_DEFAULT, CODELET_BUDGET_MAX, DECISION_VARIANTS, EXPECTATION_COUNT
 from pm.records.mental_state import AppraisalGeneral, AppraisalSocial, FullMentalState, StateEmotions, StateNeeds
@@ -68,7 +71,7 @@ class ActionArguments(BaseModel):
     timeout_seconds: float | None = Field(default=None, strict=True)
 
     @model_serializer(mode="wrap")
-    def _supplied_only(self, handler):
+    def _supplied_only(self, handler: SerializerFunctionWrapHandler) -> dict[str, object]:
         data = handler(self)
         return {key: value for key, value in data.items()
                 if key in self.model_fields_set or key not in type(self).model_fields}
@@ -272,7 +275,7 @@ class TriageResult(BaseModel):
     codelet_budget: int = Field(default=CODELET_BUDGET_DEFAULT, ge=1, le=CODELET_BUDGET_MAX)
 
     @model_validator(mode="after")
-    def _known_categories(self):
+    def _known_categories(self) -> Self:
         unknown = sorted({item.category for item in self.items} - set(TRIAGE_CATEGORIES))
         if unknown:
             raise ValueError(f"Unknown categories {', '.join(map(repr, unknown))}. "
@@ -305,7 +308,7 @@ class AppraisalResult(BaseModel):
     evidence_ids: list[int] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def _known_names(self):
+    def _known_names(self) -> Self:
         # The repair turn shows this message to the model. Name the allowed
         # keys, so the model can replace an invented name with a real one.
         groups = (
@@ -545,7 +548,7 @@ class CodeletRatings(BaseModel):
     ratings: dict[str, float] = Field(default_factory=dict)
 
     @model_validator(mode="after")
-    def _bounded(self):
+    def _bounded(self) -> Self:
         outside = sorted(name for name, value in self.ratings.items() if not 0.0 <= value <= 1.0)
         if outside:
             raise ValueError(f"Ratings must be between 0 and 1. Fix: {', '.join(outside)}.")
@@ -844,7 +847,7 @@ class DecisionAnswer(BaseModel):
     variants: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def _story_words(self, info: ValidationInfo):
+    def _story_words(self, info: ValidationInfo) -> Self:
         if len(self.variants) not in (0, DECISION_VARIANTS):
             raise ValueError(f"Write exactly {DECISION_VARIANTS} decision variants, or an empty list.")
         check = DecisionCheck.model_validate(info.context or {})
@@ -898,7 +901,7 @@ class RouteAnswer(RouteChoice):
     model_config = ConfigDict(extra="forbid")
 
     @model_validator(mode="after")
-    def _known(self, info: ValidationInfo):
+    def _known(self, info: ValidationInfo) -> Self:
         if self.action_type not in ACTION_TYPES:
             raise ValueError(f"Unsupported action_type {self.action_type!r}. Allowed: {', '.join(ACTION_TYPES)}.")
         allowed = RouteCheck.model_validate(info.context or {}).workflow_names
@@ -944,7 +947,7 @@ class ExpectationAnswer(BaseModel):
     expectations: list[ExpectationAnswerItem] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def _count(self):
+    def _count(self) -> Self:
         if not 1 <= len(self.expectations) <= EXPECTATION_COUNT:
             raise ValueError(f"Write between 1 and {EXPECTATION_COUNT} expectations.")
         return self

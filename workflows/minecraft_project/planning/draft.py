@@ -36,9 +36,15 @@ class TaskDraft:
     Failed validation retains edits without committing a specification or proof.
     """
 
-    def __init__(self, store: TreeStore, goal: str, save: Callable[[dict], None],
+    def __init__(self, store: TreeStore, goal: str, save: Callable[[dict[str, object]], None],
                  check_cancelled: Callable[[], None], *, base: TaskTree | None = None,
-                 scope: set[str] | None = None, refinement_target: str = ""):
+                 scope: set[str] | None = None, refinement_target: str = "") -> None:
+        """Open one draft over the goal, or over the retained base tree.
+
+        ``save`` writes the draft after each tool call, so a crash retains the
+        edits made so far. ``scope`` limits which nodes the draft may edit;
+        ``refinement_target`` names the node a refinement edit belongs to.
+        """
         self.store, self.save, self.check_cancelled = store, save, check_cancelled
         self.base = base
         self.scope, self.refinement_target = scope, refinement_target

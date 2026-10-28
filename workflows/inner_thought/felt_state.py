@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from pm.records.cognitive_records import Intention
 from pm.records.mental_state import FullMentalState
 from pm.records.cycle_state import CycleState
 from pm.records.qualia_records import QualeChannelState
@@ -83,7 +84,8 @@ def _comparable(previous_time: datetime, now: datetime) -> tuple[datetime, datet
     return previous, current
 
 
-def project_channel(channel_id: str, state: FullMentalState, *, active_goals=None,
+def project_channel(channel_id: str, state: FullMentalState, *,
+                    active_goals: list[Intention] | None = None,
                     previous: QualeChannelState | None, previous_time: datetime | None,
                     now: datetime, driver_ids: list[int]) -> QualeChannelState:
     """Project one channel with its time derivatives.
@@ -109,7 +111,7 @@ def project_channel(channel_id: str, state: FullMentalState, *, active_goals=Non
     )
 
 
-def project_channels(state: FullMentalState, *, active_goals=None,
+def project_channels(state: FullMentalState, *, active_goals: list[Intention] | None = None,
                      previous: dict[str, QualeChannelState] | None,
                      previous_time: datetime | None, now: datetime | None,
                      driver_ids: list[int]) -> dict[str, QualeChannelState]:

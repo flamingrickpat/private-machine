@@ -10,6 +10,13 @@ with the same action ID returns the original receipt instead of launching a
 second worker. Unavailable workflows produce an explicit failed receipt.
 Termination sets a code-owned cancellation signal; it never edits files.
 Artifacts are written to a real task folder and preserved after cancellation.
+
+Each worker runs one real kernel invocation in its own thread and records only
+observed outcomes: a completed run is reported when the kernel returned a
+successful terminal report, and a lost service ends that one run. Rows are
+read tolerantly through the mapping form of
+:class:`~pm.runs.run_receipt.ManagedRunReceipt`, because a control file may
+have been written by another process or an older build.
 """
 from __future__ import annotations
 
@@ -20,9 +27,12 @@ import asyncio
 from concurrent.futures import CancelledError as FutureCancelledError
 import uuid
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Mapping, TypedDict
+
+from pydantic import JsonValue
 
 from pm_workflows.runtime import WorkflowRuntime
+from pm_workflows.working_target import WorkingEnvironment
 
 from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowResult, WorkflowRunner, WorkflowStatus
 from pm.host.folder_target import FolderEnvironment
@@ -30,8 +40,29 @@ from pm.llm.workflow_sessions import WorkflowModels
 from pm.host.durable_files import ProcessLock, BodyBusy, atomic_json, read_json
 from pm.runs.run_receipt import ACTIVE_STATES, ManagedRunError, ManagedRunReceipt
 from pm.runs.workflow_spec import WorkflowSpec, scoped_children
-from pm.memory.agent_tools import guard_revisions
+from pm.memory.agent_tools import MemoryToolConfig, guard_revisions
 from pm.memory.read_scope import ReadScope, current as current_reads
+from pm.memory.store import MemoryStore
+
+
+class ParkedRunPointer(TypedDict):
+    """What a waiting run needs to resume in this process.
+
+    The question identity comes from the kernel. The environment is the live
+    working target of the suspended invocation, which Python role calls reuse
+    after an answer arrives.
+    """
+
+    question_id: str | None
+    resume_phase: str | None
+    environment: WorkingEnvironment
+
+
+class BoundaryInstructions(TypedDict):
+    """The instruction revision that a running role holds at a safe boundary."""
+
+    instruction: str
+    revision: int
 
 
 class ManagedRunSupervisor:
@@ -39,7 +70,7 @@ class ManagedRunSupervisor:
 
     def __init__(
         self,
-        ghost,
+        ghost: MemoryStore,
         *,
         runtime_root: Path,
         workflows: Mapping[str, WorkflowSpec],
@@ -70,7 +101,7 @@ class ManagedRunSupervisor:
         self._updates = threading.Condition(self._lock)
         self._cancels: dict[str, threading.Event] = {}
         self._threads: dict[str, threading.Thread] = {}
-        self._pending: dict[str, dict] = {}
+        self._pending: dict[str, ParkedRunPointer] = {}
         self._worker_locks: dict[str, ProcessLock] = {}
         for run_id, row in ghost.managed_runs.items():
             if row["state"] == "waiting_for_input" and row.get("resume_phase") and row["workflow_name"] in self.workflows:
@@ -93,6 +124,7 @@ class ManagedRunSupervisor:
     # ------------------------------------------------------------- table
 
     def receipts(self) -> dict[str, dict]:
+        """Return every stored row, read under the store lock one run at a time."""
         with self.ghost.lock:
             ids = list(self.ghost.managed_runs)
         return {run_id: self.get(run_id) for run_id in ids}
@@ -104,6 +136,7 @@ class ManagedRunSupervisor:
                        for run_id, thread in self._threads.items())
 
     def get(self, run_id: str) -> dict:
+        """Return one row, preferring a newer accepted receipt from another process."""
         with self._lock:
             return self._read_control(run_id)
 
@@ -140,6 +173,7 @@ class ManagedRunSupervisor:
         return not commit_id or history is None or commit_id in self.ghost._live_transactions
 
     def _find_by_action(self, action_id: str) -> dict | None:
+        """Return the row of an accepted action identity, so a repeat starts nothing."""
         if not action_id:
             return None
         with self.ghost.lock:
@@ -221,6 +255,11 @@ class ManagedRunSupervisor:
         latest_event: str,
         **changes: Any,
     ) -> dict:
+        """Move an active run to one state and persist the row before returning.
+
+        A terminal row cannot be moved again, so a late worker update cannot
+        rewrite an accepted outcome.
+        """
         with self._lock:
             current = ManagedRunReceipt.from_dict(self.get(run_id))
             if current.state not in ACTIVE_STATES and state != current.state:
@@ -338,7 +377,8 @@ class ManagedRunSupervisor:
             self._launch(receipt, resume=False, payload=None)
             return persisted
 
-    def _launch(self, receipt: ManagedRunReceipt, *, resume: bool, payload: dict | None) -> None:
+    def _launch(self, receipt: ManagedRunReceipt, *, resume: bool, payload: dict[str, Any] | None) -> None:
+        """Hold the worker fence, then start one worker thread. A stopping app cancels."""
         if self._stopping.is_set():
             self._transition(receipt.run_id, state="cancelled", latest_event="application stopping")
             return
@@ -347,7 +387,9 @@ class ManagedRunSupervisor:
                 self._worker_locks[receipt.run_id] = ProcessLock(Path(receipt.artifact_path) / "worker.lock").acquire()
             except BodyBusy as error:
                 raise ManagedRunError("Another process owns this managed worker.") from error
-        cancel = self._cancels.setdefault(receipt.run_id, threading.Event())
+        # Install the worker's cancellation signal before the thread starts, so
+        # a stop signal is never lost between launch and registration.
+        self._cancels.setdefault(receipt.run_id, threading.Event())
         thread = threading.Thread(
             target=self._worker,
             args=(receipt, resume, payload),
@@ -360,7 +402,7 @@ class ManagedRunSupervisor:
 
     # ----------------------------------------------------------- worker
 
-    def _worker(self, receipt: ManagedRunReceipt, resume: bool, payload: dict | None) -> None:
+    def _worker(self, receipt: ManagedRunReceipt, resume: bool, payload: dict[str, Any] | None) -> None:
         """Capture worker memory reads across the complete real invocation."""
         from pm.llm.prompt_log import invocation_scope
         with ReadScope(), invocation_scope(receipt.workflow_name, receipt.run_id):
@@ -371,7 +413,8 @@ class ManagedRunSupervisor:
         return (self.runtime_root if receipt.execution_epoch == 1 else
                 self.runtime_root / "recovery" / receipt.run_id / f"epoch-{receipt.execution_epoch:04d}")
 
-    def _run_worker(self, receipt: ManagedRunReceipt, resume: bool, payload: dict | None) -> None:
+    def _run_worker(self, receipt: ManagedRunReceipt, resume: bool, payload: dict[str, Any] | None) -> None:
+        """Run one real invocation and record exactly the outcome that happened."""
         cancel = self._cancels[receipt.run_id]
         try:
             if not resume:
@@ -402,7 +445,7 @@ class ManagedRunSupervisor:
                 receipt.run_id, receipt.execution_epoch, key, summary, evidence)
             if spec.memory_config_factory is not None:
                 reads = current_reads()
-                def memory_config():
+                def memory_config() -> MemoryToolConfig:
                     # MCP callbacks can run on another thread. Retain their
                     # read view in the worker's own invocation scope.
                     view = self.ghost.snapshot()
@@ -505,7 +548,8 @@ class ManagedRunSupervisor:
             spec.on_interrupted(receipt)
             self._notify_terminal(run_id)
 
-    def _environment(self, receipt: ManagedRunReceipt) -> Any:
+    def _environment(self, receipt: ManagedRunReceipt) -> WorkingEnvironment:
+        """Build the invocation-scoped working target of one receipt."""
         spec = self.workflows[receipt.workflow_name]
         if spec.environment_factory is not None:
             return spec.environment_factory(receipt.run_id)
@@ -513,7 +557,8 @@ class ManagedRunSupervisor:
             return self.environment_factory(receipt.run_id)
         return FolderEnvironment(Path(receipt.artifact_path), "bash")
 
-    def _request_payload(self, receipt: ManagedRunReceipt) -> dict:
+    def _request_payload(self, receipt: ManagedRunReceipt) -> dict[str, Any]:
+        """Compose the kernel request from the run identity and its declared context."""
         payload = {
             **dict(receipt.arguments),
             "run_id": receipt.run_id,
@@ -530,7 +575,12 @@ class ManagedRunSupervisor:
                 payload.update(spec.dispatch_context(self.ghost, dict(receipt.arguments)))
         return payload
 
-    def _finish(self, run_id: str, result: WorkflowResult, environment: Any) -> None:
+    def _finish(self, run_id: str, result: WorkflowResult, environment: WorkingEnvironment) -> None:
+        """Record the terminal outcome of one kernel invocation.
+
+        A cancelled, waiting, completed, and failed result each commit their own
+        event and evidence. A workflow's own rejection becomes a failed run.
+        """
         with self._lock:
             if result.status is WorkflowStatus.Cancelled or self.get(run_id)["state"] == "cancelled":
                 outcome = "cancelled" if self.get(run_id)["state"] == "cancelled" else "interrupted"
@@ -589,7 +639,7 @@ class ManagedRunSupervisor:
             self._emit(run_id, "failed", summary=result.kernel_summary)
             self._notify_terminal(run_id)
 
-    def _artifact_evidence(self, run_id: str, environment: Any) -> list[str]:
+    def _artifact_evidence(self, run_id: str, environment: WorkingEnvironment) -> list[str]:
         """List real files produced by the run without reading their content."""
         paths: list[str] = []
         for directory in ("outbox", "scratch"):
@@ -604,8 +654,9 @@ class ManagedRunSupervisor:
         with self._lock:
             current = ManagedRunReceipt.from_dict(self.get(run_id))
             identity = f"{run_id}:{current.execution_epoch}:{len(current.events) + 1}"
-            message = {"run_id": run_id, "event": event, "event_id": identity,
-                       "execution_epoch": current.execution_epoch, **fields}
+            message: dict[str, JsonValue] = {
+                "run_id": run_id, "event": event, "event_id": identity,
+                "execution_epoch": current.execution_epoch, **fields}
             current.events.append({"message": message, "published": False})
             self._persist(current)
         if self.event_sink is not None:
@@ -633,8 +684,9 @@ class ManagedRunSupervisor:
             if any(row["message"].get("milestone_key") == key for row in current.events):
                 return
             identity = f"{run_id}:{epoch}:{len(current.events) + 1}"
-            message = {"run_id": run_id, "event": "gameplay_progress", "event_id": identity,
-                       "execution_epoch": epoch, "milestone_key": key, "detail": summary, "evidence": evidence}
+            message: dict[str, JsonValue] = {
+                "run_id": run_id, "event": "gameplay_progress", "event_id": identity,
+                "execution_epoch": epoch, "milestone_key": key, "detail": summary, "evidence": evidence}
             current.events.append({"message": message, "published": False})
             self._persist(current)
         # The sink can commit Ghost memory. Keep that commit outside this lock
@@ -653,6 +705,7 @@ class ManagedRunSupervisor:
     # -------------------------------------------------------- operations
 
     def status(self, run_id: str) -> dict:
+        """Return the latest durable receipt of one run."""
         return self.get(run_id)
 
     def update(self, run_id: str, instructions: str, *, request_id: str = "") -> dict:
@@ -681,7 +734,7 @@ class ManagedRunSupervisor:
             return receipt
 
     def instructions_at_boundary(self, run_id: str, *, wait: bool = False, close: bool = False,
-                                 epoch: int | None = None) -> dict:
+                                 epoch: int | None = None) -> BoundaryInstructions:
         """Consume the latest revision on the worker thread, or wait for one.
 
         Closing the final boundary rejects subsequent updates. The receipt
@@ -713,7 +766,7 @@ class ManagedRunSupervisor:
             self._persist(current)
             return {"instruction": current.instructions, "revision": current.revision}
 
-    def authorize_dispatch(self, run_id: str, epoch: int, revision: int, commit: Callable) -> bool:
+    def authorize_dispatch(self, run_id: str, epoch: int, revision: int, commit: Callable[[], None]) -> bool:
         """Order a durable dispatch marker against accepted control changes.
 
         The marker defines the start of an in-flight call. Later cancellation
@@ -855,6 +908,7 @@ class ManagedRunSupervisor:
             return receipt
 
     def join(self, run_id: str, timeout: float | None = None) -> None:
+        """Wait for one managed worker thread, or for at most ``timeout`` seconds."""
         with self._lock:
             thread = self._threads.get(run_id)
         if thread is not None:
@@ -865,6 +919,7 @@ class ManagedRunSupervisor:
                 thread.join(timeout)
 
     def join_all(self, timeout: float | None = None) -> None:
+        """Wait for every managed worker that this process started."""
         for run_id in list(self._threads):
             self.join(run_id, timeout)
 

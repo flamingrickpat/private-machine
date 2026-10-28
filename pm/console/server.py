@@ -1,4 +1,20 @@
-"""Loopback HTTP service for instance lifecycle and recorded runtime evidence."""
+"""Loopback HTTP service for instance lifecycle and recorded runtime evidence.
+
+The operator console is one local process that starts, observes, and stops
+companion instances. An :class:`Instance` owns one worker process
+(``pm.console.worker``), the JSON commands it acknowledges, and its durable
+``events.jsonl`` log. :class:`Console` owns the deployment definitions under a
+private runtime root and the set of instances.
+
+The service binds to loopback only and answers JSON. Every browser mutation
+must carry the console's own origin, because another page could otherwise post
+to loopback. A running worker reports its own state; the console never claims
+progress it did not observe. The event log is the evidence trail: it holds the
+worker's events, commands, protocol errors, and lifecycle transitions.
+
+Reading map: :class:`Instance` is the process and log owner, :class:`Console`
+is the deployment table, and :func:`serve` is the HTTP boundary.
+"""
 from __future__ import annotations
 
 import argparse
@@ -13,27 +29,58 @@ import shutil
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from typing import NotRequired, TypedDict
 from urllib.parse import urlparse, parse_qs
 from uuid import uuid4
+
+from pydantic import JsonValue
+
 from pm.paths import REPO_ROOT
 
 ROOT = REPO_ROOT
 
 
+class InstanceSettings(TypedDict):
+    """The deployment definition that the console writes to ``instance.json``.
+
+    ``seed`` is the persona YAML file, ``config`` the model config file (empty
+    when the deployment uses the default), and ``cognition`` selects real or
+    dummy cognition. ``deploy`` writes and validates those four keys.
+
+    ``assembly`` and ``operator_hooks`` name the modules the worker imports, so
+    the console keeps no companion behavior of its own. A deployment written by
+    hand may omit them, and the defaults of
+    :mod:`pm.console.assembly` apply.
+    """
+
+    name: str
+    seed: str
+    config: str
+    cognition: str
+    assembly: NotRequired[str]
+    operator_hooks: NotRequired[str]
+
+
 class Instance:
     """Own one worker process, its command acknowledgments, and its event log."""
 
-    def __init__(self, root: Path):
+    def __init__(self, root: Path) -> None:
+        """Read the deployment and replay its recorded events; start no process."""
         self.root = root
-        self.settings = json.loads((root / "instance.json").read_text(encoding="utf-8"))
-        self.process = None
-        self.events = deque(maxlen=10000)
+        self.settings: InstanceSettings = json.loads((root / "instance.json").read_text(encoding="utf-8"))
+        self.process: subprocess.Popen[str] | None = None
+        # Worker protocol events carry kind-specific fields, so the log keeps a
+        # freeform JSON object per line and forwards it unchanged to the page.
+        self.events: deque[dict] = deque(maxlen=10000)
         self.lock = threading.RLock()
         self.command_lock = threading.Lock()
-        self.waiters = {}
+        # One pending command per request ID: the set event, then the merged
+        # acknowledgment fields of that command.
+        self.waiters: dict[str, tuple[threading.Event, dict[str, JsonValue]]] = {}
         self.sequence = 0
-        self.snapshot = {}
-        self.nodes = []
+        self.snapshot: dict = {}
+        # The node list of the last ``ready`` event, forwarded verbatim as JSON.
+        self.nodes: list = []
         log = root / "events.jsonl"
         if log.exists():
             for line in log.read_text(encoding="utf-8").splitlines():
@@ -48,7 +95,13 @@ class Instance:
                 if event["kind"] == "ready":
                     self.nodes = event["nodes"]
 
-    def record(self, event):
+    def record(self, event: dict) -> None:
+        """Append one event to memory and to the durable log under the same sequence.
+
+        The sequence is assigned here, so a replayed log and a live stream agree
+        on message order. A pending command with this request ID is woken with
+        the merged event fields.
+        """
         with self.lock:
             self.sequence += 1
             event = {**event, "seq": self.sequence}
@@ -59,24 +112,36 @@ class Instance:
                 self.snapshot = event
             if event["kind"] == "ready":
                 self.nodes = event["nodes"]
-            waiter = self.waiters.get(event.get("request_id"))
+            request_id = event.get("request_id")
+            waiter = self.waiters.get(request_id) if isinstance(request_id, str) else None
             if waiter is not None:
                 waiter[1].update(event)
                 waiter[0].set()
 
-    def info(self):
+    def info(self) -> dict[str, object]:
+        """Return the deployment settings plus live process and worker state.
+
+        The settings are spread unchanged, so a deployment file keeps any extra
+        key it holds. ``worker_state`` comes from the last lifecycle event, not
+        from a guess: a live worker counts as ``starting`` until it reports
+        ``ready``.
+        """
         with self.lock:
-            live = self.process is not None and self.process.poll() is None
+            process = self.process
+            live = process is not None and process.poll() is None
             lifecycle = next((e["kind"] for e in reversed(self.events)
                               if e["kind"] in {"ready", "instance.start", "instance.stop", "application.error"}), None)
-            return {**self.settings, "id": self.root.name, "state": "running" if live else "stopped",
-                    "worker_state": ("failed" if lifecycle == "application.error" else
-                                     "stopping" if lifecycle == "instance.stop" else
-                                     "ready" if lifecycle == "ready" else "starting") if live else "stopped",
-                    "pid": self.process.pid if live else None,
-                    "exit_code": self.process.poll() if self.process else None}
+            info: dict[str, object] = {
+                **self.settings, "id": self.root.name, "state": "running" if live else "stopped",
+                "worker_state": ("failed" if lifecycle == "application.error" else
+                                 "stopping" if lifecycle == "instance.stop" else
+                                 "ready" if lifecycle == "ready" else "starting") if live else "stopped",
+                "pid": process.pid if process is not None and live else None,
+                "exit_code": process.poll() if process is not None else None}
+            return info
 
-    def start(self):
+    def start(self) -> None:
+        """Launch one worker process and its stdout reader. A running instance raises."""
         with self.command_lock:
             if self.info()["state"] == "running":
                 raise ValueError("The instance already runs.")
@@ -94,28 +159,43 @@ class Instance:
             threading.Thread(target=self._read, args=(self.process,), daemon=True).start()
         self.record({"kind": "instance.start", "time": time.time(), "pid": self.process.pid})
 
-    def _read(self, process):
-        for line in process.stdout:
+    def _read(self, process: subprocess.Popen[str]) -> None:
+        """Record every worker event line until the process exits, then its code."""
+        output, intake = process.stdout, process.stdin
+        # The worker is launched with both pipes, so neither stream is absent.
+        assert output is not None and intake is not None
+        for line in output:
             try:
                 self.record(json.loads(line))
             except json.JSONDecodeError:
                 self.record({"kind": "protocol.error", "time": time.time(), "text": line})
         process.wait()
         self.record({"kind": "instance.exit", "time": time.time(), "exit_code": process.returncode})
-        process.stdout.close()
-        process.stdin.close()
+        output.close()
+        intake.close()
 
-    def command(self, command, timeout=90):
+    def command(self, command: dict, timeout: float = 90) -> dict[str, JsonValue]:
+        """Send one command to the worker and return its acknowledgment.
+
+        ``command`` needs an ``action`` key. A worker rejection raises
+        ``ValueError`` with the worker's own reason, and a worker that does not
+        answer within ``timeout`` seconds raises ``TimeoutError``. The request
+        ID is registered before the write, because a fast acknowledgment can
+        arrive before ``wait`` starts.
+        """
         request_id = uuid4().hex
-        waiter = (threading.Event(), {})
+        waiter: tuple[threading.Event, dict[str, JsonValue]] = (threading.Event(), {})
         try:
             with self.command_lock:
                 if self.info()["state"] != "running":
                     raise ValueError("Start the instance first.")
+                intake = self.process.stdin if self.process is not None else None
+                if intake is None:
+                    raise ValueError("Start the instance first.")
                 with self.lock:
                     self.waiters[request_id] = waiter
-                self.process.stdin.write(json.dumps({**command, "request_id": request_id}) + "\n")
-                self.process.stdin.flush()
+                intake.write(json.dumps({**command, "request_id": request_id}) + "\n")
+                intake.flush()
             if not waiter[0].wait(timeout):
                 raise TimeoutError("The worker did not acknowledge the command. Read the worker log.")
             if waiter[1]["kind"] == "rejected":
@@ -127,33 +207,40 @@ class Instance:
             with self.lock:
                 self.waiters.pop(request_id, None)
 
-    def kill(self):
+    def kill(self) -> None:
+        """Kill the worker process tree. A stopped instance is left alone."""
         with self.command_lock:
             if self.info()["state"] != "running":
                 return
+            process = self.process
+            if process is None:
+                return
             if os.name == "nt":
-                subprocess.run(["taskkill", "/PID", str(self.process.pid), "/T", "/F"],
+                subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],
                                capture_output=True, check=True, creationflags=subprocess.CREATE_NO_WINDOW)
             else:
-                self.process.kill()
-            self.process.wait(timeout=10)
+                process.kill()
+            process.wait(timeout=10)
         self.record({"kind": "instance.kill", "time": time.time()})
 
 
 class Console:
     """Retain deployment definitions and sessions under a private runtime root."""
 
-    def __init__(self, root: Path):
+    def __init__(self, root: Path) -> None:
+        """Bind the console to its runtime root and load the stored deployments."""
         self.root = root.resolve()
         self.root.mkdir(parents=True, exist_ok=True)
-        self.instances = {p.parent.name: Instance(p.parent) for p in self.root.glob("*/instance.json")}
+        self.instances: dict[str, Instance] = {
+            item.parent.name: Instance(item.parent) for item in self.root.glob("*/instance.json")}
         self.lock = threading.RLock()
 
-    def deploy(self, settings):
-        """Create one deployment from browser settings and return its info.
+    def deploy(self, settings: dict) -> dict[str, object]:
+        """Create one deployment from decoded browser settings and return its info.
 
         ``name`` and ``seed`` (a persona YAML file) are required. The console
-        holds no persona of its own. Invalid settings raise ValueError.
+        holds no persona of its own. ``settings`` is an unvalidated request
+        body, so invalid or missing values raise ValueError here.
         """
         if not str(settings.get("name") or "").strip():
             raise ValueError("Name the deployment.")
@@ -181,15 +268,20 @@ class Console:
         return instance.info()
 
 
-def serve(root: Path, port: int = 8090):
-    """Serve only on loopback. Browser mutations require the console origin."""
+def serve(root: Path, port: int = 8090) -> None:
+    """Serve only on loopback until the process ends.
+
+    Browser mutations require the console origin. On the way out, every
+    running worker is asked to stop and is killed when it does not.
+    """
     console = Console(root)
 
     class Handler(BaseHTTPRequestHandler):
-        def log_message(self, *args):
+        def log_message(self, format: str, *args: object) -> None:
             pass
 
-        def respond(self, value, status=200):
+        def respond(self, value: object, status: int = 200) -> None:
+            """Write one JSON response with no caching."""
             data = json.dumps(value, ensure_ascii=False).encode()
             self.send_response(status)
             self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -198,7 +290,8 @@ def serve(root: Path, port: int = 8090):
             self.end_headers()
             self.wfile.write(data)
 
-        def do_GET(self):
+        def do_GET(self) -> None:
+            """Serve the deployment list, one instance's events, or one page file."""
             if self.headers.get("Host") != f"127.0.0.1:{self.server.server_port}":
                 return self.respond({"error": "Use the console through its loopback address."}, 403)
             path = urlparse(self.path)
@@ -232,7 +325,8 @@ def serve(root: Path, port: int = 8090):
             except (KeyError, ValueError) as exc:
                 self.respond({"error": str(exc)}, 404)
 
-        def do_POST(self):
+        def do_POST(self) -> None:
+            """Apply one browser mutation: open a file, probe, deploy, or command."""
             expected = f"http://127.0.0.1:{self.server.server_port}"
             if self.headers.get("Host") != expected.removeprefix("http://") or self.headers.get("Origin") not in {None, expected}:
                 return self.respond({"error": "Use the console through its loopback address."}, 403)

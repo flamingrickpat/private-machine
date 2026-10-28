@@ -27,6 +27,7 @@ seed phrases (``_generate_state_seed_phrases``).
 """
 from __future__ import annotations
 
+from pm_workflows.python_role import RoleContext
 from pydantic import BaseModel, ConfigDict, Field
 
 from pm.constants import WORKSPACE_TAIL_TOKENS
@@ -272,7 +273,7 @@ def experience_groups(work: CycleWork) -> list[ShardKey]:
     return keys if len(keys) > 1 else []
 
 
-def run(context, work: CycleWork) -> CycleWork:
+def run(context: RoleContext, work: CycleWork) -> CycleWork:
     prompts = load_experience_prompts()
     seed = seed_text(seed_phrases(work.state.mental_state, prompts.seed_phrases), prompts)
     prefix = StoryPrefix(work)

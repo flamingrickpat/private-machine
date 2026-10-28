@@ -24,18 +24,27 @@ from pm_workflows.inputs import FileMetadata
 class FolderEnvironment(WorkingEnvironment):
     """A real directory used as one invocation-scoped working target."""
 
-    def agent_target(self, artifact_workspace: Path) -> AgentTarget:
-        return AgentTarget(self.root.resolve())
+    def __init__(self, root: Path, bash_executable: str) -> None:
+        """Bind the folder and the shell. A missing folder is created.
 
-    def __init__(self, root: Path, bash_executable: str):
+        ``bash_executable`` is the host Bash used by :meth:`exec`; every other
+        operation uses the host file API of
+        :class:`pm_workflows.working_target.HostInputEnvironment`.
+        """
         self.root = root
         self.root.mkdir(parents=True, exist_ok=True)
         self.bash_executable = bash_executable
 
+    def agent_target(self, artifact_workspace: Path) -> AgentTarget:
+        """Bind a native agent to this folder. The kernel's workspace stays unused."""
+        return AgentTarget(self.root.resolve())
+
     def _path(self, path: str) -> Path:
+        """Resolve one declared path inside this folder."""
         return HostInputEnvironment(self.root)._path(path, folder=True)
 
     def read_text(self, path: str) -> str:
+        """Return the exact text of one file inside this folder."""
         return HostInputEnvironment(self.root).read_text(path)
 
     def file_metadata(self, path: str) -> FileMetadata:
@@ -51,22 +60,26 @@ class FolderEnvironment(WorkingEnvironment):
         return HostInputEnvironment(self.root).canonical_relative_path(path)
 
     def write_text(self, path: str, text: str) -> None:
+        """Write one file with Unix newlines, creating its parents."""
         target = self._path(path)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(text, encoding="utf-8", newline="")
 
     def move(self, source: str, destination: str) -> None:
+        """Move one file inside the folder, creating the destination parent."""
         source_path = self._path(source)
         destination_path = self._path(destination)
         destination_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(source_path), str(destination_path))
 
     def write_binary(self, path: str, data: bytes) -> None:
+        """Write exact bytes, creating the parent directories first."""
         target = self._path(path)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)
 
     def list_files(self, directory: str) -> list[str]:
+        """Return sorted direct-child file paths relative to the folder root."""
         # The kernel names its root with ".", never "". Normalizing the join
         # keeps root entries as "b.txt" rather than "./b.txt".
         root = self._path(directory or ".")
@@ -76,6 +89,7 @@ class FolderEnvironment(WorkingEnvironment):
                       for p in root.iterdir() if p.is_file())
 
     def exec(self, command: str) -> CommandResult:
+        """Run one command in this folder and return stdout, stderr, and its code."""
         result = subprocess.run(
             [self.bash_executable, "--noprofile", "--norc", "-c", command],
             cwd=self.root,
@@ -92,11 +106,13 @@ class FolderEnvironment(WorkingEnvironment):
 class FolderTarget(WorkingTarget):
     """Opens one real folder under ``root`` for each invocation."""
 
-    def __init__(self, root: Path, bash_executable: str):
+    def __init__(self, root: Path, bash_executable: str) -> None:
+        """Bind the parent folder and the host Bash. No folder is created yet."""
         self.root = Path(root)
         self.bash_executable = bash_executable
 
     def open(self, invocation_id: str) -> FolderEnvironment:
+        """Create and return the folder of one invocation."""
         return FolderEnvironment(self.root / invocation_id, self.bash_executable)
 
 

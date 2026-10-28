@@ -4,6 +4,11 @@ from dataclasses import replace
 import json
 from pathlib import Path
 
+from typing import Any
+
+from pm_workflows.python_role import RoleContext
+from pm_workflows.working_target import WorkingEnvironment
+
 from pm.utils import yaml_util
 
 from fastmcp import FastMCP
@@ -24,7 +29,7 @@ from workflows.main_cognition.phases.goals import validate_changes
 from workflows.main_cognition.schemas import GoalsResult
 
 
-def run(context) -> dict:
+def run(context: RoleContext) -> dict[str, Any]:
     """Return a validated proposal. Cancellation discards it after agent cleanup."""
     try:
         return run_mental_work(context)
@@ -37,7 +42,7 @@ def run(context) -> dict:
         return {"status": "done", "summary": "Mental work failed. No plan reached main appraisal."}
 
 
-def write_mapping(environment, report: dict) -> None:
+def write_mapping(environment: WorkingEnvironment, report: dict[str, Any]) -> None:
     """Write a role report mapping through the working target's outbox."""
     environment.write_text("scratch/report.yaml", yaml_util.safe_dump(report, sort_keys=False, allow_unicode=True))
     environment.move("scratch/report.yaml", "outbox/report.yaml")
@@ -52,7 +57,7 @@ def mental_prompt(request: MentalWorkRequest) -> str:
     return prompt + "\n\nPerform this private mental task: " + request.instruction
 
 
-def run_mental_work(context) -> dict:
+def run_mental_work(context: RoleContext) -> dict[str, Any]:
     """Run the agent and validate its inspected evidence before any commit."""
     runtime = context.runtime
     request = MentalWorkRequest.model_validate(read_request(runtime.environment))
@@ -73,7 +78,8 @@ def run_mental_work(context) -> dict:
             work_dir=context.workspace, runtime=replace(runtime, agent_model=replace(model, enable_thinking=True),
                 mcp_servers=servers), mcp_config=config, trace_file=context.kernel_data / "mental-agent.jsonl")
         runtime.check_cancelled()
-        def validate_plan(payload, raw):
+        def validate_plan(payload: dict[str, Any], raw: str) -> MentalPlan:
+            """Validate one agent plan and its goal changes before acceptance."""
             plan = MentalPlan.model_validate(payload)
             validate_changes(GoalsResult(changes=[GoalChange.model_validate(item) for item in plan.goal_changes]))
             return plan

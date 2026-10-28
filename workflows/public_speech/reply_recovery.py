@@ -1,22 +1,52 @@
-"""Resume selected task replies from durable run and exchange evidence."""
+"""Resume selected task replies from durable run and exchange evidence.
+
+A managed task outlives the cycle that started it, so its public answer
+cannot come from that cycle. This module rebuilds the missing request from
+durable evidence: the accepted user exchange, the selected reply action, and
+the terminal run receipt. It never invents speech and never asks for a reply
+that the cycle did not already choose.
+
+Inputs are bus envelopes (``workflow.event``, ``workflow.question``,
+``action.receipt``, ``public.resume``) and the supervisor's receipts. Outputs
+are ``action.request`` envelopes for the assistant workflow, plus retained
+reply actions that make the recovery idempotent. ``task_evidence`` is the
+only place that decides whether a receipt proves the work it claims.
+
+Invariants:
+
+- A reply is dispatched only when the original action selected public speech
+  (``_public_reply_requested``) and the reply action still resolves.
+- One identity per run revision yields one reply action, so a replayed resume
+  cannot speak twice.
+- Evidence that escapes its task folder raises ValueError instead of being
+  accepted or silently dropped.
+"""
 from __future__ import annotations
 
 from pathlib import Path
 import json
+from typing import TYPE_CHECKING, Any
 
 from pm.utils import yaml_util
 
 from pm.bus.envelopes import Envelope, new_id
+from pm.records.base import RecordBase
 from pm.records.memory_records import ActionSchemaRecord
 from pm.records.enums import ActionType
 from workflows.public_speech.publication import commit_public_reply, exchange_record, publish_reply
 from pm.host.application import BusModule
 
+if TYPE_CHECKING:
+    from pm.memory.store import MemoryStore
+    from pm.runs.supervisor import ManagedRunSupervisor
+    from workflows.main_cognition.schemas import ActionRequest
+
 TERMINAL = frozenset({"completed", "failed", "cancelled", "interrupted"})
 
 
-def user_reply_request(ghost, *, knoxel_id: int, action_id: str, exchange, task_receipt: dict,
-                       workspace: str = ""):
+def user_reply_request(ghost: MemoryStore, *, knoxel_id: int, action_id: str,
+                       exchange: RecordBase, task_receipt: dict[str, Any],
+                       workspace: str = "") -> ActionRequest:
     """Return the typed request of a task reply to the user, outside a cycle.
 
     The reply answers the user exchange ``exchange``. It carries the self
@@ -42,8 +72,14 @@ def user_reply_request(ghost, *, knoxel_id: int, action_id: str, exchange, task_
         task_receipt=task_receipt, workspace=workspace)
 
 
-def task_evidence(receipt: dict) -> dict:
-    """Verify note bytes or retained Minecraft receipts before public dispatch."""
+def task_evidence(receipt: dict[str, Any]) -> dict[str, Any]:
+    """Verify note bytes or retained Minecraft receipts before public dispatch.
+
+    Returns a copy of the receipt with ``task_verified`` decided here and the
+    evidence that decided it (``report``, ``minecraft_verification``, or the
+    actual note bytes). Only a completed run with matching retained evidence
+    is verified; every other case stays unverified, never failed silently.
+    """
     result = dict(receipt)
     if not receipt.get("artifact_path"):
         result["task_verified"] = False
@@ -91,12 +127,15 @@ class ReplyRecovery(BusModule):
 
     DATA_TOPICS = frozenset({"workflow.event", "workflow.question", "action.receipt", "public.resume"})
 
-    def __init__(self, *args, ghost, supervisor, **kwargs):
+    def __init__(self, *args: Any, ghost: MemoryStore, supervisor: ManagedRunSupervisor,
+                 **kwargs: Any) -> None:
+        """Forward the module configuration and retain the store and supervisor."""
         super().__init__(*args, **kwargs)
         self.ghost = ghost
         self.supervisor = supervisor
 
-    def handle_batch(self, batch):
+    def handle_batch(self, batch: list[Envelope]) -> None:
+        """Acknowledge run events and dispatch the replies they owe."""
         for envelope in batch:
             if envelope.topic in {"workflow.event", "workflow.question"} and envelope.payload.get("event_id"):
                 self.supervisor.acknowledge_event(envelope.payload["run_id"], envelope.payload["event_id"])
@@ -123,7 +162,7 @@ class ReplyRecovery(BusModule):
                     self.fail_exchange(envelope.correlation_id, "The task request was rejected. "
                                        + envelope.payload.get("summary", "No task execution was verified."))
 
-    def fail_exchange(self, correlation: str, text: str):
+    def fail_exchange(self, correlation: str, text: str) -> None:
         """Request an agent-written explanation of an expected task rejection.
 
         The supplied text is evidence, not companion speech. Broken internal
@@ -144,8 +183,13 @@ class ReplyRecovery(BusModule):
         self.bus.put(Envelope(id=new_id(), source=self.module_id, kind="data", topic="action.request",
             correlation_id=correlation, target="dialogue_assistant", payload=request.payload()))
 
-    def reply_to_task(self, receipt):
-        """Retain the original selected action as the cause of a receipt-based reply."""
+    def reply_to_task(self, receipt: dict[str, Any]) -> None:
+        """Retain the original selected action as the cause of a receipt-based reply.
+
+        A receipt that never asked for a public reply, or whose exchange is
+        gone, produces nothing. A receipt whose selected action is missing or
+        of the wrong type raises, because that is broken internal state.
+        """
         correlation = receipt.get("parent_correlation", "")
         arguments = receipt.get("arguments", {})
         source_id = arguments.get("_public_action_schema_id")
@@ -187,8 +231,13 @@ class ReplyRecovery(BusModule):
             target="dialogue_assistant", payload=request.payload(),
         ))
 
-    def resume(self):
-        """Replay pending publication and task replies after a checkpoint restart."""
+    def resume(self) -> None:
+        """Replay pending publication and task replies after a checkpoint restart.
+
+        Replay covers three sources: retained intents, publications left
+        pending, and terminal receipts that still owe a reply. A user exchange
+        that nothing else answers is redispatched as a fresh stimulus.
+        """
         from workflows.main_cognition.dispatch_recovery import replay_intents
         handled = replay_intents(self.ghost, self.bus, self.supervisor)
         self.supervisor.replay_events()

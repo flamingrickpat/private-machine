@@ -22,6 +22,8 @@ returns an empty list gets no decision: the character does nothing about it.
 """
 from __future__ import annotations
 
+from pm_workflows.python_role import RoleContext
+
 from pm.constants import DECISION_VARIANTS
 from pm.context_render.turns import Turn, format_content
 from pm.llm.concurrency import ordered_parallel_map
@@ -110,7 +112,7 @@ def build_messages(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix, 
     return prefix.ask(instruction)
 
 
-def decide(context, work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix,
+def decide(context: RoleContext, work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix,
            group: StimulusGroup) -> DecisionAnswer:
     """Run the decision call of one group. Runs in a worker thread and does not change ``work``."""
     check = DecisionCheck(workflow_names=[item.name for item in available_workflows(work)])
@@ -118,7 +120,7 @@ def decide(context, work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix,
                     validation_context=check.model_dump())
 
 
-def run(context, work: CycleWork) -> CycleWork:
+def run(context: RoleContext, work: CycleWork) -> CycleWork:
     prompts = phase_prompts("decide")
     groups = [group for group in work.state.stimulus_groups if not group.insignificant]
     # Each group reads only the self shard and its own shard. The content of

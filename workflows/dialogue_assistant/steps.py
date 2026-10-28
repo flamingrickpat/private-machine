@@ -18,6 +18,7 @@ import asyncio
 import json
 from pathlib import Path
 from typing import Any
+from pm_workflows.python_role import RoleContext
 from pm.llm.activation import ChatResult
 from pm.llm.completion import AsyncTextCompletion, Completion
 from pm.llm.prompt_encoding import OpenAIChatEncoder, normalize_turns
@@ -229,10 +230,10 @@ async def _call_mcp(servers: dict, name: str, arguments: dict) -> Any:
 
 
 async def execute_tool_calls(
-    context,
-    message: dict,
+    context: RoleContext,
+    message: dict[str, Any],
     request: AssistantRequest,
-    servers: dict,
+    servers: dict[str, object],
 ) -> tuple[list[ToolReceipt], list[AssistantMessage]]:
     """Execute granted calls through MCP, or directly when no MCP is bound."""
     calls = message.get("tool_calls") or []
@@ -376,7 +377,8 @@ def review_and_revise(request: AssistantRequest, candidate: str, messages: list[
         text = final_public_speech(str(message.get("content") or "").strip(), request)
 
 
-def run(context) -> dict:
+def run(context: RoleContext) -> dict[str, Any]:
+    """Kernel entry point for one Assistant reply."""
     environment = context.runtime.environment
     request = AssistantRequest.model_validate(
         yaml_util.safe_load(environment.read_text("inbox/request.yaml"))

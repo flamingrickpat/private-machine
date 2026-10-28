@@ -6,9 +6,11 @@ after it. A torn final line is an uncertain tail, not corruption.
 from __future__ import annotations
 
 import json
+from pathlib import Path
+from typing import Any
 
 
-def read_actor_journal(path) -> list[dict]:
+def read_actor_journal(path: Path) -> list[dict[str, Any]]:
     """Read complete receipts. Retain a torn final append as an uncertain tail."""
     if not path.is_file():
         return []

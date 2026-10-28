@@ -6,7 +6,7 @@ sends the error back in a repair turn.
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
@@ -23,6 +23,16 @@ from pm.records.taxonomy import EpistemicStatus, PmCategory, RecordType
 from pm.utils import yaml_util
 
 PROMPTS_FILE = Path(__file__).with_name("prompts.yaml")
+
+
+def naive_utc_now() -> datetime:
+    """Return the current UTC time as a naive datetime.
+
+    Report timestamps are stored naive UTC on purpose: the time-range logic of
+    ``pm.memory.reconsolidation.temporal`` compares them with the naive world
+    timestamps of the records.
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class ReconsolidationConfig(BaseModel):
@@ -203,7 +213,7 @@ class ReconsolidationReport(BaseModel):
 
     run_id: str = ""
     forced: bool = False
-    started_at: datetime = Field(default_factory=datetime.utcnow)
+    started_at: datetime = Field(default_factory=naive_utc_now)
     finished_at: datetime | None = None
     unclustered_events: int = 0
     topical_ids: list[int] = Field(default_factory=list)

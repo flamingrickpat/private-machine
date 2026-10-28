@@ -1,10 +1,21 @@
 """Durable scenario execution and harness-owned participant routing.
 
-Each run forks its source homes. Inputs and routing receipts are durable before
-delivery. A restart can retry them through the public API's delivery IDs.
+One ``RunEngine`` owns one run folder: the controller document ``state.json``,
+the per-attempt artifacts, and the participant processes it launches. It is the
+authority for scenario progress and for the transit ledger; the browser only
+reads detached copies through ``view``.
+
+Delivery contract: a participant's public output is written to the controller
+document before routing, and every routed message keeps a ``delivery_id`` that
+the receiving process de-duplicates. A crash between the save and the send
+retries the same delivery instead of duplicating it. Messages still in transit
+belong to the coordinated checkpoint, so a restore returns them.
+
+The package overview is in ``simulation/__init__.py``.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from datetime import datetime, timezone
 import json
 from pathlib import Path
@@ -12,8 +23,11 @@ import queue
 import shutil
 import threading
 import time
+from typing import Literal
 from uuid import uuid4
 from contextlib import closing
+
+from pydantic import JsonValue
 
 from pm.host.durable_files import ProcessLock, atomic_json
 from pm.memory.checkpoint import read_checkpoint
@@ -32,20 +46,37 @@ class RunEngine:
     still in transit remain in the coordinated checkpoint. Resume retains them.
     """
 
-    def __init__(self, root: Path):
-        self.root = root
-        self.state_path = root / "state.json"
+    def __init__(self, root: Path) -> None:
+        self.root: Path = root
+        self.state_path: Path = root / "state.json"
         self._lock = threading.RLock()
-        self.state = json.loads(self.state_path.read_text(encoding="utf-8"))
-        self.plan = ScenarioPlan.model_validate_json((root / "plan.json").read_text(encoding="utf-8"))
+        # The controller document is mutable browser state, not a fixed record:
+        # its rows grow with the run. ``view`` documents the keys.
+        self.state: dict[str, JsonValue] = json.loads(self.state_path.read_text(encoding="utf-8"))
+        self.plan: ScenarioPlan = ScenarioPlan.model_validate_json((root / "plan.json").read_text(encoding="utf-8"))
         self.processes: dict[str, PMProcess] = {}
         self.thread: threading.Thread | None = None
-        self.request = threading.Event()
-        self.requested_status = "paused"
+        self.request: threading.Event = threading.Event()
+        self.requested_status: Literal["paused", "stopped"] = "paused"
+        # Set by ``start`` for the lifetime of one attempt thread.
+        self._run_lock: ProcessLock | None = None
 
     @classmethod
-    def create(cls, root: Path, plan: ScenarioPlan, participants: list[dict], edges: list[dict], config: str):
-        """Fork all source homes before publishing a new run as ready."""
+    def create(cls, root: Path, plan: ScenarioPlan, participants: Sequence[Mapping[str, str]],
+               edges: Sequence[Mapping[str, str]], config: str) -> RunEngine:
+        """Fork every source home, then publish the new run as ready.
+
+        ``participants`` are selections that each name run-local ``id`` and the
+        ``home`` folder to fork from. ``edges`` are directed speech connections
+        with ``source`` and ``target`` participant IDs and an optional ``name``
+        that the receiver shows as the speaker. ``config`` names the model
+        configuration the participants start with.
+
+        The run folder, ``plan.json``, ``state.json``, and the coordinated
+        baseline are all durable before this returns, so no caller sees a half
+        created run. Raises ``ValueError`` for duplicate or malformed selections
+        and ``FileExistsError`` when the run folder already exists.
+        """
         if not participants or len({item["id"] for item in participants}) != len(participants):
             raise ValueError("A run needs participants with unique IDs.")
         ids = {item["id"] for item in participants}
@@ -56,7 +87,7 @@ class RunEngine:
         if any(not item["id"].replace("-", "").replace("_", "").isalnum() for item in participants):
             raise ValueError("Participant IDs must contain letters, numbers, underscores, or hyphens.")
         root.mkdir(parents=True, exist_ok=False)
-        prepared = []
+        prepared: list[dict[str, JsonValue]] = []
         for item in participants:
             home = fork_home(Path(item["home"]), root / "participants" / item["id"])
             data = read_checkpoint(home.ghost_pickle)
@@ -66,11 +97,13 @@ class RunEngine:
             prepared.append({"id": item["id"], "source_home": item["home"], "home": str(home.root.resolve()),
                              "first_record_id": data.current_knoxel_id + 1, "cursor": cursor})
         atomic_json(root / "plan.json", plan.model_dump(mode="json"))
-        atomic_json(root / "state.json", {"id": root.name, "title": plan.title, "status": "ready",
+        initial_state: dict[str, JsonValue] = {
+            "id": root.name, "title": plan.title, "status": "ready",
             "created_at": datetime.now(timezone.utc).isoformat(), "config": str(Path(config).resolve()),
-            "participants": prepared, "edges": edges, "step_index": 0, "turn": 0, "attempt": 0,
+            "participants": prepared, "edges": list(edges), "step_index": 0, "turn": 0, "attempt": 0,
             "clock": plan.start_time.isoformat(), "timeline": [], "transit": [], "facts": {},
-            "pending_input": None, "reports": [], "failures": []})
+            "pending_input": None, "reports": [], "failures": []}
+        atomic_json(root / "state.json", initial_state)
         engine = cls(root)
         engine._initial_checkpoint()
         return engine
@@ -78,17 +111,20 @@ class RunEngine:
     def _initial_checkpoint(self) -> None:
         """Keep a coordinated baseline before any participant can exchange speech."""
         from pm.vclock import VirtualClock
-        snapshots = {}
+        snapshots: dict[str, dict[str, JsonValue]] = {}
         for item in self.state["participants"]:
             home = Path(item["home"])
             snapshot = home / "runtime/snapshots/initial.pickle"
             snapshot.parent.mkdir(parents=True, exist_ok=True)
+            # Copy the ghost and its clock receipt together, so the baseline
+            # snapshot and the timers that resume from it describe one instant.
             shutil.copyfile(home / "ghost.pickle", snapshot)
             clock_path = home / "runtime/clock.json"
             saved = json.loads(clock_path.read_text(encoding="utf-8")) if clock_path.exists() else None
-            clock = (saved if saved is not None and datetime.fromisoformat(saved["clock"]["now"]) == self.plan.start_time
-                     else {"clock": VirtualClock(self.plan.start_time).state(), "timers": {},
-                           "environment": [], "carry": [], "output_cursor": item["cursor"]})
+            clock: dict[str, JsonValue] = (
+                saved if saved is not None and datetime.fromisoformat(saved["clock"]["now"]) == self.plan.start_time
+                else {"clock": VirtualClock(self.plan.start_time).state(), "timers": {},
+                      "environment": [], "carry": [], "output_cursor": item["cursor"]})
             atomic_json(snapshot.with_suffix(".json"), clock)
             snapshots[item["id"]] = {"path": str(snapshot.resolve())}
         atomic_json(self.root / "checkpoints/initial.json", {"clock": self.state["clock"],
@@ -99,8 +135,21 @@ class RunEngine:
         with self._lock:
             atomic_json(self.state_path, self.state)
 
-    def view(self) -> dict:
-        """Return detached state for the browser without exposing mutable ownership."""
+    def view(self) -> dict[str, JsonValue]:
+        """Return the controller document as a detached JSON copy for the browser.
+
+        The document is mutable state rather than a fixed record. It carries
+        ``id``, ``title``, ``status``, ``created_at``, ``config``,
+        ``participants``, ``edges``, ``step_index``, ``turn``, ``attempt``,
+        ``clock``, ``timeline``, ``transit``, ``facts``, ``pending_input``,
+        ``reports``, ``failures``, and ``requested_status``. Timeline, transit,
+        and fact rows accumulate for the life of the run, which is why this
+        stays a JSON mapping instead of a rigid typed record.
+
+        The JSON round trip detaches the reader from engine-owned state. With no
+        attempt thread running, the file on disk is authoritative and is
+        reloaded first, because another browser process may have written it.
+        """
         with self._lock:
             if self.thread is None:
                 self.state = json.loads(self.state_path.read_text(encoding="utf-8"))
@@ -163,7 +212,7 @@ class RunEngine:
         if intent["status"] == "completed":
             return
         receipt = intent["checkpoint"]
-        targets = []
+        targets: list[tuple[Path, Path, dict[str, JsonValue]]] = []
         for participant in receipt["controller"]["participants"]:
             home = Path(participant["home"]).resolve()
             snapshot = Path(receipt["snapshots"][participant["id"]]["path"]).resolve()
@@ -179,6 +228,9 @@ class RunEngine:
                 lock = ProcessLock(home / ".simulation-process.lock").acquire()
                 owners.callback(lock.close)
             for home, snapshot, clock in targets:
+                # Keep the superseded ghost, then stage the restored one and
+                # replace it in one rename. An interrupted restore leaves either
+                # the old ghost or the restored ghost, never a partial file.
                 archive = home / f"ghost.before-restore-{intent['token']}.pickle"
                 if not archive.exists():
                     shutil.copyfile(home / "ghost.pickle", archive)
@@ -204,7 +256,13 @@ class RunEngine:
             self.save()
 
     def collect(self, *, route: bool) -> None:
-        """Record public outputs before routing. Persist each delivery before sending."""
+        """Record public outputs before routing, and persist each delivery before sending.
+
+        The ledger is saved before a target is asked to accept a message, so a
+        crash repeats the same ``delivery_id`` instead of producing a second one.
+        ``route`` is false at a barrier: speech is still recorded and queued, but
+        nothing is delivered until the run is allowed to advance.
+        """
         with self._lock:
             for participant in self.state["participants"]:
                 process = self.processes[participant["id"]]
@@ -243,9 +301,15 @@ class RunEngine:
                     delivery["status"] = "delivered"
                     self.save()
 
-    def settle(self, *, target: str | None = None, route: bool = False) -> dict[str, dict]:
-        """Wait for runnable work without a deadline. Parked workflows remain resumable."""
-        quiet_since = None
+    def settle(self, *, target: str | None = None, route: bool = False) -> dict[str, dict[str, JsonValue]]:
+        """Wait for runnable work without a deadline. Parked workflows remain resumable.
+
+        Returns the last ``/control/state`` receipt of every participant, keyed by
+        participant ID, or only ``target``'s receipt when one is named. A quiet
+        window of 0.15 seconds counts as settled; polling continues until then so
+        a late public output is not missed.
+        """
+        quiet_since: float | None = None
         while True:
             self.collect(route=route)
             states = {key: item.state() for key, item in self.processes.items()}
@@ -347,14 +411,20 @@ class RunEngine:
         self.save()
 
     def _run(self) -> None:
-        """Own execution, coordinated evidence, and cleanup of one attempt."""
+        """Own execution, coordinated evidence, and cleanup of one attempt.
+
+        The attempt folder exists before any participant starts, so a failure has
+        a durable place for its receipt. ``outcome`` starts as ``failed`` and is
+        replaced only by an explicit pause, stop, or completion, so an unexpected
+        exit can never look like a finished scenario.
+        """
         with closing(self._run_lock):
             self.state["attempt"] += 1
             attempt = self.root / "attempts" / str(self.state["attempt"])
             attempt.mkdir(parents=True, exist_ok=False)
             self.state["status"] = "starting"
             self.save()
-            outcome = "failed"
+            outcome: str = "failed"
             try:
                 source = freeze_source(attempt / "source", Path(self.state["config"]))
                 for item in self.state["participants"]:
@@ -391,11 +461,16 @@ class RunEngine:
                 self._report(attempt)
 
     def _checkpoint(self, attempt: Path) -> None:
-        """Freeze every participant and the transit ledger at one clock barrier."""
+        """Freeze every participant and the transit ledger at one clock barrier.
+
+        Every participant is frozen and settled before any snapshot is taken, so
+        the stored ghosts, clocks, and controller document describe one instant
+        and a restore can resume the whole world without replaying speech.
+        """
         for process in self.processes.values():
             process.post("/control/freeze", {})
         self.settle()
-        snapshots = {}
+        snapshots: dict[str, dict[str, JsonValue]] = {}
         for participant in self.state["participants"]:
             process = self.processes[participant["id"]]
             snapshots[participant["id"]] = process.post("/control/snapshot", {"name": f"attempt-{self.state['attempt']}"})
@@ -404,20 +479,25 @@ class RunEngine:
             "snapshots": snapshots, "controller": self.view()})
 
     def _report(self, attempt: Path) -> None:
-        """Retain failed attempts and capture actual records after process cleanup."""
-        captured = {}
+        """Retain failed attempts and capture actual records after process cleanup.
+
+        A capture failure downgrades the run to ``failed`` but keeps every other
+        participant's evidence, so a partial capture never claims a clean result.
+        """
+        captured: dict[str, dict[str, JsonValue]] = {}
         for item in self.state["participants"]:
             try:
                 captured[item["id"]] = capture_participant(Path(item["home"]), attempt / "evidence" / item["id"], item["first_record_id"])
             except BaseException as error:
                 self.state["failures"].append({"attempt": self.state["attempt"], "capture_error": repr(error)})
                 self.state["status"] = "failed"
-        report = {"schema": "pm.simulation-report.v1", "run": self.view(),
-                  "plan": self.plan.model_dump(mode="json"), "participants": captured,
-                  "human_review": "pending" if self.state["status"] == "completed" else "not_ready",
-                  "coordinated_checkpoint": "coordinated-checkpoint.json" if (attempt / "coordinated-checkpoint.json").exists() else None,
-                  "source": "source.json" if (attempt / "source.json").exists() else None,
-                  "automated_fact_checks": self.state["facts"]}
+        report: dict[str, JsonValue] = {
+            "schema": "pm.simulation-report.v1", "run": self.view(),
+            "plan": self.plan.model_dump(mode="json"), "participants": captured,
+            "human_review": "pending" if self.state["status"] == "completed" else "not_ready",
+            "coordinated_checkpoint": "coordinated-checkpoint.json" if (attempt / "coordinated-checkpoint.json").exists() else None,
+            "source": "source.json" if (attempt / "source.json").exists() else None,
+            "automated_fact_checks": self.state["facts"]}
         atomic_json(attempt / "report.json", report)
         self.state["reports"].append(str((attempt / "report.json").relative_to(self.root)))
         self.state["requested_status"] = None

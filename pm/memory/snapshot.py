@@ -21,11 +21,16 @@ class RecordView(Protocol):
 
 
 class GhostConflict(RuntimeError):
-    pass
+    """An inspected input changed before the caller's commit.
+
+    The caller must refresh the view and reconsider its draft. Retrying the
+    same commit cannot succeed; nothing of the rejected batch was accepted.
+    """
 
 
 class GhostCancelled(RuntimeError):
-    pass
+    """The owner revoked this read grant or cancelled the surrounding run."""
+
 
 
 @dataclass(slots=True)
@@ -79,11 +84,15 @@ class Snapshot:
         """Return the content of a visible entity."""
         return self.get(entity_id).content
 
-    def serialize_knoxels(self) -> dict[int, dict]:
-        """Render records for external tools and evidence capture."""
+    def serialize_knoxels(self) -> dict[int, dict[str, Any]]:
+        """Render records for external tools and evidence capture.
+
+        Each value is the ``__type__``/``data`` payload of one record, without
+        its embedding. Record kind decides which fields ``data`` holds.
+        """
         return {key: record.as_payload(include_embedding=False) for key, record in self._records.items()}
 
-    def serialize_gwt(self) -> dict[int, dict]:
+    def serialize_gwt(self) -> dict[int, dict[str, Any]]:
         """Render workspace turns for external tools and evidence capture."""
         return {key: record.model_dump(mode="json") for key, record in self._gwt.items()}
 

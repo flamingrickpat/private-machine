@@ -8,23 +8,60 @@ rewrites the observations it cites, and a source or configuration change marks
 the dependent belief stale without erasing its history.
 
 The module writes no memory by itself. The caller commits the batch.
+
+Reading map: :func:`capability_belief_key` and :func:`narrative_belief_key`
+name the stable lookup keys, :func:`record_capability_beliefs` and
+:func:`record_narrative_belief` stage one belief each, and
+:func:`mark_stale_beliefs` records a staleness change without erasing history.
 """
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import datetime, timezone
-from typing import Iterable
+from typing import TypedDict
 
+from pm.memory.snapshot import Snapshot
+from pm.memory.write_batch import WriteBatch
 from pm.records.base import Provenance
 from pm.records.cognitive_records import BeliefRecord, BeliefShiftRecord
 from pm.records.enums import SourceKind
+from pm.introspection.capabilities import CapabilityOverlay
 
 __all__ = [
+    "CapabilityBeliefReceipt",
+    "NarrativeBeliefReceipt",
     "capability_belief_key",
     "mark_stale_beliefs",
     "narrative_belief_key",
     "record_capability_beliefs",
     "record_narrative_belief",
 ]
+
+
+class CapabilityBeliefReceipt(TypedDict):
+    """What one capability-belief batch created, retained, and superseded.
+
+    ``accepted_ids`` are the new belief records, ``retained_ids`` are the
+    unchanged beliefs of the same evidence revision, and ``revised`` are the
+    prior belief records that this batch superseded.
+    """
+
+    accepted_ids: list[int]
+    retained_ids: list[int]
+    revised: list[int]
+
+
+class NarrativeBeliefReceipt(TypedDict):
+    """What one narrative-belief batch created, retained, and superseded.
+
+    ``dropped_ids`` names the cited record ids that the batch's view did not
+    hold, so an interpretation never claims evidence it could not read.
+    """
+
+    accepted_ids: list[int]
+    retained_ids: list[int]
+    revised: list[int]
+    dropped_ids: list[int]
 
 
 def _utcnow() -> datetime:
@@ -41,16 +78,17 @@ def narrative_belief_key(topic: str) -> str:
     return f"self_model:narrative:{topic.strip().casefold()}"
 
 
-def _active(view, key: str) -> list[BeliefRecord]:
+def _active(view: Snapshot, key: str) -> list[BeliefRecord]:
+    """Return the active beliefs of one key in record order."""
     found = [record for record in view.all_knoxels.values()
              if isinstance(record, BeliefRecord) and record.active and record.belief_key == key]
     return sorted(found, key=lambda record: record.id)
 
 
-def _supersede(batch, prior: list[BeliefRecord], belief: BeliefRecord, *, reason: str,
+def _supersede(batch: WriteBatch, prior: list[BeliefRecord], belief: BeliefRecord, *, reason: str,
                source_kind: SourceKind, source_ref: str) -> list[int]:
     """Deactivate the prior beliefs and record one shift for each."""
-    revised = []
+    revised: list[int] = []
     for old in prior:
         old = old.copy_for_edit()
         old.active = False
@@ -66,8 +104,9 @@ def _supersede(batch, prior: list[BeliefRecord], belief: BeliefRecord, *, reason
     return revised
 
 
-def record_capability_beliefs(batch, overlay, *, companion_name: str,
-                              source_revision: str = "", stale_names: Iterable[str] = ()) -> dict:
+def record_capability_beliefs(batch: WriteBatch, overlay: CapabilityOverlay, *, companion_name: str,
+                              source_revision: str = "",
+                              stale_names: Iterable[str] = ()) -> CapabilityBeliefReceipt:
     """Stage one capability belief per inspected capability.
 
     A repeated identical finding retains the existing record and adds no
@@ -76,7 +115,9 @@ def record_capability_beliefs(batch, overlay, *, companion_name: str,
     instead of being silently refreshed.
     """
     view = batch.view()
-    accepted, retained, revised, stale = [], [], [], []
+    accepted: list[int] = []
+    retained: list[int] = []
+    revised: list[int] = []
     stale_set = {name.strip().casefold() for name in stale_names}
     for name, finding in overlay.findings.items():
         key = capability_belief_key(name)
@@ -112,10 +153,10 @@ def record_capability_beliefs(batch, overlay, *, companion_name: str,
                                   reason="A later inspected evidence state replaced the earlier belief. "
                                          "The earlier belief and its evidence stay linked.",
                                   source_kind=SourceKind.Self, source_ref="source_inspection"))
-    return {"accepted_ids": accepted, "retained_ids": retained, "revised": revised}
+    return CapabilityBeliefReceipt(accepted_ids=accepted, retained_ids=retained, revised=revised)
 
 
-def mark_stale_beliefs(batch, names: Iterable[str], *, revision: str, reason: str) -> list[int]:
+def mark_stale_beliefs(batch: WriteBatch, names: Iterable[str], *, revision: str, reason: str) -> list[int]:
     """Mark dependent capability beliefs stale after a source change.
 
     The belief stays active and keeps its original evidence. The metadata
@@ -123,7 +164,7 @@ def mark_stale_beliefs(batch, names: Iterable[str], *, revision: str, reason: st
     transition. A later refresh replaces it through the normal supersede path.
     """
     view = batch.view()
-    marked = []
+    marked: list[int] = []
     for name in names:
         for record in _active(view, capability_belief_key(name)):
             record = record.copy_for_edit()
@@ -143,9 +184,9 @@ def mark_stale_beliefs(batch, names: Iterable[str], *, revision: str, reason: st
     return marked
 
 
-def record_narrative_belief(batch, *, topic: str, text: str, evidence_ids: Iterable[int],
+def record_narrative_belief(batch: WriteBatch, *, topic: str, text: str, evidence_ids: Iterable[int],
                             episode_ids: Iterable[int] = (), confidence: float = 0.4,
-                            companion_name: str = "") -> dict:
+                            companion_name: str = "") -> NarrativeBeliefReceipt:
     """Stage one revisable autobiographical interpretation.
 
     The interpretation cites the episodes and records it read. It is an
@@ -154,7 +195,7 @@ def record_narrative_belief(batch, *, topic: str, text: str, evidence_ids: Itera
     supersedes this one while the prior version stays in history.
     """
     view = batch.view()
-    in_view = []
+    in_view: list[int] = []
     for record_id in dict.fromkeys(int(item) for item in evidence_ids):
         if view.get_knoxel_by_id(record_id) is not None:
             in_view.append(record_id)
@@ -166,7 +207,8 @@ def record_narrative_belief(batch, *, topic: str, text: str, evidence_ids: Itera
     prior = _active(view, key)
     if any(record.content == normalized for record in prior):
         existing = next(record for record in prior if record.content == normalized)
-        return {"accepted_ids": [], "retained_ids": [existing.id], "revised": [], "dropped_ids": dropped}
+        return NarrativeBeliefReceipt(accepted_ids=[], retained_ids=[existing.id], revised=[],
+                                      dropped_ids=dropped)
     belief = batch.create(BeliefRecord(
         content=normalized, belief_key=key, belief_kind="interpretation",
         confidence=confidence, supporting_knoxel_ids=in_view,
@@ -181,4 +223,5 @@ def record_narrative_belief(batch, *, topic: str, text: str, evidence_ids: Itera
                          reason="A later interpretation on the same topic replaced it. "
                                 "The earlier episode references stay linked.",
                          source_kind=SourceKind.Self, source_ref="private_reflection")
-    return {"accepted_ids": [belief.id], "retained_ids": [], "revised": revised, "dropped_ids": dropped}
+    return NarrativeBeliefReceipt(accepted_ids=[belief.id], retained_ids=[], revised=revised,
+                                  dropped_ids=dropped)

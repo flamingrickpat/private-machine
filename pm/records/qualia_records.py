@@ -9,7 +9,8 @@ features were causal / won attention (causal gating, decision D9).
 The full machinery lands in M10; the schema lands now so cycles, canon
 converters and the persistence layer are stable from the start.
 """
-from typing import List
+
+from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
@@ -23,7 +24,7 @@ class QualeChannelState(BaseModel):
     position: float = Field(default=0.0)
     velocity: float = Field(default=0.0)
     acceleration: float = Field(default=0.0)
-    last_driver_ids: List[int] = Field(default_factory=list, description="Knoxel ids that last moved this channel.")
+    last_driver_ids: list[int] = Field(default_factory=list, description="Knoxel ids that last moved this channel.")
 
 
 class QualeRecord(RecordBase):
@@ -38,7 +39,7 @@ class QualeRecord(RecordBase):
     position: float = Field(default=0.0)
     velocity: float = Field(default=0.0)
     acceleration: float = Field(default=0.0)
-    driver_ids: List[int] = Field(default_factory=list, description="Features that moved the channel.")
+    driver_ids: list[int] = Field(default_factory=list, description="Features that moved the channel.")
     reportable: bool = Field(default=False, description="True only if drivers were causal / won attention.")
 
     def get_story_element(self) -> str:

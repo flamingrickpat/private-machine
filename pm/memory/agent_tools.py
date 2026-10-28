@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 import asyncio
+from collections.abc import Callable, Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import datetime
@@ -15,7 +16,7 @@ import hashlib
 from inspect import iscoroutinefunction, signature
 import json
 from threading import Event, RLock
-from typing import Callable, Iterator
+from typing import Any
 from typing import TYPE_CHECKING
 from weakref import WeakMethod
 
@@ -32,7 +33,8 @@ if TYPE_CHECKING:
 
 
 @contextmanager
-def guard_revisions(store, revisions: dict[int, int], cancel: Event | None = None, *, heads=()) -> Iterator[None]:
+def guard_revisions(store: MemoryStore, revisions: dict[int, int], cancel: Event | None = None,
+                    *, heads: Iterable[int] = ()) -> Iterator[None]:
     """Guard cited source revisions through a local commit under the owner lock.
 
     Changed sources raise GhostConflict. Cancellation raises GhostCancelled.
@@ -100,7 +102,7 @@ class MemoryToolConfig:
     embeddings: EmbeddingService | None = None
     cancel: Event | None = None
     refresh_view: Callable[[], MemoryView] | None = None
-    trace: Callable[[dict], None] | None = None
+    trace: Callable[[dict[str, Any]], None] | None = None
 
     def __post_init__(self) -> None:
         if not (self.semantic or self.lexical or self.graph):
@@ -149,22 +151,26 @@ def _snapshot(config: MemoryToolConfig, grant: MemoryView) -> Snapshot:
                     {key: original.revisions[key] for key in allowed}, original.embedding_index)
 
 
-def _weak_tool(method: Callable) -> Callable:
+def _weak_tool(method: Callable[..., Any]) -> Callable[..., Any]:
     """Preserve a tool's schema without owning its read session.
 
     Validators can outlive their listener. A retained callback must not keep
     the session's snapshot, serialized records, or accepted owner alive.
     A released owner raises GhostCancelled, as a closed session does.
+
+    The wrapper accepts an arbitrary call signature because it forwards the
+    arguments of the method it stands in for; the declared signature of that
+    method is copied onto the wrapper below.
     """
     reference = WeakMethod(method)
     if iscoroutinefunction(method):
-        async def invoke(*args, **kwargs):
+        async def invoke(*args: Any, **kwargs: Any) -> Any:
             owner_method = reference()
             if owner_method is None:
                 raise GhostCancelled("The memory read session is closed or cancelled.")
             return await owner_method(*args, **kwargs)
     else:
-        def invoke(*args, **kwargs):
+        def invoke(*args: Any, **kwargs: Any) -> Any:
             owner_method = reference()
             if owner_method is None:
                 raise GhostCancelled("The memory read session is closed or cancelled.")
@@ -187,7 +193,7 @@ class MemoryReadSession:
     agent requests finish and its listeners stop.
     """
 
-    def __init__(self, config: MemoryToolConfig):
+    def __init__(self, config: MemoryToolConfig) -> None:
         self.config = config
         self._lock = RLock()
         self._closed = False
@@ -195,6 +201,12 @@ class MemoryReadSession:
         self._install(config.view)
 
     def _install(self, grant: MemoryView) -> None:
+        """Freeze one grant into a snapshot, its adjacency, and its identity.
+
+        Membership and revisions are read under the store lock; the payload
+        serialization and the snapshot hash run outside it, so a long grant
+        does not block commits.
+        """
         with self.config.store.lock:
             snapshot = _snapshot(self.config, grant)
             self.head_ids = set(snapshot.revisions) & set(self.config.store.all_knoxels)
@@ -227,7 +239,12 @@ class MemoryReadSession:
             self.accessed[key] = self.snapshot.revisions[key]
         return self.snapshot.get(record_id)
 
-    def _record(self, record_id: int) -> dict:
+    def _record(self, record_id: int) -> dict[str, Any]:
+        """Return one serialized payload after guarding its source grant.
+
+        The envelope keys are ``__type__`` and ``data``; the fields inside
+        ``data`` depend on the record kind (see ``RecordBase.as_payload``).
+        """
         self._access_record(record_id)
         return self.records[record_id]
 
@@ -242,8 +259,15 @@ class MemoryReadSession:
             pending.extend(self.references[key] - found)
         return sorted(found - {record_id})
 
-    def _metadata(self, record_id: int) -> dict:
-        """Return attribution and validity fields while guarding their dependencies."""
+    def _metadata(self, record_id: int) -> dict[str, Any]:
+        """Return attribution and validity fields while guarding their dependencies.
+
+        Always present: ``record_id``, ``revision``, ``record_type``,
+        ``memory_kind``, ``evidence_role``. The remaining stored fields appear
+        only when the record kind defines them, for example ``scope``,
+        ``provenance``, ``entity_id``, ``tick_id``, ``valid_at``, or
+        ``superseded_by_ids``.
+        """
         raw = self._record(record_id)
         data = raw["data"]
         fields = ("scope", "provenance", "entity_id", "override_source", "timestamp_creation",
@@ -255,8 +279,13 @@ class MemoryReadSession:
                 "evidence_role": evidence_role(self.snapshot, raw),
                 **{key: data[key] for key in fields if key in data}}
 
-    def _trace(self, operation: str, result: dict) -> dict:
-        """Retain source revisions and reject cancellation before result delivery."""
+    def _trace(self, operation: str, result: dict[str, Any]) -> dict[str, Any]:
+        """Retain source revisions and reject cancellation before result delivery.
+
+        The delivered payload gains ``snapshot_id`` so a caller can tell which
+        frozen view produced it, and the trace callback receives the revisions
+        that this operation actually read.
+        """
         self.check_cancelled()
         result["snapshot_id"] = self.snapshot_id
         if self.config.trace is not None:
@@ -264,8 +293,13 @@ class MemoryReadSession:
                                "accessed_revisions": dict(self.accessed), "result": result})
         return result
 
-    def view(self) -> dict:
-        """Return visible coverage, bounds, and revisions of inspected records."""
+    def view(self) -> dict[str, Any]:
+        """Return visible coverage, bounds, and revisions of inspected records.
+
+        Keys: ``categories`` (payload type to count), ``scopes``, ``frontier``,
+        ``tools``, ``limits``, ``accessed_revisions``, ``accessed_count``, and
+        the ``snapshot_id`` added by ``_trace``.
+        """
         with self._lock:
             self.check_cancelled()
             return self._trace("view", {"categories": dict(Counter(raw["__type__"] for raw in self.records.values())),
@@ -276,11 +310,14 @@ class MemoryReadSession:
                 "accessed_revisions": dict(list(self.accessed.items())[:self.grant.result_limit]),
                 "accessed_count": len(self.accessed)})
 
-    async def search(self, query: str, method: str = "auto", limit: int = 8) -> dict:
+    async def search(self, query: str, method: str = "auto", limit: int = 8) -> dict[str, Any]:
         """Rank permitted records and expose semantic coverage and fallback.
 
-        Provider errors use lexical ranking. Cancellation and index errors
-        propagate. No network request holds the memory-store lock.
+        The reply holds ``matches`` (ranked records with attribution, source
+        IDs, and score components) and the ranking ``trace`` of
+        ``pm.memory.retrieval.retrieve``. Provider errors use lexical ranking.
+        Cancellation and index errors propagate. No network request holds the
+        memory-store lock.
         """
         with self._lock:
             self.check_cancelled()
@@ -325,11 +362,13 @@ class MemoryReadSession:
                 match.update(self._metadata(key))
             return self._trace("search", result)
 
-    def get(self, record_id: int, offset: int = 0, length: int = 2000) -> dict:
+    def get(self, record_id: int, offset: int = 0, length: int = 2000) -> dict[str, Any]:
         """Return a bounded page of the centrally rendered record.
 
         Offsets count characters in indented JSON. Numbered lines retain the
         page's original line positions. Unavailable IDs use one generic error.
+        The reply holds the record metadata plus ``offset``, ``lines``,
+        ``next_offset``, and ``format`` (``pm.rendered-record.v1``).
         """
         with self._lock:
             self.check_cancelled()
@@ -344,8 +383,12 @@ class MemoryReadSession:
                 "next_offset": offset + len(page) if offset + len(page) < len(text) else None,
                 "format": "pm.rendered-record.v1"})
 
-    def sources(self, record_id: int, offset: int = 0, limit: int = 8) -> dict:
-        """Page through stored source links without expanding the workflow grant."""
+    def sources(self, record_id: int, offset: int = 0, limit: int = 8) -> dict[str, Any]:
+        """Page through stored source links without expanding the workflow grant.
+
+        The reply holds ``records`` (one metadata block per source) and
+        ``next_offset``, which is None on the last page.
+        """
         with self._lock:
             self.check_cancelled()
             self._record(record_id)
@@ -356,8 +399,14 @@ class MemoryReadSession:
             return self._trace("sources", {"records": [self._metadata(key) for key in page],
                 "next_offset": offset + len(page) if offset + len(page) < len(ids) else None})
 
-    def neighbors(self, record_id: int, direction: str = "both", offset: int = 0, limit: int = 8) -> dict:
-        """Page through one stored graph hop with permitted endpoint metadata."""
+    def neighbors(self, record_id: int, direction: str = "both", offset: int = 0,
+                  limit: int = 8) -> dict[str, Any]:
+        """Page through one stored graph hop with permitted endpoint metadata.
+
+        Each entry of ``relations`` names its edge, both endpoint metadata
+        blocks, and the edge's own sources. ``next_offset`` is None on the
+        last page.
+        """
         with self._lock:
             self.check_cancelled()
             self._record(record_id)
@@ -377,8 +426,13 @@ class MemoryReadSession:
             return self._trace("neighbors", {"relations": relations,
                 "next_offset": offset + len(page) if offset + len(page) < len(ids) else None})
 
-    def refresh(self) -> dict:
-        """Replace the snapshot through the host selector and clear read guards."""
+    def refresh(self) -> dict[str, Any]:
+        """Replace the snapshot through the host selector and clear read guards.
+
+        The previous accesses stay in the trace of earlier replies. A search
+        that started on the old snapshot raises GhostConflict instead of
+        publishing its result into the new view.
+        """
         with self._lock:
             self.check_cancelled()
             if self.config.refresh_view is None:
@@ -418,8 +472,8 @@ class MemoryReadSession:
         The caller must retain this session until its requests finish.
         Closure or owner release makes later calls raise GhostCancelled.
         """
-        tools = {"memory_view": self.view, "memory_search": self.search,
-                 "memory_get": self.get, "memory_sources": self.sources}
+        tools: dict[str, Callable[..., Any]] = {"memory_view": self.view, "memory_search": self.search,
+                                               "memory_get": self.get, "memory_sources": self.sources}
         if self.config.graph:
             tools["memory_neighbors"] = self.neighbors
         if self.config.refresh_view is not None:

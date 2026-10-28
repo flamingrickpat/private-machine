@@ -16,13 +16,14 @@ def prepare_environment(environment: dict) -> None:
                           f"http://127.0.0.1:{environment.get('PM_MC_MCP_PORT', '6767')}/mcp")
 
 
-async def probes(values: dict) -> list[dict]:
+async def probes(values: dict[str, str]) -> list[dict[str, object]]:
     """Probe MCP tool discovery and the Minecraft server TCP port."""
-    rows = []
+    rows: list[dict[str, object]] = []
     mcp = values.get("MINECRAFT_MCP_URL") or f"http://127.0.0.1:{values.get('PM_MC_MCP_PORT', '6767')}/mcp"
     try:
         from fastmcp import Client
-        async def discover():
+        async def discover() -> list[str]:
+            """Return the tool names that the MCP endpoint advertises."""
             async with Client(mcp) as client:
                 return [t.name for t in await client.list_tools()]
         tools = await asyncio.wait_for(discover(), timeout=5)
@@ -30,7 +31,8 @@ async def probes(values: dict) -> list[dict]:
     except Exception as exc:
         rows.append({"name": "Minecraft MCP", "endpoint": mcp, "state": "not ready", "error_type": type(exc).__name__})
     host, port = values.get("PM_MINECRAFT_HOST", "127.0.0.1"), int(values.get("PM_MINECRAFT_PORT", "12345"))
-    def tcp_probe():
+    def tcp_probe() -> str:
+        """Return whether the game server accepts a TCP connection."""
         try:
             with socket.create_connection((host, port), timeout=3):
                 return "TCP reachable"

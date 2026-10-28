@@ -20,11 +20,21 @@ from pm.llm.mcp_config import MinecraftConfig, ToolCallConfig
 
 
 class LlmPreset(StrEnum):
+    """The chat connections that every config must define."""
+
     Default = "Default"
     UnitTestEvaluator = "UnitTestEvaluator"
 
 
 class Connection(BaseModel):
+    """One resolved chat connection, including its credential.
+
+    ``auto`` is not a connection: the runtime selects a preset by name, so no
+    global environment variable can silently change the target model.
+    ``context_input_fraction`` is the share of the serving context that input
+    may use; the rest belongs to chat framing, the response, and estimate error.
+    """
+
     model_config = ConfigDict(extra="forbid", frozen=True, hide_input_in_errors=True)
 
     base_url: str
@@ -51,21 +61,33 @@ class Connection(BaseModel):
 
     @field_validator("startup_script", mode="before")
     @classmethod
-    def empty_script(cls, value):
+    def empty_script(cls, value: object) -> object:
+        """Read an empty YAML value as "no startup script"."""
         return None if value == "" else value
 
 
 class ConnectionConfig(Connection):
+    """One configured chat connection whose credential may be unresolved.
+
+    ``api_key`` holds a literal secret; ``api_key_env`` names the environment
+    variable to read at resolution time. Setting both is an error.
+    """
+
     api_key: SecretStr | None = None
     api_key_env: str | None = None
 
     @model_validator(mode="after")
-    def one_credential_source(self):
+    def one_credential_source(self) -> "ConnectionConfig":
         if self.api_key is not None and self.api_key_env is not None:
             raise ValueError("Specify api_key or api_key_env, not both.")
         return self
 
     def resolve(self) -> Connection:
+        """Return the connection with its credential resolved.
+
+        Raises ValueError when the named variable has no value; no anonymous
+        request replaces the missing credential.
+        """
         key = self.api_key or SecretStr("")
         if self.api_key_env is not None:
             # The process environment wins; the git-ignored .env is the fallback.
@@ -80,18 +102,21 @@ class ConnectionConfig(Connection):
 
 
 class EmbeddingConfig(ConnectionConfig):
+    """The shared embedding connection and the vector size it returns."""
+
     dimensions: int = Field(gt=0)
     response_model: str | None = None
+
     @model_validator(mode="before")
     @classmethod
-    def legacy_options(cls, value):
+    def legacy_options(cls, value: object) -> object:
         """Accept old files while removing unused embedding cache settings."""
         if isinstance(value, dict):
             return {key: item for key, item in value.items() if key not in {"cache_dir", "legacy_cache_dir"}}
         return value
 
     @model_validator(mode="after")
-    def remote_lifetime(self):
+    def remote_lifetime(self) -> "EmbeddingConfig":
         if self.startup_script is not None:
             raise ValueError("The shared embedding service does not use a chat startup script.")
         return self
@@ -124,18 +149,25 @@ class ModelConfig(BaseModel):
     cognitive_control: dict = Field(default_factory=dict)
 
     @model_validator(mode="after")
-    def required_presets(self):
+    def required_presets(self) -> "ModelConfig":
         if set(self.chat) != set(LlmPreset):
             raise ValueError("Configure every LlmPreset, including UnitTestEvaluator.")
         return self
 
     def evaluator_shares_backend(self) -> bool:
+        """Return whether the evaluator preset uses the same endpoint and model."""
         default = self.chat[LlmPreset.Default]
         evaluator = self.chat[LlmPreset.UnitTestEvaluator]
         return (default.base_url, default.model) == (evaluator.base_url, evaluator.model)
 
 
 def load_config(path: str | Path) -> ModelConfig:
+    """Read and validate one model config file.
+
+    A relative ``startup_script`` resolves against the config file's directory,
+    so a config stays valid from any working directory. Invalid YAML raises
+    ValueError with a redacted message; schema errors keep their field paths.
+    """
     path = Path(path).resolve()
     try:
         data = yaml_util.safe_load(path.read_text(encoding="utf-8"))

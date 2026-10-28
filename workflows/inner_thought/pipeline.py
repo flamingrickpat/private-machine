@@ -14,6 +14,9 @@ The parent report is data for the host. The host owns the commit boundary.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import Any
+
 from workflows.reflection.schemas import ReflectionSource
 
 from workflows.inner_thought.operations import OPERATIONS, validate_operation
@@ -60,7 +63,11 @@ def citable_ids(request: InnerRequest) -> set[int]:
     return known
 
 
-def run_cycle(request: InnerRequest, run_stage, retrieve_memory=None) -> InnerReport:
+def run_cycle(
+    request: InnerRequest,
+    run_stage: Callable[[str, dict[str, Any]], dict[str, Any]],
+    retrieve_memory: Callable[[str], dict[str, Any]] | None = None,
+) -> InnerReport:
     """Run the three private stages and return the typed parent report."""
     # The trigger policy already decided this cycle has nothing to do. The
     # loop must not generate a thought to satisfy a quota.

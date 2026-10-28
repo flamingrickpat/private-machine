@@ -5,12 +5,17 @@ through the injected tool. Repeated requests reuse the recorded receipt.
 """
 from __future__ import annotations
 
+from typing import Any
+
+from pm_workflows.python_role import RoleContext
+
 from pm.utils import yaml_util
 
 from workflows.memory_consolidation.schemas import ConsolidationReport, ConsolidationRequest
 
 
-def run(context) -> dict:
+def run(context: RoleContext) -> dict[str, Any]:
+    """List consolidation receipts, or commit one consolidation, as asked."""
     environment = context.runtime.environment
     request = ConsolidationRequest.model_validate(
         yaml_util.safe_load(environment.read_text("inbox/request.yaml"))

@@ -7,11 +7,15 @@ model call or commit; the groups committed before stay accepted.
 """
 from __future__ import annotations
 
+from typing import Any
+
+from pm_workflows.python_role import RoleContext
+
 from pm.memory.reconsolidation import ReconsolidationReport
 from pm.utils import yaml_util
 
 
-def run(context) -> dict:
+def run(context: RoleContext) -> dict[str, Any]:
     """Run one reconsolidation and report what it created."""
     runtime = context.runtime
     environment = runtime.environment

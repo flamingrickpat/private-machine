@@ -1,24 +1,55 @@
-"""Run one instance. Exchange JSON commands and events with the console."""
+"""Run one instance. Exchange JSON commands and events with the console.
+
+The worker is the child process of one console instance. It builds the
+companion assembly from the deployment settings, runs the application, and
+speaks a line-oriented JSON protocol on stdout: worker events go out, commands
+come in, and every command gets one ``ack`` or ``rejected`` line carrying its
+request ID. Dependency output is redirected to stderr so it cannot corrupt the
+stream.
+
+The worker also instruments three seams for the console page: workflow
+invocations, model completions, and module batches. That telemetry is
+observation only; it never changes a workflow result or a reply. Diagnostics
+go to ``root/logs``, and the process stops only through a command, a signal,
+or the application's first error.
+"""
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
+from threading import Event
 import json
 import asyncio
 import sys
 import threading
 import time
 import traceback
+from typing import TYPE_CHECKING
 from pm.utils import yaml_util
 from pathlib import Path
 from uuid import uuid4
 
+from pm.bus.envelopes import Envelope
 from pm.console.assembly import DEFAULT_ASSEMBLY, DEFAULT_OPERATOR_HOOKS, load
+from pm.host.application import BusModule
 from pm.memory.yaml_codec import RecordPayload
-from pm.runs.workflow_runner import WorkflowRunner
-from pm.llm.activation import ChatClient
+from pm.runs.workflow_runner import WorkflowRequest, WorkflowResult, WorkflowRunner
+from pm.llm.activation import ChatClient, ChatResult
+from pm.llm.prompt_encoding import TurnInput
+
+if TYPE_CHECKING:
+    from pm_workflows.runtime import WorkflowRuntime
+
+    from pm.console.server import InstanceSettings
 
 
-def run(settings: dict, root: Path) -> None:
-    """Own one runtime, with serialized chat submission and durable edits."""
+def run(settings: InstanceSettings, root: Path) -> None:
+    """Own one runtime, with serialized chat submission and durable edits.
+
+    The command loop is the only writer of chat submissions: one pending
+    exchange at a time, because the reply path and the user name are shared.
+    A command that the runtime cannot honour produces a ``rejected`` line and
+    keeps the worker running; a crash reaches the application error path.
+    """
     from pm.host.diagnostics import configure_logging
     from pm.host.processes import ensure_process_cleanup
     configure_logging(root)
@@ -30,14 +61,21 @@ def run(settings: dict, root: Path) -> None:
     lock = threading.Lock()
     context = threading.local()
 
-    def emit(kind: str, **fields) -> None:
+    def emit(kind: str, **fields: object) -> None:
+        """Write one protocol line. Values that are not JSON become their text."""
         with lock:
             output.write(json.dumps({"kind": kind, "time": time.time(), **fields}, default=str) + "\n")
             output.flush()
 
     original_invoke = WorkflowRunner.invoke
 
-    def invoke(runner, request, runtime, **kwargs):
+    def invoke(runner: WorkflowRunner, request: WorkflowRequest, runtime: "WorkflowRuntime",
+               *, resume: bool = False) -> WorkflowResult:
+        """Publish the start, end, and error of one workflow invocation.
+
+        The wrapper repeats the runner's own signature, so a caller keeps the
+        ``resume`` contract and the console sees the same fields either way.
+        """
         started = time.perf_counter()
         previous = getattr(context, "workflow", None)
         fields = {"node": runner.namespace, "run_id": request.run_id,
@@ -51,7 +89,7 @@ def run(settings: dict, root: Path) -> None:
         context.workflow = fields
         emit("workflow.start", **fields, definition=definition)
         try:
-            result = original_invoke(runner, request, runtime, **kwargs)
+            result = original_invoke(runner, request, runtime, resume=resume)
             emit("workflow.end", **fields, seconds=time.perf_counter() - started,
                  status=str(result.status), report=result.report, artifacts=str(result.artifact_dir))
             return result
@@ -64,18 +102,27 @@ def run(settings: dict, root: Path) -> None:
     WorkflowRunner.invoke = invoke
     original_complete = ChatClient.complete
 
-    async def complete(client, messages, **generation):
+    async def complete(client: ChatClient, messages: Sequence[TurnInput], *,
+                       cancel: Event | None = None, **generation: object) -> ChatResult:
+        """Publish one model call without its message bodies at the end.
+
+        A cancellation flag travels with the generation fields, so the console
+        shows the same request the model received.
+        """
         started = time.perf_counter()
         call_id = uuid4().hex
         workflow = getattr(context, "workflow", None)
+        generation_fields: dict[str, object] = dict(generation)
+        if cancel is not None:
+            generation_fields["cancel"] = cancel
         fields = {"call_id": call_id, "node": workflow["node"] if workflow else threading.current_thread().name,
                   "owner_module": threading.current_thread().name,
                   "run_id": workflow["run_id"] if workflow else None,
                   "correlation_id": workflow["correlation_id"] if workflow else getattr(context, "correlation", ""),
-                  "messages": messages, "generation": generation}
+                  "messages": messages, "generation": generation_fields}
         emit("model.start", **fields)
         try:
-            result = await original_complete(client, messages, **generation)
+            result = await original_complete(client, messages, cancel=cancel, **generation)
             emit("model.end", **{k: v for k, v in fields.items() if k not in {"messages", "generation"}},
                  seconds=time.perf_counter() - started, result=result.model_dump(mode="json"))
             return result
@@ -102,7 +149,8 @@ def run(settings: dict, root: Path) -> None:
     search_cancel = threading.Event()
     submission_lock = threading.Lock()
 
-    def observe(envelope, recipient):
+    def observe(envelope: Envelope, recipient: str) -> None:
+        """Mirror one bus envelope, including a public reply, into the event stream."""
         raw = json.loads(envelope.to_json())
         raw["envelope_kind"] = raw.pop("kind")
         emit("bus", recipient=recipient, **raw)
@@ -120,7 +168,8 @@ def run(settings: dict, root: Path) -> None:
     for module in app.modules:
         original = module.handle_batch
 
-        def handle(batch, module=module, original=original):
+        def handle(batch: list[Envelope], module: BusModule = module,
+                   original: Callable[[list[Envelope]], None] = original) -> None:
             if not batch and module.module_id == "scheduler":
                 return original(batch)
             started = time.perf_counter()
@@ -134,7 +183,8 @@ def run(settings: dict, root: Path) -> None:
                      invocation_id=module.invocation_id, correlation_id=context.correlation)
 
         module.handle_batch = handle
-    def monitor():
+    def monitor() -> None:
+        """Publish the first application error once shutdown begins."""
         while not app.shutdown_event.wait(.2):
             pass
         if app.error is not None:
@@ -142,7 +192,8 @@ def run(settings: dict, root: Path) -> None:
             emit("application.error", error=str(app.error))
 
 
-    def snapshot():
+    def snapshot() -> None:
+        """Publish the accepted records, revisions, and history for the page."""
         view = app.ghost.snapshot()
         records = view.serialize_knoxels()
         for record in records.values():
@@ -156,7 +207,8 @@ def run(settings: dict, root: Path) -> None:
     search_active = threading.Event()
     search_thread = None
 
-    def search(command):
+    def search(command: dict) -> None:
+        """Run one memory search in this thread and publish its indexed progress."""
         try:
             from pm.memory.embeddings import EmbeddingService
             result = asyncio.run(app.ghost.search_memory(

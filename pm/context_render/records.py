@@ -133,6 +133,7 @@ class DecisionEvidence(KnoxelCollection):
 
     @property
     def mode(self) -> EvidenceMode:
+        """Return the projection that an ordinary cognitive decision uses."""
         return EvidenceMode.Decision
 
 
@@ -142,10 +143,12 @@ class ArchitecturalEvidence(KnoxelCollection):
 
     @property
     def mode(self) -> EvidenceMode:
+        """Return the projection that keeps explicit architecture fields."""
         return EvidenceMode.ArchitecturalReflection
 
     @property
     def schema_path(self) -> Path:
+        """Return the field schema of the architectural projection."""
         return Path(__file__).with_name("architectural.json")
 
 

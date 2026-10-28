@@ -10,7 +10,7 @@ from pm.records.copying import pickle_copy
 
 from threading import Event
 from collections.abc import Iterable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pm.records.cycle_state import CycleState
 from pm.records.global_workspace import GwtTurnRecord
@@ -27,7 +27,8 @@ if TYPE_CHECKING:
 class WriteBatch:
     """Stage typed records. Callers copy accepted records before an isolated edit."""
 
-    def __init__(self, ghost: MemoryStore, commit_id: str, snapshot: Snapshot, tick_id: int, cancel: Event | None, *, embed: bool = True):
+    def __init__(self, ghost: MemoryStore, commit_id: str, snapshot: Snapshot, tick_id: int,
+                 cancel: Event | None, *, embed: bool = True) -> None:
         self._ghost = ghost
         self.commit_id = commit_id
         self._snapshot = snapshot
@@ -38,29 +39,34 @@ class WriteBatch:
         self._replacements: dict[int, RecordBase] = {}
         self._superseded: set[int] = set()
         self._successor_ids: dict[int, int] = {}
-        self._lifecycle: dict[int, dict] = {}
+        self._lifecycle: dict[int, dict[str, Any]] = {}
         self._input_ids: set[int] = set()
         self._input_commits: set[str] = set()
         self._authority: int | None = None
-        self._manifest: dict = {}
+        self._manifest: dict[str, Any] = {}
         self._expected: dict[int, int] = {}
         self._heads: set[int] = set()
         self._metadata_guards: list[tuple[str, object, dict[int, int]]] = []
         self._initial_runs = dict(ghost.managed_runs)
-        self._runs: dict[str, dict] = {}
+        self._runs: dict[str, dict[str, Any]] = {}
         self._initial_consolidations = dict(ghost.consolidations)
-        self._consolidations: dict[str, dict] = {}
+        self._consolidations: dict[str, dict[str, Any]] = {}
         self._consolidation_run_guards: set[str] = set()
         self._gwt: GwtTurnRecord | None = None
         self._cycle: CycleState | None = None
         self._closed = False
 
-    def check_cancelled(self):
+    def check_cancelled(self) -> None:
+        """Raise GhostCancelled when this batch is closed or its owner stopped."""
         if self._closed or (self.cancel is not None and self.cancel.is_set()):
             raise GhostCancelled("The Ghost batch is closed or cancelled.")
 
     def view(self, visible_ids: Iterable[int] | None = None) -> Snapshot:
-        """Read staged heads, optionally restricted to an explicit identity grant."""
+        """Read staged heads, optionally restricted to an explicit identity grant.
+
+        Superseded sources move into the historical part of the view so their
+        successors can still resolve references to them.
+        """
         records = {key: record for key, record in self._snapshot._records.items() if key not in self._superseded}
         records.update(self._new)
         records.update(self._replacements)
@@ -136,7 +142,7 @@ class WriteBatch:
         self._successor_ids[previous_id] = created.id
         return created
 
-    def set_lifecycle(self, record_id: int, **fields) -> None:
+    def set_lifecycle(self, record_id: int, **fields: object) -> None:
         """Append operational status without changing the source knoxel.
 
         The live view overlays these fields for existing workflow readers.
@@ -149,7 +155,8 @@ class WriteBatch:
         if record_id not in self._new:
             self._input_ids.add(record_id)
 
-    def depend_on(self, record_ids, *, authority: int | None = None, manifest: dict | None = None) -> None:
+    def depend_on(self, record_ids: Iterable[int], *, authority: int | None = None,
+                  manifest: dict[str, Any] | None = None) -> None:
         """Capture exact input identities and optional approved action authority."""
         self.check_cancelled()
         self._input_ids.update(record_ids)
@@ -159,7 +166,7 @@ class WriteBatch:
         if manifest is not None:
             self._manifest.update(pickle_copy(manifest))
 
-    def depend_on_commits(self, commit_ids) -> None:
+    def depend_on_commits(self, commit_ids: Iterable[str]) -> None:
         """Retain receipt and collection-view dependencies without a knoxel."""
         self._input_commits.update(commit_ids)
 
@@ -229,19 +236,21 @@ class WriteBatch:
         self._metadata_guards.append((key, pickle_copy(value), dict(revisions)))
 
     def set_gwt(self, record: GwtTurnRecord, cycle: CycleState | None = None) -> None:
+        """Publish one workspace turn, and its cycle state when the run has one."""
         self.check_cancelled()
         if record.tick_id != self.tick_id or (cycle is not None and cycle.tick_id != self.tick_id):
             raise ValueError("GWT and cycle ticks must match the batch tick.")
         self._gwt = record
         self._cycle = cycle
 
-    def set_run_receipt(self, run_id: str, receipt: dict) -> None:
+    def set_run_receipt(self, run_id: str, receipt: dict[str, Any]) -> None:
+        """Stage one managed-run receipt. Unknown states raise ValueError."""
         self.check_cancelled()
         if receipt["state"] not in {"accepted", "running", "waiting_for_input", "completed", "failed", "cancelled", "interrupted"}:
             raise ValueError("Unknown managed-run state.")
         self._runs[run_id] = pickle_copy(receipt)
 
-    def set_consolidation_receipt(self, key: str, receipt: dict) -> None:
+    def set_consolidation_receipt(self, key: str, receipt: dict[str, Any]) -> None:
         """Stage one consolidation receipt. Repeated keys reuse accepted state."""
         self.check_cancelled()
         self._consolidations[key] = pickle_copy(receipt)

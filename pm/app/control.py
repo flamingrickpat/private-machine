@@ -1,14 +1,91 @@
-"""Runtime lifecycle controls shared by local chat and simulation clients."""
+"""Runtime lifecycle controls shared by local chat and simulation clients.
+
+``RuntimeControl`` is the single read/write surface for lifecycle state: it
+freezes and thaws a runtime, advances a virtual clock, sends stimuli, captures
+snapshots, and answers trace questions. The web chat and the simulation
+browser call it; the assembly supplies the application object it wraps.
+
+Each call returns a JSON response that the caller writes as-is. Invalid state
+or an unknown control path raises ``ValueError``, so a controller never
+receives a plausible-looking success. Any clock change or snapshot requires an
+idle runtime, because a snapshot taken during work would not match its cursor.
+"""
 from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
 import re
 import threading
+from typing import TypedDict
+
+from pydantic import JsonValue
 
 from pm import vclock
 from pm.app.transport import event_cursor
 from pm.memory.checkpoint import write_checkpoint
+
+
+class ModuleActivity(TypedDict):
+    """Runnable state of one bus module at the moment of the read."""
+
+    id: str
+    working: bool
+    queued: int
+    parked: bool
+    next_tick: float | None
+
+
+class RuntimeState(TypedDict):
+    """Lifecycle and activity snapshot of one runtime.
+
+    ``status`` is ``running``, ``draining``, ``frozen``, ``stopped``, or
+    ``failed``. ``clock`` is an aware ISO timestamp; ``virtual`` says whether
+    a virtual clock drives it. ``next_due`` is the next semantic timer
+    deadline, or None when no timer is due. ``error`` is the representation of
+    the first application error.
+    """
+
+    status: str
+    idle: bool
+    tick_id: int
+    clock: str
+    virtual: bool
+    output_cursor: str
+    next_due: str | None
+    error: str | None
+    modules: list[ModuleActivity]
+
+
+class DeliveryState(TypedDict):
+    """Whether one delivered stimulus is present and causally accepted."""
+
+    present: bool
+    accepted: bool
+    record_id: int | None
+
+
+class StimulusReceipt(TypedDict):
+    """The correlation identity of one submitted stimulus."""
+
+    status: str
+    stimulus_id: str
+
+
+class SnapshotReceipt(TypedDict):
+    """The written checkpoint of one manual snapshot."""
+
+    name: str
+    path: str
+    clock: str
+
+
+class TraceReceipt(TypedDict):
+    """One output record with the commit transaction that produced it."""
+
+    record: dict[str, JsonValue]
+    transaction: dict[str, JsonValue] | None
+    calls: list[JsonValue]
+    call_linkage: str
 
 
 class RuntimeControl:
@@ -18,11 +95,11 @@ class RuntimeControl:
     require quiescence. Restoring a process belongs to its external controller.
     """
 
-    def __init__(self, app):
+    def __init__(self, app) -> None:
         self.app = app
         self._lock = threading.RLock()
 
-    def state(self) -> dict:
+    def state(self) -> RuntimeState:
         """Return runnable activity, lifecycle state, and the latest event cursor."""
         app = self.app
         cursor = event_cursor(app.ghost)
@@ -58,8 +135,15 @@ class RuntimeControl:
                and item.module_id not in {"scheduler", "cognitive_control"}]
         return min(due).isoformat() if due else None
 
-    def __call__(self, path: str, body: dict) -> dict:
-        """Apply one control. Invalid state or unknown controls raise ValueError."""
+    def __call__(
+        self, path: str, body: dict,
+    ) -> RuntimeState | DeliveryState | StimulusReceipt | SnapshotReceipt | TraceReceipt:
+        """Apply one control and return its JSON response.
+
+        ``body`` is a decoded request body, so an absent or mistyped field
+        raises here rather than becoming a default. A control that a stopping
+        or busy runtime cannot honour raises ``ValueError``.
+        """
         app = self.app
         with self._lock:
             if path in {"/control/state", "/control/status", "/control/start"}:

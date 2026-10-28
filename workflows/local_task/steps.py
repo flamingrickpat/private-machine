@@ -8,13 +8,17 @@ and question manifests.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
+
+from pm_workflows.python_role import RoleContext
 
 from pm.utils import yaml_util
 
 WORKFLOW_DIR = Path(__file__).resolve().parent
 
 
-def run(context) -> dict:
+def run(context: RoleContext) -> dict[str, Any]:
+    """Run the one local worker step and write its report and result files."""
     environment = context.runtime.environment
     request = yaml_util.safe_load(environment.read_text("inbox/request.yaml"))
     instruction = str(request.get("instruction", "")).strip() or "(no instruction)"

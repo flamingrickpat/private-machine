@@ -25,6 +25,7 @@ from __future__ import annotations
 import random
 from collections import defaultdict
 from enum import StrEnum
+from typing import Self
 
 from pydantic import BaseModel, Field, create_model, model_validator
 
@@ -119,7 +120,7 @@ class PerceptHeader(BaseModel):
     appraisal_social: dict[str, float] = Field(default_factory=dict, description="Sparse social appraisal axes of this episode.")
 
     @model_validator(mode="after")
-    def _known_axes(self):
+    def _known_axes(self) -> Self:
         # The repair turn shows this message. Name the allowed keys, so the
         # model can replace an invented name with a real one.
         problems = []
@@ -932,7 +933,7 @@ def _percept_names(model: type[BaseModel]) -> list[str]:
     return [name for name in model.model_fields if name in types]
 
 
-def _not_empty(self):
+def _not_empty(self) -> Self:
     filled = [(name, getattr(self, name)) for name in _percept_names(type(self)) if getattr(self, name) is not None]
     if not filled:
         raise ValueError("Fill at least one of the offered percept types.")

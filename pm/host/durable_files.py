@@ -1,26 +1,38 @@
 """Durable JSON files and cross-process locks.
 
-Managed runs and body leases both use these helpers. Writes are atomic,
-and reads retry brief Windows sharing violations.
+Managed runs and body leases both use these helpers. A write flushes and
+fsyncs a temporary file before replacing the target, so a reader sees the old
+receipt or the new one, never a partial one. A read retries only a brief
+Windows sharing violation during that replacement, and still raises for an
+absent or corrupt file.
+
+These helpers serialize receipt mappings, not domain state: the caller owns the
+meaning of the keys. Cancellation is checked only by a waiting lock, and no
+helper removes a lock file, because the operating system releases the handle.
 """
 from __future__ import annotations
 
 import json
 import os
 from pathlib import Path
+from threading import Event
 import time
+from typing import IO
 import uuid
+
+from pydantic import JsonValue
 
 
 class BodyBusy(RuntimeError):
     """Another process owns the resource. No new action was sent."""
 
 
-def read_json(path: Path) -> dict:
-    """Read a complete receipt and retry brief Windows replacement locks.
+def read_json(path: Path) -> dict[str, JsonValue]:
+    """Read one JSON receipt object and retry brief Windows replacement locks.
 
     An absent or corrupt receipt still raises. The retry covers only a
     transient sharing violation, which can occur during atomic replacement.
+    The returned mapping is decoded JSON: the caller validates its shape.
     """
     for attempt in range(10):
         try:
@@ -31,7 +43,7 @@ def read_json(path: Path) -> dict:
             time.sleep(0.02)
 
 
-def atomic_json(path: Path, value: dict) -> None:
+def atomic_json(path: Path, value: dict[str, JsonValue]) -> None:
     """Flush a JSON receipt before atomic replacement. Keep old data on error."""
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(path.name + "." + uuid.uuid4().hex + ".tmp")
@@ -60,10 +72,11 @@ class ProcessLock:
     """
 
     def __init__(self, path: Path) -> None:
+        """Bind the lock file. No system lock is held until ``acquire``."""
         self.path = Path(path)
-        self.stream = None
+        self.stream: IO[bytes] | None = None
 
-    def acquire(self, *, wait: bool = False, cancel=None) -> "ProcessLock":
+    def acquire(self, *, wait: bool = False, cancel: Event | None = None) -> "ProcessLock":
         """Acquire once, or raise BodyBusy. A waiting caller checks cancellation."""
         from pm_workflows.runtime import WorkflowTerminated
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -98,8 +111,10 @@ class ProcessLock:
             self.stream = None
 
     def __enter__(self) -> "ProcessLock":
+        """Acquire once without waiting, as a context manager."""
         return self.acquire()
 
-    def __exit__(self, *args) -> None:
+    def __exit__(self, *args: object) -> None:
+        """Release the system lock when the block ends."""
         self.close()
 

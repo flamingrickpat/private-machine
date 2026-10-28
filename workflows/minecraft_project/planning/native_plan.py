@@ -10,6 +10,7 @@ from pm.memory.agent_tools import MemoryReadSession
 from workflows.minecraft_body.gateway import READ_TOOLS
 from workflows.minecraft_body.lease import BODY_LEASES
 from workflows.minecraft_project.evidence_selection import catalog, read_source
+from pm_workflows.python_role import RoleContext
 from workflows.minecraft_project.schemas import EvidenceRead, PlanProposal
 from workflows.minecraft_project.planning.draft import TaskDraft
 from workflows.minecraft_project.planning.run_context import identity, InstructionsChanged, RESOURCES
@@ -17,7 +18,8 @@ from workflows.minecraft_project.planning.decisions import native_decision_conte
 from pm.context_render import render_context
 
 
-def plan_session(context, store, payload: dict, *, scope: set[str] | None = None) -> PlanProposal:
+def plan_session(context: RoleContext, store: TreeStore, payload: dict[str, object],
+                 *, scope: set[str] | None = None) -> PlanProposal:
     """Edit a retained draft through MCP and validate each completed turn.
 
     This group owns plan meaning, evidence access, and its validator. The shared
@@ -32,7 +34,8 @@ def plan_session(context, store, payload: dict, *, scope: set[str] | None = None
     store.save()
     instruction_revision = runtime.tools["managed_instructions"]()["revision"]
 
-    def check_current():
+    def check_current() -> None:
+        """Refuse a cancelled run or a project instruction that changed mid-session."""
         runtime.check_cancelled()
         if runtime.tools["managed_instructions"]()["revision"] != instruction_revision:
             raise InstructionsChanged("Project instructions changed during planning. Retain effects and read the new request.")
@@ -119,7 +122,8 @@ def plan_session(context, store, payload: dict, *, scope: set[str] | None = None
                runtime.classification_session("Default", False, runtime.stop_event))
     memory = None
     if "memory_config" in runtime.tools:
-        def trace(row):
+        def trace(row: dict[str, object]) -> None:
+            """Journal one memory access beside this planning decision."""
             with store.path_for(name + "/memory.jsonl").open("a", encoding="utf-8") as journal:
                 journal.write(json.dumps(row, ensure_ascii=False) + "\n")
         memory = MemoryReadSession(replace(runtime.tools["memory_config"](), trace=trace))

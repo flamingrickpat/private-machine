@@ -11,15 +11,24 @@ An episode stays queryable when it is incomplete. A cancelled cycle, a
 rejected proposal, or an unresolved expectation is a first-class episode with
 an explicit outcome, not a missing row. A missing trace produces an explicit
 evidence limit instead of a reconstructed mechanism.
+
+Reading map: :class:`Episode` is the read-side event and its explicit links,
+:class:`EpisodeIndex` builds and queries episodes from one committed state, and
+:func:`answer_questions` fills the A18 inspector questions with the records
+the episode cites.
 """
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import hashlib
-from typing import Iterable
+from typing import Literal, TypeAlias, TypedDict
 
 from pm.memory.references import referenced_ids
+from pm.memory.snapshot import Snapshot
+from pm.memory.store import MemoryStore
+from pm.records.base import RecordBase
 from pm.records.cognitive_records import (
     BeliefRecord,
     BeliefShiftRecord,
@@ -27,13 +36,91 @@ from pm.records.cognitive_records import (
 )
 from pm.records.enums import FeatureType
 from pm.records.global_workspace import GwtTurnRecord
-from pm.records.memory_records import ActionSchemaRecord
+from pm.records.memory_records import ActionSchemaRecord, Feature
+from pm.introspection.capabilities import CapabilityFindingRow, CapabilityOverlay
 
 __all__ = [
     "Episode",
+    "EpisodeAnswer",
     "EpisodeIndex",
+    "EpisodeRow",
     "answer_questions",
 ]
+
+
+class EpisodeRow(TypedDict):
+    """One serialized episode, with its explicit links kept separate."""
+
+    episode_id: int
+    kind: str
+    loop: str
+    tick_id: int
+    operation: str
+    owner: str
+    summary: str
+    outcome: str
+    revision: int
+    inputs: list[int]
+    outputs: list[int]
+    links: dict[str, list[int]]
+    metadata: dict[str, object]
+
+
+class CrossLoopLink(TypedDict):
+    """One explicit main-to-inner influence pair, not a shared timestamp."""
+
+    main_episode_id: int
+    inner_episode_id: int
+    via_record_id: int
+    relation: Literal["evidence", "cause"]
+
+
+class PresentRecordRow(TypedDict):
+    """One cited record that this store still holds."""
+
+    record_id: int
+    type: str
+    revision: int
+    tick_id: int
+    content: str
+
+
+class MissingRecordRow(TypedDict):
+    """One cited record that this store does not hold. ``limit`` says so."""
+
+    record_id: int
+    limit: str
+
+
+class AlternativeRow(TypedDict):
+    """One competing option that the episode recorded, with its disposition."""
+
+    text: str
+    disposition: str
+
+
+class BeliefEvidenceRow(TypedDict):
+    """One belief record with its supporting and opposing evidence ids."""
+
+    record_id: int
+    content: str
+    supporting: list[int]
+    contradicting: list[int]
+    superseded_by_id: int | None
+    active: bool
+
+
+AnswerEvidence: TypeAlias = (PresentRecordRow | MissingRecordRow | AlternativeRow | BeliefEvidenceRow
+                             | CrossLoopLink | CapabilityFindingRow)
+"""One evidence row of an inspector answer."""
+
+
+class EpisodeAnswer(TypedDict):
+    """One inspector answer: what was observed, its evidence, and its limit."""
+
+    answer: str
+    evidence: Sequence[AnswerEvidence]
+    limit: str | None
 
 
 def _utcnow() -> datetime:
@@ -71,7 +158,8 @@ class Episode:
     links: dict[str, tuple[int, ...]] = field(default_factory=dict)
     metadata: dict = field(default_factory=dict)
 
-    def to_dict(self) -> dict[str, object]:
+    def to_dict(self) -> EpisodeRow:
+        """Return the serialized episode for a package, a trace, or a belief."""
         return {
             "episode_id": self.episode_id,
             "kind": self.kind,
@@ -90,7 +178,12 @@ class Episode:
 
 
 def _ints(values: Iterable) -> tuple[int, ...]:
-    result = []
+    """Return the distinct integer ids of ``values``, in order.
+
+    A value that is not an integer (a missing or foreign id in a receipt)
+    contributes nothing; the caller keeps the records it did resolve.
+    """
+    result: list[int] = []
     for value in values or ():
         try:
             result.append(int(value))
@@ -106,24 +199,22 @@ class EpisodeIndex:
     call. A caller that needs a later state builds a new index.
     """
 
-    def __init__(self, store):
-        self.store = store
+    def __init__(self, store: MemoryStore | Snapshot) -> None:
+        self.store: MemoryStore | Snapshot = store
         self._episodes: list[Episode] = []
         self._build()
 
     def _build(self) -> None:
+        """Read every committed anchor kind once and sort the episodes."""
         store = self.store
         episodes: list[Episode] = []
-        if hasattr(store, "gwt_turns"):
-            turns = store.gwt_turns
-        else:
-            turns = {tick: GwtTurnRecord.model_validate(raw) for tick, raw in store.serialize_gwt().items()}
-        for tick, turn in turns.items():
+        for tick, turn in store.gwt_turns.items():
             episodes.append(self._from_turn(tick, turn))
         for record in store.all_knoxels.values():
-            if getattr(record, "feature_type", None) == FeatureType.InnerMonologue:
-                metadata = record.metadata or {}
-                if metadata.get("loop") == "inner":
+            # Only a Feature carries a feature type, and only the private loop
+            # writes inner monologue records.
+            if isinstance(record, Feature) and record.feature_type is FeatureType.InnerMonologue:
+                if record.metadata.get("loop") == "inner":
                     episodes.append(self._from_thought(record))
         for record in store.all_knoxels.values():
             if isinstance(record, ActionSchemaRecord):
@@ -167,7 +258,8 @@ class EpisodeIndex:
                       "causal_percept_ids": list(turn.trace.causal_percept_ids)},
         )
 
-    def _from_thought(self, record) -> Episode:
+    def _from_thought(self, record: Feature) -> Episode:
+        """Return the episode of one private thought record."""
         metadata = record.metadata or {}
         evidence = _ints(metadata.get("evidence_ids", ()))
         alternatives = [
@@ -189,11 +281,12 @@ class EpisodeIndex:
         )
 
     def _from_action(self, record: ActionSchemaRecord) -> Episode:
+        """Return the episode of one action schema, with its status as outcome."""
         links = {"evidence": _ints(record.intention_ids)}
         # The action follows from the decision record of its cycle.
         if record.lineage is not None and record.lineage.parent_record_ids:
             links["cause"] = _ints(record.lineage.parent_record_ids)
-        status = str(getattr(record.status, "value", record.status))
+        status = record.status.value
         outcome = {"Executed": "committed", "Selected": "committed",
                    "Abandoned": "rejected", "Proposed": "unresolved"}.get(status, "unresolved")
         return Episode(
@@ -201,11 +294,16 @@ class EpisodeIndex:
             operation=f"action:{status}", owner="workflows.main_cognition",
             summary=str(record.content), outcome=outcome, revision=self._revision(record),
             inputs=links.get("evidence", ()), outputs=(int(record.id),), links=links,
-            metadata={"expectation": getattr(record, "expectation", ""),
-                      "execution_mode": str(getattr(record.execution_mode, "value", record.execution_mode))},
+            metadata={"expectation": record.expectation,
+                      "execution_mode": record.execution_mode.value},
         )
 
     def _from_receipt(self, run_id: str, receipt: dict) -> Episode:
+        """Return the episode of one managed-run receipt.
+
+        The receipt keeps its own state and evidence; a run id that has no
+        control version still gets one stable integer identity.
+        """
         state = str(receipt.get("state", "unresolved"))
         outcome = {"completed": "committed", "failed": "failed", "cancelled": "cancelled",
                    "interrupted": "cancelled"}.get(state, "unresolved")
@@ -225,16 +323,25 @@ class EpisodeIndex:
                       "evidence": list(receipt.get("evidence", []) or [])},
         )
 
-    def _revision(self, record) -> int:
-        return int(self.store.revisions.get(int(getattr(record, "id", -1)), 1))
+    def _revision(self, record: RecordBase | GwtTurnRecord) -> int:
+        """Return the acceptance revision of one record, or 1 when unrecorded.
+
+        A workspace turn is not a knoxel and has no revision of its own, so a
+        turn episode reports its first revision.
+        """
+        if isinstance(record, GwtTurnRecord):
+            return 1
+        return int(self.store.revisions.get(int(record.id), 1))
 
     # ------------------------------------------------------------------
     # Queries.
 
     def all(self) -> list[Episode]:
+        """Return every episode in tick order."""
         return list(self._episodes)
 
     def recent(self, *, loop: str | None = None, limit: int = 20) -> list[Episode]:
+        """Return the newest episodes, newest first, filtered by loop when named."""
         items = [item for item in self._episodes if loop is None or item.loop == loop]
         items.sort(key=lambda item: (item.tick_id, item.episode_id), reverse=True)
         return items[: max(1, limit)]
@@ -254,9 +361,11 @@ class EpisodeIndex:
         return None
 
     def by_tick(self, tick_id: int) -> list[Episode]:
+        """Return every episode anchored to one tick."""
         return [item for item in self._episodes if item.tick_id == int(tick_id)]
 
     def by_operation(self, operation: str) -> list[Episode]:
+        """Return every episode of one operation name."""
         return [item for item in self._episodes if item.operation == operation]
 
     def for_record(self, record_id: int) -> list[Episode]:
@@ -274,7 +383,7 @@ class EpisodeIndex:
     # ------------------------------------------------------------------
     # Cross-loop influence. Timestamp order is not used as a cause.
 
-    def cross_loop_links(self) -> list[dict]:
+    def cross_loop_links(self) -> list[CrossLoopLink]:
         """Return explicit main/inner influence pairs.
 
         A pair is recorded only when the main loop's evidence or cause links
@@ -283,40 +392,42 @@ class EpisodeIndex:
         """
         inner_outputs = {record_id: item for item in self._episodes
                          if item.loop == "inner" for record_id in item.outputs}
-        pairs = []
+        pairs: list[CrossLoopLink] = []
         for item in self._episodes:
             if item.loop != "main":
                 continue
             referenced = set(item.inputs) | set(item.links.get("cause", ()))
             for record_id in sorted(referenced & set(inner_outputs)):
-                pairs.append({
-                    "main_episode_id": item.episode_id,
-                    "inner_episode_id": inner_outputs[record_id].episode_id,
-                    "via_record_id": record_id,
-                    "relation": "evidence" if record_id in item.inputs else "cause",
-                })
+                pairs.append(CrossLoopLink(
+                    main_episode_id=item.episode_id,
+                    inner_episode_id=inner_outputs[record_id].episode_id,
+                    via_record_id=record_id,
+                    relation="evidence" if record_id in item.inputs else "cause",
+                ))
         return pairs
 
 
-def _question(store, episode: Episode, record_ids: Iterable[int]) -> list[dict]:
+def _question(store: MemoryStore | Snapshot, episode: Episode,
+              record_ids: Iterable[int]) -> list[PresentRecordRow | MissingRecordRow]:
     """Describe the named records with their revision, or mark a missing id."""
-    rows = []
+    rows: list[PresentRecordRow | MissingRecordRow] = []
     for record_id in _ints(record_ids):
         record = store.get_knoxel_by_id(record_id)
         if record is None:
-            rows.append({"record_id": record_id, "limit": "record is not present in this store"})
+            rows.append(MissingRecordRow(record_id=record_id, limit="record is not present in this store"))
             continue
-        rows.append({
-            "record_id": record_id,
-            "type": type(record).__name__,
-            "revision": int(store.revisions.get(record_id, 1)),
-            "tick_id": int(getattr(record, "tick_id", -1)),
-            "content": str(getattr(record, "content", ""))[:400],
-        })
+        rows.append(PresentRecordRow(
+            record_id=record_id,
+            type=type(record).__name__,
+            revision=int(store.revisions.get(record_id, 1)),
+            tick_id=int(record.tick_id),
+            content=str(record.content)[:400],
+        ))
     return rows
 
 
-def answer_questions(store, episode: Episode, *, overlay=None) -> dict:
+def answer_questions(store: MemoryStore | Snapshot, episode: Episode, *,
+                     overlay: CapabilityOverlay | None = None) -> dict[str, EpisodeAnswer]:
     """Answer the A18 inspector questions from retained records.
 
     Every answer names its evidence records. A question with no retained
@@ -324,7 +435,7 @@ def answer_questions(store, episode: Episode, *, overlay=None) -> dict:
     execution fact from a plausible explanation.
     """
     links = episode.links
-    answers: dict[str, dict] = {}
+    answers: dict[str, EpisodeAnswer] = {}
 
     answers["information_available"] = {
         "answer": "The frozen input view is the cited evidence set with its revisions.",
@@ -339,7 +450,7 @@ def answer_questions(store, episode: Episode, *, overlay=None) -> dict:
         "limit": None if producer_ids else "no producer or cause link was retained",
     }
 
-    alternatives = episode.metadata.get("alternatives", [])
+    alternatives: list[AlternativeRow] = episode.metadata.get("alternatives", [])
     answers["alternatives"] = {
         "answer": "Recorded nominations and dispositions name the competing options.",
         "evidence": alternatives,
@@ -384,15 +495,15 @@ def answer_questions(store, episode: Episode, *, overlay=None) -> dict:
     }
 
     belief_ids = _ints(links.get("evidence", ()))
-    beliefs = []
+    beliefs: list[BeliefEvidenceRow] = []
     for record_id in belief_ids:
         record = store.get_knoxel_by_id(record_id)
         if isinstance(record, BeliefRecord):
-            beliefs.append({"record_id": record_id, "content": record.content,
-                            "supporting": list(record.supporting_knoxel_ids),
-                            "contradicting": list(record.contradicting_knoxel_ids),
-                            "superseded_by_id": record.superseded_by_id,
-                            "active": record.active})
+            beliefs.append(BeliefEvidenceRow(record_id=record_id, content=record.content,
+                                             supporting=list(record.supporting_knoxel_ids),
+                                             contradicting=list(record.contradicting_knoxel_ids),
+                                             superseded_by_id=record.superseded_by_id,
+                                             active=record.active))
     answers["belief_change"] = {
         "answer": "A belief change cites supporting and opposing records and its revision history.",
         "evidence": beliefs,

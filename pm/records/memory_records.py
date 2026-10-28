@@ -1,20 +1,49 @@
+"""The core knoxel records of a lived conversation and of its memories.
 
+owns: the records that every cycle reads and writes - actor identities
+(``Entity``), inputs (``Stimulus``), outputs (``Action``,
+``ActionSchemaRecord``), the realities they happen in (``RealityRecord``), the
+prompt-visible event stream (``Feature``), and the memory artifacts that
+reconsolidation builds from it (``MemoryClusterRecord``,
+``DeclarativeFactRecord``, ``CauseEffectRecord``, ``Narrative``,
+``SemanticRecord``).
+not own: embeddings, retrieval, and persistence (``pm.memory``), the semantic
+taxonomy used for classification (``pm.records.taxonomy``), or prompt text
+rendering (``pm.context_render``).
+
+``Feature`` is the record that makes an event available to the persona: other
+records are data, but a feature is the story line that says who said, thought,
+or noticed it. ``content`` is the text a prompt would show. See
+``pm.records.base`` for the package overview.
+"""
 from pm import vclock
-from typing import Any, List
-from typing import (
-    Optional,
+from typing import Any, Mapping, Protocol, Sequence
+
+from pydantic import Field, PrivateAttr
+
+from pm.records.base import Provenance, RecordBase
+from pm.records.enums import (
+    ActionSchemaExecutionMode,
+    ActionSchemaStatus,
+    ActionSchemaVerbalization,
+    ActionType,
+    ClusterType,
+    EntityClass,
+    FeatureSubtype,
+    FeatureType,
+    InterlocusType,
+    NarrativeTypes,
+    RealityKind,
+    RecordSubtypeBase,
+    SourceKind,
+    StimulusType,
 )
-
-from pydantic import AliasChoices, Field, PrivateAttr
-
-from pm.records.base import RecordBase
-from pm.records.enums import *
 from pm.records.taxonomy import EpistemicStatus, MemoryTaxonomy, MemoryVolatility, RecordStatus, RecordType, TruthStatus
 from pm.records.mental_state import FullMentalState, VectorModelReservedSize, create_empty_ms_vector
-from datetime import datetime
-from pm.records.base import Provenance
 from pm.records.lineage import RecordLineage
-from pm.records.enums import FeatureType, SourceKind
+
+#: A mental state as the model, as its vector, or as model field values.
+MentalStateInput = FullMentalState | Sequence[float] | Mapping[str, Any]
 
 QUOTE_START = '"'
 QUOTE_END = '"'
@@ -22,6 +51,12 @@ TIMESTAMP_FORMAT = "%A, %d.%m.%y %H:%M"
 
 
 def _get_owner_entity_id(owner: Any, name: str) -> int | None:
+    """Resolve an entity name to its id, creating the entity when the owner allows it.
+
+    The name is compared against entity content and aliases. Returns None when
+    the owner cannot resolve or create the entity, so a caller's cache keeps
+    the raw name instead of inventing an id.
+    """
     clean_name = str(name or "").strip()
     if not owner or not clean_name:
         return None
@@ -49,6 +84,7 @@ def _get_owner_entity_id(owner: Any, name: str) -> int | None:
 
 
 def _get_owner_entity_name(owner: Any, entity_id: int) -> str | None:
+    """Return the display name of an entity id, or None for an unknown or unset id."""
     if not owner or entity_id is None or int(entity_id) <= 0:
         return None
 
@@ -64,7 +100,8 @@ def _get_owner_entity_name(owner: Any, entity_id: int) -> str | None:
     return None
 
 
-def _coerce_full_mental_state(value: Any) -> FullMentalState:
+def _coerce_full_mental_state(value: MentalStateInput) -> FullMentalState:
+    """Accept a mental state as a model, a vector, or a mapping in model field terms."""
     if isinstance(value, FullMentalState):
         return value
     if isinstance(value, (list, tuple)):
@@ -85,7 +122,7 @@ class Entity(RecordBase):
     ``aliases``. Entity knoxels are used to keep references stable across dialogue,
     summaries, extracted facts, and graph memory updates.
     """
-    aliases: List[str]
+    aliases: list[str]
     entity_class: EntityClass
 
     def get_story_element(self) -> str:
@@ -125,7 +162,7 @@ class Action(RecordBase):
     created from this action, enabling action -> expectation -> outcome tracing.
     """
     action_type: ActionType  # Using the enum
-    generated_expectation_ids: List[int] = Field(default_factory=list)
+    generated_expectation_ids: list[int] = Field(default_factory=list)
 
     def get_story_element(self) -> str:
         return f"[{self.action_type.value}] {self.content}"
@@ -164,7 +201,7 @@ class ActionSchemaRecord(RecordBase):
     """
     action_type: ActionType = Field(description="The action channel this schema serves.")
     status: ActionSchemaStatus = Field(default=ActionSchemaStatus.Proposed)
-    intention_ids: List[int] = Field(default_factory=list, description="Goals/intentions this schema serves.")
+    intention_ids: list[int] = Field(default_factory=list, description="Goals/intentions this schema serves.")
     expectation: str = Field(default="", description="What the persona expects to happen when executed.")
     tool_usage: str = Field(default="", description="MCP/skill/workflow usage hint for the executor.")
     execution_mode: ActionSchemaExecutionMode = Field(default=ActionSchemaExecutionMode.ProseExternal)
@@ -186,10 +223,10 @@ class CoversTicksEventsRecord(RecordBase):
     """
     minimum_interlocus: int = Field(default=0, description="To control what type of features are involved. 0 means only public and system features are included. "
                                                            "-1 or -2 would incorporate codelet percepts, inner thougths and more.")
-    min_tick_id: Optional[int] = Field(default=None, description="Lowest original tick ID covered")
-    max_tick_id: Optional[int] = Field(default=None, description="Highest original tick ID covered")
-    min_event_id: Optional[int] = Field(default=None, description="Lowest original Event/Feature knoxel ID covered")
-    max_event_id: Optional[int] = Field(default=None, description="Highest original Event/Feature knoxel ID covered")
+    min_tick_id: int | None = Field(default=None, description="Lowest original tick ID covered")
+    max_tick_id: int | None = Field(default=None, description="Highest original tick ID covered")
+    min_event_id: int | None = Field(default=None, description="Lowest original Event/Feature knoxel ID covered")
+    max_event_id: int | None = Field(default=None, description="Highest original Event/Feature knoxel ID covered")
 
 
 class MemoryClusterRecord(CoversTicksEventsRecord):
@@ -203,13 +240,13 @@ class MemoryClusterRecord(CoversTicksEventsRecord):
     """
     level: int = Field(..., description="Hierarchy level (e.g., 1=Year...6=TimeOfDay for Temporal, 100 for Topical)")
     cluster_type: ClusterType
-    included_event_ids: Optional[str] = Field(default=None, description="Comma-separated knoxel IDs of events included (for Topical clusters)")
-    included_cluster_ids: Optional[str] = Field(default=None, description="Comma-separated knoxel IDs of clusters included (for Temporal clusters)")
+    included_event_ids: str | None = Field(default=None, description="Comma-separated knoxel IDs of events included (for Topical clusters)")
+    included_cluster_ids: str | None = Field(default=None, description="Comma-separated knoxel IDs of clusters included (for Temporal clusters)")
     token: int = Field(default=0, description="Token count, usually based on summary for Temporal clusters")
     facts_extracted: bool = Field(default=False, description="Flag for Topical clusters: has declarative memory been extracted?")
-    temporal_key: Optional[str] = Field(default=None, description="Unique key for merging temporal clusters (e.g., '2023-10-26-MORNING')")
-    emotion_description: Optional[str] = Field(default=None, description="todo")
-    emotion_embedding: Optional[List[float]] = Field(default=None, description="todo")
+    temporal_key: str | None = Field(default=None, description="Unique key for merging temporal clusters (e.g., '2023-10-26-MORNING')")
+    emotion_description: str | None = Field(default=None, description="todo")
+    emotion_embedding: list[float] | None = Field(default=None, description="todo")
 
     def get_sub_type(self) -> RecordSubtypeBase:
         return self.cluster_type
@@ -219,14 +256,11 @@ class MemoryClusterRecord(CoversTicksEventsRecord):
             return f"Summary start: {self.timestamp_world_begin.strftime(TIMESTAMP_FORMAT)} \n{self.content}\nSummary end: {self.timestamp_world_end.strftime(TIMESTAMP_FORMAT)}\n"
         elif self.cluster_type == ClusterType.Topical:
             all_knoxels = self._owner.sorted_knoxels_causal
-            if all_knoxels is None:
-                raise Exception("Must provide knoxels!")
-
             event_ids = [int(val.strip()) for val in self.included_event_ids.split(",")]
             kmap = {k.id: k for k in all_knoxels}
 
             buffer = [f"Conversation start: {self.timestamp_world_begin.strftime(TIMESTAMP_FORMAT)}\n"]
-            events = []
+            events: list[RecordBase] = []
             for event_id in event_ids:
                 event = kmap[event_id]
                 events.append(event)
@@ -264,7 +298,7 @@ class SemanticallyClassifiedRecord(RecordBase):
     confidence: float | None = Field(default=None, description="Classifier confidence 0.0-1.0. None = not yet classified.")
     topic_card: str = Field(default="", description="Short lowercase topic-card name grouping related claims.")
     essence: str = Field(default="", description="One terse canonical sentence capturing the claim. Dedup identity together with subject_entity_id.")
-    semantic_record_id: Optional[int] = Field(default=None, description="Back-pointer to the canonical SemanticRecordKnoxel this claim was merged into (self-id on the record itself).")
+    semantic_record_id: int | None = Field(default=None, description="Back-pointer to the canonical SemanticRecordKnoxel this claim was merged into (self-id on the record itself).")
 
     @property
     def subject_name(self) -> str:
@@ -303,9 +337,9 @@ class DeclarativeFactRecord(CoversTicksEventsRecord, SemanticallyClassifiedRecor
     (subject/record type/epistemic/essence) is added by the batch semantic classifier
     in memory reconsolidation; canonical cross-source identity lives in SemanticRecord.
     """
-    source_cluster_id: Optional[int] = Field(default=None, description="ID of the MemoryClusterKnoxel (Topical) it came from")
+    source_cluster_id: int | None = Field(default=None, description="ID of the MemoryClusterKnoxel (Topical) it came from")
     reason: str = Field(description="Explain why you chose these categories, importance, and time_dependent.")
-    category: List[str] = Field(description="Short list of the most relevant categories.")
+    category: list[str] = Field(description="Short list of the most relevant categories.")
     importance: float = Field(description="Overall importance from 0.0 to 1.0.")
     time_dependent: float = Field(description="0.0 = stable/always true; 1.0 = only true right now (ephemeral).")
 
@@ -333,14 +367,14 @@ class SemanticRecord(SemanticallyClassifiedRecord):
     volatility: MemoryVolatility = Field(default=MemoryVolatility.Stable, description="Coarse expected persistence derived from time_dependent.")
     status: RecordStatus = Field(default=RecordStatus.Active)
     truth_status: TruthStatus = Field(default=TruthStatus.Truth, description="Epistemic truth lifecycle maintained by consolidation sleep passes.")
-    superseded_by_ids: List[int] = Field(default_factory=list, description="Knoxel/record ids that supersede or falsify this knowledge (evidence chain).")
-    source_knoxel_ids: List[int] = Field(default_factory=list, description="Knoxel ids (facts/edges) that state this claim.")
-    source_texts: List[str] = Field(default_factory=list, description="Alternative phrasings of the claim from other sources (alias texts).")
+    superseded_by_ids: list[int] = Field(default_factory=list, description="Knoxel/record ids that supersede or falsify this knowledge (evidence chain).")
+    source_knoxel_ids: list[int] = Field(default_factory=list, description="Knoxel ids (facts/edges) that state this claim.")
+    source_texts: list[str] = Field(default_factory=list, description="Alternative phrasings of the claim from other sources (alias texts).")
     source_method: str = Field(default="consolidation", description="How the record was produced (consolidation | migration).")
-    supersedes_record_ids: List[int] = Field(default_factory=list)
-    contradicted_by_record_ids: List[int] = Field(default_factory=list)
-    supports_record_ids: List[int] = Field(default_factory=list)
-    related_record_ids: List[int] = Field(default_factory=list)
+    supersedes_record_ids: list[int] = Field(default_factory=list)
+    contradicted_by_record_ids: list[int] = Field(default_factory=list)
+    supports_record_ids: list[int] = Field(default_factory=list)
+    related_record_ids: list[int] = Field(default_factory=list)
 
     @property
     def recurrence(self) -> int:
@@ -361,8 +395,8 @@ class CauseEffectRecord(CoversTicksEventsRecord):
     situation: str
     cause: str
     effect: str
-    category: Optional[str] = Field(default=None, description="Semantic category")
-    source_cluster_id: Optional[int] = Field(default=None)
+    category: str | None = Field(default=None, description="Semantic category")
+    source_cluster_id: int | None = Field(default=None)
 
     def get_story_element(self) -> str:
         return f"*(Observed Cause/Effect: {self.content})*"
@@ -381,7 +415,7 @@ class Narrative(RecordBase):
 
     narrative_type: NarrativeTypes
     entity_id: int = Field(default=0, description="Entity ID if the feature is caused by entity, otherwise 0.")
-    last_refined_with_tick: Optional[int] = Field(default=None, description="The tick ID up to which features were considered for this narrative version.")
+    last_refined_with_tick: int | None = Field(default=None, description="The tick ID up to which features were considered for this narrative version.")
 
     @property
     def target_name(self) -> str:
@@ -437,11 +471,11 @@ class Feature(RecordBase):
     override_source: str | None = Field(default=None, description="Override source for this feature, if there is no entity id (codelt or subsystem).")
     addressee_entity_id: int = Field(default=0, description="Entity ID of the listener of a dialogue line, otherwise 0. "
                                                             "A companion reply names the entity that it answers. 0 means the user or unknown.")
-    mental_state_appraisal_vec: List[float] = Field(default_factory=create_empty_ms_vector, description="The state with the real appraisals and latent state (total, includes state at which feature was created).")
-    mental_state_delta_vec: List[float] = Field(default_factory=create_empty_ms_vector, description="The state with no appraisals and the real delta from latent_state - previous_real_state (local delta, can be added up in EMA for 'state during'.")
+    mental_state_appraisal_vec: list[float] = Field(default_factory=create_empty_ms_vector, description="The state with the real appraisals and latent state (total, includes state at which feature was created).")
+    mental_state_delta_vec: list[float] = Field(default_factory=create_empty_ms_vector, description="The state with no appraisals and the real delta from latent_state - previous_real_state (local delta, can be added up in EMA for 'state during'.")
 
     @property
-    def session_id(self) -> Optional[str]:
+    def session_id(self) -> str | None:
         """
         Mechanical conversation-thread id (spec v2 §4). Metadata only -
         sessions are not first-class objects; the id groups dialogue when
@@ -451,9 +485,10 @@ class Feature(RecordBase):
         return str(value) if value is not None else None
 
     def set_session_id(self, session_id: str) -> None:
+        """Tag this feature with its conversation thread id."""
         self.metadata["session_id"] = str(session_id)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.__class__.__name__} ({self.feature_type}): {self.content}"
 
     @property
@@ -478,7 +513,7 @@ class Feature(RecordBase):
         return FullMentalState.init_from_list(self.mental_state_appraisal_vec)
 
     @mental_state_appraisal.setter
-    def mental_state_appraisal(self, value: Any) -> None:
+    def mental_state_appraisal(self, value: MentalStateInput) -> None:
         self.mental_state_appraisal_vec = _coerce_full_mental_state(value).to_list()
 
     @property
@@ -486,7 +521,7 @@ class Feature(RecordBase):
         return FullMentalState.init_from_list(self.mental_state_delta_vec)
 
     @mental_state_delta.setter
-    def mental_state_delta(self, value: Any) -> None:
+    def mental_state_delta(self, value: MentalStateInput) -> None:
         self.mental_state_delta_vec = _coerce_full_mental_state(value).to_list()
 
     def get_story_element(self) -> str:
@@ -503,37 +538,82 @@ class Feature(RecordBase):
         return self.feature_type
 
 
-def new_feature(ghost, content, feature_type, *, source, interlocus=None, causal=True, changes=None,
-             source_kind=None, metadata=None, lineage: RecordLineage | None = None, entity_id: int = 0):
+class FeatureBatch(Protocol):
+    """The write-batch surface that ``new_feature`` needs."""
+
+    def create[T: RecordBase](self, knoxel: T) -> T:
+        """Create the record inside this batch and return it with an assigned id."""
+        ...
+
+
+class FeatureStore(Protocol):
+    """The store surface that ``new_feature`` needs outside a write batch."""
+
+    def get_user_name(self) -> str:
+        """Return the name of the user, so a dialogue feature gets its source kind."""
+        ...
+
+    def store_knoxel(self, knoxel: RecordBase) -> RecordBase:
+        """Commit one trusted record through the store's own batch boundary."""
+        ...
+
+
+def new_feature(
+    ghost: FeatureStore,
+    content: str,
+    feature_type: FeatureType,
+    *,
+    source: str,
+    interlocus: InterlocusType | None = None,
+    causal: bool = True,
+    changes: FeatureBatch | None = None,
+    source_kind: SourceKind | None = None,
+    metadata: Mapping[str, Any] | None = None,
+    lineage: RecordLineage | None = None,
+    entity_id: int = 0,
+) -> RecordBase:
     """Create an attributed feature, optionally inside the caller's write batch.
 
     Lineage preserves original episode links. With a batch, the caller owns
     the commit and cancellation boundary. Without one, the store commits it.
     ``entity_id`` names the speaker entity. Use it when the entity is new in
     the same batch, because the batch resolves names only from its snapshot.
+
+    Provenance is derived from the dialogue source when the caller gives no
+    ``source_kind``: a line whose source is the user is user provenance, and
+    every other line is self provenance. Non-dialogue features stay without
+    provenance unless the caller passes one.
     """
-    kwargs = {
-        "content": content,
-        "feature_type": feature_type,
-        "causal": causal,
-        "override_source": source,
-        "lineage": lineage,
-        "entity_id": entity_id,
-    }
-    if interlocus is not None:
-        kwargs["interlocus"] = interlocus
+    provenance: Provenance | None = None
     if source_kind is not None:
-        kwargs["provenance"] = Provenance(source_kind=source_kind, source_ref=str(source))
+        provenance = Provenance(source_kind=source_kind, source_ref=str(source))
     elif feature_type == FeatureType.Dialogue:
-        kind = SourceKind.User if source == ghost.get_user_name() else SourceKind.Self
-        kwargs["provenance"] = Provenance(source_kind=kind, source_ref=str(source))
-    kwargs["metadata"] = {
-        "memory_kind": ("utterance" if feature_type == FeatureType.Dialogue else
-                        "speculation" if feature_type in {FeatureType.Thought, FeatureType.InnerMonologue} else
-                        "executed_event"),
+        # The store knows the user name, so the user line and the self line get
+        # different provenance without asking the caller.
+        resolved_kind = SourceKind.User if source == ghost.get_user_name() else SourceKind.Self
+        provenance = Provenance(source_kind=resolved_kind, source_ref=str(source))
+
+    feature_metadata: dict[str, Any] = {
+        "memory_kind": (
+            "utterance" if feature_type == FeatureType.Dialogue
+            else "speculation" if feature_type in {FeatureType.Thought, FeatureType.InnerMonologue}
+            else "executed_event"
+        ),
         "executed_at": vclock.utcnow().isoformat(),
     }
     if metadata:
-        kwargs["metadata"].update(metadata)
+        feature_metadata.update(metadata)
+
+    feature = Feature(
+        content=content,
+        feature_type=feature_type,
+        causal=causal,
+        override_source=source,
+        interlocus=interlocus if interlocus is not None else InterlocusType.Undefined,
+        lineage=lineage,
+        entity_id=entity_id,
+        provenance=provenance,
+        metadata=feature_metadata,
+    )
     create = ghost.store_knoxel if changes is None else changes.create
-    return create(Feature(**kwargs))
+    return create(feature)

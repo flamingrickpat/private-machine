@@ -16,8 +16,12 @@ from __future__ import annotations
 
 from datetime import datetime
 from pm import vclock
+from typing import TypedDict
 from uuid import uuid4
 
+from pydantic import JsonValue
+
+from pm.memory.store import MemoryStore
 from pm.records.memory_records import Feature
 from pm.records.base import Provenance
 from pm.records.enums import FeatureType, InterlocusType, SourceKind
@@ -26,7 +30,25 @@ UNCERTAIN_END = "uncertain"
 CLEAN_END = "clean"
 
 
-def _system_feature(content: str, *, event: str, boot_id: str, **metadata) -> Feature:
+class StartupEvidence(TypedDict):
+    """The recordable evidence of one boot event.
+
+    ``gap_seconds`` is the interval between the newest accepted activity and
+    the boot, floored at zero. ``end_kind`` is :data:`CLEAN_END`,
+    :data:`UNCERTAIN_END`, or the value that was stored on the accepted event.
+    ``duplicate`` is true when an accepted event already had this boot
+    identity, so nothing new was written.
+    """
+
+    knoxel_id: int
+    text: str
+    boot_id: str
+    end_kind: str
+    gap_seconds: float
+    duplicate: bool
+
+
+def _system_feature(content: str, *, event: str, boot_id: str, **metadata: JsonValue) -> Feature:
     return Feature(
         content=content,
         feature_type=FeatureType.SystemMessage,
@@ -39,7 +61,8 @@ def _system_feature(content: str, *, event: str, boot_id: str, **metadata) -> Fe
     )
 
 
-def _find_system_event(ghost, event: str, boot_id: str = "") -> Feature | None:
+def _find_system_event(ghost: MemoryStore, event: str, boot_id: str = "") -> Feature | None:
+    """Return the newest accepted lifecycle event of one kind, optionally of one boot."""
     matches = [
         knoxel for knoxel in ghost.all_knoxels.values()
         if isinstance(knoxel, Feature)
@@ -54,22 +77,21 @@ def _find_system_event(ghost, event: str, boot_id: str = "") -> Feature | None:
     return matches[-1]
 
 
-def last_known_activity(ghost) -> datetime | None:
+def last_known_activity(ghost: MemoryStore) -> datetime | None:
     """Return the newest timestamp in accepted memory, or None when empty."""
-    stamps = [
-        getattr(knoxel, "timestamp_world_begin", None) or getattr(knoxel, "timestamp_creation", None)
-        for knoxel in ghost.all_knoxels.values()
-    ]
-    stamps = [stamp for stamp in stamps if stamp is not None]
+    # Every record carries both stamps, and the world stamp is the one that
+    # orders accepted activity, so it is the widest available high-water mark.
+    stamps = [knoxel.timestamp_world_begin for knoxel in ghost.all_knoxels.values()]
     return max(stamps) if stamps else None
 
 
-def last_completed_shutdown(ghost) -> Feature | None:
+def last_completed_shutdown(ghost: MemoryStore) -> Feature | None:
     """Return the most recent clean shutdown event, if any."""
     return _find_system_event(ghost, "clean_shutdown")
 
 
 def _describe_gap(seconds: float) -> str:
+    """Render an elapsed interval with a unit a person reads as approximate."""
     seconds = max(0.0, float(seconds))
     if seconds < 90:
         return f"{seconds:.1f} seconds"
@@ -78,12 +100,13 @@ def _describe_gap(seconds: float) -> str:
     return f"{seconds / 3600.0:.1f} hours"
 
 
-def record_startup(ghost, *, boot_id: str | None = None, now: datetime | None = None) -> dict:
+def record_startup(ghost: MemoryStore, *, boot_id: str | None = None,
+                   now: datetime | None = None) -> StartupEvidence:
     """Record one boot event and return its evidence.
 
-    The result has ``knoxel_id``, ``text``, ``boot_id``, ``end_kind``, and
-    ``gap_seconds``. A repeated call with the same boot identity returns the
-    accepted event without creating a duplicate.
+    The event text names the real offline gap and whether a clean shutdown
+    preceded this boot. A repeated call with the same boot identity returns
+    the accepted event without creating a duplicate.
     """
     boot_id = boot_id or uuid4().hex
     existing = _find_system_event(ghost, "startup", boot_id)
@@ -131,7 +154,8 @@ def record_startup(ghost, *, boot_id: str | None = None, now: datetime | None = 
     }
 
 
-def record_shutdown(ghost, *, boot_id: str | None = None, now: datetime | None = None) -> int | None:
+def record_shutdown(ghost: MemoryStore, *, boot_id: str | None = None,
+                    now: datetime | None = None) -> int | None:
     """Record a clean shutdown and return its knoxel id.
 
     A repeated call for the same boot identity reuses the accepted event. The

@@ -1,7 +1,13 @@
-"""Register runtime packages or read owner feedback without the retired review server."""
+"""Register runtime packages or read owner feedback without the retired review server.
+
+Two paths matter to existing gates: ``register``/``register-package`` freeze a
+capture through ``simulation.review.catalog``, and ``feedback`` prints every
+stored owner note so a review pass can be read without the browser.
+"""
 from __future__ import annotations
 
 import argparse
+from collections.abc import Sequence
 import json
 from pathlib import Path
 
@@ -10,7 +16,7 @@ from pm.paths import REPO_ROOT
 from simulation.review.catalog import register
 
 
-def main(argv=None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     """Keep capture registration available to existing work-item gates."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--data", type=Path, default=DEFAULT_RUNS)

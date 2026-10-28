@@ -11,6 +11,7 @@ from pathlib import Path
 from workflows.inner_thought.rendering import candidates as render_candidates, sources as render_sources
 
 from pm.constants import Sampler
+from pm_workflows.python_role import RoleContext
 from pm.context_render.turns import Content, Role, Turn, format_content
 
 from workflows.inner_thought.operations import OPERATIONS
@@ -64,7 +65,8 @@ def build_messages(request: dict, prompts: dict) -> list[Turn]:
     return [Turn(Role.System, system.strip()), Turn(Role.User, user.strip())]
 
 
-def run(context) -> dict:
+def run(context: RoleContext) -> dict[str, str]:
+    """Choose one of the deterministic trigger candidates, or none."""
     request = read_request(context.runtime.environment)
     prompts = load_prompts()
     messages = build_messages(request, prompts)

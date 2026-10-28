@@ -10,6 +10,9 @@ import threading
 import time
 from typing import Any
 
+from pm_workflows.runtime import WorkflowRuntime
+from pm_workflows.working_target import WorkingEnvironment
+
 from fastmcp import FastMCP
 from fastmcp.tools import Tool, ToolResult
 from jsonschema.validators import validator_for
@@ -101,8 +104,14 @@ class BodyGateway:
     The model must read that revision before choosing another action.
     """
 
-    def __init__(self, endpoint: str, owner: str, environment, runtime, raw_tools: dict,
+    def __init__(self, endpoint: str, owner: str, environment: WorkingEnvironment,
+                 runtime: WorkflowRuntime, raw_tools: dict[str, Any],
                  *, visual: bool = False) -> None:
+        """Bind one leased gateway for one run's environment and tools.
+
+        The transport closure keeps the claim, release, and fenced-call
+        capabilities. ``visual`` enables the tools that return pixels.
+        """
         self.endpoint, self.owner = endpoint, owner
         self.environment, self.runtime = environment, runtime
         self.raw_tools = dict(raw_tools)
@@ -214,7 +223,7 @@ class BodyGateway:
         finished = threading.Event()
         watcher = None
         if name not in READ_TOOLS and self.token is not None and "minecraft_fenced_call" in self.raw_tools:
-            def cancel_command():
+            def cancel_command() -> None:
                 """Stop only this epoch's active command after accepted cancellation."""
                 while not finished.wait(0.05):
                     poll = self.raw_tools.get("managed_cancelled")

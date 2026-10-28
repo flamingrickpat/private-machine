@@ -138,7 +138,8 @@ class StoryPrefix:
     ``self`` and one label for each stimulus group.
     """
 
-    def __init__(self, work: CycleWork, prompts: PhasePrompts | None = None, group: ShardKey | None = None):
+    def __init__(self, work: CycleWork, prompts: PhasePrompts | None = None,
+                 group: ShardKey | None = None) -> None:
         """Build the prefix of the whole moment, or with ``group`` the prefix of one stimulus group.
 
         The prefix of one group shows the self shard and that group's shard,

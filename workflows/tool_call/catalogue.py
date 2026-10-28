@@ -10,6 +10,7 @@ asked again after ``TOOL_DISCOVERY_RETRY_SECONDS``. Discovery calls no tool.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 import threading
 import time
 
@@ -52,7 +53,9 @@ class ToolCatalogue:
     the cache consistent when decisions route in parallel.
     """
 
-    def __init__(self, config: ToolCallConfig, clock=time.monotonic) -> None:
+    def __init__(self, config: ToolCallConfig,
+                 clock: Callable[[], float] = time.monotonic) -> None:
+        """Retain the MCP configuration and the clock used for retry deadlines."""
         self.config = config
         self.clock = clock
         self._tools: dict[str, list[ToolEntry]] = {}

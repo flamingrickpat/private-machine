@@ -20,14 +20,19 @@ import secrets
 import sys
 import time
 import logging
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from threading import Event
+from typing import TypeVar
 
 import httpx
 
 from pm.llm.config import Connection
 from pm.llm.cache import completion_path, publish
 from pm.llm.concurrency import inference_admission
+
+#: A value returned by one awaited endpoint operation.
+T = TypeVar("T")
 
 
 def replay_response(path: Path) -> httpx.Response | None:
@@ -93,7 +98,7 @@ def rejected_message_protocol(response: httpx.Response) -> bool:
     return isinstance(error, dict) and str(error.get("message", "")).startswith("Failed to parse messages:")
 
 
-async def cancellable(awaitable, cancel: Event | None):
+async def cancellable(awaitable: Awaitable[T], cancel: Event | None) -> T:
     """Cancel in-flight I/O without a generation deadline or worker thread."""
     if cancel is None:
         return await awaitable
@@ -111,8 +116,9 @@ async def cancellable(awaitable, cancel: Event | None):
         await asyncio.gather(task, return_exceptions=True)
 
 
-async def wait_until_ready(step, cancel: Event | None = None, *, live_test: bool = False,
-                           delay_seconds: float = 30, label: str = "Model endpoint") -> object:
+async def wait_until_ready(step: Callable[[], Awaitable[T]], cancel: Event | None = None, *,
+                           live_test: bool = False, delay_seconds: float = 30,
+                           label: str = "Model endpoint") -> T:
     """Call ``step`` again and again until it succeeds. This wait has no limit.
 
     ``step`` is an async callable that talks to a model endpoint. A closed
@@ -154,7 +160,7 @@ class JsonClient:
     """
 
     def __init__(self, connection: Connection, *, live_test: bool = False,
-                 transient_retries: int | None = None, retry_delay_seconds: float = 30):
+                 transient_retries: int | None = None, retry_delay_seconds: float = 30) -> None:
         self.connection = connection
         self.live_test = live_test
         self.transient_retries = 0 if live_test and transient_retries is None else transient_retries
@@ -164,9 +170,9 @@ class JsonClient:
         self.request_count = 0
         self.cache_hits = 0
 
-    async def _send(self, client, method: str, route: str, headers: dict,
-                    payload: dict | None, cancel: Event | None, cache_path: Path | None = None,
-                    transcript_path: Path | None = None):
+    async def _send(self, client: httpx.AsyncClient, method: str, route: str, headers: dict[str, str],
+                    payload: dict[str, object] | None, cancel: Event | None, cache_path: Path | None = None,
+                    transcript_path: Path | None = None) -> httpx.Response:
         """Log each inference attempt before dispatch, including retries.
 
         The caller reserves the cache position before transport retries.
@@ -219,20 +225,24 @@ class JsonClient:
         if isinstance(data, dict) and "error" not in data and completion_error(data) is None:
             store_response(path, response.content)
 
-    async def request(self, method: str, route: str, *, payload: dict | None = None, cancel: Event | None = None,
-                      transcript_path: Path | None = None) -> dict:
+    async def request(self, method: str, route: str, *, payload: dict[str, object] | None = None,
+                      cancel: Event | None = None, transcript_path: Path | None = None) -> dict:
         """Wait through temporary failures until recovery or cancellation.
 
         Production waits have no retry quota. An explicit transient_retries
         bound permits finite diagnostics; exhaustion raises ModelError.
         Invalid JSON, provider-filtered output and permanent HTTP errors fail
         directly. Cancellation interrupts in-flight I/O and retry waits.
+
+        The returned mapping is the provider's JSON body. It stays open here
+        because each route has its own shape; the caller validates it (for chat
+        through :class:`~pm.llm.activation.ChatResult`) or reads named fields.
         """
         headers = {}
         key = self.connection.api_key.get_secret_value()
         if key:
             headers["Authorization"] = f"Bearer {key}"
-        cache_path = None
+        cache_path: Path | None = None
         chat = method == "POST" and route == "chat/completions"
         cached_chat = chat and os.environ.get("PM_COMPLETION_CACHE", "1") != "0"
         if chat:
@@ -254,6 +264,8 @@ class JsonClient:
                     else:
                         response = await self._send(client, method, route, headers, payload, cancel, cache_path, transcript_path)
                 except httpx.TransportError:
+                    # A transport failure is retryable: the request may never
+                    # have reached the model, and the wait has no quota.
                     failure = "Model connection failed. Check the endpoint."
                 else:
                     if rejected_message_protocol(response):
@@ -273,6 +285,8 @@ class JsonClient:
                         if provider_error is not None:
                             raise provider_error
                         return data
+                # Exhaustion is only reachable through an explicit diagnostic
+                # bound. Production keeps the same request until cancellation.
                 if self.transient_retries is not None and retries >= self.transient_retries:
                     raise ModelError(failure) from None
                 retries += 1

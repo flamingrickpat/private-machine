@@ -1,7 +1,16 @@
 """Host one real PM process behind the shared public and control APIs.
 
-The simulation owns process lifecycle. Companion behavior runs through the
-ordinary assembly. This module supplies no simulated cognition or fixed replies.
+A participant owns one persona home: its process lock, the assembled application,
+the virtual clock it resumes, the queued environment observations, and the bus
+telemetry it appends. ``/control/*`` paths mirror the contributor control API and
+add the simulation's clock, environment, snapshot, and restore steps; ``/v1/*``
+paths are the ordinary public API that the harness and a browser use.
+
+Durability: a snapshot is written together with its clock receipt, so a restore
+has both the ghost and the timer deadlines of one instant. An environment event
+waits in this process until its world time arrives and is then delivered as
+ordinary cognition input. This module supplies no simulated cognition and no
+fixed replies; the package overview is in ``simulation/__init__.py``.
 """
 from __future__ import annotations
 
@@ -14,11 +23,16 @@ import shutil
 import signal
 import threading
 import time
+from types import FrameType
+
+from pydantic import JsonValue
 
 from pm import vclock
 from pm.app.character_home import CharacterHome
 from pm.app.control import RuntimeControl
 from pm.app.web_chat import WebChatServer
+from pm.bus.envelopes import Envelope
+from pm.host.application import Application
 from pm.host.diagnostics import configure_logging, close_logging
 from pm.host.durable_files import ProcessLock, atomic_json
 from pm.llm.prompt_log import configure_root
@@ -27,26 +41,36 @@ from pm.llm.prompt_log import configure_root
 class Participant:
     """Own one persona process, its clock, and serialized lifecycle controls."""
 
-    def __init__(self, home: Path, config: str, port: int):
-        self.home = home.resolve()
-        self.config = config
-        self.app = None
-        self.error = None
-        self.starting = False
-        self.closed = threading.Event()
+    def __init__(self, home: Path, config: str, port: int) -> None:
+        self.home: Path = home.resolve()
+        self.config: str = config
+        # The assembly also attaches ``ghost``, ``user_input``, and
+        # ``cognitive_control`` (see ``workflows.companion.build_app``); the
+        # application class itself does not declare them.
+        self.app: Application | None = None
+        self.error: BaseException | None = None
+        self.starting: bool = False
+        self.closed: threading.Event = threading.Event()
         self._lock = threading.RLock()
         self._telemetry_lock = threading.Lock()
-        self._home_lock = ProcessLock(self.home / ".simulation-process.lock")
+        self._home_lock: ProcessLock = ProcessLock(self.home / ".simulation-process.lock")
         self._home_lock.acquire()
-        self.server = WebChatServer(None, self.submit, port=port, on_error=self.fail, control=self.control)
-        self.clock_start = None
-        self.ready = threading.Event()
-        self.env_pending: list[dict] = []
-        self.output_cursor = "0"
-        self.carry: list[dict] = []
+        self.server: WebChatServer = WebChatServer(None, self.submit, port=port, on_error=self.fail, control=self.control)
+        self.clock_start: str | None = None
+        self.ready: threading.Event = threading.Event()
+        # Observations whose virtual world time has not arrived yet.
+        self.env_pending: list[dict[str, JsonValue]] = []
+        self.output_cursor: str = "0"
+        # Outputs already produced by an advance that a later request still needs.
+        self.carry: list[dict[str, JsonValue]] = []
 
-    def clock_receipt(self) -> dict:
-        """Capture elapsed time and timer deadlines beside a drained ghost."""
+    def clock_receipt(self) -> dict[str, JsonValue]:
+        """Capture elapsed time, timer deadlines, and pending input beside a ghost.
+
+        The receipt is stored next to a snapshot, so a restore can resume the same
+        virtual instant instead of restarting the clock. ``timers`` holds each
+        module's next due tick in virtual seconds.
+        """
         return {"clock": vclock.active().state(), "environment": self.env_pending,
                 "output_cursor": self.output_cursor, "carry": self.carry,
                 "timers": {item.module_id: item._next_tick for item in self.app.modules}}
@@ -56,8 +80,16 @@ class Participant:
         if self.app is not None and vclock.active() is not None:
             atomic_json(self.home / "runtime" / "clock.json", self.clock_receipt())
 
-    def submit(self, text: str, **options) -> str:
-        """Deliver ordinary entity input to this process's real companion."""
+    def submit(self, text: str, **options: JsonValue) -> str:
+        """Deliver ordinary entity input to this process's real companion.
+
+        ``options`` are forwarded unchanged to ``UserInputProxy.submit``. The
+        harness supplies JSON string values such as ``speaker`` and
+        ``delivery_id``; the repeated ``delivery_id`` is what makes a retried
+        delivery reuse its exchange instead of duplicating speech. Returns the
+        exchange correlation ID. Raises ``RuntimeError`` before the runtime is
+        ready.
+        """
         if self.app is None or self.starting:
             raise RuntimeError("The participant is not ready.")
         return self.app.user_input.submit(text, **options)
@@ -69,8 +101,13 @@ class Participant:
         if self.app is not None:
             self.app.on_error(error)
 
-    def observe(self, envelope, recipient: str) -> None:
-        """Append full bus delivery evidence under the owning persona home."""
+    def observe(self, envelope: Envelope, recipient: str) -> None:
+        """Append full bus delivery evidence under the owning persona home.
+
+        Every delivered envelope is recorded with both wall-clock and world time,
+        so the owner can reconstruct routing after the run. The append holds its
+        own lock, so concurrent deliveries cannot interleave one JSON line.
+        """
         path = self.home / "runtime" / "telemetry.jsonl"
         path.parent.mkdir(parents=True, exist_ok=True)
         row = {"real_time": datetime.now(timezone.utc).isoformat(), "world_time": vclock.now_aware().isoformat(),
@@ -78,7 +115,7 @@ class Participant:
         with self._telemetry_lock, path.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(row, ensure_ascii=False) + "\n")
 
-    def _start(self, body: dict) -> None:
+    def _start(self, body: dict[str, JsonValue]) -> None:
         try:
             from workflows.companion import build_app
             self.clock_start = body["clock_start"]
@@ -115,7 +152,7 @@ class Participant:
             self.starting = False
             self.ready.set()
 
-    def control(self, path: str, body: dict) -> dict:
+    def control(self, path: str, body: dict[str, JsonValue]) -> dict[str, JsonValue]:
         """Handle contributor-compatible process controls and runtime controls.
 
         Start returns during loading. State reports readiness and failures.
@@ -265,8 +302,13 @@ class Participant:
             self.control("/control/advance-step", {"to": following.isoformat()})
             self.quiet()
 
-    def environment(self, body: dict) -> dict:
-        """Deliver observed environment events through ordinary cognition input."""
+    def environment(self, body: dict[str, JsonValue]) -> dict[str, JsonValue]:
+        """Deliver observed environment events through ordinary cognition input.
+
+        Each event becomes an ordinary ``WorldEvent`` feature and a bus message,
+        so cognition treats it exactly like any other observed fact. Returns the
+        accepted record IDs in delivery order.
+        """
         from pm.records.memory_records import new_feature
         from pm.records.enums import FeatureType, SourceKind
         from pm.bus.envelopes import new_envelope
@@ -309,7 +351,7 @@ def main() -> int:
     parser.add_argument("--ready-file", type=Path, required=True)
     args = parser.parse_args()
     participant = Participant(args.home, args.config, args.port)
-    def stop(signum, frame):
+    def stop(signum: int, frame: FrameType | None) -> None:
         participant.closed.set()
     signal.signal(signal.SIGINT, stop)
     signal.signal(signal.SIGTERM, stop)

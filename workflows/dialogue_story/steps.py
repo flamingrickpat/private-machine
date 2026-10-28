@@ -39,6 +39,9 @@ from __future__ import annotations
 import asyncio
 import re
 from pathlib import Path
+from typing import Any
+
+from pm_workflows.python_role import RoleContext
 from pm.context_render.turns import Role, Turn
 from pm.llm.completion import AsyncTextCompletion
 from pm.llm.http_client import EmptyCompletionError
@@ -490,7 +493,7 @@ def generate_reviewed(request: StoryRequest, prompts: dict, generate: AsyncTextC
             followups += 1
 
 
-def run(context) -> dict:
+def run(context: RoleContext) -> dict[str, Any]:
     """Kernel entry point. Runs synchronously on the calling thread."""
     environment = context.runtime.environment
     request = StoryRequest.model_validate(

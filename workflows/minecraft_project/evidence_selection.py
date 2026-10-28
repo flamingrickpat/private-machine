@@ -7,9 +7,12 @@ import hashlib
 import json
 from pathlib import Path
 
+from pm_workflows.python_role import RoleContext
 from workflows.minecraft_body.journal import read_actor_journal
 from workflows.minecraft_body.call_outcomes import GameplayEvidence
-from workflows.minecraft_project.schemas import Condition, Node, Renewal, RetentionChoice, RetentionProposal, TaskTree
+from workflows.minecraft_project.schemas import (
+    Condition, EvidenceRead, Node, Renewal, RetentionChoice, RetentionProposal, TaskTree,
+)
 from workflows.minecraft_project.tree_store import TreeStore, acceptance_requirements, digest, node_digest
 
 
@@ -21,8 +24,10 @@ def dependency_scope(tree: TaskTree, targets: list[str]) -> set[str]:
     """
     nodes = {node.id: node for node in tree.nodes}
     requirements = acceptance_requirements(tree)
-    selected = set()
-    def include(key):
+    selected: set[str] = set()
+
+    def include(key: str) -> None:
+        """Add one target's subtree and every acceptance prerequisite of it."""
         if key in selected:
             return
         selected.add(key)
@@ -35,9 +40,9 @@ def dependency_scope(tree: TaskTree, targets: list[str]) -> set[str]:
     return selected
 
 
-def catalog(context, store: TreeStore) -> dict:
+def catalog(context: RoleContext, store: TreeStore) -> dict[str, dict[str, str]]:
     """Bind readable sources to exact paths and hashes without exposing secrets."""
-    sources = {}
+    sources: dict[str, Path] = {}
     for folder in ("planning", "verification", "attempts"):
         for path in sorted((store.root / folder).rglob("*")):
             if path.is_file() and path.suffix in {".json", ".jsonl", ".yaml", ".md"}:
@@ -68,7 +73,7 @@ def accepted_inputs(store: TreeStore, keys: set[str]) -> dict:
     return result
 
 
-def read_source(sources: dict, request) -> dict:
+def read_source(sources: dict[str, dict[str, str]], request: EvidenceRead) -> dict[str, object]:
     """Read numbered source lines; reject changed or undeclared original files."""
     binding = sources[request.source.replace("\\", "/")]
     path = Path(binding["path"])

@@ -28,6 +28,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from pm_workflows.working_target import WorkingEnvironment
+
 from pm.records.cycle_records import StimulusGroup
 from pm.records.cycle_state import CycleState
 from pm.records.mental_state import MentalStateSample, PersonalityProfile
@@ -239,7 +241,7 @@ def provisional_tick(work: CycleWork) -> int:
     return work.state.tick_id + 1
 
 
-def read_work(environment) -> CycleWork:
+def read_work(environment: WorkingEnvironment) -> CycleWork:
     """Read and validate the shared phase state from the working target.
 
     A missing or invalid file is a bug in the phase order and raises.
@@ -247,7 +249,7 @@ def read_work(environment) -> CycleWork:
     return CycleWork.model_validate_json(environment.read_text(WORK_FILE))
 
 
-def write_work(environment, work: CycleWork) -> None:
+def write_work(environment: WorkingEnvironment, work: CycleWork) -> None:
     """Write the shared phase state to the working target."""
     environment.write_text(WORK_FILE, work.model_dump_json())
 

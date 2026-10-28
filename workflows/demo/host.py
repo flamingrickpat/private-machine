@@ -1,11 +1,25 @@
 """Bus modules of the dummy cognition mode (``--cognition dummy``).
 
-Their fixed outputs are labeled prototype behavior. ``TaskTable`` holds the
-in-memory state of the dummy scheduler.
+Their fixed outputs are labeled prototype behavior, never evidence of real
+cognition. The modules exist so the real bus, kernel, and managed-run paths can
+run without a model: each one publishes a fixed answer for a known topic.
+
+Owned state: the in-memory ``TaskTable`` that the demonstration scheduler and
+status modules share. That table is not durable and disappears with the
+process. Inputs are bus envelopes and frozen request mappings; outputs are
+``gwt.updated``, ``action.*``, ``dialogue.reply``, and ``task.telemetry``
+envelopes. Nothing here calls a model or a Minecraft body.
+
+Reading map: ``TaskTable`` (the shared task state), ``DummyMainCogLoop``
+(keyword routing), ``DummyDialogue`` (echo replies),
+``ScheduleSubprocesses`` and ``CheckSubprocess`` (task lifecycle),
+``ToolPlusDialogue`` (the tool-request variant of the echo module).
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from threading import RLock
+from typing import TYPE_CHECKING, TypedDict
 
 from pm.records.cycle_records import StimulusGroup
 from pm.records.cycle_state import CycleState
@@ -17,6 +31,29 @@ from pm.bus.envelopes import Envelope, new_id
 from pm.bus.envelopes import new_envelope
 from pm.records.memory_records import new_feature
 from pm.runs.workflow_module import CognitiveWorkflow
+
+if TYPE_CHECKING:
+    from pathlib import Path
+    from typing import Any, Mapping
+
+    from pm.bus.bus import BusSystem
+    from pm.memory.store import MemoryStore
+    from pm_workflows.working_target import WorkingTarget
+
+
+class TaskRecord(TypedDict):
+    """One demonstration task in the shared table.
+
+    The table is a real map keyed by task id, so membership is dynamic; each
+    value is the same fixed record. ``next_transition`` is a clock reading in
+    the scheduler clock's units, or None once the record is terminal.
+    """
+
+    task_id: str
+    kind: str
+    correlation_id: str
+    status: str
+    next_transition: float | None
 
 
 ACTION_TYPE = {
@@ -30,16 +67,18 @@ ACTION_TYPE = {
 class TaskTable:
     """One stateful table shared by the scheduler and status modules."""
 
-    def __init__(self, clock):
+    def __init__(self, clock: Callable[[], float]) -> None:
+        """Create an empty table that reads time from ``clock``."""
         self.clock = clock
         self._lock = RLock()
-        self._records: dict[str, dict] = {}
+        self._records: dict[str, TaskRecord] = {}
 
-    def create(self, task_id: str, task_kind: str, correlation_id: str) -> dict | None:
+    def create(self, task_id: str, task_kind: str, correlation_id: str) -> TaskRecord | None:
+        """Add one accepted task, or return None when the id already exists."""
         with self._lock:
             if task_id in self._records:
                 return None
-            record = {
+            record: TaskRecord = {
                 "task_id": task_id,
                 "kind": task_kind,
                 "correlation_id": correlation_id,
@@ -49,11 +88,13 @@ class TaskTable:
             self._records[task_id] = record
             return record
 
-    def get(self, task_id: str) -> dict | None:
+    def get(self, task_id: str) -> TaskRecord | None:
+        """Return one task record, or None when the table does not hold it."""
         with self._lock:
             return self._records.get(task_id)
 
-    def due(self, now: float) -> list[dict]:
+    def due(self, now: float) -> list[TaskRecord]:
+        """Return the tasks whose next transition is due at ``now``."""
         with self._lock:
             return [
                 record for record in self._records.values()
@@ -62,7 +103,8 @@ class TaskTable:
                 and record["next_transition"] <= now
             ]
 
-    def advance(self, record: dict, period: float) -> str:
+    def advance(self, record: TaskRecord, period: float) -> str:
+        """Move one task to its next state and schedule its following transition."""
         with self._lock:
             now = self.clock()
             if record["status"] == "accepted":
@@ -72,11 +114,13 @@ class TaskTable:
             record["next_transition"] = now + period
             return record["status"]
 
-    def active(self) -> list[dict]:
+    def active(self) -> list[TaskRecord]:
+        """Return the tasks that have not reached a terminal state."""
         with self._lock:
             return [r for r in self._records.values() if r["status"] in {"accepted", "running"}]
 
     def mark_terminated(self, task_id: str) -> None:
+        """Mark one accepted or running task as terminated, if it exists."""
         with self._lock:
             record = self._records.get(task_id)
             if record is not None and record["status"] in {"accepted", "running"}:
@@ -159,8 +203,12 @@ class DummyDialogue(CognitiveWorkflow):
 class ScheduleSubprocesses(CognitiveWorkflow):
     DATA_TOPICS = frozenset({"action.schedule"})
 
-    def __init__(self, module_id, bus, on_error, clock, tick_seconds, *,
-                 working_target, workflow, tools_factory, runtime_root, ghost, tasks):
+    def __init__(self, module_id: str, bus: BusSystem, on_error: Callable[[BaseException], None],
+                 clock: Callable[[], float], tick_seconds: float | None, *,
+                 working_target: WorkingTarget, workflow: Path,
+                 tools_factory: Callable[[Any, Any], Mapping[str, Callable[..., object]]],
+                 runtime_root: Path, ghost: MemoryStore, tasks: TaskTable) -> None:
+        """Forward the module configuration and retain the shared task table."""
         super().__init__(
             module_id, bus, on_error, clock, tick_seconds,
             working_target=working_target, workflow=workflow,
@@ -169,6 +217,7 @@ class ScheduleSubprocesses(CognitiveWorkflow):
         self.tasks = tasks
 
     def handle_batch(self, batch: list[Envelope]) -> None:
+        """Advance due tasks on an idle tick; otherwise run one decision batch."""
         if not batch:
             self._advance_tasks()
             return
@@ -212,8 +261,12 @@ class ScheduleSubprocesses(CognitiveWorkflow):
 class CheckSubprocess(CognitiveWorkflow):
     DATA_TOPICS = frozenset({"action.status"})
 
-    def __init__(self, module_id, bus, on_error, clock, tick_seconds, *,
-                 working_target, workflow, tools_factory, runtime_root, ghost, tasks):
+    def __init__(self, module_id: str, bus: BusSystem, on_error: Callable[[BaseException], None],
+                 clock: Callable[[], float], tick_seconds: float | None, *,
+                 working_target: WorkingTarget, workflow: Path,
+                 tools_factory: Callable[[Any, Any], Mapping[str, Callable[..., object]]],
+                 runtime_root: Path, ghost: MemoryStore, tasks: TaskTable) -> None:
+        """Forward the module configuration and retain the shared task table."""
         super().__init__(
             module_id, bus, on_error, clock, tick_seconds,
             working_target=working_target, workflow=workflow,

@@ -1,18 +1,34 @@
 """Shared managed-run operations for Python roles, MCP, and the steward.
 
 One function set serves the SelfManagement workflow, the Assistant's
-tool-calling session, and the steward. Each function returns a plain mapping
-so it can cross both a Python call boundary and a JSON tool boundary.
+tool-calling session, and the steward. Each function returns the stored row as
+a JSON object, so the same operation crosses both a Python call boundary and a
+JSON tool boundary without a second shape.
+
+The operations keep the supervisor's rules: a repeated action ID returns the
+first run, an update queues one instruction revision, and a terminate only
+signals cancellation. Each call returns the row it committed, so a caller reads
+the accepted state instead of assuming it.
 """
 from __future__ import annotations
 
-from typing import Any, Callable, Mapping
+from typing import TYPE_CHECKING, Callable
+
+from pydantic import JsonValue
 
 from pm.runs.run_receipt import ManagedRunError
 from pm.runs.supervisor import ManagedRunSupervisor
 
+if TYPE_CHECKING:
+    from fastmcp import FastMCP
 
-def build_management_tools(supervisor: ManagedRunSupervisor) -> dict[str, Callable[..., Any]]:
+#: One JSON-ready managed-run row, as the Python roles and MCP tools receive it.
+RunRow = dict[str, JsonValue]
+#: A JSON tool function: positional arguments in, one row or the whole table out.
+ManagementTool = Callable[..., RunRow | list[RunRow]]
+
+
+def build_management_tools(supervisor: ManagedRunSupervisor) -> dict[str, ManagementTool]:
     """Return the scoped managed-run operations bound to one supervisor."""
 
     def managed_start(
@@ -21,8 +37,8 @@ def build_management_tools(supervisor: ManagedRunSupervisor) -> dict[str, Callab
         instructions: str = "",
         parent_correlation: str = "",
         artifact_path: str = "",
-        arguments: dict | None = None,
-    ) -> dict:
+        arguments: dict[str, JsonValue] | None = None,
+    ) -> RunRow:
         """Start one managed run. A repeated action ID returns the first run."""
         return supervisor.start(
             action_id=action_id,
@@ -33,31 +49,31 @@ def build_management_tools(supervisor: ManagedRunSupervisor) -> dict[str, Callab
             arguments=arguments,
         )
 
-    def managed_status(run_id: str) -> dict:
+    def managed_status(run_id: str) -> RunRow:
         """Return the latest durable receipt for one run."""
         return supervisor.status(run_id)
 
-    def managed_list() -> list[dict]:
+    def managed_list() -> list[RunRow]:
         """Return every receipt in the one managed-run table."""
         return list(supervisor.receipts().values())
 
-    def managed_update(run_id: str, instructions: str, request_id: str = "") -> dict:
+    def managed_update(run_id: str, instructions: str, request_id: str = "") -> RunRow:
         """Queue one instruction revision at the next safe boundary."""
         return supervisor.update(run_id, instructions, request_id=request_id)
 
-    def managed_terminate(run_id: str, request_id: str = "") -> dict:
+    def managed_terminate(run_id: str, request_id: str = "") -> RunRow:
         """Set the run's code-owned cancellation signal. Files are untouched."""
         return supervisor.terminate(run_id, request_id=request_id)
 
-    def managed_answer(run_id: str, question_id: str, answer: str) -> dict:
+    def managed_answer(run_id: str, question_id: str, answer: str) -> RunRow:
         """Deliver a correlated answer to a waiting run and resume it."""
         return supervisor.answer(run_id, question_id, answer)
 
-    def managed_resume(run_id: str, request_id: str = "") -> dict:
+    def managed_resume(run_id: str, request_id: str = "") -> RunRow:
         """Resume retained body work after cleanup and fresh observation."""
         return supervisor.resume(run_id, request_id=request_id)
 
-    return {
+    tools: dict[str, ManagementTool] = {
         "managed_start": managed_start,
         "managed_status": managed_status,
         "managed_list": managed_list,
@@ -66,9 +82,10 @@ def build_management_tools(supervisor: ManagedRunSupervisor) -> dict[str, Callab
         "managed_answer": managed_answer,
         "managed_resume": managed_resume,
     }
+    return tools
 
 
-def management_mcp(supervisor: ManagedRunSupervisor):
+def management_mcp(supervisor: ManagedRunSupervisor) -> "FastMCP":
     """Register the same operations on a FastMCP server for one run."""
     from fastmcp import FastMCP
 

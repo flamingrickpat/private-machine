@@ -1,11 +1,27 @@
+"""Subtype vocabularies that record models and prompts branch on.
+
+owns: the closed sets of names for record subtypes (action channel, reality
+kind, stimulus type, feature family and subtype, intention type, and the rest).
+not own: the record models themselves (see ``pm.records.base`` for the package
+overview) or the semantic taxonomy used by memory reconsolidation, which lives
+in ``pm.records.taxonomy``.
+
+Every subtype enum derives from ``RecordSubtypeBase`` so that
+``RecordBase.get_sub_type`` has one return type, and so that a subtype keeps
+the same string value in records, seeds, and prompts after a class rename.
+The string values are persisted data: change an enum member name only together
+with the stored records that hold it.
+"""
 import enum
 from enum import StrEnum, auto
 
 
 class RecordSubtypeBase(StrEnum):
-    pass
+    """Marker base of every record subtype vocabulary."""
 
 class NoSubtype(RecordSubtypeBase):
+    """Subtype of a record that has no finer vocabulary yet."""
+
     NoSubtype = "NoSubtype"
 
 
@@ -167,6 +183,13 @@ class ClusterType(RecordSubtypeBase):
 
 
 class InterlocusType(enum.IntEnum):
+    """Visibility of one feature to the conscious agent.
+
+    ``Public`` and ``PrivateReportable`` can reach a prompt as dialogue or
+    thought. ``PrivateInternal`` is third-person material that the persona does
+    not fully see. ``Undefined`` is the neutral default.
+    """
+
     Public = 1
     Undefined = 0
     PrivateReportable = -1
@@ -398,6 +421,8 @@ class FeatureSubtype(RecordSubtypeBase):
     MetaInsight = auto()
 
 class IntentionType(RecordSubtypeBase):
+    """What an ``Intention`` record is about: whose state, and which kind."""
+
     SelfStatePhysical = auto()
     SelfStateMental = auto()
     SelfSituation = auto()

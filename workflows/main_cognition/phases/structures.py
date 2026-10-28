@@ -29,7 +29,8 @@ import random
 from collections import Counter
 from collections.abc import Callable
 
-from pydantic import create_model, model_validator
+from pm_workflows.python_role import RoleContext
+from pydantic import BaseModel, create_model, model_validator
 
 from pm.constants import (
     COALITION_ITEMS_PER_CLUSTER,
@@ -137,7 +138,7 @@ class TopicalCoalitionBuilder:
     coalition holds exactly one cluster, as the plan describes.
     """
 
-    def __init__(self, records: dict[int, RecordView], embedding_of: EmbeddingOf, rng: random.Random):
+    def __init__(self, records: dict[int, RecordView], embedding_of: EmbeddingOf, rng: random.Random) -> None:
         self.records = records
         self.embedding_of = embedding_of
         self.rng = rng
@@ -208,7 +209,7 @@ class StructureBinder:
     a repair turn. An unknown target is corrected in place instead.
     """
 
-    def __init__(self, work: CycleWork, prefix: StoryPrefix, prompts: PhasePrompts):
+    def __init__(self, work: CycleWork, prefix: StoryPrefix, prompts: PhasePrompts) -> None:
         self.work = work
         self.prefix = prefix
         self.prompts = prompts
@@ -230,7 +231,7 @@ class StructureBinder:
         """
         allowed = set(view_ids)
 
-        def check(answer):
+        def check(answer: BaseModel) -> BaseModel:
             if len(answer.structures) > STRUCTURE_BINDER_MAX:
                 raise ValueError(f"Write at most {STRUCTURE_BINDER_MAX} structures.")
             for structure in answer.structures:
@@ -245,7 +246,7 @@ class StructureBinder:
         return create_model("BinderAnswerChecked", __base__=BinderAnswer,
                             __validators__={"check": model_validator(mode="after")(check)})
 
-    def bind(self, context, view_ids: list[int]) -> list[StructureDraft]:
+    def bind(self, context: RoleContext, view_ids: list[int]) -> list[StructureDraft]:
         """Run the call and return one draft for each bound structure."""
         if not view_ids:
             return []
@@ -293,7 +294,7 @@ def binder_view(work: CycleWork, embedder: Embedder, candidates: list[int], rng:
                              max_tokens=STRUCTURE_VIEW_TOKENS, rng=rng, precursor_ids=fresh)
 
 
-def build(context, work: CycleWork) -> StructuresResult:
+def build(context: RoleContext, work: CycleWork) -> StructuresResult:
     """Run both builders and return their structures with pending ids."""
     embedder = Embedder(context, work.records)
     rng = random.Random(f"{work.request.run_id}:structures")
@@ -309,7 +310,7 @@ def build(context, work: CycleWork) -> StructuresResult:
     return result
 
 
-def run(context, work: CycleWork) -> CycleWork:
+def run(context: RoleContext, work: CycleWork) -> CycleWork:
     work.structures = build(context, work)
     work.state.structure_ids = [draft.record_id for draft in work.structures.structures]
     coalitions = sum(1 for draft in work.structures.structures if draft.builder == COALITION)

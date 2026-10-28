@@ -49,7 +49,7 @@ class BodyLeases:
         return self.root / (digest + suffix)
 
     @contextmanager
-    def command(self, endpoint: str, cancel=None) -> Iterator[None]:
+    def command(self, endpoint: str, cancel: object | None = None) -> Iterator[None]:
         """Serialize local reads and actions. Cancellation stops a queued call."""
         lock = ProcessLock(self.path(endpoint, ".command.lock")).acquire(wait=True, cancel=cancel)
         try:

@@ -1,12 +1,13 @@
 """``UserInputProxy``: the bus module that turns terminal, console, or web input into records."""
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 import threading
+from typing import TYPE_CHECKING
 
 from pm.records.enums import EntityClass, FeatureType, InterlocusType, SourceKind
 
-from pm.bus.envelopes import new_id
+from pm.bus.envelopes import Envelope, new_id
 from pm.host.application import BusModule
 from workflows.public_speech.publication import acknowledge_reply
 from pm.bus.envelopes import new_envelope
@@ -14,13 +15,20 @@ from pm.records.base import Provenance
 from pm.records.media import RecordImage, attach_images, with_tags
 from pm.records.memory_records import Entity, new_feature
 
+if TYPE_CHECKING:
+    from pm.bus.bus import BusSystem
+    from pm.memory.store import MemoryStore
+
 
 class UserInputProxy(BusModule):
     """Wraps human input and prints public replies."""
 
     DATA_TOPICS = frozenset({"dialogue.reply"})
 
-    def __init__(self, module_id, bus, on_error, clock, ghost, emit_reply):
+    def __init__(self, module_id: str, bus: BusSystem, on_error: Callable[[BaseException], None],
+                 clock: Callable[[], float], ghost: MemoryStore,
+                 emit_reply: Callable[[str], None]) -> None:
+        """Retain the store that owns the records and the public reply sink."""
         super().__init__(module_id, bus, on_error, clock, None)
         self.ghost = ghost
         self.emit_reply = emit_reply
@@ -116,7 +124,8 @@ class UserInputProxy(BusModule):
         ))
         return correlation_id
 
-    def handle_batch(self, batch) -> None:
+    def handle_batch(self, batch: list[Envelope]) -> None:
+        """Print each committed public reply and mark it delivered."""
         for envelope in batch:
             feature = self.ghost.get_knoxel_by_id(envelope.payload["knoxel_id"])
             if feature is not None:

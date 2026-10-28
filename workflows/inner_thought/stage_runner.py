@@ -10,8 +10,9 @@ from __future__ import annotations
 
 import asyncio
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from pm_workflows.runtime import WorkflowRuntime
@@ -22,12 +23,16 @@ from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunne
 from workflows.inner_thought.pipeline import STAGE_ORDER
 from workflows.inference_settings import REASONING
 
+if TYPE_CHECKING:
+    from pm.llm.prompt_encoding import TurnInput
+    from pm.memory.store import MemoryStore
+
 PACKAGE_DIR = Path(__file__).resolve().parent
 PARENT_MANIFEST = PACKAGE_DIR / "inner_thought.workflow.md"
 STAGES_DIR = PACKAGE_DIR / "stages"
 
 
-def make_environment(ghost) -> MemoryBashEnvironment:
+def make_environment(ghost: MemoryStore) -> MemoryBashEnvironment:
     """Return a fresh read-only projection of the current store state."""
     view = ghost.snapshot()
     return MemoryBashEnvironment(view.serialize_knoxels(), view.serialize_gwt(), "read")
@@ -39,8 +44,14 @@ def stage_manifest(name: str) -> Path:
     return STAGES_DIR / name / f"{name}.workflow.md"
 
 
-def build_inner_stage_runner(ghost, llm_complete: Callable, runtime_root: Path,
-                             read_environment=None, *, cancel: threading.Event | None = None) -> Callable[[str, dict], dict]:
+def build_inner_stage_runner(
+    ghost: MemoryStore,
+    llm_complete: Callable[..., str],
+    runtime_root: Path,
+    read_environment: MemoryBashEnvironment | None = None,
+    *,
+    cancel: threading.Event | None = None,
+) -> Callable[[str, dict[str, Any]], dict[str, Any]]:
     """Bind private child stages to one model and cancellation signal.
 
     Requested child cancellation raises asyncio.CancelledError so the parent
@@ -50,13 +61,15 @@ def build_inner_stage_runner(ghost, llm_complete: Callable, runtime_root: Path,
 
     stop = cancel if cancel is not None else threading.Event()
 
-    def run_stage(name: str, payload: dict) -> dict:
+    def run_stage(name: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """Run one private child stage through the kernel and return its report."""
         stage_run_id = f"{name}-{uuid4().hex[:12]}"
         # The invocation's frozen view wins when one exists, so a private
         # stage cannot read records the main loop accepted meanwhile.
         environment = (MemoryBashEnvironment(read_environment.visible_knoxels, read_environment.visible_gwt, "read")
                        if read_environment is not None else make_environment(ghost))
-        def complete(messages, **generation):
+        def complete(messages: Sequence[TurnInput], **generation: object) -> str:
+            """Complete one stage with the run's cancellation and reasoning budget."""
             return llm_complete(messages, cancel=stop, reasoning_budget=REASONING["off"], **generation)
 
         tools = {"llm_complete": complete}

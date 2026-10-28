@@ -10,8 +10,9 @@ from __future__ import annotations
 import posixpath
 import json
 import shlex
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, TypedDict
 
 from pm.records.base import RecordBase
 from pm.records.global_workspace import GwtTurnRecord
@@ -21,11 +22,29 @@ from pm.memory.yaml_codec import RecordPayload
 from pm_bash_machine import Access, BashMachine
 from pm_workflows.working_target import AgentTarget, CommandResult, WorkingEnvironment, WorkingTarget
 
+if TYPE_CHECKING:
+    from pm.memory.store import MemoryStore
+
+
+class RecordIndexEntry(TypedDict):
+    """One visible record in the virtual ``index.yaml`` listing."""
+
+    id: int
+    type: str
+    summary: str
+
+
+class GhostIndex(TypedDict):
+    """The virtual ``index.yaml``: the view mode and one entry per record."""
+
+    mode: str
+    knoxels: list[RecordIndexEntry]
+
 
 class _LazyRecordFile:
     """Render a shared record as JSON when a tool reads the virtual file."""
 
-    def __init__(self, data: RecordBase | GwtTurnRecord | dict):
+    def __init__(self, data: RecordBase | GwtTurnRecord | GhostIndex | dict[str, Any]) -> None:
         self._data = data
 
     def content(self) -> str:
@@ -40,7 +59,8 @@ class _LazyRecordFile:
         return json.dumps(data, ensure_ascii=False, indent=2)
 
 
-def _index_entry(knoxel_id: int, record: RecordBase) -> dict:
+def _index_entry(knoxel_id: int, record: RecordBase) -> RecordIndexEntry:
+    """Describe one visible record in the virtual ``index.yaml`` listing."""
     summary = record.content
     if len(summary) > 80:
         summary = summary[:77] + "..."
@@ -65,11 +85,11 @@ class MemoryBashEnvironment(WorkingEnvironment):
 
     def __init__(
         self,
-        visible_knoxels: Mapping[int, RecordBase | dict],
-        visible_gwt: Mapping[int, GwtTurnRecord | dict],
+        visible_knoxels: Mapping[int, RecordBase | dict[str, Any]],
+        visible_gwt: Mapping[int, GwtTurnRecord | dict[str, Any]],
         mode: str,
         *, ghost_view: Snapshot | None = None,
-    ):
+    ) -> None:
         self.records = {key: record if isinstance(record, RecordBase) else RecordPayload.model_validate(record).root
                         for key, record in visible_knoxels.items()}
         self.turns = {key: turn if isinstance(turn, GwtTurnRecord) else GwtTurnRecord.model_validate(turn)
@@ -88,7 +108,7 @@ class MemoryBashEnvironment(WorkingEnvironment):
         if result.exit_code != 0:
             raise RuntimeError(result.stderr)
 
-        index = {"mode": mode, "knoxels": []}
+        index: GhostIndex = {"mode": mode, "knoxels": []}
         files = {}
         for knoxel_id in sorted(self.records):
             record = self.records[knoxel_id]
@@ -168,7 +188,8 @@ class MemoryBashEnvironment(WorkingEnvironment):
 class MemoryBashTarget(WorkingTarget):
     """Opens a fresh read-only MemoryStore Bash environment per invocation."""
 
-    def __init__(self, ghost, mode: str = "read", visible_ids=None):
+    def __init__(self, ghost: MemoryStore, mode: str = "read",
+                 visible_ids: Iterable[int] | None = None) -> None:
         self.ghost = ghost
         self.mode = mode
         self.visible_ids = visible_ids

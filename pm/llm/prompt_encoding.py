@@ -1,15 +1,151 @@
-"""Encode neutral turns at the OpenAI-compatible provider boundary."""
+"""Encode neutral turns at the OpenAI-compatible provider boundary.
+
+This module is the only place where a typed
+:class:`~pm.context_render.turns.Turn` becomes provider JSON, and the only
+place where attachment bytes become base64. :class:`OpenAIChatEncoder` builds
+the ``messages`` list of one chat-completions request body:
+
+- A text-only turn keeps a plain string content, so a text prompt keeps its
+  exact bytes and its provider cache entry.
+- A turn with attachments becomes an ordered list of content parts. An image
+  travels as a data URL or as an explicit URL, audio as WAV or MP3 bytes,
+  another captured file as a ``file`` part, and sampled video as image parts
+  with their explicit time offsets.
+- Unsupported modality-role pairs and unsupported audio formats raise
+  ``ValueError`` before network I/O. No request leaves with lost content.
+
+Provider state fields (for example the signed reasoning details of an
+assistant turn) pass through the message mapping unchanged, so a message stays
+an open mapping at the outbound boundary. The :class:`TypedDict` shapes below
+therefore describe the fields this module owns, not the provider extras.
+
+:func:`normalize_turns` accepts legacy wire turns at migration boundaries.
+"""
 from __future__ import annotations
 
 import base64
 from collections.abc import Mapping, Sequence
 from io import BytesIO as _BytesIO  # noqa: N813
-from typing import Any, Protocol, TypeAlias
+from typing import Any, Literal, Protocol, TypeAlias, TypedDict
 
-from pm.context_render.turns import Content, Media, MediaKind, Role, Text, ToolCall, Turn, VideoFrames
+from pm.context_render.turns import (
+    Content,
+    ContentPart,
+    Media,
+    MediaKind,
+    Role,
+    Text,
+    ToolCall,
+    Turn,
+    VideoFrames,
+)
 
 
 TurnInput: TypeAlias = Turn | Mapping[str, Any]
+"""One prompt turn: a typed turn, or a legacy wire mapping at a boundary."""
+
+#: Image media types that the chat adapter sends as image bytes.
+OPENAI_IMAGE_MIME_TYPES = frozenset({"image/png", "image/jpeg", "image/webp", "image/gif"})
+
+#: Audio media types and the short format name the audio part requires.
+OPENAI_AUDIO_FORMATS: Mapping[str, str] = {
+    "audio/wav": "wav",
+    "audio/mpeg": "mp3",
+    "audio/mp3": "mp3",
+}
+
+
+class OpenAITextPart(TypedDict):
+    """One literal text segment of a message body."""
+
+    type: Literal["text"]
+    text: str
+
+
+class OpenAIImageUrl(TypedDict):
+    """The image reference of one ``image_url`` part.
+
+    ``url`` is either a data URL with base64 bytes or an explicit remote URL.
+    ``detail`` is the provider's rendering hint for that image.
+    """
+
+    url: str
+    detail: str
+
+
+class OpenAIImagePart(TypedDict):
+    """One image attachment part."""
+
+    type: Literal["image_url"]
+    image_url: OpenAIImageUrl
+
+
+class OpenAIAudioPayload(TypedDict):
+    """The base64 bytes and short format name of one audio part."""
+
+    data: str
+    format: str
+
+
+class OpenAIInputAudioPart(TypedDict):
+    """One audio attachment part."""
+
+    type: Literal["input_audio"]
+    input_audio: OpenAIAudioPayload
+
+
+class OpenAIFilePayload(TypedDict):
+    """The filename and data URL of one file attachment part."""
+
+    filename: str
+    file_data: str
+
+
+class OpenAIFilePart(TypedDict):
+    """One captured-file attachment part."""
+
+    type: Literal["file"]
+    file: OpenAIFilePayload
+
+
+OpenAIContentPart: TypeAlias = OpenAITextPart | OpenAIImagePart | OpenAIInputAudioPart | OpenAIFilePart
+"""One content part of a message body that carries attachments."""
+
+
+class OpenAIFunctionCall(TypedDict):
+    """The requested function name and its unparsed argument text."""
+
+    name: str
+    arguments: str
+
+
+class OpenAIToolCall(TypedDict):
+    """One requested tool call on an assistant message."""
+
+    id: str
+    type: Literal["function"]
+    function: OpenAIFunctionCall
+
+
+class OpenAIRequest(TypedDict):
+    """The chat-completions body that carries the encoded turns.
+
+    ``messages`` holds one mapping per turn. Provider state fields stay in
+    those messages, so the mapping itself is not a closed record here.
+    """
+
+    messages: list[dict[str, object]]
+
+
+def _base64_data(part: Media) -> str:
+    """Return the base64 text of a part's captured bytes.
+
+    Every caller has already rejected a part that only references a URL, so a
+    missing byte payload here is a broken media contract, not a user error.
+    """
+    if part.data is None:
+        raise ValueError("This provider part needs captured bytes, not a remote URL.")
+    return base64.b64encode(part.data).decode("ascii")
 
 
 def _png_data_url(url: str) -> str:
@@ -58,7 +194,9 @@ def _png_data_url(url: str) -> str:
 class PromptEncoder(Protocol):
     """A backend owns the conversion from typed turns to its input payload."""
 
-    def encode(self, turns: Sequence[TurnInput]) -> dict[str, Any]: ...
+    def encode(self, turns: Sequence[TurnInput]) -> OpenAIRequest:
+        """Return the provider request body for these turns."""
+        ...
 
 
 def tool_calls_from_wire(calls: Sequence[Mapping[str, Any]]) -> tuple[ToolCall, ...]:
@@ -72,14 +210,14 @@ def normalize_turns(turns: Sequence[TurnInput]) -> list[Turn]:
     Unsupported content parts raise ValueError. Typed turns pass unchanged.
     Tool call identities and provider reasoning state remain available.
     """
-    result = []
+    result: list[Turn] = []
     for turn in turns:
         if isinstance(turn, Turn):
             result.append(turn)
             continue
         content = turn.get("content") or ""
         if isinstance(content, list):
-            parts = []
+            parts: list[ContentPart] = []
             for part in content:
                 if part["type"] == "text":
                     parts.append(Text(part["text"]))
@@ -108,51 +246,73 @@ class OpenAIChatEncoder:
     ordered image parts with their explicit time offsets.
     """
 
-    def encode(self, turns: Sequence[TurnInput]) -> dict[str, Any]:
-        return {"messages": [self.message(turn) for turn in normalize_turns(turns)]}
+    def encode(self, turns: Sequence[TurnInput]) -> OpenAIRequest:
+        """Return the chat-completions body for these turns."""
+        messages = [self.message(turn) for turn in normalize_turns(turns)]
+        return {"messages": messages}
 
-    def message(self, turn: Turn) -> dict[str, Any]:
+    def message(self, turn: Turn) -> dict[str, object]:
+        """Return one provider message mapping for ``turn``.
+
+        ``role`` and ``content`` are always present. ``tool_calls``,
+        ``tool_call_id``, and ``name`` appear only when the turn carries them.
+        Provider state fields come first, so a provider sees its own fields
+        unchanged and in their original order.
+        """
         content = turn.content
+        value: str | list[OpenAIContentPart]
         if all(isinstance(part, Text) for part in content.parts):
             value = content.text
         else:
             if turn.role is not Role.User:
                 raise ValueError("The OpenAI chat adapter accepts input media only on user turns.")
-            value = [{"type": "text", "text": "\n".join(content.notes) + "\n"}] if content.notes else []
+            parts: list[OpenAIContentPart] = []
+            if content.notes:
+                # Unattached notes (for example image provenance) lead the parts.
+                parts.append({"type": "text", "text": "\n".join(content.notes) + "\n"})
             for part in content.parts:
                 if isinstance(part, Text):
-                    value.append({"type": "text", "text": part.text})
+                    parts.append({"type": "text", "text": part.text})
                 elif isinstance(part, VideoFrames):
+                    # Sampled video travels as ordered images with their offsets.
                     for frame in part.frames:
-                        value.append({"type": "text", "text": f"Video frame at {frame.seconds:g} seconds:"})
-                        value.append(self.media(frame.image))
+                        parts.append({"type": "text", "text": f"Video frame at {frame.seconds:g} seconds:"})
+                        parts.append(self.media(frame.image))
                 else:
-                    value.append(self.media(part))
-        result = {**(turn.provider_state or {}), "role": turn.role.value, "content": value}
+                    parts.append(self.media(part))
+            value = parts
+        result: dict[str, object] = {**(turn.provider_state or {}), "role": turn.role.value, "content": value}
         if turn.tool_calls:
-            result["tool_calls"] = [{"id": call.id, "type": "function",
-                "function": {"name": call.name, "arguments": call.arguments}} for call in turn.tool_calls]
+            result["tool_calls"] = [OpenAIToolCall(id=call.id, type="function",
+                                                   function=OpenAIFunctionCall(name=call.name,
+                                                                               arguments=call.arguments))
+                                    for call in turn.tool_calls]
         if turn.tool_call_id:
             result["tool_call_id"] = turn.tool_call_id
         if turn.name:
             result["name"] = turn.name
         return result
 
-    def media(self, part: Media) -> dict[str, Any]:
-        encoded = base64.b64encode(part.data).decode("ascii") if part.data is not None else None
+    def media(self, part: Media) -> OpenAIContentPart:
+        """Return one provider content part for a part's bytes or URL.
+
+        Raises ValueError when this adapter cannot carry the attachment as it
+        is: unsupported image bytes, audio that is not WAV or MP3, native
+        video, or a file that only has a remote reference.
+        """
         if part.kind is MediaKind.Image:
-            if part.data is not None and part.mime_type not in {"image/png", "image/jpeg", "image/webp", "image/gif"}:
+            if part.data is not None and part.mime_type not in OPENAI_IMAGE_MIME_TYPES:
                 raise ValueError("OpenAI chat image bytes need PNG, JPEG, WebP, or GIF media.")
-            url = part.url if part.url is not None else f"data:{part.mime_type};base64,{encoded}"
+            url = part.url if part.url is not None else f"data:{part.mime_type};base64,{_base64_data(part)}"
             return {"type": "image_url", "image_url": {"url": url, "detail": part.detail}}
         if part.kind is MediaKind.Audio:
-            formats = {"audio/wav": "wav", "audio/mpeg": "mp3", "audio/mp3": "mp3"}
-            if part.url is not None or part.mime_type not in formats:
+            if part.url is not None or part.mime_type not in OPENAI_AUDIO_FORMATS:
                 raise ValueError("OpenAI chat audio needs WAV or MP3 bytes.")
-            return {"type": "input_audio", "input_audio": {"data": encoded, "format": formats[part.mime_type]}}
+            return {"type": "input_audio", "input_audio": {"data": _base64_data(part),
+                                                             "format": OPENAI_AUDIO_FORMATS[part.mime_type]}}
         if part.kind is MediaKind.Video:
             raise ValueError("This chat adapter needs explicit sampled VideoFrames. Native video needs another backend adapter.")
         if part.url is not None:
             raise ValueError("OpenAI chat file input needs captured bytes.")
         return {"type": "file", "file": {"filename": part.name or "attachment",
-                                          "file_data": f"data:{part.mime_type};base64,{encoded}"}}
+                                          "file_data": f"data:{part.mime_type};base64,{_base64_data(part)}"}}

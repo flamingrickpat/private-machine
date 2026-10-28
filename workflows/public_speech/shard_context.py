@@ -26,6 +26,7 @@ The functions read a frozen memory store view and make no model call.
 from __future__ import annotations
 
 from pm.constants import DIALOGUE_THOUGHT_LIMIT
+from pm.memory.snapshot import Snapshot
 from pm.memory.retrieval import candidate
 from pm.records.enums import FeatureType
 from pm.records.memory_records import Feature
@@ -63,7 +64,7 @@ def exchange_thoughts(dialogue: list[Feature], thoughts: list[Feature]) -> list[
     return ordered[-DIALOGUE_THOUGHT_LIMIT:]
 
 
-def _views(view, request: ActionRequest, late_ids: list[int] = ()) -> dict[int, RecordView]:
+def _views(view: Snapshot, request: ActionRequest, late_ids: list[int] = ()) -> dict[int, RecordView]:
     """Return a record view of every item and tail record of the request shards.
 
     ``late_ids`` are partner records that arrived after the cycle committed.
@@ -74,7 +75,7 @@ def _views(view, request: ActionRequest, late_ids: list[int] = ()) -> dict[int, 
             for record_id in [*item.shard.item_ids(), *item.shard.tail_ids, *late_ids]}
 
 
-def shard_story(view, request: ActionRequest, companion_name: str) -> str:
+def shard_story(view: Snapshot, request: ActionRequest, companion_name: str) -> str:
     """Render every shard of ``request`` with its items and its full tail, as the cycle saw it.
 
     Deliberate mental work reads this text. It is the shard part of the story
@@ -87,7 +88,8 @@ def shard_story(view, request: ActionRequest, companion_name: str) -> str:
     return BLOCK_SEPARATOR.join(blocks)
 
 
-def shard_context(view, request: ActionRequest, companion_name: str, late_ids: list[int] = ()) -> PlannedContext:
+def shard_context(view: Snapshot, request: ActionRequest, companion_name: str,
+                  late_ids: list[int] = ()) -> PlannedContext:
     """Return the reply context of ``request`` from its shards.
 
     ``view`` is a frozen memory store view that holds every shard record.

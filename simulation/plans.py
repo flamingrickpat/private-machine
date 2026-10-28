@@ -1,8 +1,22 @@
-"""Validated scenario plans with mandatory facts and ordered virtual times."""
+"""Validated scenario plans with mandatory facts and ordered virtual times.
+
+A plan is the director's editable output and the run's contract: every mandatory
+fact belongs to one ordered stage, and each stage names the participant that
+receives the input. The models here reject an ambiguous plan before any process
+starts: duplicate IDs, a fact without a stage, a stage behind virtual time, or a
+fact whose stated time differs from its stage.
+
+Completion is recorded delivery, never a model's claim of success. These models
+are persisted in ``plan.json`` and exchanged with the browser, so field names and
+defaults are part of the run format. The package overview is in
+``simulation/__init__.py``.
+"""
 from __future__ import annotations
 
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from typing import Self
+
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 
 
 class Fact(BaseModel):
@@ -35,7 +49,7 @@ class ScenarioPlan(BaseModel):
     steps: list[Step] = Field(min_length=1)
 
     @model_validator(mode="after")
-    def complete_chronology(self):
+    def complete_chronology(self) -> Self:
         """Reject missing facts, duplicate identities, and ambiguous time zones."""
         ids = {item.id for item in self.facts}
         if len(ids) != len(self.facts) or len({item.id for item in self.steps}) != len(self.steps):
@@ -58,9 +72,15 @@ class ScenarioPlan(BaseModel):
 
 
 class ExtractedFacts(BaseModel):
-    """The first director pass, before chronological planning."""
+    """The first director pass, before chronological planning.
+
+    ``chronology`` keeps the director's raw ``{at, event}`` rows for the planning
+    pass. They are JSON values, not a run contract, so they stay unvalidated
+    beyond being JSON objects.
+    """
+
     facts: list[Fact] = Field(min_length=1)
-    chronology: list[dict] = Field(default_factory=list)
+    chronology: list[dict[str, JsonValue]] = Field(default_factory=list[dict[str, JsonValue]])
 
 
 class ActorTurn(BaseModel):
@@ -83,7 +103,7 @@ class StageJudgment(BaseModel):
     fact_evidence: dict[str, list[str]] = Field(default_factory=dict)
 
     @model_validator(mode="after")
-    def cited_deliveries(self):
+    def cited_deliveries(self) -> Self:
         """Require recorded delivery IDs for every supported scenario fact."""
         if any(not self.fact_evidence.get(key) for key in self.supported_fact_ids):
             raise ValueError("Each supported fact needs its actor delivery IDs in fact_evidence.")

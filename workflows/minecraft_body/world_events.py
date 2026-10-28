@@ -6,7 +6,7 @@ from pm import vclock
 from datetime import datetime, timezone
 import json
 from pathlib import Path
-from typing import Callable
+from typing import TYPE_CHECKING, Any, Callable
 
 from pydantic import BaseModel
 from pm.bus.envelopes import Envelope, new_envelope, new_id
@@ -15,6 +15,9 @@ from pm.memory.snapshot import GhostCancelled
 from pm.records.enums import FeatureType, SourceKind
 from pm.records.memory_records import new_feature
 from pm.runs.errors import TaskServiceError
+
+if TYPE_CHECKING:
+    from pm.memory.store import MemoryStore
 
 
 class GwtUpdate(BaseModel):
@@ -57,8 +60,9 @@ class WorldEvents(BusModule):
 
     DATA_TOPICS = frozenset({"gwt.updated", "action.receipt", "user.input"})
 
-    def __init__(self, *args, ghost, observe: Callable[[], dict], journal: Path,
-                 quiet_seconds: float = 120.0, **kwargs):
+    def __init__(self, *args: Any, ghost: MemoryStore, observe: Callable[[], dict[str, Any]],
+                 journal: Path, quiet_seconds: float = 120.0, **kwargs: Any) -> None:
+        """Forward the module configuration and retain the observation source."""
         super().__init__(*args, **kwargs)
         self.ghost = ghost
         self.observe = observe

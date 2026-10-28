@@ -13,6 +13,8 @@ never writes a partial cycle.
 """
 from __future__ import annotations
 
+from pm_workflows.python_role import RoleContext
+
 from workflows.cognitive_control.schemas import WaitRequest
 from workflows.main_cognition.cycle_work import CycleWork
 from workflows.main_cognition.model_json import write_report
@@ -48,7 +50,7 @@ def wait_request(work: CycleWork) -> WaitRequest | None:
     return None
 
 
-def run(context, work: CycleWork) -> CycleWork:
+def run(context: RoleContext, work: CycleWork) -> CycleWork:
     work.wait_request = wait_request(work)
     released = sum(1 for item in work.dispatches if item.status == "dispatched")
     work.receipt("commit", "handed the cycle to the host")

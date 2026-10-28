@@ -9,6 +9,11 @@ A run has its own cancellation event, separate from the module's shutdown
 event. Stopping the module also cancels its active run; cancelling one run
 does not stop the module or any other run. A run that suspends for user input
 publishes a question and resumes when a correlated answer arrives.
+
+A parked run is retained in two places: the accepted ``ModuleOutput`` record,
+and a per-module receipt file for the case where accepted memory has no causal
+history. Restoration installs the recorded environment before the kernel
+resumes, so a resumed run reads the files it stopped with.
 """
 from __future__ import annotations
 
@@ -19,11 +24,13 @@ import uuid
 from abc import abstractmethod
 from pathlib import Path
 import json
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Mapping, TypedDict
 
 from fastmcp import FastMCP
 from pm_workflows.runtime import AgentModel, WorkflowRuntime
+from pm_workflows.working_target import WorkingEnvironment, WorkingTarget
 
+from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope, new_id
 from pm.host.mcp_listeners import serve_services
 from pm.host.application import BusModule
@@ -32,6 +39,22 @@ from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowResul
 from pm.bus.envelopes import Envelope
 from pm.memory.store_tools import build_tools
 from pm.memory.read_scope import ReadScope, current as current_reads
+from pm.memory.store import MemoryStore
+
+
+class PendingInvocation(TypedDict):
+    """A run that suspended for outside input and waits for its answer.
+
+    ``request`` and ``envelopes`` are the original run input, so the resumed
+    invocation continues the same run instead of starting a new one. The
+    environment is the live working target of that invocation.
+    """
+
+    request: WorkflowRequest
+    environment: WorkingEnvironment
+    envelopes: list[Envelope]
+    question_id: str | None
+    resume_phase: str | None
 
 
 class WorkflowModule(BusModule):
@@ -43,12 +66,12 @@ class WorkflowModule(BusModule):
     def __init__(
         self,
         module_id: str,
-        bus,
+        bus: BusSystem,
         on_error: Callable[[BaseException], None],
         clock: Callable[[], float],
         tick_seconds: float | None,
         *,
-        working_target,
+        working_target: WorkingTarget,
         workflow: Path,
         tools_factory: Callable[[Any, Any], Mapping[str, Callable]],
         runtime_root: Path,
@@ -73,18 +96,21 @@ class WorkflowModule(BusModule):
         # The active run's cancellation signal. Distinct from ``stop_event``
         # so a single run can be cancelled without stopping the module.
         self.run_stop = threading.Event()
-        self._pending: dict[str, Any] | None = None
+        self._pending: PendingInvocation | None = None
+        # The memory store of a cognitive module; None for a module that only
+        # routes files. ``CognitiveWorkflow`` supplies it.
+        self.ghost: MemoryStore | None = None
         self.last_environment: Any | None = None
         self.last_kernel_summary: dict | None = None
         self.last_result: WorkflowResult | None = None
         self.last_proposal_batch: Any | None = None
 
     @abstractmethod
-    def prepare_input(self, batch: list) -> dict:
+    def prepare_input(self, batch: list[Envelope]) -> dict[str, Any]:
         """Convert bus input into this workflow's request format."""
 
     @abstractmethod
-    def publish_output(self, report: dict, batch: list[Envelope]) -> None:
+    def publish_output(self, report: dict[str, Any], batch: list[Envelope]) -> None:
         """Convert a parsed role report into bus messages."""
 
     def publish_question(self, result: WorkflowResult, batch: list[Envelope]) -> None:
@@ -144,7 +170,10 @@ class WorkflowModule(BusModule):
             self.parked_path.unlink(missing_ok=True)
             return
         view = getattr(pending["environment"], "ghost_view", None)
-        state = {
+        # The parked receipt is a JSON record whose parts are read back by
+        # ``restore_parked``: the run input, the question, and later the kernel
+        # state and file bytes.
+        state: dict[str, Any] = {
             "run_id": pending["request"].run_id, "payload": pending["request"].payload,
             "envelopes": [item.to_json() for item in pending["envelopes"]],
             "question_id": pending["question_id"], "resume_phase": pending["resume_phase"],
@@ -242,6 +271,7 @@ class WorkflowModule(BusModule):
         self._start(batch)
 
     def _start(self, batch: list[Envelope]) -> None:
+        """Begin one invocation with a fresh run signal and working target."""
         invocation_id = uuid.uuid4().hex
         self.invocation_id = invocation_id
         self.run_stop = threading.Event()
@@ -259,6 +289,7 @@ class WorkflowModule(BusModule):
         self._execute(request, environment, batch, resume=False)
 
     def _resume(self, answer: str) -> None:
+        """Write the durable answer, then continue the same run."""
         pending = self._pending
         self._pending = None
         ghost = getattr(self.working_target, "ghost", None)
@@ -279,11 +310,12 @@ class WorkflowModule(BusModule):
     def _execute(
         self,
         request: WorkflowRequest,
-        environment: Any,
+        environment: WorkingEnvironment,
         batch: list[Envelope],
         *,
         resume: bool,
     ) -> None:
+        """Run one kernel invocation and route exactly its terminal outcome."""
         proposal_batch = self.batch_provider() if self.batch_provider else None
         tools = self.tools_factory(environment, proposal_batch)
         servers = self.mcp_services_factory(environment) if self.mcp_services_factory else {}
@@ -335,6 +367,7 @@ class WorkflowModule(BusModule):
         self.parked_path.unlink(missing_ok=True)
 
     def _runner(self) -> WorkflowRunner:
+        """Reuse one runner configuration for this module's kernel calls."""
         return WorkflowRunner(
             self.workflow, self.runtime_root, namespace=self.module_id,
             success_status=self.success_status,
@@ -347,7 +380,7 @@ class WorkflowModule(BusModule):
         Python and transport exceptions bypass this method. Their selected
         actions remain pending because those exceptions prove no clean outcome.
         """
-        ghost = getattr(self, "ghost", None)
+        ghost = self.ghost
         if ghost is None or not envelopes or envelopes[0].topic != "action.request":
             return
         action_id = envelopes[0].payload.get("knoxel_id")
@@ -365,10 +398,12 @@ class WorkflowModule(BusModule):
 
     @staticmethod
     def _discard(proposal_batch: Any) -> None:
+        """Discard a proposal batch whose run produced no accepted output."""
         if proposal_batch is not None:
             proposal_batch.discard()
 
     def _answer_for(self, batch: list[Envelope]) -> str | None:
+        """Return the answer that belongs to the outstanding question, if any."""
         pending = self._pending or {}
         for envelope in batch:
             if envelope.topic != self.ANSWER_TOPIC:
@@ -387,11 +422,47 @@ __all__ = ["WorkflowModule", "PROJECT_ROOT"]
 class CognitiveWorkflow(WorkflowModule):
     """Knoxel routing shared by cognitive workflows, outside the generic runner."""
 
-    def __init__(self, *args, ghost, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(
+        self,
+        module_id: str,
+        bus: BusSystem,
+        on_error: Callable[[BaseException], None],
+        clock: Callable[[], float],
+        tick_seconds: float | None,
+        *,
+        ghost: MemoryStore,
+        working_target: WorkingTarget,
+        workflow: Path,
+        tools_factory: Callable[[Any, Any], Mapping[str, Callable]],
+        runtime_root: Path,
+        success_status: str = "done",
+        agent_model: AgentModel | None = None,
+        batch_provider: Callable[[], Any] | None = None,
+        mcp_services_factory: Callable[[Any], Mapping[str, FastMCP]] | None = None,
+        child_factory: Callable[[str], WorkflowRuntime] | None = None,
+        workflow_models: WorkflowModels | None = None,
+    ) -> None:
+        """Forward the module configuration and retain the memory store."""
+        super().__init__(
+            module_id,
+            bus,
+            on_error,
+            clock,
+            tick_seconds,
+            working_target=working_target,
+            workflow=workflow,
+            tools_factory=tools_factory,
+            runtime_root=runtime_root,
+            success_status=success_status,
+            agent_model=agent_model,
+            batch_provider=batch_provider,
+            mcp_services_factory=mcp_services_factory,
+            child_factory=child_factory,
+            workflow_models=workflow_models,
+        )
         self.ghost = ghost
 
-    def prepare_input(self, batch: list[Envelope]) -> dict:
+    def prepare_input(self, batch: list[Envelope]) -> dict[str, Any]:
         # Resolve input through the invocation scope, never the unrestricted Ghost.
         tools = build_tools(self.last_environment)
         messages = []

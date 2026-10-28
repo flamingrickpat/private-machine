@@ -15,7 +15,6 @@ invariant: a turn record names exactly one slot and one tick.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional
 
 from pm.utils import yaml_util
 from pydantic import BaseModel, ConfigDict, Field
@@ -41,10 +40,10 @@ class ShardChange(BaseModel):
     """
 
     key: ShardKey = Field(default_factory=ShardKey)
-    entered: List[WorkspaceItem] = Field(default_factory=list)
-    left: List[LeftItem] = Field(default_factory=list)
-    kept_ids: List[int] = Field(default_factory=list)
-    tail_ids: List[int] = Field(default_factory=list)
+    entered: list[WorkspaceItem] = Field(default_factory=list)
+    left: list[LeftItem] = Field(default_factory=list)
+    kept_ids: list[int] = Field(default_factory=list)
+    tail_ids: list[int] = Field(default_factory=list)
 
     def rekey(self, mapping: dict[int, int]) -> None:
         """Replace pending record and structure ids by store ids.
@@ -87,7 +86,7 @@ class PathwayBoostRef(BaseModel):
     source: str = ""
     target: str = ""
     strength: float = 0.0
-    skipped: List[str] = Field(default_factory=list)
+    skipped: list[str] = Field(default_factory=list)
 
 
 class CycleTrace(BaseModel):
@@ -104,16 +103,16 @@ class CycleTrace(BaseModel):
     """
 
     codelet_budget: int = 0
-    codelet_runs: List[CodeletRunRef] = Field(default_factory=list)
+    codelet_runs: list[CodeletRunRef] = Field(default_factory=list)
     codelet_ratings: dict[str, float] = Field(default_factory=dict)
     selector_patterns: str = ""
-    echo_ids: List[int] = Field(default_factory=list)
-    pathway_boosts: List[PathwayBoostRef] = Field(default_factory=list)
+    echo_ids: list[int] = Field(default_factory=list)
+    pathway_boosts: list[PathwayBoostRef] = Field(default_factory=list)
     definitions_version: str = ""
     definitions_digest: str = ""
-    percept_ids: List[int] = Field(default_factory=list)
-    structure_ids: List[int] = Field(default_factory=list)
-    causal_percept_ids: List[int] = Field(default_factory=list)
+    percept_ids: list[int] = Field(default_factory=list)
+    structure_ids: list[int] = Field(default_factory=list)
+    causal_percept_ids: list[int] = Field(default_factory=list)
     llm_calls: int = 0
     input_tokens_estimate: int = 0
     output_tokens_estimate: int = 0
@@ -142,13 +141,13 @@ class GwtTurnRecord(BaseModel):
     schema_id: str = Field(default=GWT_TURN_SCHEMA, alias="schema")
     tick_id: int
     slot_id: str = "main"
-    stimulus_ids: List[int] = Field(default_factory=list)
-    knoxel_ids: List[int] = Field(default_factory=list)
+    stimulus_ids: list[int] = Field(default_factory=list)
+    knoxel_ids: list[int] = Field(default_factory=list)
     summary: str = ""
     timestamp: datetime = Field(default_factory=datetime.utcnow)
-    shard_changes: List[ShardChange] = Field(default_factory=list)
-    experience_id: Optional[int] = None
-    decision_id: Optional[int] = None
+    shard_changes: list[ShardChange] = Field(default_factory=list)
+    experience_id: int | None = None
+    decision_id: int | None = None
     trace: CycleTrace = Field(default_factory=CycleTrace)
 
     def to_yaml(self) -> str:

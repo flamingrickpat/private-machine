@@ -4,17 +4,29 @@ Invalid proposals and revision conflicts reject a complete batch. A failed
 checkpoint leaves accepted memory unchanged. Errors reach the debugger.
 No model or network call runs under the commit lock. Optional checkpoint=None
 means an explicit in-memory session, not durable storage.
+
+The store is the only writer of accepted records: it owns record membership
+(inherited from :mod:`pm.memory.record_index`), the revision map, the causal
+history, workspace turns, managed-run receipts, and the embedding index. A
+caller stages a change in :class:`pm.memory.write_batch.WriteBatch` and hands
+it to :meth:`MemoryStore.commit`; reads use :meth:`MemoryStore.snapshot` so a
+long read keeps one stable membership and revision set. The package overview
+is :mod:`pm.memory`; ranking lives in :mod:`pm.memory.retrieval`.
 """
 from __future__ import annotations
 
 
 import hashlib
 from collections.abc import Callable, Iterable
+from datetime import datetime
 from pathlib import Path
 import json
 import pickle
 from threading import Event, RLock
+from typing import TYPE_CHECKING, Any, TypedDict
 from uuid import uuid4
+
+from pydantic import JsonValue
 
 from pm.memory.snapshot import GhostCancelled, GhostConflict, Snapshot
 from pm.memory.write_batch import WriteBatch
@@ -36,6 +48,20 @@ from pm.memory.vector_index import VectorIndex
 from pm.memory.embeddings import EmbeddingService, run_embedding_work
 from pm.memory.checkpoint import CommitReceipt, Checkpoint, read_checkpoint, write_checkpoint
 from pm.records.media import MEDIA_KEY, RecordImage, merge_alt_text, metadata_media
+
+if TYPE_CHECKING:
+    from pm.memory.bash_view import MemoryBashTarget
+    from pm.memory.retrieval import ActivitySummary
+
+
+class DialogueTurn(TypedDict):
+    """One public dialogue line of accepted memory, ordered by world time."""
+
+    id: int
+    speaker: str
+    text: str
+    timestamp: str | None
+    tick_id: int | None
 
 
 class MemoryStore(RecordIndex):
@@ -82,14 +108,20 @@ class MemoryStore(RecordIndex):
             self._observe_records(records)
             return records
 
-    def get_knoxels_of_types(self, *type_filters, needs_causal: bool = True) -> list[RecordBase]:
+    def get_knoxels_of_types(self, *type_filters: object, needs_causal: bool = True) -> list[RecordBase]:
+        """Read typed membership under the store lock and retain its dependencies."""
         with self.lock:
             records = super().get_knoxels_of_types(*type_filters, needs_causal=needs_causal)
             self._observe_records(records)
             return records
 
-    def read_run_receipts(self) -> dict[str, dict]:
-        """Copy live managed-run receipts and capture their exact transactions."""
+    def read_run_receipts(self) -> dict[str, dict[str, Any]]:
+        """Copy live managed-run receipts and capture their exact transactions.
+
+        A receipt is an open mapping written by the managed-run supervisor, so
+        its fields are not restated here. The copy keeps the caller from
+        mutating accepted state.
+        """
         with self.lock:
             rows = pickle_copy(self.managed_runs)
             reads = current_reads()
@@ -136,8 +168,8 @@ class MemoryStore(RecordIndex):
         self.gwt_turns: dict[int, GwtTurnRecord] = {}
         self.revisions: dict[int, int] = {}
         self.applied_commits: dict[str, CommitReceipt] = {}
-        self.managed_runs: dict[str, dict] = {}
-        self.consolidations: dict[str, dict] = {}
+        self.managed_runs: dict[str, dict[str, Any]] = {}
+        self.consolidations: dict[str, dict[str, Any]] = {}
         self.previous_emb_model = ""
         self._reserved_tick_id = 0
         self._history: dict[int, RecordBase] = {}
@@ -367,13 +399,19 @@ class MemoryStore(RecordIndex):
             knoxels=list((self._all_knoxels if records is None else records).values()),
         )
 
-    def state_dict(self) -> dict:
+    def state_dict(self) -> dict[str, JsonValue]:
         """Render an explicit JSON export. Normal commits use typed pickle state."""
         with self.lock:
             return ghost_state_to_dict(self.state())
 
-    def snapshot(self, visible_ids=None, *, capture: bool = True) -> Snapshot:
-        """Capture membership and revisions while sharing the central record instances."""
+    def snapshot(self, visible_ids: Iterable[int] | None = None, *, capture: bool = True) -> Snapshot:
+        """Capture membership and revisions while sharing the central record instances.
+
+        ``visible_ids`` limits membership to an explicit grant; the historical
+        records outside it stay available for reference resolution. ``capture``
+        records the read as an input of the current invocation, so a later
+        commit knows which records this decision depended on.
+        """
         with self.lock:
             ids = self._all_knoxels.keys() if visible_ids is None else visible_ids
             records = {key: self._all_knoxels.get(key) or self._visible_history.get(key) for key in ids}
@@ -519,7 +557,8 @@ class MemoryStore(RecordIndex):
         logging.getLogger(__name__).info("Memory backup tick=%s path=%s", data.current_tick_id, path)
         return path
 
-    def dialogue_history(self, *, visible_ids=None, user: str | None = None) -> list[dict]:
+    def dialogue_history(self, *, visible_ids: Iterable[int] | None = None,
+                         user: str | None = None) -> list[DialogueTurn]:
         """Return public dialogue from accepted memory, ordered by world time.
 
         ``visible_ids`` limits the read scope. ``user`` selects that speaker
@@ -540,9 +579,11 @@ class MemoryStore(RecordIndex):
                            "tick_id": data.get("tick_id")})
         return sorted(result, key=lambda row: (row["timestamp"] or "", row["id"]))
 
-    async def retrieve_experiences(self, query: str, embeddings=None, *, view=None,
-                                   visible_ids=None, frontier=None, scopes=None,
-                                   limit: int = 24, cancel=None) -> dict:
+    async def retrieve_experiences(self, query: str, embeddings: EmbeddingService | None = None, *,
+                                   view: Snapshot | None = None, visible_ids: Iterable[int] | None = None,
+                                   frontier: tuple[int, int] | None = None,
+                                   scopes: set[tuple[int, str]] | None = None,
+                                   limit: int = 24, cancel: Event | None = None) -> dict[str, Any]:
         """Retrieve from the supplied stable view or a fresh permitted snapshot.
 
         Scope and frontier filters run before embedding calls. The returned
@@ -552,14 +593,21 @@ class MemoryStore(RecordIndex):
         return await retrieve(view if view is not None else self.snapshot(visible_ids), query,
                               embeddings, frontier=frontier, scopes=scopes, limit=limit, cancel=cancel)
 
-    def activity_summary(self, start, end, *, visible_ids=None) -> dict:
-        """Read actual activity and original evidence IDs in one UTC interval."""
+    def activity_summary(self, start: str | datetime, end: str | datetime, *,
+                         visible_ids: Iterable[int] | None = None) -> ActivitySummary:
+        """Read actual activity and original evidence IDs in one UTC interval.
+
+        The interval is half-open, and both bounds accept an ISO timestamp or a
+        datetime. Only records that show executed work count as activity.
+        """
         from pm.memory.retrieval import activity
         return activity(self.snapshot(visible_ids), start, end)
 
-    async def search_memory(self, query: str, embeddings, *, visible_ids=None, limit: int = 50,
-                            prepare: bool = False, cancel=None, progress=None,
-                            record_type: str = "", subtype: str = "") -> dict:
+    async def search_memory(self, query: str, embeddings: EmbeddingService, *,
+                            visible_ids: Iterable[int] | None = None, limit: int = 50,
+                            prepare: bool = False, cancel: Event | None = None,
+                            progress: Callable[[int, int], None] | None = None,
+                            record_type: str = "", subtype: str = "") -> dict[str, Any]:
         """Search shared records with FAISS after embedding any missing vectors.
 
         Type and subtype filters apply before ranking. Pass the permitted
@@ -602,8 +650,9 @@ class MemoryStore(RecordIndex):
                 reads.observe(self, [], commits)
             return any(record_id in turn.trace.causal_percept_ids for turn in self.gwt_turns.values())
 
-    def begin_batch(self, commit_id: str, *, visible_ids=None, new_tick: bool = False,
-                    cancel: Event | None = None, embed: bool = True) -> WriteBatch:
+    def begin_batch(self, commit_id: str, *, visible_ids: Iterable[int] | None = None,
+                    new_tick: bool = False, cancel: Event | None = None,
+                    embed: bool = True) -> WriteBatch:
         """Capture a stable view. A new tick reserves an ID without accepting memory.
 
         Set ``embed=False`` for stimulus delivery. It must reach durable storage
@@ -685,6 +734,9 @@ class MemoryStore(RecordIndex):
                 records[key] = record
             cycles = self.states if batch._cycle is None else [*self.states, batch._cycle]
             revisions = dict(self.revisions)
+            # A replacement appends a successor with a new ID, and it still
+            # increments the superseded record's revision. An open batch that
+            # cited the replaced payload therefore fails instead of reviving it.
             for record_id in (*batch._new, *batch._replacements):
                 revisions[record_id] = revisions.get(record_id, 0) + 1
             receipt = CommitReceipt(commit_id=batch.commit_id, added_ids=tuple(batch._new),
@@ -692,6 +744,9 @@ class MemoryStore(RecordIndex):
             gwt = dict(self.gwt_turns)
             if batch._gwt is not None:
                 gwt[batch.tick_id] = batch._gwt
+            # Everything this commit read, plus every visible record it cites,
+            # becomes a causal input of the transaction. A record created in
+            # this same batch is an output, not an input.
             inputs = set(batch._input_ids) | set(batch._expected) | set(batch._superseded)
             for record in batch._new.values():
                 inputs.update(referenced_ids(record) - set(batch._new))
@@ -855,6 +910,7 @@ class MemoryStore(RecordIndex):
         return self.get_knoxel_by_id(record.id)
 
     def get_knoxel_by_id(self, knoxel_id: int) -> RecordBase | None:
+        """Return a live head or an exact historical record, and guard the read."""
         with self.lock:
             record = self._all_knoxels.get(knoxel_id) or self._visible_history.get(knoxel_id)
             if record is not None:
@@ -872,6 +928,8 @@ class MemoryStore(RecordIndex):
     def replace_knoxel(self, knoxel: RecordBase) -> RecordBase:
         raise NotImplementedError("Use GhostWriteBatch.replace to update memory.")
 
-    def create_bash_environment(self, mode: str = "read", visible_ids=None):
+    def create_bash_environment(self, mode: str = "read",
+                                visible_ids: Iterable[int] | None = None) -> MemoryBashTarget:
+        """Expose this store's grant as a read-only virtual shell environment."""
         from pm.memory.bash_view import MemoryBashTarget
         return MemoryBashTarget(self, mode=mode, visible_ids=visible_ids)
