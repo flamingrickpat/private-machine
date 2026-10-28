@@ -9,104 +9,127 @@ committed; this module never commits.
 from __future__ import annotations
 
 
-from typing import Any, Callable, Mapping
+from collections.abc import Callable, Mapping
+from typing import Protocol, runtime_checkable, TypeAlias
+import json
 
 from fastmcp import FastMCP
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
-from pm.memory.yaml_codec import RecordPayload
+from pm.context_render import ContextKind, render_context
+from pm.context_render.records import RecordFile, record_file_payload, record_file_schema
 from pm.memory.agent_tools import MemoryReadSession
-from pm.memory.snapshot import RecordPayloads
+from pm.memory.snapshot import Snapshot
+from pm.memory.write_batch import WriteBatch
+from pm.memory.yaml_codec import RecordPayload
+from pm.records.base import RecordBase
+from pm.records.global_workspace import GwtTurnRecord
+
+RecordInput: TypeAlias = RecordBase | Mapping[str, object]
+TurnInput: TypeAlias = GwtTurnRecord | Mapping[str, object]
 
 
-def _read_knoxels(environment, batch) -> Mapping[int, dict]:
-    if batch is not None:
-        return RecordPayloads(batch.view().all_knoxels)
-    return environment.visible_knoxels
+class RecordTextReplacement(BaseModel):
+    """A model may change content. The host owns every other record field."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+    id: int = Field(description="The existing knoxel ID to supersede.")
+    content: str = Field(description="The complete replacement text, without changing other fields.")
 
 
-def _read_gwt(environment, batch) -> dict[int, dict]:
-    if batch is not None:
-        return batch.view().serialize_gwt()
-    return environment.visible_gwt
+class MemoryToolEnvironment(Protocol):
+    """The explicit read grant required by the legacy memory tool adapter."""
+
+    @property
+    def visible_knoxels(self) -> Mapping[int, RecordInput]: ...
+
+    @property
+    def visible_gwt(self) -> Mapping[int, TurnInput]: ...
 
 
-def build_tools(environment, batch=None, *, memory: MemoryReadSession | None = None) -> Mapping[str, Callable[..., Any]]:
-    """Return the scoped tool functions for one invocation.
+@runtime_checkable
+class HistoricalMemoryEnvironment(Protocol):
+    """An environment that also exposes exact historical records in its frozen view."""
 
-    ``batch`` is optional. Without it the tools are read-only. With it the
-    read tools include the batch's staged records and two proposal tools add
-    to that batch. The batch view is resolved on every call, so a proposal
-    made earlier in the same run is visible to later reads.
-    Optional ``memory`` adds accepted evidence tools with their own explicit
-    workflow view. The caller owns that read session and its cancellation.
-    Legacy tools retain the environment's existing grant.
+    @property
+    def ghost_view(self) -> Snapshot | None: ...
+
+
+def _read_knoxels(environment: MemoryToolEnvironment, batch: WriteBatch | None) -> Mapping[int, RecordInput]:
+    return batch.view().all_knoxels if batch is not None else environment.visible_knoxels
+
+
+def _as_record(value: RecordInput) -> RecordBase:
+    return value if isinstance(value, RecordBase) else RecordPayload.model_validate(value).root
+
+
+def build_tools(environment: MemoryToolEnvironment, batch: WriteBatch | None = None, *,
+                memory: MemoryReadSession | None = None) -> Mapping[str, Callable[..., object]]:
+    """Bind model-facing projections to an explicit invocation grant.
+
+    Staged proposals remain local until their owner commits. Read responses use
+    central rendering. Stored records and their complete metadata stay intact.
     """
-
-    def ghost_get(knoxel_id: int) -> dict:
-        record = _read_knoxels(environment, batch).get(knoxel_id)
-        if record is None:
-            view = batch.view() if batch is not None else getattr(environment, "ghost_view", None)
-            historical = view.get_knoxel_by_id(knoxel_id) if view is not None else None
-            record = historical.as_payload(include_embedding=False) if historical is not None else None
-        if record is None:
-            raise KeyError(knoxel_id)
-        return record
-
-    def ghost_search(query: str) -> list[dict]:
-        needle = query.casefold()
-        matches: list[dict] = []
+    def ghost_get(knoxel_id: int) -> RecordFile:
         records = _read_knoxels(environment, batch)
+        if knoxel_id in records:
+            return record_file_payload(_as_record(records[knoxel_id]))
+        view = batch.view() if batch is not None else environment.ghost_view if isinstance(environment, HistoricalMemoryEnvironment) else None
+        if view is None:
+            raise KeyError(knoxel_id)
+        return record_file_payload(view.get(knoxel_id))
+
+    def ghost_search(query: str) -> list[RecordFile]:
+        needle = query.casefold()
+        records = _read_knoxels(environment, batch)
+        matches: list[RecordFile] = []
         for knoxel_id in sorted(records):
-            record = records[knoxel_id]
-            content = str(record.get("data", {}).get("content", ""))
-            if needle in content.casefold():
-                matches.append(record)
+            record = _as_record(records[knoxel_id])
+            if needle in record.content.casefold():
+                matches.append(record_file_payload(record))
         return matches
 
-    def ghost_gwt(tick_id: int) -> dict:
-        record = _read_gwt(environment, batch).get(tick_id)
-        if record is None:
-            raise KeyError(tick_id)
-        return record
+    def ghost_gwt(tick_id: int) -> dict[str, JsonValue]:
+        if batch is not None:
+            turn = batch.view().gwt_turns[tick_id]
+        else:
+            value = environment.visible_gwt[tick_id]
+            turn = value if isinstance(value, GwtTurnRecord) else GwtTurnRecord.model_validate(value)
+        return json.loads(render_context(turn, ContextKind.Facts, schema_path=record_file_schema()).text)
 
-    tools: dict[str, Callable[..., Any]] = {
-        "ghost_get": ghost_get,
-        "ghost_search": ghost_search,
-        "ghost_gwt": ghost_gwt,
-    }
-
+    tools: dict[str, Callable[..., object]] = {"ghost_get": ghost_get, "ghost_search": ghost_search, "ghost_gwt": ghost_gwt}
     if batch is not None:
-        def ghost_propose_create(record: dict) -> dict:
-            """Stage a new knoxel. Returns the record with its reserved ID."""
-            if not isinstance(record, dict):
-                raise ValueError("A proposed record must be a mapping.")
+        def ghost_propose_create(record: RecordFile) -> RecordFile:
+            """Validate an external proposal and return its reserved identity."""
             created = batch.create(RecordPayload.model_validate(record).root)
-            return (created).as_payload()
+            return record_file_payload(created)
 
-        def ghost_propose_replace(record: dict) -> dict:
-            """Append a successor and return its new identity."""
-            if not isinstance(record, dict):
-                raise ValueError("A proposed record must be a mapping.")
-            return batch.replace(RecordPayload.model_validate(record).root).as_payload()
+        def ghost_propose_replace(replacement: RecordTextReplacement) -> RecordFile:
+            """Copy the source and change only its text. The owner commits or discards it.
+
+            Validate plain workflow calls as well as structured MCP arguments.
+            Missing sources and stale heads fail through the batch contract.
+            """
+            proposal = RecordTextReplacement.model_validate(replacement)
+            source = batch.view().get(proposal.id)
+            edited = source.copy_for_edit()
+            edited.content = proposal.content
+            successor = batch.replace(edited)
+            return record_file_payload(successor)
 
         tools["ghost_propose_create"] = ghost_propose_create
         tools["ghost_propose_replace"] = ghost_propose_replace
-
     if memory is not None:
         tools.update(memory.tools())
     return tools
 
 
-def build_mcp(environment, batch=None, *, memory: MemoryReadSession | None = None) -> FastMCP:
-    """Register legacy tools and optional accepted evidence tools without network work.
-
-    The caller owns the environment, batch, and optional memory read session.
-    Each tool group retains its explicit grant. This factory commits no state.
-    """
-    tools = build_tools(environment, batch, memory=memory)
+def build_mcp(environment: MemoryToolEnvironment, batch: WriteBatch | None = None, *,
+              memory: MemoryReadSession | None = None) -> FastMCP:
+    """Expose these same typed adapters through MCP without starting a listener."""
     server = FastMCP("ghost")
-    for name, fn in tools.items():
-        server.tool(name=name)(fn)
+    for name, function in build_tools(environment, batch, memory=memory).items():
+        server.tool(name=name)(function)
     return server
 
 

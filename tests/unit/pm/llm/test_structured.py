@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from pydantic import BaseModel, Field, model_validator
 
+from pm.context_render.budget import RequiredContextTooLarge
 from pm.llm.structured import complete_json, complete_json_async, ModelFormatError, repair_agent_result
 from pm.memory.reconsolidation.schemas import NarrativeAnswer
 
@@ -46,6 +47,16 @@ class RepairPolicyTests(unittest.TestCase):
                     self.assertEqual(len(calls), 1)
                     self.assertEqual(rejected, [])
 
+    def test_measurement_programming_error_propagates_without_retry(self):
+        for run in (complete_json, complete_json_via_async):
+            calls = []
+            def broken_measure(turns, **settings):
+                calls.append(turns)
+                raise ValueError("broken measurement contract")
+            with self.assertRaisesRegex(ValueError, "broken measurement contract"):
+                run(lambda *args, **kwargs: "{}", [], Answer, measure=broken_measure)
+            self.assertEqual(len(calls), 1)
+
     def test_ninth_rejection_resets_history_and_attempts_each_time(self):
         for run in (complete_json, complete_json_via_async):
             with self.subTest(policy=run.__name__):
@@ -71,7 +82,7 @@ class RepairPolicyTests(unittest.TestCase):
                 self.assertEqual(result.value, 3)
                 self.assertEqual([len(turns) for turns in calls], [2 + 2 * (i % 9) for i in range(20)])
                 self.assertEqual([row[0] for row in rejected], list(range(1, 10)) * 2 + [1])
-                self.assertEqual(measured, [turns for i, turns in enumerate(calls) if i % 9])
+                self.assertEqual(measured, calls)
                 self.assertEqual(messages, original)
 
     def test_reset_keeps_validation_context(self):
@@ -181,10 +192,10 @@ class StructuredTests(unittest.TestCase):
             calls.append(turns)
             return "invalid"
 
-        with self.assertRaisesRegex(ModelFormatError, "after 1 invalid answers"):
+        with self.assertRaisesRegex(RequiredContextTooLarge, "initial rendered prompt"):
             complete_json(complete, [], Answer, measure=lambda *args, **kwargs:
                           {"input_tokens": 101, "input_budget_tokens": 100})
-        self.assertEqual(len(calls), 1)
+        self.assertEqual(len(calls), 0)
 
     def test_prompt_media_repairs_on_the_estimate(self):
         """An image in the prompt costs an estimate, not the whole cycle.
@@ -212,7 +223,7 @@ class StructuredTests(unittest.TestCase):
 
     def test_media_estimate_over_budget_names_the_estimate(self):
         """The stop reason keeps the measurement label, so an estimate reads as one."""
-        with self.assertRaisesRegex(ModelFormatError, "estimated.images_by_constant"):
+        with self.assertRaisesRegex(RequiredContextTooLarge, "initial rendered prompt"):
             complete_json(lambda *args, **kwargs: "invalid", [], Answer, measure=lambda *args, **kwargs: {
                 "input_tokens": 101, "input_budget_tokens": 100,
                 "measurement": "estimated.images_by_constant.o200k_base",

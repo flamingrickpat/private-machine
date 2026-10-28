@@ -71,7 +71,7 @@ class Episode:
     links: dict[str, tuple[int, ...]] = field(default_factory=dict)
     metadata: dict = field(default_factory=dict)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, object]:
         return {
             "episode_id": self.episode_id,
             "kind": self.kind,

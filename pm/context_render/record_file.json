@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "float_digits": null,
+  "omit_fields": ["embedding", "embedding_query_hint", "last_accessed"],
+  "legend": ""
+}

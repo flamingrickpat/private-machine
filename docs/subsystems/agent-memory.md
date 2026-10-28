@@ -46,7 +46,7 @@ It does not restore the live owner's checkpoint.
 | --- | --- |
 | `memory_view` | Snapshot identity, visible categories, grant bounds, enabled groups, limits, and inspected revisions |
 | `memory_search` | Ranked excerpts, original IDs, revisions, dates, attribution, score components, and semantic coverage |
-| `memory_get` | Original serialized JSON in bounded pages with numbered lines |
+| `memory_get` | Centrally rendered record JSON in bounded pages with numbered lines |
 | `memory_sources` | Pages of stored supporting references, including original sources and speakers |
 | `memory_neighbors` | One graph hop with edge and endpoint metadata, source IDs, and pagination |
 | `memory_refresh` | Explicit snapshot replacement through the host selector |
@@ -57,7 +57,7 @@ Search accepts `auto`, `lexical`, `semantic`, or `combined` according to the ena
 Graph-only configuration searches graph text with lexical ranking.
 
 Default limits are 16 results, 1,200 excerpt characters, 4,000 record characters, and 16 graph relations per page.
-`memory_get` offsets count characters in the original indented JSON.
+`memory_get` offsets count characters in the rendered indented JSON.
 Its returned `next_offset` continues that exact representation.
 Source and graph offsets count entries.
 Unavailable IDs use one generic error.
@@ -87,3 +87,16 @@ Original statements, corrections, speculation, companion speech, and old world o
 The [managed memory lifecycle](agent-memory-lifecycle.md) explains the enabled planner view, commit guards, cancellation, restart, and diagnosis.
 The [small comparison gate](../work_items/verification/a14b-agent-memory.md) measures source use, practical choices, and tool overhead.
 It does not establish house completion, public reply latency, or human immersion.
+
+## Central record rendering
+
+Model-facing record pages and virtual knoxel files use the centralized renderer.
+The display retains semantic fields and named cognitive metadata. It excludes runtime revision maps and dispatch payloads.
+The original snapshot and stored payloads remain unchanged.
+`memory_get` reports `format: pm.rendered-record.v1`. Its character offsets refer to the rendered text.
+See [typed record collections and context selection](llm-context.md).
+
+Legacy `ghost_propose_replace` accepts a typed `replacement` object with `id` and `content`.
+The host copies that source and changes only its content before staging an immutable successor.
+Other fields, including hidden metadata, stay with the copied record. The original record remains unchanged.
+Structured tool validation rejects extra fields. The agent can correct invalid arguments through its normal tool loop.

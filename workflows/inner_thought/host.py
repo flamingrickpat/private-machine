@@ -88,9 +88,9 @@ def build_inner_thought_tools(ghost, runtime_root, llm_complete, *, cancel_provi
                 raise ValueError("Private recall requires a nonempty query.")
             result = asyncio.run(ghost.retrieve_experiences(
                 query, embeddings, view=view, scopes=scopes, limit=8, cancel=cancel))
-            from workflows.reflection.experiments import source_payload
+            from workflows.reflection.experiments import source_evidence
             ids = {key for item in result["matches"] for key in [item["knoxel_id"], *item.get("source_ids", [])]}
-            result["reflection_sources"] = [source_payload(view, view.get(key)) for key in sorted(ids)
+            result["reflection_sources"] = [source_evidence(view, view.get(key)).model_dump(mode="json") for key in sorted(ids)
                                             if key in view.revisions]
             return result
 
@@ -272,12 +272,12 @@ class PrivateThoughtLoop(CognitiveWorkflow):
                                         main_frame, thoughts, latest_user),
             operations=[{"name": line} for line in operation_lines()],
         )
-        from workflows.reflection.experiments import context as reflection_context, source_payload
+        from workflows.reflection.experiments import context as reflection_context, source_evidence
         request.reflection = reflection_context(view)
-        reflection_sources = {item["knoxel_id"] for item in request.reflection["records"]}
+        reflection_sources = {item.knoxel_id for item in request.reflection.records}
         for candidate in request.candidates:
             if candidate.knoxel_id not in reflection_sources:
-                request.reflection["records"].append(source_payload(view, view.get(candidate.knoxel_id)))
+                request.reflection.records.append(source_evidence(view, view.get(candidate.knoxel_id)))
         self._reflection_context = request.reflection
         # A bounded episode carries its own identity and history. A continuing
         # step waits for main appraisal of the previous thought before it reads
@@ -362,13 +362,12 @@ class PrivateThoughtLoop(CognitiveWorkflow):
 
         experiment_record = None
         if parsed.reflection.action != "none":
-            from workflows.reflection.experiments import source_payload, stage_decision
-            payload = dict(self._reflection_context)
-            payload["records"] = list(payload["records"])
-            known = {item["knoxel_id"] for item in payload["records"]}
+            from workflows.reflection.experiments import source_evidence, stage_decision
+            payload = self._reflection_context.model_copy(deep=True)
+            known = {item.knoxel_id for item in payload.records}
             for item in parsed.retrieved_memories:
                 for key in {item["knoxel_id"], *item.get("source_ids", [])} - known:
-                    payload["records"].append(source_payload(view, view.get(key)))
+                    payload.records.append(source_evidence(view, view.get(key)))
                     known.add(key)
             try:
                 experiment_record = stage_decision(changes, view, parsed.reflection, payload,

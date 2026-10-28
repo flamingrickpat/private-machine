@@ -18,6 +18,8 @@ import asyncio
 from threading import BoundedSemaphore, Event, Lock
 from contextlib import asynccontextmanager
 from collections.abc import Sequence
+from dataclasses import dataclass
+from pm.llm.contracts import ContextMeasurement, ModelProtocolContext
 
 from pm.llm.activation import ChatClient, ModelActivation, OpenAICompletionBackend
 from pm.llm.http_client import EmptyCompletionError
@@ -79,9 +81,21 @@ class LazyStageModel:
         finally:
             self._slots.release()
 
-    async def _complete(self, messages, generation):
-        async with self.slot(generation.get("cancel")):
-            return await complete_with_retry(self.ensure_client(cancel=generation.get("cancel")), messages, generation)
+    async def _preflight(self, messages: Sequence[TurnInput], cancel: Event | None, generation: dict[str, object]) -> None:
+        """Reject impossible rendered context before a text, reasoning, or tool call."""
+        from pm.llm.context_window import measure_context
+        from pm.context_render.budget import RequiredContextTooLarge
+        measurement = await measure_context(self.connection, messages, cancel if cancel is not None else Event(),
+            live_test=self.live_test, protocol_context=ModelProtocolContext.model_validate(generation))
+        if measurement["input_tokens"] > measurement["input_budget_tokens"]:
+            raise RequiredContextTooLarge(f"Rendered prompt estimate {measurement['input_tokens']} exceeds input ceiling {measurement['input_budget_tokens']}.")
+
+    async def _complete(self, messages: Sequence[TurnInput], generation: dict[str, object]) -> str:
+        cancel = generation.get("cancel")
+        assert cancel is None or isinstance(cancel, Event)
+        await self._preflight(messages, cancel, generation)
+        async with self.slot(cancel):
+            return await complete_with_retry(self.ensure_client(cancel=cancel), messages, generation)
 
     @property
     def activated(self) -> bool:
@@ -127,13 +141,16 @@ class LazyStageModel:
         """
         client = self.ensure_client(cancel=generation.get("cancel"))
 
-        async def complete():
-            async with self.slot(generation.get("cancel")):
+        async def complete() -> Completion:
+            cancel = generation.get("cancel")
+            assert cancel is None or isinstance(cancel, Event)
+            await self._preflight(messages, cancel, generation)
+            async with self.slot(cancel):
                 return await OpenAICompletionBackend(client).complete(messages, **generation)
 
         return asyncio.run(complete())
 
-    def measure_context(self, messages: Sequence[TurnInput], *, cancel=None, **generation: object) -> dict:
+    def measure_context(self, messages: Sequence[TurnInput], *, cancel: Event | None = None, **generation: object) -> ContextMeasurement:
         """Measure tokens using the same activated connection as inference.
 
         A dead endpoint pauses this call until the endpoint returns. It does
@@ -155,11 +172,7 @@ class LazyStageModel:
         """
         self.ensure_client(cancel=cancel)
 
-        async def complete_async(messages: Sequence[TurnInput], **generation: object) -> str:
-            return await self._complete(messages, generation)
-
-        complete_async.measure_context = self.measure_context
-        return complete_async
+        return AsyncModelTool(self, cancel)
 
     def build_tool_completion(self, *, cancel: Event | None = None) -> ToolCompletion:
         """Return an async tool-calling completion that preserves tool_calls.
@@ -171,8 +184,11 @@ class LazyStageModel:
         client = self.ensure_client(cancel=cancel)
 
         async def complete_tool(messages: Sequence[TurnInput], tools=None, **generation: object) -> Completion:
+            selected_cancel = generation.get("cancel", cancel)
+            assert selected_cancel is None or isinstance(selected_cancel, Event)
             if tools:
                 generation["tools"] = tools
+            await self._preflight(messages, selected_cancel, generation)
             last: EmptyCompletionError | None = None
             for attempt in range(3):
                 try:
@@ -190,3 +206,20 @@ class LazyStageModel:
 
 
 __all__ = ["LazyStageModel", "complete_with_retry"]
+
+
+@dataclass(frozen=True)
+class AsyncModelTool:
+    """A measured asynchronous completion with an explicit owner cancellation event."""
+
+    model: LazyStageModel
+    owner_cancel: Event | None
+
+    async def __call__(self, turns: Sequence[TurnInput], /, *, cancel: Event | None = None,
+                       **generation: object) -> str:
+        generation["cancel"] = cancel if cancel is not None else self.owner_cancel
+        return await self.model._complete(turns, generation)
+
+    def measure_context(self, messages: Sequence[TurnInput], *, cancel: Event | None = None,
+                        **generation: object) -> ContextMeasurement:
+        return self.model.measure_context(messages, cancel=cancel if cancel is not None else self.owner_cancel, **generation)

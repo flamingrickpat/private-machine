@@ -9,6 +9,7 @@ from __future__ import annotations
 from pm.records.copying import pickle_copy
 
 from threading import Event
+from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
 from pm.records.cycle_state import CycleState
@@ -58,7 +59,8 @@ class WriteBatch:
         if self._closed or (self.cancel is not None and self.cancel.is_set()):
             raise GhostCancelled("The Ghost batch is closed or cancelled.")
 
-    def view(self, visible_ids=None) -> Snapshot:
+    def view(self, visible_ids: Iterable[int] | None = None) -> Snapshot:
+        """Read staged heads, optionally restricted to an explicit identity grant."""
         records = {key: record for key, record in self._snapshot._records.items() if key not in self._superseded}
         records.update(self._new)
         records.update(self._replacements)
@@ -73,7 +75,7 @@ class WriteBatch:
         revisions = {key: revision for key, revision in self._snapshot.revisions.items() if key in records or key in history}
         return Snapshot(records, gwt, revisions, self._snapshot.embedding_index, self._snapshot.commit_ids, history)
 
-    def create(self, knoxel: RecordBase) -> RecordBase:
+    def create[T: RecordBase](self, knoxel: T) -> T:
         self.check_cancelled()
         record = knoxel
         if record.id != -1:
@@ -94,7 +96,7 @@ class WriteBatch:
         self._new[record.id] = record
         return record
 
-    def replace(self, knoxel: RecordBase) -> RecordBase:
+    def replace[T: RecordBase](self, knoxel: T) -> T:
         """Append a successor with a new ID and guard the previous head.
 
         Existing payloads stay unchanged. Use lifecycle receipts for exchange

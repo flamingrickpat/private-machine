@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from pm.records.mental_state import FullMentalState
 from workflows.main_cognition.schemas import GoalChange
-from workflows.reflection.schemas import ReflectionDecision
+from workflows.reflection.schemas import ReflectionDecision, ReflectionContext
 
 #: Reality labels a private thought may carry. They mirror the main loop's
 #: labels so one vocabulary spans both loops.
@@ -161,7 +161,7 @@ class InnerRequest(BaseModel):
     #: the model reads a bounded view instead of scanning the repository.
     inspection: dict = Field(default_factory=dict)
     episode: dict = Field(default_factory=dict)
-    reflection: dict = Field(default_factory=dict)
+    reflection: ReflectionContext = Field(default_factory=ReflectionContext)
 
 
 class InnerReport(BaseModel):

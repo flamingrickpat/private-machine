@@ -11,6 +11,18 @@ from pm.memory.bash_view import MemoryBashEnvironment
 
 
 class AgentFileScopeTests(unittest.TestCase):
+    def test_virtual_record_files_render_without_source_revision_maps(self) -> None:
+        from pm.records.memory_records import Feature
+        from pm.records.enums import FeatureType
+        record = Feature(id=1, content="Original source content.", feature_type=FeatureType.Dialogue,
+                         metadata={"generation_source_revisions": {str(key): 1 for key in range(1000)}})
+        environment = MemoryBashEnvironment({1: record}, {}, "read")
+        text = environment.read_text("ghost/knoxels/1.yaml")
+        rendered = json.loads(text)
+        self.assertEqual(rendered["data"]["content"], record.content)
+        self.assertNotIn("generation_source_revisions", text)
+        self.assertEqual(len(environment.records[1].metadata["generation_source_revisions"]), 1000)
+
     def test_agent_tools_cannot_change_projected_memory(self):
         from pm.records.memory_records import Feature
         from pm.records.enums import FeatureType
@@ -27,7 +39,10 @@ class AgentFileScopeTests(unittest.TestCase):
             ]
             for attempt in attempts:
                 self.assertFalse(json.loads(attempt)["success"])
-            self.assertEqual(yaml.safe_load(environment.read_text("ghost/knoxels/1.yaml")), record)
+            rendered = yaml.safe_load(environment.read_text("ghost/knoxels/1.yaml"))
+            self.assertEqual(rendered["__type__"], record["__type__"])
+            self.assertEqual(rendered["data"]["content"], "accepted memory")
+            self.assertNotIn("embedding", rendered["data"])
             self.assertEqual(environment.visible_knoxels[1], record)
 
     def test_agent_tools_use_virtual_cwd_without_host_fallback(self):

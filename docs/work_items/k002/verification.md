@@ -118,3 +118,38 @@ The mandatory 07:00 events remain untested. This checkpoint does not mark K002 c
 
 The owner requested typed reflection contracts, centralized record and collection rendering, and shared conservative token budgeting.
 Live acceptance remains stopped while that focused refactor proceeds.
+
+## Typed rendering and context repair
+
+The focused refactor preserves the prediction, intervention, and later-evidence mechanism.
+Each experiment keeps the original proposal ID as its stable identity. Ledger successors have distinct knoxel IDs.
+Typed models now describe source evidence, lifecycle metadata, observation grants, episodes, and effective inputs.
+The remaining legacy typing cleanup stays in Kanban card 5.
+
+Model-facing records use central rendering, including paged memory tools and virtual memory files.
+The private trigger receives experiment status rather than complete reflection evidence.
+Three separate reflection calls select evidence through shared salience and token-budget logic.
+Required citations and their sources stay together. Missing required capacity fails before inference.
+The local estimate takes the larger of two `tiktoken` counts and adds a 50 percent margin.
+The input ceiling remains at most 80 percent of serving capacity.
+
+The owner selected text-only replacement proposals for legacy memory tools.
+`ghost_propose_replace` validates an `id` and `content`, copies the source, and stages an immutable successor.
+The model does not reproduce metadata or other host-owned fields.
+
+Current evidence is under `.runtime/kanban/k002-typed-context-20261028/`:
+
+| Receipt | Result |
+| --- | --- |
+| `final-focused-tests.log` | 151 selected rendering, model, memory, reflection, private-host, and architecture checks passed. |
+| `private-stage-contract-tests.log` | 36 selected private-stage, pipeline, trigger, operation, and parked-recovery checks passed. |
+| `captured-reflection-replay.json` | The captured 313-record input rendered to 67,815 estimated tokens. Fourteen groups fit; two optional groups were explicitly omitted. |
+| `real-ghost-rendering.json` | All 12,106 saved ghost records retained their semantic fields through the central JSON display. No record failed rendering. |
+| `real-ghost-classification-comparison.json` | Typed evidence classification matched the checkpoint implementation for all 12,106 saved records. |
+
+Strict Pyright passed for the explicit contracts and new central modules with zero errors and warnings.
+The MCP replacement check used the installed tool adapter and an actual write batch.
+The captured outcome fixture supplies only its eligibility grant. Its repair check does not invent missing experiment history.
+Fixed-completion contract checks establish boundaries, not companion quality.
+The replay is an offline rendering regression. It does not replace the unfinished live cat scenario or owner review.
+Live services and scenarios remain stopped at the owner's request.

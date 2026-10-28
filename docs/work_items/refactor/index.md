@@ -70,7 +70,7 @@ Imports may only point in these directions:
 | `pm.records` | external libraries only |
 | `pm.context_render` | `pm.records` |
 | `pm.llm` | `pm.context_render`, `pm.records` |
-| `pm.memory` | `pm.records`, `pm.llm` |
+| `pm.memory` | `pm.records`, `pm.llm`, `pm.context_render` |
 | `pm.bus` | external libraries only |
 | `pm.host` | `pm.bus`, `pm.memory`, `pm.records` |
 | `pm.runs` | `pm.host`, `pm.memory`, `pm.llm`, `pm.records`, `pm.bus` |
@@ -82,6 +82,7 @@ Imports may only point in these directions:
 | `dev` | `pm`, `workflows`, `tests/support`, `test_data` |
 
 `tests/test_architecture.py` checks these rules. It parses source only, so it runs without dependencies.
+Memory tools use `pm.context_render` for model-facing record displays. Renderers do not import memory storage.
 `public_speech` builds on accepted cognition state, so libraries may import `main_cognition`.
 Only `main.py`, tests, and gates import `workflows.companion`. The console loads it by name through `pm/console/assembly.py`.
 

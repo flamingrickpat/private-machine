@@ -2,13 +2,26 @@
 
 ## Summary
 
-An experiment uses one durable Feature record with schema `pm.reflection-experiment.v1`.
+An experiment uses an immutable chain of Feature records with schema `pm.reflection-experiment.v1`.
 Its metadata retains the plan, source revisions, previous state, effective version, observations, result, and ordered history.
 The private host commits each transition atomically with any owned change.
 No transition erases the original prediction.
 
 Parent: [private reflection](reflection.md).
 Related: [accepted cognition state](cognition-state.md) and [private-loop recovery](private-loop.md).
+
+## Stable identity and immutable ledger states
+
+The stable `experiment_id` is the original proposal knoxel ID.
+Each lifecycle transition creates a new ledger knoxel with its own `record_id` and a supersession link.
+The original proposal and earlier ledger states remain unchanged.
+`effective_record_id` names the exact attention or belief intervention that later cognition consumes.
+The `reflection_versions` map uses the stable experiment ID as its key and that effective record ID as its value.
+
+The model chooses an experiment by `experiment_id`, not by the ID of a later ledger state.
+The host resolves that identity through its frozen typed grant and guards the current ledger head.
+Sources that were current heads when proposed must remain current when the intervention applies.
+An older ledger without an explicit identity resolves to its original proposal through its supersession chain.
 
 ## States and transitions
 
@@ -57,7 +70,7 @@ A supported or contradicted prediction also needs a later decision receipt with 
 The request exposes `observation_grant` for each experiment.
 This grant lists eligible outcome IDs and the consuming decisions that support their provenance.
 Source rows also expose actual reference IDs and evidence roles.
-The guide validates these constraints before host acceptance and can repair one invalid proposal.
+The guide validates these constraints before host acceptance and repairs invalid model proposals until success or cancellation.
 The host repeats the check against its frozen view and guards the real commit.
 
 The model still decides whether the observation discriminates the recorded prediction.
@@ -65,6 +78,7 @@ The host's checks establish provenance and ordering, not semantic correctness.
 Human review remains necessary for ambiguous interpretations and persona quality.
 Retention needs supported observations from at least two distinct later ticks.
 Two records from one choice therefore cannot become two successful trials.
+The retained status does not itself install a permanent learned skill.
 
 ## Reversal and restart
 

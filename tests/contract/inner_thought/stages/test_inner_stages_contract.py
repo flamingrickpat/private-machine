@@ -6,13 +6,20 @@ and the real Python roles with a deterministic ``llm_complete`` tool.
 from __future__ import annotations
 
 import json
+import asyncio
 import threading
 import unittest
 from pathlib import Path
+from collections.abc import Sequence
+from dataclasses import dataclass
 
 from pm_workflows.runtime import WorkflowRuntime
 from pm.memory.bash_view import MemoryBashEnvironment
 from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
+from pm.llm.config import ConnectionConfig
+from pm.llm.context_window import measure_context
+from pm.llm.contracts import ContextMeasurement, WorkflowCompletion
+from pm.llm.prompt_encoding import TurnInput
 
 from workflows.inner_thought.schemas import IntegrationResult, ThoughtResult, TriggerChoice
 from workflows.inner_thought.stages.trigger import steps as trigger_steps
@@ -20,6 +27,21 @@ from workflows.inner_thought.stages.thought import steps as thought_steps
 from workflows.inner_thought.stages.integrate import steps as integrate_steps
 
 ROOT = Path(".runtime/a17-contract-tests")
+
+
+@dataclass
+class ContractModel:
+    """Supply fixed boundary answers with real local context measurement."""
+
+    complete: WorkflowCompletion
+
+    def __call__(self, messages: Sequence[TurnInput], **generation: object) -> str:
+        return self.complete(messages, **generation)
+
+    def measure_context(self, messages: Sequence[TurnInput], *, cancel: threading.Event | None = None,
+                        **generation: object) -> ContextMeasurement:
+        connection = ConnectionConfig(base_url="http://127.0.0.1:1/v1", model="contract", context_window=131072).resolve()
+        return asyncio.run(measure_context(connection, messages, cancel or threading.Event(), **generation))
 
 
 def example_request() -> dict:
@@ -69,7 +91,7 @@ def run_kernel(manifest: Path, payload: dict, completion: str) -> dict:
 
     environment = MemoryBashEnvironment({}, {}, "read")
     runtime = WorkflowRuntime(environment=environment, stop_event=threading.Event(),
-                              tools={"llm_complete": llm_complete}, propagate_python_errors=True)
+                              tools={"llm_complete": ContractModel(llm_complete)}, propagate_python_errors=True)
     runner = WorkflowRunner(manifest, ROOT / manifest.parent.name, namespace=manifest.parent.name,
                             base_dir=PROJECT_ROOT)
     result = runner.invoke(WorkflowRequest(f"{manifest.parent.name}-contract", payload), runtime)
@@ -85,7 +107,8 @@ class TriggerContractTests(unittest.TestCase):
         self.assertIn("Spamuel", messages[0].content.text)
         self.assertIn("unresolved_commitment", user_text)
         self.assertIn("commitment_review", user_text)
-        self.assertIn("id=5", user_text)
+        self.assertIn('"knoxel_id":5', user_text)
+        self.assertEqual(user_text.count("Tables: zip"), 1)
         self.assertIn("finish the story", user_text)
 
     def test_kernel_returns_a_valid_trigger_choice(self):

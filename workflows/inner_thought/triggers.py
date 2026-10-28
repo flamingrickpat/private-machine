@@ -10,7 +10,7 @@ lets the model invent an operation name.
 """
 from __future__ import annotations
 
-from workflows.inner_thought.schemas import TriggerCandidate
+from workflows.inner_thought.schemas import TriggerCandidate, InnerRequest
 
 #: An active goal older than this many ticks with low fulfilment is unresolved.
 UNRESOLVED_GOAL_TICKS = 8
@@ -33,23 +33,22 @@ def _as_float(value, default: float = 0.0) -> float:
         return default
 
 
-def evaluate_triggers(request) -> list[TriggerCandidate]:
+def evaluate_triggers(request: InnerRequest) -> list[TriggerCandidate]:
     """Return the triggers that fire for one frozen private request.
 
     The input is the validated ``InnerRequest``. The output order is stable so
     tests and traces are reproducible. Urgency stays in 0..1.
     """
     candidates: list[TriggerCandidate] = []
-    reflection = getattr(request, "reflection", {}) or {}
-    if reflection.get("review_due"):
+    if request.reflection.review_due:
         candidates.append(TriggerCandidate(
             name="experiment_review", cause="a versioned private experiment needs its next evidence step",
             urgency=0.65, operations=["reflection_review"],
             reason="Review a committed prediction before creating another experiment."))
     tick = int(request.tick_id or 0)
     # A parked concern stays quiet until its review time or new outside evidence.
-    suppressed = {int(item) for item in (getattr(request, "episode", {}) or {}).get("suppressed_source_ids", [])}
-    episode = getattr(request, "episode", {}) or {}
+    suppressed = {int(item) for item in request.episode.get("suppressed_source_ids", [])}
+    episode = request.episode
     if (episode.get("episode_id") and not episode.get("closed")
             and not episode.get("awaiting_acknowledgment") and episode.get("next_operation")):
         candidates.append(TriggerCandidate(

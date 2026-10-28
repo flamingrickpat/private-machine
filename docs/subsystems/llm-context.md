@@ -50,18 +50,17 @@ The serving window comes from configured `context_window`, OpenRouter's selected
 Training-context metadata cannot establish the serving window.
 Discovery waits for an endpoint that has not answered yet. See [Wait through an endpoint outage](inference-settings.md#wait-through-an-endpoint-outage).
 `context_input_fraction` defaults to `0.8` and accepts a number strictly between zero and one.
-The input budget equals that fraction of the serving window, in tokens.
+The effective input ceiling uses the smaller of that fraction and `0.8`.
 The remainder reserves room for the response; it does not impose a generation cap.
 
-Compatible servers apply their actual chat template and tokenize the resulting prompt.
-Receipts label this exact measurement `server.chat_template_and_tokenizer`.
-Servers without the template route use a labelled tiktoken estimate.
-Their serving capacity still comes from `/props` when available.
-Other providers without that discovery route require configured `context_window`.
-OpenRouter uses its model catalog and a labelled estimate without requests to local tokenizer routes.
-The estimate includes chat framing but cannot promise the provider's exact token count.
-The provider remains authoritative if its tokenizer differs.
-Transport errors, invalid measurement responses, and cancellation retain explicit failure boundaries.
+Token planning uses local `tiktoken` estimates for all direct model calls.
+It takes the larger count from `o200k_base` and `cl100k_base`, then adds a 50 percent safety margin.
+Chat framing and supported image allowances are included.
+Receipts label the count as an estimate. It does not claim exact agreement with the serving tokenizer.
+Serving capacity still comes from configuration or the existing service discovery path.
+No provider tokenization request is needed.
+The direct call checks the first request and every repair request before inference.
+An impossible required prompt raises an explicit error instead of entering a repair loop.
 
 The project selects decision context before measurement, regardless of the serving capacity.
 The original input remains archived with its digest and stays available through evidence retrieval.
@@ -113,6 +112,48 @@ Full historical methods and survey outputs remain available through `evidence_re
 Context selection determines relevance. Rendering controls the representation of that selected context.
 The earlier `render_object_for_llm` function remains a text-only compatibility wrapper.
 It raises an error if converting its result would discard media.
+
+## Typed record collections and selection
+
+[`pm.context_render.records.RecordEvidence`][] names the exact source, content, provenance, and explicit references.
+[`pm.context_render.records.KnoxelCollection`][] shares collection rendering through an abstract interface.
+Ordinary decision evidence and architectural reflection use explicit collection classes.
+The architectural profile retains creation ticks and exact numeric values.
+Stored source-version maps and dispatch payloads do not become prompt content.
+
+[`pm.context_render.budget.ContextBudget`][] treats 80 percent of the serving window as a ceiling.
+It does not fill unused space.
+[`pm.context_render.budget.select_context`][] reserves required instructions and evidence before selecting optional groups.
+Workflows supply existing salience signals. Selection makes no new scoring model calls.
+A group retains its citations and supporting evidence together.
+The selection receipt records included groups, omitted groups, and the conservative token estimate.
+
+Reflection uses named ledger, episode, observation-grant, and source models.
+The private trigger receives a reflection status projection.
+The reflection stage receives selected architectural evidence through the centralized renderer.
+Original memory content and explicit uncertainty remain available in that evidence.
+Complete runtime bookkeeping remains in the checkpoint and execution logs.
+
+Model-facing `memory_get` pages and virtual knoxel files use the same record renderer.
+Their semantic fields remain machine-readable JSON with exact numeric values.
+The `memory_get` response identifies the format as `pm.rendered-record.v1`.
+Offsets refer to the rendered text, so clients must start a new pagination sequence after the format change.
+Original records and complete bookkeeping remain in the snapshot and checkpoint.
+
+## Focused static checks
+
+The owner requires explicit static types for new code and central interfaces touched by a task.
+The current strict Pyright scope covers the new rendering and reflection contracts.
+Repository-wide migration remains a separate backlog item.
+Run the tested checker from the repository root:
+
+```powershell
+uv tool run --from pyright==1.1.414 pyright
+```
+
+The configuration selects the repository's locked interpreter environment.
+Installed dependency source supplies SDK types when a package lacks a type-marker file.
+The checker is a development tool and does not change runtime dependencies.
 
 ## Typed turns and media
 

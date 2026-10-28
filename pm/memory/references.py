@@ -25,9 +25,10 @@ REFERENCE_FIELDS = frozenset({
 
 
 def referenced_ids(record: BaseModel) -> set[int]:
-    result = set()
-    for name in type(record).model_fields:
-        value = getattr(record, name)
+    result: set[int] = set()
+    for name, value in record:
+        if name not in type(record).model_fields:
+            continue
         if name in REFERENCE_FIELDS:
             values = value if isinstance(value, list) else [value]
             result.update(item for item in values if item not in (None, 0, -1))

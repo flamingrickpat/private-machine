@@ -34,15 +34,31 @@ class ModelContextTests(unittest.TestCase):
             with self.subTest(fraction=fraction), self.assertRaises(ValidationError):
                 ConnectionConfig(base_url="http://localhost/v1", model="qwen", context_input_fraction=fraction)
 
-    def test_closed_measurement_endpoint_reports_transport_failure(self):
+    def test_configured_capacity_estimates_without_a_running_endpoint(self):
+        connection = ConnectionConfig(base_url="http://127.0.0.1:1/v1", model="qwen", context_window=98304).resolve()
+        receipt = asyncio.run(measure_context(connection, [], Event(), live_test=True))
+        self.assertEqual(receipt["context_window"], 98304)
+        self.assertEqual(receipt["input_budget_tokens"], 78643)
+        self.assertFalse(receipt["measurement_complete"])
+        self.assertIn("tiktoken.conservative", receipt["measurement"])
+
+    def test_missing_capacity_still_reports_a_discovery_failure(self):
         with socket.socket() as reserved:
             reserved.bind(("127.0.0.1", 0))
-            connection = ConnectionConfig(base_url=f"http://127.0.0.1:{reserved.getsockname()[1]}/v1",
-                                          model="qwen", context_window=98304).resolve()
-            # live_test keeps this diagnostic fail-fast. Production waits for
-            # the endpoint instead of raising.
-            with self.assertRaisesRegex(ModelError, "Context measurement failed"):
+            connection = ConnectionConfig(base_url=f"http://127.0.0.1:{reserved.getsockname()[1]}/v1", model="qwen").resolve()
+            with self.assertRaisesRegex(ModelError, "Serving context discovery failed"):
                 asyncio.run(measure_context(connection, [], Event(), live_test=True))
+
+    def test_tool_schemas_occupy_context_without_mutating_the_original_turns(self):
+        from pm.context_render import Role, Turn
+        connection = ConnectionConfig(base_url="http://127.0.0.1:1/v1", model="qwen", context_window=98304).resolve()
+        turns = [Turn(Role.User, "Read the referenced record.")]
+        plain = asyncio.run(measure_context(connection, turns, Event(), live_test=True))
+        tools = [{"type": "function", "function": {"name": "read_record", "description": "Read an exact knoxel ID.",
+                 "parameters": {"type": "object", "properties": {"id": {"type": "integer"}}}}}]
+        with_tools = asyncio.run(measure_context(connection, turns, Event(), tools=tools, live_test=True))
+        self.assertGreater(with_tools["input_tokens"], plain["input_tokens"])
+        self.assertEqual(len(turns), 1)
 
     def test_cancelled_measurement_does_not_wait_for_the_endpoint(self):
         cancel = Event()

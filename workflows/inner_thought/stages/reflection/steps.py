@@ -5,6 +5,16 @@ chooses one permitted lifecycle step. Rejected proposals remain in artifacts.
 No role writes accepted memory or performs an external intervention.
 """
 import json
+from typing import TypeVar, cast
+from pydantic import BaseModel
+from pm_workflows.python_role import RoleContext
+from pm.context_render import Role, Turn, render_context
+from pm.context_render.budget import ContextBudget, select_context
+from pm.llm.contracts import ContextMeasurer, ModelTool, WorkflowCompletion
+from pm.llm.structured import context_measure
+from workflows.inner_thought.schemas import InnerRequest
+from workflows.reflection.schemas import ReflectionContext
+from workflows.reflection.rendering import context_groups
 
 from pm.constants import Sampler
 from workflows.main_cognition.model_json import complete_json, read_request, write_report
@@ -17,34 +27,97 @@ does not prove fixation. Separate implementation failure, missing evidence, inte
 personal choice, and success. Original user statements and observations cannot change.
 Keep evidence, interpretation, and model confidence separate. Repeated explanations of one
 source add no independent support. Cite only the supplied integer record IDs.
+Use each summary's stable experiment_id to identify an experiment; record_id names its current ledger knoxel.
 Return only JSON that matches the supplied schema. Do not report an unobserved outcome.
 """
 
 
-def _call(context, task: str, schema, evidence: dict):
-    """Run one focused inference call through the kernel's cancellation-aware model."""
-    return complete_json(context, [
-        {"role": "system", "content": RULES + "\n" + task + "\nSchema:\n" + json.dumps(schema.model_json_schema())},
-        {"role": "user", "content": json.dumps(evidence, ensure_ascii=False)},
-    ], schema, temperature=Sampler.TempReasoning)
+T = TypeVar("T", bound=BaseModel)
 
 
-def run(context) -> dict:
+class ReflectionCall(BaseModel):
+    """Typed stage inputs. The evidence owner retains the complete frozen grant."""
+
+    context: ReflectionContext
+    salience: dict[int, float]
+    monitor: MonitorResult | None = None
+    assessment: Assessment | None = None
+
+
+def _call(context: RoleContext, task: str, schema: type[T], call: ReflectionCall) -> T:
+    """Select complete evidence groups before a typed, cancellation-aware call."""
+    assert context.runtime is not None
+    complete = cast(WorkflowCompletion, context.runtime.tools[ModelTool.Complete])
+    measure = (cast(ContextMeasurer, context.runtime.tools[ModelTool.MeasureContext])
+               if ModelTool.MeasureContext in context.runtime.tools else context_measure(complete))
+    assert measure is not None
+    capacity = measure([], cancel=context.runtime.stop_event)
+    budget = ContextBudget(context_window=capacity["context_window"], input_fraction=capacity["input_fraction"])
+    instructions = [Turn(Role.System, RULES + "\n" + task + "\nSchema:\n" + json.dumps(schema.model_json_schema()))]
+    from pm.context_render.budget import ContextGroup
+    pinned: set[int] = set()
+    if call.monitor is not None:
+        pinned.update(call.monitor.evidence_ids)
+    if call.assessment is not None:
+        pinned.update(call.assessment.observation_ids)
+        for hypothesis in call.assessment.hypotheses:
+            pinned.update(hypothesis.supporting_ids)
+            pinned.update(hypothesis.opposing_ids)
+    episode_ids: frozenset[int] = frozenset({call.monitor.episode_id}) if call.monitor is not None and call.monitor.episode_id is not None else frozenset()
+    groups = context_groups(call.context, call.salience, required_source_ids=frozenset(pinned), required_episode_ids=episode_ids)
+    if call.monitor is not None:
+        groups.append(ContextGroup("Monitor", render_context(call.monitor), 1, required=True))
+    if call.assessment is not None:
+        groups.append(ContextGroup("Assessment", render_context(call.assessment), 1, required=True))
+    selection = select_context(instructions, groups, budget)
+    context.runtime.environment.write_text(f"scratch/{schema.__name__}-selection.json", selection.receipt().model_dump_json())
+    visible = ReflectionContext(experiments=call.context.experiments,
+        omitted_experiments=call.context.omitted_experiments, attention_head_id=call.context.attention_head_id,
+        review_due=call.context.review_due, newest_observation_id=call.context.newest_observation_id,
+        episode_limits=call.context.episode_limits,
+        records=[record for record in call.context.records if record.knoxel_id in selection.source_ids],
+        episodes=[episode for episode in call.context.episodes if episode.episode_id in selection.episode_ids])
+
+    def validate_answer(payload: dict[str, object], raw: str) -> T:
+        answer = schema.model_validate(payload)
+        cited: set[int] = set()
+        if isinstance(answer, MonitorResult):
+            cited.update(answer.evidence_ids)
+            if answer.episode_id is not None and answer.episode_id not in selection.episode_ids:
+                raise ValueError("The monitor cited an episode outside its selected context.")
+        elif isinstance(answer, Assessment):
+            cited.update(answer.observation_ids)
+            for hypothesis in answer.hypotheses:
+                cited.update(hypothesis.supporting_ids)
+                cited.update(hypothesis.opposing_ids)
+        elif isinstance(answer, ReflectionDecision):
+            validate_decision(answer, visible)
+        missing = cited - set(selection.source_ids)
+        if missing:
+            raise ValueError(f"Cited source IDs were not supplied in this call: {sorted(missing)}.")
+        return answer
+
+    return complete_json(context, selection.turns, schema, validate=validate_answer, temperature=Sampler.TempReasoning)
+
+
+def run(context: RoleContext) -> dict[str, str]:
     """Write one validated decision after three real, separately scoped calls.
 
-    A semantic rejection receives one model repair. A second rejection raises
-    ValueError without changing accepted state. Cancellation belongs to the kernel.
+    Semantic model rejections retain diagnostics and request another proposal.
+    Cancellation belongs to the kernel. Internal and measurement errors propagate.
     """
-    request = read_request(context.runtime.environment)
-    evidence = request["reflection"]
+    assert context.runtime is not None
+    request = InnerRequest.model_validate(read_request(context.runtime.environment))
+    evidence = request.reflection
+    call_input = ReflectionCall(context=evidence, salience={item.knoxel_id: item.urgency for item in request.candidates})
     monitor = _call(context, "Monitor the retained episodes and experiments. Identify a concrete mismatch or useful repair. "
         "For an existing experiment, look for a later event that can discriminate its recorded prediction. "
         "No new relevant evidence is a valid finding. Keep an unobserved prediction unresolved.",
-        MonitorResult, evidence)
+        MonitorResult, call_input)
     assessment = _call(context, "Assess the monitor's finding against original evidence. Compare at least two plausible "
         "explanations, including counterevidence and limits. For a later outcome, distinguish support, contradiction, "
         "and unresolved evidence. A read version receipt establishes consumption, not improvement.",
-        Assessment, {**evidence, "monitor": monitor.model_dump(mode="json")})
+        Assessment, ReflectionCall(context=evidence, salience=call_input.salience, monitor=monitor))
     task = """Guide one modest experiment step. Prefer finishing an existing relevant experiment over a duplicate.
 Use action none when no useful change or new observation exists. Proposed predictions commit before application.
 For propose, include a complete plan, the triggering episode ID, two distinct hypotheses, original support,
@@ -73,20 +146,8 @@ Use interrupt to stop an obsolete experiment and retain its known partial state.
 A timeout or missing reply stays unresolved. Source modification, grants, body controls, and emotional resets
 are outside this contract. Keep experiment_id null for propose and none. Only propose and revise carry a plan.
 """
-    guide_input = {**evidence, "monitor": monitor.model_dump(mode="json"),
-                   "assessment": assessment.model_dump(mode="json")}
-    for attempt in range(2):
-        decision = _call(context, task, ReflectionDecision, guide_input)
-        try:
-            validate_decision(decision, evidence)
-            break
-        except ValueError as error:
-            (context.kernel_data / f"reflection-rejection-{attempt}.json").write_text(
-                json.dumps({"error": str(error), "decision": decision.model_dump(mode="json")}), encoding="utf-8")
-            if attempt:
-                raise
-            guide_input["rejected_proposal"] = decision.model_dump(mode="json")
-            guide_input["rejection_reason"] = str(error)
+    guide_input = ReflectionCall(context=evidence, salience=call_input.salience, monitor=monitor, assessment=assessment)
+    decision = _call(context, task, ReflectionDecision, guide_input)
     assessment_json = json.dumps({"monitor": monitor.model_dump(mode="json"),
                                   "assessment": assessment.model_dump(mode="json")}, indent=2)
     (context.kernel_data / "assessment.json").write_text(assessment_json, encoding="utf-8")

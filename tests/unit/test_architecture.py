@@ -23,7 +23,7 @@ ALLOWED_IN_PM: dict[str, set[str]] = {
     "records": {"records", "paths"},
     "llm": {"llm", "context_render", "records", "paths"},
     "context_render": {"context_render", "records", "paths"},
-    "memory": {"memory", "records", "llm", "paths"},
+    "memory": {"memory", "context_render", "records", "llm", "paths"},
     "introspection": {"introspection", "records", "memory", "paths"},
     "bus": {"bus", "paths"},
     "host": {"host", "bus", "memory", "records", "paths"},

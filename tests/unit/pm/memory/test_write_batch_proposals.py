@@ -1,13 +1,15 @@
 """Role-scoped MemoryStore proposals over a real write batch."""
 from pathlib import Path
 from tempfile import TemporaryDirectory
+import asyncio
 import time
 import unittest
 
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope
 from pm.memory.store import MemoryStore
-from pm.memory.store_tools import build_tools
+from pm.memory.store_tools import RecordTextReplacement, build_mcp, build_tools
+from pydantic import ValidationError
 from pm.records.cycle_state import PersonaConfig
 from pm.records.memory_records import Feature
 from pm.records.enums import FeatureType
@@ -64,15 +66,14 @@ class GhostProposalTests(unittest.TestCase):
     def test_replace_updates_the_batch_view_before_commit(self):
         ghost = _ghost()
         original = ghost.store_knoxel(
-            Feature(feature_type=FeatureType.Dialogue, content="before")
+            Feature(feature_type=FeatureType.Dialogue, content="before",
+                    metadata={"schema": "original.v1", "generation_source_revisions": {"42": 1}})
         )
         env = MemoryBashEnvironment({}, {}, "read")
         batch = ghost.begin_batch("update")
         tools = build_tools(env, batch)
 
-        replacement = _record("after")
-        replacement["data"]["id"] = original.id
-        replacement["data"]["tick_id"] = original.tick_id
+        replacement = RecordTextReplacement(id=original.id, content="after")
         successor = tools["ghost_propose_replace"](replacement)
         successor_id = successor["data"]["id"]
 
@@ -83,6 +84,33 @@ class GhostProposalTests(unittest.TestCase):
         ghost.commit(batch)
         self.assertEqual(ghost.get_knoxel_by_id(original.id).content, "before")
         self.assertEqual(ghost.get_knoxel_by_id(successor_id).content, "after")
+        stored = ghost.get_knoxel_by_id(successor_id)
+        self.assertEqual(stored.metadata, original.metadata)
+        self.assertEqual(stored.supersedes_id, original.id)
+        self.assertEqual(stored.feature_type, original.feature_type)
+        self.assertEqual(successor["data"]["metadata"], {"schema": "original.v1"})
+
+    def test_text_replacement_rejects_other_fields_before_staging(self) -> None:
+        ghost = _ghost()
+        original = ghost.store_knoxel(Feature(feature_type=FeatureType.Dialogue, content="before"))
+        batch = ghost.begin_batch("invalid-edit")
+        tools = build_tools(MemoryBashEnvironment({}, {}, "read"), batch)
+        with self.assertRaises(ValidationError):
+            tools["ghost_propose_replace"]({"id": original.id, "content": "after", "metadata": {}})
+        self.assertEqual(batch.view().get(original.id).content, "before")
+
+    def test_structured_mcp_text_edit_stages_a_successor(self) -> None:
+        ghost = _ghost()
+        original = ghost.store_knoxel(Feature(feature_type=FeatureType.Dialogue, content="before"))
+        batch = ghost.begin_batch("mcp-edit")
+        server = build_mcp(MemoryBashEnvironment({}, {}, "read"), batch)
+        asyncio.run(server.call_tool("ghost_propose_replace",
+            {"replacement": {"id": original.id, "content": "after"}}))
+        successors = [record for record in batch.view().all_knoxels.values()
+                      if record.supersedes_id == original.id]
+        self.assertEqual(len(successors), 1)
+        self.assertEqual(successors[0].content, "after")
+        self.assertEqual(ghost.get_knoxel_by_id(original.id).content, "before")
 
     def test_untrusted_record_is_rejected(self):
         ghost = _ghost()

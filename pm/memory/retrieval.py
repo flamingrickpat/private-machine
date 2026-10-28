@@ -12,6 +12,7 @@ import math
 import re
 
 from pm.memory.references import referenced_ids
+from pm.memory.evidence import memory_kind as memory_kind, evidence_role as evidence_role
 from pm.records.base import RecordBase
 from pm.records.memory_records import Feature
 from pm.records.graph_records import GraphNode, GraphEdge, ConceptNode
@@ -54,34 +55,6 @@ MEMORY_TYPES = frozenset({
 })
 
 GRAPH_TYPES = frozenset({"GraphNode", "GraphEdge", "ConceptNode"})
-
-
-def memory_kind(raw: RecordBase | dict) -> str:
-    """Return the evidence category without inferring truth from generated prose."""
-    if isinstance(raw, RecordBase):
-        metadata = raw.metadata
-        feature_type = raw.feature_type.value if isinstance(raw, Feature) else ""
-        kind = raw.type.value
-    else:
-        metadata = raw["data"].get("metadata", {})
-        feature_type = raw["data"].get("feature_type", "")
-        kind = raw["__type__"]
-    explicit = metadata.get("memory_kind")
-    if explicit:
-        return explicit
-    if feature_type == "StateUpdate" and metadata.get("affect_summary"):
-        return "internal_state"
-    if kind in {"Narrative", "CauseEffectKnoxel"}:
-        return "interpretation"
-    if feature_type == "Dialogue":
-        return "utterance"
-    if feature_type in {"Thought", "InnerMonologue"}:
-        return "speculation"
-    if feature_type in {"Feeling", "SubjectiveExperience"}:
-        return "interpretation"
-    if kind in {"WorldPlaceKnoxel", "WorldObjectKnoxel", "BodyEpisodeKnoxel"}:
-        return "observation"
-    return "attributed_record"
 
 
 def record_text(raw: RecordBase | dict) -> str:
@@ -215,40 +188,6 @@ def candidate(view, key: int, raw: RecordBase | dict, *, terms=None, score=0.0, 
         "deception_intent_id": metadata.get("deception_intent_id"),
         "evidence_role": evidence_role(view, raw),
     }
-
-
-def evidence_role(view, raw: RecordBase | dict) -> str:
-    """Separate original reports, actual events, and generated speech.
-
-    Imported reports retain attribution. A summary needs its original leaves.
-    A companion utterance establishes speech, never its described event.
-    """
-    if isinstance(raw, RecordBase):
-        raw = raw.as_payload(include_embedding=False)
-    data = raw["data"]
-    if data.get("scope", {}).get("frame", "in_world") != "in_world":
-        return "imagined"
-    if raw["__type__"] == "ActionSchemaKnoxel":
-        return "intent"
-    kind = memory_kind(raw)
-    if kind == "executed_event":
-        return "runtime_event"
-    if kind == "internal_state":
-        return "internal_state"
-    if data.get("feature_type") == "Dialogue":
-        provenance = data.get("provenance") or {}
-        entity = view.get_knoxel_by_id(data.get("entity_id"))
-        human = entity is not None and str(getattr(entity, "entity_class", "")) == "Human"
-        if provenance.get("source_kind") == "User" or human:
-            return "user_report"
-        return "companion_utterance"
-    if raw["__type__"] in {"WorldPlaceKnoxel", "WorldObjectKnoxel", "BodyEpisodeKnoxel"}:
-        return "world_observation"
-    if kind in {"speculation", "interpretation"}:
-        return "interpretation"
-    if referenced_ids(view.get(data["id"])):
-        return "derived"
-    return "background"
 
 
 async def retrieve(view, query: str, embeddings=None, *, frontier=None, scopes=None,

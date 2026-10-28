@@ -41,6 +41,17 @@ class MemoryAgentToolTests(unittest.TestCase):
         view = MemoryView(frozenset(self.store.revisions), frozenset({(-1, "in_world")}))
         return MemoryToolConfig(self.store, view, cancel=self.cancel, **kwargs)
 
+    def test_record_pages_use_central_rendering_without_mutating_stored_metadata(self) -> None:
+        source = new_feature(self.store, "The original observation remains readable.", FeatureType.Dialogue,
+                             source="Jesse", metadata={"generation_source_revisions": {str(key): 1 for key in range(1000)}})
+        with MemoryReadSession(self.config()) as memory:
+            page = memory.get(source.id)
+        text = "\n".join(line["text"] for line in page["lines"])
+        self.assertIn(source.content, text)
+        self.assertNotIn("generation_source_revisions", text)
+        self.assertEqual(page["format"], "pm.rendered-record.v1")
+        self.assertEqual(len(self.store.get_knoxel_by_id(source.id).metadata["generation_source_revisions"]), 1000)
+
     def graph(self):
         source = self.say("Jesse accepts any available timber for the small shelter.")
         concept = self.store.store_knoxel(ConceptNode(content="", description="Construction material"))

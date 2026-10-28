@@ -7,9 +7,10 @@ builder is pure and tested without a kernel, model, or MemoryStore.
 from __future__ import annotations
 
 from pathlib import Path
+from workflows.inner_thought.rendering import candidates as render_candidates, sources as render_sources
 
 from pm.constants import Sampler
-from pm.context_render.turns import Role, Turn, format_content
+from pm.context_render.turns import Content, Role, Turn, format_content
 
 from workflows.inner_thought.operations import validate_operation
 from workflows.inner_thought.schemas import InnerRequest, ThoughtResult, TriggerChoice
@@ -22,18 +23,10 @@ def load_prompts(path: Path | None = None) -> dict:
     return load_yaml(path or WORKFLOW_DIR / "prompts.yaml")
 
 
-def _render_candidates(request: InnerRequest, chosen: set[int]) -> str:
-    lines = []
-    for item in request.candidates:
-        marker = "*" if item.knoxel_id in chosen else ""
-        lines.append(f"- id={item.knoxel_id} kind={item.kind} revision={item.revision}{marker} "
-                     f"text={item.text!r}")
-    for item in request.active_goal_records:
-        lines.append(f"- id={item['knoxel_id']} kind=goal revision={item.get('revision', 1)} "
-                     f"text={item.get('text', '')!r}")
-    for item in request.pending_expectations:
-        lines.append(f"- id={item['knoxel_id']} kind=expectation text={item.get('content', '')!r}")
-    return "\n".join(lines) or "(none)"
+def _render_candidates(request: InnerRequest, chosen: set[int]) -> Content:
+    return (render_candidates(request.candidates, frozenset(chosen)) + "\n"
+        + render_sources(request.active_goal_records, "goal") + "\n"
+        + render_sources(request.pending_expectations, "expectation"))
 
 
 def _render_inspection(request: InnerRequest) -> str:

@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "float_digits": null,
+  "omit_fields": ["embedding", "generation_source_revisions", "dispatch_payload"],
+  "omit_empty_fields": ["metadata", "memory_evidence", "memory_trace", "reflection_versions", "operation", "origin", "loop", "control_kind", "status", "belief_kind", "supporting_ids", "opposing_ids", "source", "query", "original_query", "requested_method", "effective_method", "selected_ids", "context_selected_ids"],
+  "legend": "IDs name exact sources. tick_id records creation order; it does not establish causality. Runtime revision maps and dispatch payloads remain in stored evidence."
+}

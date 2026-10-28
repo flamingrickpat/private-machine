@@ -7,6 +7,7 @@ builder is pure and tested without a kernel, model, or MemoryStore.
 from __future__ import annotations
 
 from pathlib import Path
+from workflows.inner_thought.rendering import candidates as render_candidates, sources as render_sources
 import json
 
 from pm.constants import Sampler
@@ -38,15 +39,14 @@ def build_messages(request: dict, prompts: dict) -> list[Turn]:
         thought=thought.thought or "(empty)",
         evidence_summary=thought.evidence_summary or "(none)",
         interpretation=thought.interpretation or "(none)",
-        goals="\n".join(f"- id={item['knoxel_id']} {item['text']}" for item in parsed.active_goal_records) or "(none)",
-        expectations="\n".join(f"- id={item['knoxel_id']} {item.get('content', '')}"
-                               f" (pending since tick {item.get('tick_id', 0)})"
-                               for item in parsed.pending_expectations) or "(none)",
-        evidence="\n".join(f"- id={item.knoxel_id} kind={item.kind}: {item.text}" for item in parsed.candidates) or "(none)",
+        goals=render_sources(parsed.active_goal_records, "goal"),
+        expectations=render_sources(parsed.pending_expectations, "expectation"),
+        evidence=render_candidates(parsed.candidates),
         evidence_ids=json.dumps(thought.evidence_ids),
     )
     user = user + "\nRecent private episode for progress comparison:\n" + json.dumps({
-        "episode": parsed.episode, "recent_thoughts": parsed.recent_thoughts})
+        "episode": parsed.episode})
+    user = user + "\nRecent private thoughts:\n" + render_sources(parsed.recent_thoughts[-6:], "private_thought")
     return [Turn(Role.System, system.strip()), Turn(Role.User, user.strip())]
 
 

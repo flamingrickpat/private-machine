@@ -1,6 +1,10 @@
 """Accept temporary focus advice through ordinary attention processing."""
 
 from pm import vclock
+from pm.memory.snapshot import RecordView
+from pm.memory.write_batch import WriteBatch
+from pm.records.lineage import RecordLineage
+from pm.records.memory_records import Feature
 
 from pm.records.copying import pickle_copy
 from collections.abc import Sequence
@@ -100,14 +104,14 @@ def active_focus(store, now=None, *, maximum_strength: float | None = None) -> F
         return focus.model_copy(update={"fresh": False, "control_record_id": record.id})
 
 
-def focus_versions(view) -> dict[int, int]:
+def focus_versions(view: RecordView) -> dict[int, int]:
     """Return the revision set of the advice owner from a frozen view."""
     return {record.id: view.revisions[record.id] for record in view.all_knoxels.values()
             if record.metadata.get("control_kind") == "attention_focus"}
 
 
-def stage_focus(batch, view, *, instruction: str, focus: dict, companion_name: str,
-                expires_at: str, experiment_id: int | None = None, lineage=None):
+def stage_focus(batch: WriteBatch, view: RecordView, *, instruction: str, focus: dict[str, object], companion_name: str,
+                expires_at: str, experiment_id: int | None = None, lineage: RecordLineage | None = None) -> Feature:
     """Stage a new advice version and reject concurrent advice at commit.
 
     The caller supplies an absolute UTC expiry. Reversal preserves that expiry

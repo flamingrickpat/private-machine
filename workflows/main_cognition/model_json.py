@@ -12,12 +12,17 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import cast
+from threading import Event
+from pm_workflows.python_role import RoleContext
+from pm_workflows.working_target import WorkingEnvironment
+from pm.llm.contracts import ContextMeasurement, ContextMeasurer, ModelTool, WorkflowCompletion
 
 from pm.utils import yaml_util
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, TypeAdapter
 from collections.abc import Callable, Sequence
 from pm.llm.prompt_encoding import TurnInput, normalize_turns
-from pm.context_render.turns import Role, Turn
+from pm.context_render.turns import Turn
 
 from pm.llm.structured import (
     JsonOutputError as StageOutputError, ModelFormatError,
@@ -27,8 +32,8 @@ from pm.llm.structured import (
 from pm.context_render.story import ShardLabels
 
 
-def load_yaml(path: str | Path) -> dict:
-    return yaml_util.safe_load(Path(path).read_text(encoding="utf-8"))
+def load_yaml(path: str | Path) -> dict[str, object]:
+    return TypeAdapter(dict[str, object]).validate_python(yaml_util.safe_load(Path(path).read_text(encoding="utf-8")))
 
 
 class PhasePrompts(BaseModel):
@@ -75,47 +80,51 @@ def load_prompts(path: str | Path) -> PhasePrompts:
     return PhasePrompts.model_validate(load_yaml(path))
 
 
-def read_request(environment) -> dict:
-    return yaml_util.safe_load(environment.read_text("inbox/request.yaml"))
+def read_request(environment: WorkingEnvironment) -> dict[str, object]:
+    return TypeAdapter(dict[str, object]).validate_python(yaml_util.safe_load(environment.read_text("inbox/request.yaml")))
 
 
-def complete_json(context, messages: Sequence[TurnInput], schema: type[BaseModel], *,
+def complete_json[T: BaseModel](context: RoleContext, messages: Sequence[TurnInput], schema: type[T], *,
                   transform: Callable[[list[Turn]], list[Turn]] | None = None,
-                  validation_context: dict | None = None, **generation: object):
+                  validation_context: dict[str, object] | None = None,
+                  validate: Callable[[dict[str, object], str], T] | None = None,
+                  cancel: Event | None = None, **generation: object) -> T:
     """Repair model output with the shared runtime policy. Keep each rejection.
 
     The transform runs before completion and measurement. It must retain all
     task evidence. Context exhaustion raises ModelFormatError before a commit.
     """
-    tool = context.runtime.tools["llm_complete"]
-    cancel = generation.pop("cancel", context.runtime.stop_event if hasattr(context.runtime, "stop_event") else None)
+    assert context.runtime is not None
+    runtime = context.runtime
+    tool = cast(WorkflowCompletion, runtime.tools[ModelTool.Complete])
+    selected_cancel = runtime.stop_event if cancel is None else cancel
 
-    def transformed(turns):
+    def transformed(turns: Sequence[TurnInput]) -> list[Turn]:
         turns = normalize_turns(turns)
         return transform(turns) if transform is not None else turns
 
-    def complete(turns, **settings):
-        settings.pop("cancel", None)
+    def complete(turns: Sequence[TurnInput], *, cancel: Event | None = None, **settings: object) -> str:
         return tool(transformed(turns), **settings)
 
-    original_measure = context.runtime.tools.get("llm_measure_context") or context_measure(tool)
+    original_measure = (cast(ContextMeasurer, runtime.tools[ModelTool.MeasureContext])
+                        if ModelTool.MeasureContext in runtime.tools else context_measure(tool))
 
-    def measure(turns, **settings):
+    def measure(turns: Sequence[TurnInput], *, cancel: Event | None = None, **settings: object) -> ContextMeasurement:
         if original_measure is None:
-            raise ValueError("The model tool must provide context measurement for JSON repair.")
-        return original_measure(transformed(turns), **settings)
+            raise ValueError("The model tool must provide context measurement before inference.")
+        return original_measure(transformed(turns), cancel=cancel, **settings)
 
-    def rejected(attempt, raw, problem):
-        context.runtime.environment.write_text(
+    def rejected(attempt: int, raw: str, problem: str) -> None:
+        runtime.environment.write_text(
             f"scratch/model-output-rejection-{attempt:02}.json",
             json.dumps({"attempt": attempt, "schema": schema.__name__, "raw": raw,
                         "error": problem}, ensure_ascii=False))
 
-    return validated_json(complete, messages, schema, measure=measure, cancel=cancel,
-                          validation_context=validation_context, on_rejection=rejected, **generation)
+    return validated_json(complete, messages, schema, measure=measure, cancel=selected_cancel,
+                          validation_context=validation_context, on_rejection=rejected, validate=validate, **generation)
 
 
-def complete_text(context, messages: Sequence[TurnInput], *, attempts: int, **generation: object) -> str:
+def complete_text(context: RoleContext, messages: Sequence[TurnInput], *, attempts: int, **generation: object) -> str:
     """Return the stripped prose answer of one model call.
 
     Prose has no schema, so the only invalid output is an empty answer. An
@@ -124,11 +133,11 @@ def complete_text(context, messages: Sequence[TurnInput], *, attempts: int, **ge
     Exhaustion raises ModelFormatError. Cancellation, transport failures, and
     tool errors propagate unchanged.
     """
+    assert context.runtime is not None
     turns = normalize_turns(messages)
+    tool = cast(WorkflowCompletion, context.runtime.tools[ModelTool.Complete])
     for attempt in range(1, attempts + 1):
-        raw = context.runtime.tools["llm_complete"](turns, **generation)
-        if not isinstance(raw, str):
-            raise TypeError("llm_complete must return the completion text as a string.")
+        raw = tool(turns, **generation)
         if raw.strip():
             return raw.strip()
         context.runtime.environment.write_text(
@@ -138,7 +147,7 @@ def complete_text(context, messages: Sequence[TurnInput], *, attempts: int, **ge
     raise ModelFormatError(f"The model returned empty prose {attempts} times.")
 
 
-def write_report(environment, report: BaseModel) -> None:
+def write_report(environment: WorkingEnvironment, report: BaseModel) -> None:
     environment.write_text(
         "scratch/report.yaml",
         yaml_util.safe_dump(report.model_dump(mode="json"), sort_keys=False, allow_unicode=True),

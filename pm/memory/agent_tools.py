@@ -24,6 +24,7 @@ from fastmcp import FastMCP
 from pm.memory.references import referenced_ids
 from pm.memory.retrieval import GRAPH_TYPES, MEMORY_TYPES, evidence_role, memory_kind, retrieve, utc_time
 from pm.memory.snapshot import GhostCancelled, GhostConflict, Snapshot
+from pm.records.base import RecordBase
 
 if TYPE_CHECKING:
     from pm.memory.store import MemoryStore
@@ -218,11 +219,16 @@ class MemoryReadSession:
         if self._closed or (self.config.cancel is not None and self.config.cancel.is_set()):
             raise GhostCancelled("The memory read session is closed or cancelled.")
 
-    def _record(self, record_id: int) -> dict:
+    def _access_record(self, record_id: int) -> RecordBase:
+        """Guard the frozen source grant without serializing arbitrary metadata."""
         if record_id not in self.records:
             raise ValueError("Record is unavailable in this memory view.")
         for key in [record_id, *self._sources(record_id)]:
             self.accessed[key] = self.snapshot.revisions[key]
+        return self.snapshot.get(record_id)
+
+    def _record(self, record_id: int) -> dict:
+        self._access_record(record_id)
         return self.records[record_id]
 
     def _sources(self, record_id: int) -> list[int]:
@@ -320,7 +326,7 @@ class MemoryReadSession:
             return self._trace("search", result)
 
     def get(self, record_id: int, offset: int = 0, length: int = 2000) -> dict:
-        """Return a bounded page of the original serialized record.
+        """Return a bounded page of the centrally rendered record.
 
         Offsets count characters in indented JSON. Numbered lines retain the
         page's original line positions. Unavailable IDs use one generic error.
@@ -329,12 +335,14 @@ class MemoryReadSession:
             self.check_cancelled()
             if offset < 0 or not 1 <= length <= self.grant.page_size:
                 raise ValueError("Use a nonnegative offset and the view's character limit.")
-            text = json.dumps(self._record(record_id), indent=2, ensure_ascii=False)
+            from pm.context_render.records import render_record_file
+            text = render_record_file(self._access_record(record_id))
             page = text[offset:offset + length]
             line = text[:offset].count("\n") + 1
             return self._trace("get", {**self._metadata(record_id), "offset": offset,
                 "lines": [{"line": line + index, "text": value} for index, value in enumerate(page.splitlines())],
-                "next_offset": offset + len(page) if offset + len(page) < len(text) else None})
+                "next_offset": offset + len(page) if offset + len(page) < len(text) else None,
+                "format": "pm.rendered-record.v1"})
 
     def sources(self, record_id: int, offset: int = 0, limit: int = 8) -> dict:
         """Page through stored source links without expanding the workflow grant."""
@@ -404,7 +412,7 @@ class MemoryReadSession:
     def __exit__(self, *exc: object) -> None:
         self.close()
 
-    def tools(self) -> dict[str, Callable]:
+    def tools(self) -> dict[str, Callable[..., object]]:
         """Return weak callbacks for configured read operations.
 
         The caller must retain this session until its requests finish.

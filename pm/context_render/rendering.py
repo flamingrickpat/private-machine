@@ -1,7 +1,7 @@
 """Render model input with rules from a caller-owned JSON schema file."""
 from __future__ import annotations
 
-from dataclasses import fields, is_dataclass
+from dataclasses import asdict, is_dataclass
 from datetime import datetime
 import json
 from pathlib import Path
@@ -41,9 +41,9 @@ def render_text(value: object, schema_path: str | Path | Mapping, *, transform: 
         if transform is not None:
             item = transform(item)
         if isinstance(item, BaseModel):
-            item = {key: getattr(item, key) for key in type(item).model_fields}
+            item = dict(item)
         elif is_dataclass(item) and not isinstance(item, type):
-            item = {row.name: getattr(item, row.name) for row in fields(item)}
+            item = asdict(item)
         if isinstance(item, dict):
             if field in key_lists:
                 return list(item)

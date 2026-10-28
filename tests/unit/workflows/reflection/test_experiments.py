@@ -13,12 +13,19 @@ from pm.memory.snapshot import GhostCancelled, GhostConflict
 from pm.memory.store import MemoryStore
 from pm.records.cognitive_records import BeliefRecord
 from pm.records.enums import FeatureType, SourceKind
-from pm.records.memory_records import new_feature
+from pm.records.memory_records import new_feature, Feature
 from tests.unit.test_design_contracts import small_ghost
 from workflows.cognitive_control.attention import active_focus, stage_focus
 from workflows.reflection.experiments import context, effective_inputs, stage_decision
 from workflows.reflection.experiments import validate_decision
-from workflows.reflection.schemas import ExperimentPlan, Intervention, ReflectionDecision
+from workflows.reflection.schemas import ExperimentMetadata, ObservationGrant, ReflectionContext, ExperimentPlan, Intervention, ReflectionDecision
+
+
+def experiment_identity(record: Feature) -> int:
+    """Use the proposal identity, not the ID of a later ledger state."""
+    identity = ExperimentMetadata.model_validate(record.metadata).experiment_id
+    assert identity is not None
+    return identity
 
 
 class ExperimentTests(unittest.TestCase):
@@ -57,13 +64,13 @@ class ExperimentTests(unittest.TestCase):
 
     def applied(self):
         proposal = self.proposed()
-        return self.step("apply", proposal.id)
+        return self.step("apply", experiment_identity(proposal))
 
     def observation(self, experiment, text="I chose the open ending."):
         batch = self.store.begin_batch(uuid4().hex, new_tick=True)
         record = new_feature(self.store, text, FeatureType.StateUpdate, source="Spamuel", changes=batch,
             metadata={"operation": "action_selection", "reflection_versions": {
-                str(experiment.id): experiment.metadata["effective_record_id"]}})
+                str(experiment_identity(experiment)): experiment.metadata["effective_record_id"]}})
         self.store.commit(batch)
         return record
 
@@ -71,10 +78,31 @@ class ExperimentTests(unittest.TestCase):
         proposal = self.proposed()
         self.assertEqual(proposal.metadata["state"], "proposed")
         self.assertIsNone(active_focus(self.store))
-        applied = self.step("apply", proposal.id)
+        applied = self.step("apply", experiment_identity(proposal))
         self.assertEqual(active_focus(self.store).control_record_id, applied.metadata["effective_record_id"])
         self.assertLess(proposal.tick_id, applied.metadata["applied_tick"])
         self.assertEqual(applied.metadata["history"][0]["action"], "proposed")
+
+    def test_ledger_successors_keep_one_identity_and_immutable_predictions(self) -> None:
+        proposal = self.proposed()
+        applied = self.step("apply", experiment_identity(proposal))
+        observed = self.observation(applied)
+        evaluated = self.step("evaluate", experiment_identity(applied), result="supported", observation_ids=[observed.id])
+        self.assertEqual(len({proposal.id, applied.id, evaluated.id}), 3)
+        self.assertEqual(applied.supersedes_id, proposal.id)
+        self.assertEqual(evaluated.supersedes_id, applied.id)
+        self.assertEqual(experiment_identity(evaluated), proposal.id)
+        self.assertEqual(self.store.get_knoxel_by_id(proposal.id).metadata["state"], "proposed")
+        current = context(self.store.snapshot()).experiments[0]
+        self.assertEqual(current.experiment_id, proposal.id)
+        self.assertEqual(current.record_id, evaluated.id)
+        versions = effective_inputs(self.store.snapshot(), active_focus(self.store)).versions
+        self.assertEqual(versions[str(proposal.id)], applied.metadata["effective_record_id"])
+
+    def test_current_ledger_id_cannot_replace_the_stable_experiment_id(self) -> None:
+        applied = self.applied()
+        with self.assertRaisesRegex(ValueError, "outside the frozen grant"):
+            self.step("evaluate", applied.id, result="unresolved")
 
     def test_stale_source_cannot_apply(self):
         proposal = self.proposed()
@@ -82,7 +110,7 @@ class ExperimentTests(unittest.TestCase):
         batch.replace(self.source.model_copy(update={"content": "The user corrected the preference."}))
         self.store.commit(batch)
         with self.assertRaises(GhostConflict):
-            self.step("apply", proposal.id)
+            self.step("apply", experiment_identity(proposal))
         self.assertIsNone(active_focus(self.store))
         self.assertEqual(self.store.get_knoxel_by_id(proposal.id).metadata["state"], "proposed")
 
@@ -105,7 +133,7 @@ class ExperimentTests(unittest.TestCase):
                     companion_name="Spamuel", expires_at=(datetime.utcnow() + timedelta(seconds=30)).isoformat())
         self.store.commit(batch)
         with self.assertRaises(GhostConflict):
-            self.step("apply", proposal.id)
+            self.step("apply", experiment_identity(proposal))
         self.plan.intervention.expected_record_id = max(active_focus(self.store).control_record_id, 0)
         applied = self.applied()
         batch = self.store.begin_batch("still-newer")
@@ -113,7 +141,7 @@ class ExperimentTests(unittest.TestCase):
                     companion_name="Spamuel", expires_at=(datetime.utcnow() + timedelta(seconds=30)).isoformat())
         self.store.commit(batch)
         with self.assertRaises(GhostConflict):
-            self.step("reverse", applied.id)
+            self.step("reverse", experiment_identity(applied))
 
     def test_cancelled_application_preserves_proposal_and_checkpoint(self):
         with TemporaryDirectory() as directory:
@@ -123,24 +151,24 @@ class ExperimentTests(unittest.TestCase):
             view = self.store.snapshot()
             cancel = Event()
             batch = self.store.begin_batch("cancel-at-commit", new_tick=True, cancel=cancel)
-            stage_decision(batch, view, ReflectionDecision(action="apply", experiment_id=proposal.id,
+            stage_decision(batch, view, ReflectionDecision(action="apply", experiment_id=experiment_identity(proposal),
                 reason="Try the prediction."), context(view), companion_name="Spamuel")
             cancel.set()
             with self.assertRaises(GhostCancelled):
                 self.store.commit(batch)
             self.assertEqual(self.store.checkpoint.read_bytes(), before)
-            reopened = MemoryStore.from_checkpoint(self.store.checkpoint)
+            reopened = MemoryStore.from_checkpoint(self.store.checkpoint, raw=True)
             self.assertEqual(reopened.get_knoxel_by_id(proposal.id).metadata["state"], "proposed")
             self.assertIsNone(active_focus(reopened))
 
     def test_no_observation_remains_unresolved(self):
         applied = self.applied()
-        evaluated = self.step("evaluate", applied.id, result="unresolved")
+        evaluated = self.step("evaluate", experiment_identity(applied), result="unresolved")
         self.assertEqual(evaluated.metadata["result"], "unresolved")
         with self.assertRaises(ValueError):
-            self.step("retain", applied.id)
+            self.step("retain", experiment_identity(applied))
         with self.assertRaises(ValueError):
-            self.step("evaluate", applied.id, result="supported")
+            self.step("evaluate", experiment_identity(applied), result="supported")
 
     def test_generated_worry_and_preapplication_evidence_cannot_prove_an_outcome(self):
         applied = self.applied()
@@ -149,23 +177,23 @@ class ExperimentTests(unittest.TestCase):
         for key in (thought.id, self.source.id):
             view = self.store.snapshot()
             payload = context(view)
-            from workflows.reflection.experiments import source_payload
-            payload["records"].append(source_payload(view, view.get(key)))
+            from workflows.reflection.experiments import source_evidence
+            payload.records.append(source_evidence(view, view.get(key)))
             with self.assertRaises(ValueError):
                 stage_decision(self.store.begin_batch(uuid4().hex), view,
-                    ReflectionDecision(action="evaluate", experiment_id=applied.id,
+                    ReflectionDecision(action="evaluate", experiment_id=experiment_identity(applied),
                         result="supported", observation_ids=[key], reason="A proposed reading."),
                     payload, companion_name="Spamuel")
 
     def test_two_later_choices_can_retain_scoped_strategy(self):
         applied = self.applied()
         first = self.observation(applied)
-        self.step("evaluate", applied.id, result="supported", observation_ids=[first.id])
+        self.step("evaluate", experiment_identity(applied), result="supported", observation_ids=[first.id])
         with self.assertRaises(ValueError):
-            self.step("retain", applied.id)
+            self.step("retain", experiment_identity(applied))
         second = self.observation(applied, "The next chapter also leaves an open ending.")
-        self.step("evaluate", applied.id, result="supported", observation_ids=[second.id])
-        retained = self.step("retain", applied.id)
+        self.step("evaluate", experiment_identity(applied), result="supported", observation_ids=[second.id])
+        retained = self.step("retain", experiment_identity(applied))
         self.assertEqual(retained.metadata["plan"]["scope"], "This shared story.")
         self.assertEqual(retained.metadata["state"], "retained")
 
@@ -174,10 +202,10 @@ class ExperimentTests(unittest.TestCase):
             self.store.checkpoint = Path(directory) / "ghost.pickle"
             applied = self.applied()
             observed = self.observation(applied, "I still chose a closed ending.")
-            self.step("evaluate", applied.id, result="contradicted", observation_ids=[observed.id])
-            reversed_record = self.step("reverse", applied.id)
-            reopened = MemoryStore.from_checkpoint(self.store.checkpoint)
-            result = reopened.get_knoxel_by_id(applied.id)
+            self.step("evaluate", experiment_identity(applied), result="contradicted", observation_ids=[observed.id])
+            reversed_record = self.step("reverse", experiment_identity(applied))
+            reopened = MemoryStore.from_checkpoint(self.store.checkpoint, raw=True)
+            result = reopened.get_knoxel_by_id(reversed_record.id)
             self.assertEqual(result.metadata, reversed_record.metadata)
             self.assertEqual(result.metadata["result"], "contradicted")
             self.assertEqual(result.metadata["history"][-2]["action"], "evaluated")
@@ -191,12 +219,16 @@ class ExperimentTests(unittest.TestCase):
                                              belief="Jesse cares about an open ending in our story.")
         applied = self.applied()
         effective = self.store.get_knoxel_by_id(applied.metadata["effective_record_id"])
-        self.assertFalse(self.store.get_knoxel_by_id(belief.id).active)
+        self.assertTrue(self.store.get_knoxel_by_id(belief.id).active)
+        self.assertNotIn(belief.id, self.store.all_knoxels)
+        inactive = next(record for record in self.store.all_knoxels.values() if record.supersedes_id == belief.id)
+        self.assertIsInstance(inactive, BeliefRecord)
+        self.assertFalse(inactive.active)
         self.assertIn(self.source.id, effective.supporting_knoxel_ids)
         inputs = effective_inputs(self.store.snapshot(), None)
-        self.assertEqual(inputs.versions[str(applied.id)], effective.id)
+        self.assertEqual(inputs.versions[str(experiment_identity(applied))], effective.id)
         self.assertEqual(self.store.get_knoxel_by_id(self.source.id).content, self.source.content)
-        reversed_record = self.step("reverse", applied.id)
+        reversed_record = self.step("reverse", experiment_identity(applied))
         restored = self.store.get_knoxel_by_id(reversed_record.metadata["reversal_record_id"])
         self.assertEqual(restored.content, belief.content)
         self.assertNotEqual(restored.id, belief.id)
@@ -210,7 +242,7 @@ class ExperimentTests(unittest.TestCase):
 
     def test_interruption_retains_known_applied_state(self):
         applied = self.applied()
-        interrupted = self.step("interrupt", applied.id)
+        interrupted = self.step("interrupt", experiment_identity(applied))
         self.assertEqual(interrupted.metadata["state"], "interrupted")
         self.assertEqual(interrupted.metadata["effective_record_id"], active_focus(self.store).control_record_id)
 
@@ -220,7 +252,7 @@ class ExperimentTests(unittest.TestCase):
         report = new_feature(self.store, "The unrelated timer worked.", FeatureType.Dialogue,
                              source="Jesse", source_kind=SourceKind.User)
         with self.assertRaisesRegex(ValueError, "explicit link"):
-            self.step("evaluate", applied.id, result="supported", observation_ids=[report.id])
+            self.step("evaluate", experiment_identity(applied), result="supported", observation_ids=[report.id])
 
     def test_reported_user_belief_stays_immutable(self):
         belief = self.store.store_knoxel(BeliefRecord(content="I can choose later.",
@@ -233,25 +265,25 @@ class ExperimentTests(unittest.TestCase):
         belief = self.store.store_knoxel(BeliefRecord(content="The old interpretation.", belief_key="old", source="self:Spamuel"))
         self.plan.intervention = Intervention(owner="belief", expected_record_id=belief.id, belief="A revised interpretation.")
         applied = self.applied()
-        restored = self.step("reverse", applied.id)
+        restored = self.step("reverse", experiment_identity(applied))
         inputs = effective_inputs(self.store.snapshot(), None)
-        self.assertEqual(inputs.versions[str(applied.id)], restored.metadata["reversal_record_id"])
+        self.assertEqual(inputs.versions[str(experiment_identity(applied))], restored.metadata["reversal_record_id"])
 
     def test_hypothesis_revision_keeps_failed_prediction_and_new_proposal_separate(self):
         applied = self.applied()
         observed = self.observation(applied, "The correction did not help.")
-        self.step("evaluate", applied.id, result="contradicted", observation_ids=[observed.id])
-        restored = self.step("reverse", applied.id)
+        self.step("evaluate", experiment_identity(applied), result="contradicted", observation_ids=[observed.id])
+        restored = self.step("reverse", experiment_identity(applied))
         corrected = pickle_copy(self.plan)
         corrected.hypotheses[0].explanation = "The proposal needs a different focus."
         corrected.hypotheses[0].supporting_ids.append(observed.id)
         corrected.intervention.expected_record_id = restored.metadata["reversal_record_id"]
-        revised = self.step("revise", applied.id, plan=corrected)
+        revised = self.step("revise", experiment_identity(applied), plan=corrected)
         replacement = self.store.get_knoxel_by_id(revised.metadata["replacement_experiment_id"])
         self.assertEqual(revised.metadata["result"], "contradicted")
         self.assertEqual(revised.metadata["plan"]["predicted_effect"], self.plan.predicted_effect)
         self.assertEqual(replacement.metadata["state"], "proposed")
-        self.assertEqual(replacement.metadata["revised_from_experiment_id"], applied.id)
+        self.assertEqual(replacement.metadata["revised_from_experiment_id"], experiment_identity(applied))
         self.assertIsNone(replacement.metadata["effective_record_id"])
 
 
@@ -259,11 +291,17 @@ class CapturedOutcomeTests(unittest.TestCase):
     def setUp(self):
         self.capture = json.loads(Path("test_data/captures/alpha/reflection-outcome-rejection.json").read_text(encoding="utf-8"))
 
+    def validate_captured_outcome(self, decision: ReflectionDecision) -> None:
+        """The historical fixture captured the eligibility grant that rejected this output."""
+        from workflows.reflection.experiments import _validate_outcome
+        grant = ObservationGrant.model_validate(self.capture["payload"]["experiments"][0]["observation_grant"])
+        _validate_outcome(decision, grant)
+
     def test_captured_invalid_evaluation_is_rejected_before_host_commit(self):
         with self.assertRaisesRegex(ValueError, "Allowed observation IDs"):
-            validate_decision(ReflectionDecision.model_validate(self.capture["proposal"]), self.capture["payload"])
+            self.validate_captured_outcome(ReflectionDecision.model_validate(self.capture["proposal"]))
 
     def test_consuming_decisions_do_not_force_a_successful_result(self):
         decision = ReflectionDecision.model_validate({**self.capture["proposal"], "observation_ids": [11226, 11247]})
-        validate_decision(decision, self.capture["payload"])
+        self.validate_captured_outcome(decision)
         self.assertEqual(decision.result, "unresolved")

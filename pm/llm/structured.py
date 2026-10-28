@@ -11,13 +11,15 @@ import inspect
 import json
 from functools import partial
 from threading import Event
-from typing import TypeVar
+from typing import TypeVar, Protocol, runtime_checkable, cast, Awaitable
+from types import MethodType
 
 from json_repair import json_repair
 from json_repair.schema_repair import SchemaDefinitionError, schema_from_input
 from pydantic import BaseModel, ValidationError
 
 from pm.llm.prompt_encoding import TurnInput
+from pm.llm.contracts import ContextMeasurement, ContextMeasurer
 
 T = TypeVar("T", bound=BaseModel)
 _MISSING = object()
@@ -31,7 +33,7 @@ class ModelFormatError(JsonOutputError):
     """Repair history exhausted the input budget before a valid answer."""
 
 
-def extract_json(text: str) -> dict:
+def extract_json(text: str) -> dict[str, object]:
     """Read an object, including an object inside a Markdown fence.
 
     Raise JsonOutputError for missing or malformed JSON. A non-text result
@@ -43,27 +45,41 @@ def extract_json(text: str) -> dict:
     if start < 0 or end < start:
         raise JsonOutputError("The model returned no JSON object.")
     try:
-        return json.loads(text[start:end + 1])
+        return cast(dict[str, object], json.loads(text[start:end + 1]))
     except json.JSONDecodeError as error:
         raise JsonOutputError(f"The model returned invalid JSON: {error}") from None
 
 
-def context_measure(complete: Callable) -> Callable | None:
-    """Find context measurement on a completion or its bound model."""
-    measure = getattr(complete, "measure_context", None)
-    if measure is not None:
-        return measure
-    owner = getattr(complete, "__self__", None)
-    if owner is not None:
-        return getattr(owner, "measure_context", None)
-    wrapped = getattr(complete, "func", None)
-    return context_measure(wrapped) if wrapped is not None else None
+@runtime_checkable
+class MeasuredModel(Protocol):
+    """A model or callable that exposes an explicit context measurement API."""
+
+    def measure_context(self, messages: Sequence[TurnInput], *, cancel: Event | None = None,
+                        **generation: object) -> ContextMeasurement:
+        """Return estimated input usage and the configured input ceiling."""
+        ...
 
 
-class _Repair:
+def context_measure(complete: Callable[..., object]) -> ContextMeasurer | None:
+    """Resolve the supported completion forms through their named interfaces."""
+    if isinstance(complete, MeasuredModel):
+        return complete.measure_context
+    if isinstance(complete, MethodType):
+        owner = complete.__self__
+        if isinstance(owner, MeasuredModel):
+            return owner.measure_context
+    if isinstance(complete, partial):
+        return context_measure(complete.func)
+    return None
+
+
+class _Repair[T: BaseModel]:
     """Own one uncommitted conversation and its validation failures."""
 
-    def __init__(self, messages, schema, validation_context, on_rejection, validate, cancel):
+    def __init__(self, messages: Sequence[TurnInput], schema: type[T],
+                 validation_context: dict[str, object] | None,
+                 on_rejection: Callable[[int, str, str], None] | None,
+                 validate: Callable[[dict[str, object], str], T] | None, cancel: Event | None) -> None:
         self.turns = list(messages)
         self.schema = schema
         self.validation_context = validation_context
@@ -96,7 +112,7 @@ class _Repair:
             except ValueError as error:
                 # The library uses ValueError for malformed values and schema rejections.
                 raise JsonOutputError(str(error)) from error
-            return (self.validate(payload, raw) if self.validate is not None else
+            return (self.validate(cast(dict[str, object], payload), raw) if self.validate is not None else
                     self.schema.model_validate(payload, context=self.validation_context))
         except (JsonOutputError, ValidationError) as error:
             problem = str(error)
@@ -116,40 +132,15 @@ class _Repair:
                        "Do not use Markdown fences. Escape quotation marks inside strings."}]
         return None
 
-    def check_budget(self, measurement: dict) -> None:
-        """Reject a repair that exceeds the reserved input budget.
-
-        A prompt that holds an image has no exact token count: the provider
-        bills image tiles, and no route returns that count before inference.
-        Measurement therefore adds ``PROMPT_IMAGE_TOKENS`` for each image part
-        and labels the result (``measurement_complete`` is False). The repair
-        loop uses that estimate. An image in the prompt is not a reason to
-        stop: the estimate already carries the image, and a repair turn is
-        small text. Stopping on the label alone killed every cycle that held a
-        photo, because one invalid answer ended the cycle with no reply.
-
-        A provider that rejects an oversized image answers with a transport
-        error. That keeps its ``ModelError`` boundary, and the owning module
-        retries the whole cycle from fresh state.
-        """
-        self.check_cancelled()
-        if measurement["input_tokens"] > measurement["input_budget_tokens"]:
-            raise ModelFormatError(
-                f"JSON repair exhausted the input context after {self.attempt} invalid answers "
-                f"({measurement['input_tokens']} input tokens; budget {measurement['input_budget_tokens']}; "
-                f"measurement={measurement.get('measurement', 'unknown')}). "
-                f"Last validation error: {self.last_error}")
-
-
 # Reset the repair history after more than this many rejected answers.
 RESET_STATE_LIMIT = 8
 
 
-def complete_json(complete: Callable, messages: Sequence[TurnInput], schema: type[T], *,
-                  measure: Callable | None = None, validation_context: dict | None = None,
+def complete_json(complete: Callable[..., str], messages: Sequence[TurnInput], schema: type[T], *,
+                  measure: ContextMeasurer | None = None, validation_context: dict[str, object] | None = None,
                   on_rejection: Callable[[int, str, str], None] | None = None,
-                  validate: Callable[[dict, str], T] | None = None,
-                  initial: object = _MISSING, cancel: Event | None = None, **generation) -> T:
+                  validate: Callable[[dict[str, object], str], T] | None = None,
+                  initial: object = _MISSING, cancel: Event | None = None, **generation: object) -> T:
     """Repair local JSON syntax, then request corrections for rejected answers.
 
     After nine consecutive rejections, start again with the original messages.
@@ -165,33 +156,39 @@ def complete_json(complete: Callable, messages: Sequence[TurnInput], schema: typ
         cancel = complete.keywords.get("cancel")
     state = _Repair(messages, schema, validation_context, on_rejection, validate, cancel)
     measure = measure or context_measure(complete)
-    cnt = 0
+    rejections_since_reset = 0
     while True:
-        try:
-            state.check_cancelled()
-            if state.attempt:
-                if measure is None:
-                    raise ValueError("JSON repair requires context measurement from the selected model.")
-                state.check_budget(measure(state.turns, cancel=cancel, **generation))
-            raw = (initial if isinstance(initial, str) else json.dumps(initial, ensure_ascii=False)) if initial is not _MISSING else complete(
-                state.turns, cancel=cancel, **generation)
-            initial = _MISSING
-            result = state.accept(raw)
-            if result is not None:
-                return result
-            cnt += 1
-            if cnt > RESET_STATE_LIMIT:
-                state = _Repair(messages, schema, validation_context, on_rejection, validate, cancel)
-                cnt = 0
-        except (ValueError, ModelFormatError):
+        state.check_cancelled()
+        if initial is _MISSING:
+            if state.attempt and measure is None:
+                raise ValueError("JSON repair requires context measurement from the selected model.")
+            if measure is not None:
+                measurement = measure(state.turns, cancel=cancel, **generation)
+                if measurement["input_tokens"] > measurement["input_budget_tokens"]:
+                    if state.attempt:
+                        # Discard model repair chatter, retaining the original task and evidence.
+                        state = _Repair(messages, schema, validation_context, on_rejection, validate, cancel)
+                        rejections_since_reset = 0
+                        continue
+                    from pm.context_render.budget import RequiredContextTooLarge
+                    raise RequiredContextTooLarge("The initial rendered prompt exceeds its input ceiling.")
+        raw = (initial if isinstance(initial, str) else json.dumps(initial, ensure_ascii=False)) if initial is not _MISSING else complete(
+            state.turns, cancel=cancel, **generation)
+        initial = _MISSING
+        result = state.accept(raw)
+        if result is not None:
+            return result
+        rejections_since_reset += 1
+        if rejections_since_reset > RESET_STATE_LIMIT:
             state = _Repair(messages, schema, validation_context, on_rejection, validate, cancel)
-            cnt = 0
+            rejections_since_reset = 0
 
-async def complete_json_async(complete: Callable, messages: Sequence[TurnInput], schema: type[T], *,
-                              measure: Callable | None = None, validation_context: dict | None = None,
+
+async def complete_json_async(complete: Callable[..., Awaitable[str]], messages: Sequence[TurnInput], schema: type[T], *,
+                              measure: ContextMeasurer | None = None, validation_context: dict[str, object] | None = None,
                               on_rejection: Callable[[int, str, str], None] | None = None,
-                              validate: Callable[[dict, str], T] | None = None,
-                              initial: object = _MISSING, cancel: Event | None = None, **generation) -> T:
+                              validate: Callable[[dict[str, object], str], T] | None = None,
+                              initial: object = _MISSING, cancel: Event | None = None, **generation: object) -> T:
     """Apply complete_json's repair policy to an asynchronous completion.
 
     Synchronous context measurement runs in a worker thread. Cancellation
@@ -201,31 +198,36 @@ async def complete_json_async(complete: Callable, messages: Sequence[TurnInput],
         cancel = complete.keywords.get("cancel")
     state = _Repair(messages, schema, validation_context, on_rejection, validate, cancel)
     measure = measure or context_measure(complete)
-    cnt = 0
+    rejections_since_reset = 0
     while True:
-        try:
-            state.check_cancelled()
-            if state.attempt:
-                if measure is None:
-                    raise ValueError("JSON repair requires context measurement from the selected model.")
+        state.check_cancelled()
+        if initial is _MISSING:
+            if state.attempt and measure is None:
+                raise ValueError("JSON repair requires context measurement from the selected model.")
+            if measure is not None:
                 if inspect.iscoroutinefunction(measure):
                     measurement = await measure(state.turns, cancel=cancel, **generation)
                 else:
                     measurement = await asyncio.to_thread(measure, state.turns, cancel=cancel, **generation)
-                state.check_budget(measurement)
-            raw = (initial if isinstance(initial, str) else json.dumps(initial, ensure_ascii=False)) if initial is not _MISSING else await complete(
-                state.turns, cancel=cancel, **generation)
-            initial = _MISSING
-            result = state.accept(raw)
-            if result is not None:
-                return result
-            cnt += 1
-            if cnt > RESET_STATE_LIMIT:
-                state = _Repair(messages, schema, validation_context, on_rejection, validate, cancel)
-                cnt = 0
-        except (ValueError, ModelFormatError):
+                if measurement["input_tokens"] > measurement["input_budget_tokens"]:
+                    if state.attempt:
+                        # Discard model repair chatter, retaining the original task and evidence.
+                        state = _Repair(messages, schema, validation_context, on_rejection, validate, cancel)
+                        rejections_since_reset = 0
+                        continue
+                    from pm.context_render.budget import RequiredContextTooLarge
+                    raise RequiredContextTooLarge("The initial rendered prompt exceeds its input ceiling.")
+        raw = (initial if isinstance(initial, str) else json.dumps(initial, ensure_ascii=False)) if initial is not _MISSING else await complete(
+            state.turns, cancel=cancel, **generation)
+        initial = _MISSING
+        result = state.accept(raw)
+        if result is not None:
+            return result
+        rejections_since_reset += 1
+        if rejections_since_reset > RESET_STATE_LIMIT:
             state = _Repair(messages, schema, validation_context, on_rejection, validate, cancel)
-            cnt = 0
+            rejections_since_reset = 0
+
 
 
 def repair_agent_result(result, schema: type[T], model, *, instruction: str,

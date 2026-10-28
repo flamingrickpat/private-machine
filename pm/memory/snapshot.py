@@ -3,11 +3,21 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from collections.abc import Iterator, Mapping
-from typing import Any
+from typing import Any, Protocol
 
 from pm.records.base import RecordBase
 from pm.records.global_workspace import GwtTurnRecord
 from pm.memory.vector_index import VectorIndex
+
+
+class RecordView(Protocol):
+    """Read-only record membership shared by a store and a frozen snapshot."""
+
+    @property
+    def all_knoxels(self) -> Mapping[int, RecordBase]: ...
+
+    @property
+    def revisions(self) -> Mapping[int, int]: ...
 
 
 class GhostConflict(RuntimeError):
@@ -49,6 +59,11 @@ class Snapshot:
     def all_knoxels(self) -> dict[int, RecordBase]:
         """Return this view's members without copying their records."""
         return self._records
+
+    @property
+    def gwt_turns(self) -> Mapping[int, GwtTurnRecord]:
+        """Expose the frozen workspace turns through a typed read interface."""
+        return self._gwt
 
     def get(self, record_id: int) -> RecordBase:
         """Return the shared record. A missing ID raises KeyError."""

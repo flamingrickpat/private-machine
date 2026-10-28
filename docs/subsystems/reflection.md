@@ -50,6 +50,22 @@ Scoped recall can add historical evidence through the existing private retrieval
 The [A18 episode index](introspection.md) resolves episode IDs against the same frozen source grant.
 This view excludes managed-run receipts and records that evidence limit explicitly.
 
+## Typed evidence and prompt rendering
+
+[`workflows.reflection.schemas.ReflectionContext`][] holds the frozen evidence grant.
+Ledger metadata, source records, episodes, and observation grants have named models.
+The host passes an explicit [`pm.memory.snapshot.Snapshot`][] and [`pm.memory.write_batch.WriteBatch`][] to lifecycle functions.
+Stored dictionaries are decoded at the persistence boundary. Internal logic uses typed attributes.
+
+The trigger sees reflection status, not the complete record grant.
+The reflection calls use the shared [context selector and renderers](llm-context.md).
+Required experiment evidence stays together. Later calls retain the sources and episodes cited by earlier stages.
+Optional groups use existing urgency and recency signals.
+Each call records included and omitted groups, source IDs, episode IDs, and its conservative token estimate.
+A model cannot cite an omitted source as supplied evidence.
+The architectural view retains source content, actual memory inputs, uncertainty, and recorded execution details.
+Runtime source-version maps and dispatch payloads remain on disk.
+
 ## Permitted owners
 
 | Owner | Accepted change | Real consumer |

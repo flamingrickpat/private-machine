@@ -1,0 +1,20 @@
+{
+  "include": [
+    "pm/context_render/budget.py",
+    "pm/context_render/records.py",
+    "pm/llm/contracts.py",
+    "workflows/reflection/schemas.py",
+    "workflows/reflection/experiments.py",
+    "workflows/reflection/rendering.py",
+    "workflows/inner_thought/rendering.py",
+    "workflows/inner_thought/stages/reflection/steps.py",
+    "workflows/main_cognition/model_json.py",
+    "pm/memory/evidence.py",
+    "pm/memory/store_tools.py"
+  ],
+  "typeCheckingMode": "strict",
+  "pythonVersion": "3.12",
+  "venvPath": ".",
+  "venv": ".venv",
+  "reportMissingTypeStubs": false
+}

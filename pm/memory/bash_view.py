@@ -31,9 +31,12 @@ class _LazyRecordFile:
     def content(self) -> str:
         data = self._data
         if isinstance(data, RecordBase):
-            data = data.as_payload(include_embedding=False)
+            from pm.context_render.records import render_record_file
+            return render_record_file(data)
         elif isinstance(data, GwtTurnRecord):
-            data = data.model_dump(mode="json")
+            from pm.context_render import ContextKind, render_context
+            from pm.context_render.records import record_file_schema
+            return render_context(data, ContextKind.Facts, schema_path=record_file_schema()).text
         return json.dumps(data, ensure_ascii=False, indent=2)
 
 

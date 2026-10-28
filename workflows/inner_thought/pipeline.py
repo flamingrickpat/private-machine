@@ -14,6 +14,8 @@ The parent report is data for the host. The host owns the commit boundary.
 """
 from __future__ import annotations
 
+from workflows.reflection.schemas import ReflectionSource
+
 from workflows.inner_thought.operations import OPERATIONS, validate_operation
 from workflows.inner_thought.schemas import (
     InnerReport,
@@ -93,11 +95,11 @@ def run_cycle(request: InnerRequest, run_stage, retrieve_memory=None) -> InnerRe
                     reason="deliberate private recall"))
                 existing.add(int(item["knoxel_id"]))
         known = citable_ids(request)
-        if request.reflection:
-            source_ids = {item["knoxel_id"] for item in request.reflection["records"]}
+        if request.reflection.records or request.reflection.episodes or request.reflection.experiments:
+            source_ids = {item.knoxel_id for item in request.reflection.records}
             for item in recall.get("reflection_sources", retrieved):
                 if item["knoxel_id"] not in source_ids:
-                    request.reflection["records"].append(dict(item))
+                    request.reflection.records.append(ReflectionSource.model_validate(item))
                     source_ids.add(item["knoxel_id"])
         base = request.model_dump(mode="json")
     narrowed = [int(item) for item in trigger.candidate_ids if int(item) in known] or [

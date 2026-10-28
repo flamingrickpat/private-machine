@@ -18,7 +18,8 @@ from __future__ import annotations
 import re
 
 from pm.records.memory_records import Feature
-from pm.records.base import Provenance
+from pm.records.base import Provenance, RecordBase
+from pm.memory.write_batch import WriteBatch
 from pm.records.enums import FeatureSubtype, FeatureType, InterlocusType, IntentionType, SourceKind
 from pm.records.cognitive_records import BeliefRecord, BeliefShiftRecord, Intention
 from typing import TYPE_CHECKING
@@ -264,7 +265,7 @@ def apply_goal_changes(batch, view, changes: list[GoalChange], *, evidence_ids=N
     return records
 
 
-def subjective_belief(record) -> bool:
+def subjective_belief(record: RecordBase | None) -> bool:
     """Identify an active interpretation that reflection can revise.
 
     Attributed user reports keep their original text, even when their author
@@ -276,7 +277,7 @@ def subjective_belief(record) -> bool:
             and not (record.provenance and record.provenance.source_kind == SourceKind.User))
 
 
-def revise_reflected_belief(batch, previous: BeliefRecord, *, text: str,
+def revise_reflected_belief(batch: WriteBatch, previous: BeliefRecord, *, text: str,
                            evidence_ids: list[int], opposing_ids: list[int],
                            experiment_id: int, companion_name: str) -> BeliefRecord:
     """Supersede a subjective belief without changing its observed sources.

@@ -120,6 +120,8 @@ A run's cancellation is separate from module shutdown.
 `stop()` and a terminate control also cancel the active run.
 A run that suspends for user input publishes `workflow.question` and exposes its question ID and resume phase. A `workflow.answer` data message resumes it through a durable `pm.answer-receipt.v1`.
 `pm.memory.store_tools.build_tools(environment, batch)` adds `ghost_propose_create` and `ghost_propose_replace` over the run's `WriteBatch`.
+Replacement accepts `replacement: {id: <source ID>, content: <new text>}` through a validated schema.
+The host copies the source and changes only its content. All other fields remain host-owned.
 Proposals stay private until the batch commits.
 
 ## Current limits
