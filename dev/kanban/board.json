@@ -1,11 +1,35 @@
 {
-  "next_id": 2,
+  "next_id": 6,
   "cards": [
     {
       "id": 1,
       "title": "fix memoryleak from user report",
       "description": "\"C:\\source\\pm\\private-machine\\docs\\ab_test_2026-10-23.md\"\nThis guy tested my project and found bugs. Please fix the memory leak. The repo: C:\\source\\pm\\sinsforreal-private-machine\n\nImplemented: MCP memory tools use weak callbacks, so cached validators release their read sessions. Verified: 26 focused tests passed; six Spamuel loopback MCP sessions with the full seed retained no session records. Guide: docs/work_items/verification/k001-memory-sessions.md. Evidence: .runtime/kanban/k001-20261027-200041/. Restart running PM instances to load the fix.",
       "status": "done"
+    },
+    {
+      "id": 2,
+      "title": "copy the virtual clock from user repo and set up test harness",
+      "description": "C:\\source\\pm\\sinsforreal-private-machine\nthis person made a test against their companion on github. very valuable work, their result is here: \"C:\\source\\pm\\private-machine\\docs\\ab_test_2026-10-23.md\"\ni want you to create a backtest harness in C:\\source\\pm\\private-machine\\simulation\nit should be a completely seperate part of the software suit. i want to make my project compatible to their harness, so they wont have to fix or change stuff in the future. and i want my harness to use the same api so i can run it myself. \ni want to start the harness, and see a overview of all my characters. i can select a run (a char from the .pm/private-machine) folder and see the chatlog. for example, i want to open it, start a new backtest run, load my spamuel data. then i open a winodw where i can set up the backtest with a scenario script. \"jesse comes home and reports that she found a stray cat and wants to keep it. she keeps it no matter what. she goes to sleep around midnight, and wakes up at 7:00 and finds out the shit pooped in her bed. she still wants to keep it because cats are cute.\" this would set up agents solely for simulating jesse, fully in the harness suite. spamuel would be be executed fully in the private-machine archiecture. the vclock is used to simualte time passing. the log folders should be fixed, all pm-coder sessions should go the correct persona folder. if we don't already do it, we must capture telemetry data. when the run is done (script is finished, director agent decides to stop run) everything is written to a nice report for later analyzing. this should completely replace the outdated backtest engine we have right now, and serve an integral part in testing going forward. minecraft should be disabled for now. design is in a way so that in the future i can replace jesse with another pm instance. or better yet, design it so that i can link multiple personas togehter. simulate 3 agents that can talk to another agents. this will be important for minecraft teambased play simulation and backtests later. \nscrap C:/source/pm/private-machine/dev/review\nthis will be central to auditing changes and refining the cognitive architecture. the next task will be k003, a memory debugger on steroids. don't implement it, but keep it in mind. k003 will be very modular, and should later be integrated into the backtest harness.\nalso, important: only write ghost backups when the main cognition cycle finishes, and clear all knoxels that aren't causally connected.\nwhen i chat with the bot, write something while it still thinks and send it, and it makes a reply (the workflow hasn't seen my new message), it creates the backup where its reply is the last entry. since that reply isn't causally connected to my message, my message will be trimmed. when i then load the backup, i see its latest message, but my last message is gone. \n\nK002 doing. Requirements: docs/work_items/k002/index.md. Causal memory proposal: docs/work_items/k002/causal-memory.md. Evidence: .runtime/kanban/k002-20261027-202608/. Owner selected a new knoxel ID for every logical change; most mental events remain immutable, with successors mainly for persistent goals and intentions. Clean recovery is the default, with raw history retained. Drain running work and save parked workflows. Keep completed outcomes of approved older actions; persist unfinished selected actions for direct dialogue replay. The public API acknowledges stimuli immediately and emits replies through a WebSocket. Runtime implementation is in progress. Focused causal recovery, immutable payload, parked workflow, transport, and shutdown checks passed. Live cat scenario resumed after repairing the model serving context. Verification: docs/work_items/k002/verification.md. Do not mark done until the real gates and HTML checks pass.\nOwner approved a focused typed reflection/rendering refactor after the 693,473-token private-trigger failure. Shared conservative tiktoken budgeting will use existing workflow signals. Peer attempt 2 completed; cat morning acceptance remains unfinished. Live gates are stopped after the PC restart. Intermediate local commits are authorized; do not push.",
+      "status": "doing"
+    },
+    {
+      "id": 3,
+      "title": "memory debugger more powerful",
+      "description": "we need a much better memory debugger. right now its mostly lists of knoxels. very hard to read and make sense of. it should be modular. the operator console right now: C:\\source\\pm\\private-machine\\pm\\console\nis outdated, and will be scrapped later.\nfor now i want C:\\source\\pm\\private-machine\\pm\\tools to be fully upgraded nad modular. what will be most interesting is the following: a super convinent timeline where i can see when workflows started and stopped, what prompts ran, what artifacts got generated, what went into the gwt, what went out. you can get very creative here. maybe something to open the chatlog from the cached file with super rendering. nodes and edges where it makes sense, nice color coding. something to be able to REALLY insepct the data, telemetry and execution flow of a async cognitive architecture to trace why compnaions did something. ",
+      "status": "backlog"
+    },
+    {
+      "id": 4,
+      "title": "Experimental simulation controls",
+      "description": "Owner deferred these controls during K002: skip cognition phases, disable codelets or private thought, and edit mental state directly. K002 rejects these controls. Design explicit experiment provenance and recovery rules in a separate work item.",
+      "status": "backlog"
+    },
+    {
+      "id": 5,
+      "title": "Restore static typing across remaining legacy code",
+      "description": "Owner requested a dedicated later task for repository-wide cleanup. Replace anonymous dictionaries, untyped views and callbacks, dynamic attribute probing, and string-key fallback chains with explicit contracts. K002 covers reflection, private-thought consumers, centralized rendering and budgeting, and directly affected K002 interfaces. Preserve domain behavior. Readability and maintainability take priority.",
+      "status": "backlog"
     }
   ]
 }

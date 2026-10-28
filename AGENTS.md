@@ -62,8 +62,8 @@ References inform design; real execution evidence establishes runtime behavior.
 
 ## Preferred owner review
 
-Use runtime record packages and the browser review desk as the preferred path for owner review.
-Follow the [record-package guide](docs/subsystems/record-packages.md) and [review desk instructions](dev/review/README.md).
+Use runtime record packages and the simulation browser as the preferred path for owner review.
+Follow the [record-package guide](docs/subsystems/record-packages.md) and [simulation review instructions](docs/subsystems/simulation.md).
 Use `pm.introspection.record_packages` to capture named collections from a frozen snapshot.
 Include actual chat from the user's perspective (Jesse in Spamuel tests), relevant GWT ticks, and private thoughts.
 Include appraisals, codelet output, and the memory contents supplied to later decisions.
@@ -71,10 +71,10 @@ Show recorded links from the inspected knoxels through attention to the later ro
 Preserve record text, chronology, revisions, provenance, uncertainty, and useful metadata.
 Keep embeddings hidden. Let the reader show useful metadata on hover and all captured fields on expansion.
 
-Register the completed package files with `dev/review/server.py register-package` and provide the direct browser review URL.
+Register the completed package files with `python -m simulation.review register-package` and provide the direct browser review URL.
 Keep ratings beside the captured content and save feedback separately from immutable evidence.
 Never invent human ratings or replace them with model scores.
-When the owner asks to check feedback, read it with `uv run --locked python dev/review/server.py feedback`.
+When the owner asks to check feedback, read it with `uv run --locked python -m simulation.review feedback`.
 
 Fix engineering failures before asking the owner to review companion quality.
 Retain failed receipts as development evidence outside the ready review package.
@@ -114,6 +114,49 @@ Keep expected default behavior as the primary path.
 Treat a new "what about this?" situation as an additional edge case unless the owner explicitly changes the default.
 Do not replace the main behavior with the edge case.
 Exercise edge cases separately and give them lower priority than normal use.
+
+## Static types and readable data contracts
+
+Readability and maintainability take priority over compact code.
+Use static types throughout new and revised code, including parameters, return values, callbacks, and structured containers.
+Name the concrete type of a memory view. Use a narrow typed protocol when several implementations share an interface.
+Do not leave a parameter such as `view` untyped or use `Any` to hide its contract.
+Use Pydantic models for validated, persisted, or important domain contracts.
+Use dataclasses, named tuples, or named `TypedDict` classes for simpler internal structures.
+Describe fields so that IDE completion explains their meaning.
+Keep typed objects through internal calls. Serialize and validate at explicit external or persistence boundaries.
+Use attributes and named contracts instead of anonymous nested dictionaries and repeated string keys.
+Use enums or `Literal` types for fixed choices.
+Build complex objects in named steps. Avoid nested comprehensions that combine selection, validation, copying, and serialization.
+Do not use `getattr`, `hasattr`, or string-key fallback chains to discover an internal object's shape.
+Use typed interfaces, explicit variants, and `isinstance` narrowing instead.
+Dictionary lookups by real domain keys, such as knoxel IDs, remain valid.
+Validate external mappings once. Do not spread untyped external data through the runtime.
+Apply these rules to new code and central interfaces touched by the current task.
+Keep unrelated legacy cleanup in its own work item.
+
+## Failure boundaries
+
+Fail immediately and visibly on deterministic implementation errors and broken internal invariants.
+Do not catch programming errors to return empty data, invent defaults, skip records, or pretend that work succeeded.
+Handle failures at the boundary that owns them.
+Retry stochastic model failures and temporary external failures until success or explicit cancellation.
+Preserve the original task, evidence, and diagnostics across retries.
+Do not repeat a completed phase or an uncertain external effect to repair a diagnostic file write.
+An invalid schema or impossible required context is an implementation error, not a reason for endless model retries.
+
+## Centralized prompt rendering
+
+Route every knoxel included in a prompt through the centralized renderers.
+Use typed collection containers for common prompt use cases, with a shared abstract base and explicit specialized behavior.
+Workflows supply existing relevance, urgency, and recency signals to shared context selection logic in `pm/`.
+Keep complete runtime metadata and provenance on disk. Do not dump record dictionaries or arbitrary metadata into prompts.
+Expose additional architectural evidence through an explicit reflection rendering mode.
+Estimate the rendered prompt with a conservative `tiktoken` count before the first request and each retry.
+Use 80 percent of context capacity as a ceiling. Do not fill unused space with irrelevant content.
+Reserve instructions and required evidence before selecting optional groups by salience.
+Keep citations and the evidence they identify together. Report omitted optional groups explicitly.
+Fail visibly if required context cannot fit. Never silently truncate necessary evidence.
 
 ## Comments and docstrings for human maintainers
 
