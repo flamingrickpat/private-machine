@@ -326,6 +326,40 @@ If you're interested in real survival gameplay, add this babymode-mod for easier
 Stopping pm leaves the MCP service and Minecraft server running.
 Read the [Minecraft workflow guide](docs/workflows/minecraft.md) for managed runs and cancellation.
 
+## Long-run test
+
+A simulated user texts the companion for N virtual hours.
+It finds the problems that only show after hours of running: memory growth, messages sent at night, and the same line again and again.
+Nothing judges quality. The checks are mechanical and the thresholds are parameters.
+
+```powershell
+uv run --locked python -m tests.live.long_run --hours 24 --card tests/live/style_cards/example.txt --out .runtime/longrun/try1
+uv run --locked python -m tests.live.long_run --stub --hours 1
+$env:PM_LONGRUN_LIVE = "1"; uv run --locked python -m unittest tests.live.test_long_run -v
+```
+
+How it works:
+
+- The sim user is one model call per message. A plain-text style card sets its voice (`tests/live/style_cards/example.txt` is an invented example; copy it and write your own).
+- The model comes from the same config the other live tests use: `PM_MODEL_CONFIG`, else `config.local.yaml`, else `config.example.yaml`.
+- Time is a manual clock. Every tick (default 60 virtual seconds) advances it, steps every bus module, and lets the user write if awake. The companion's own loop (inner thought, tasks) ticks on that clock between turns. The user is awake 07:00 to 23:00 and writes every 20 to 120 virtual minutes.
+- `--stub` uses dummy cognition and a scripted user: no model, for a quick wiring check.
+- Output: `transcript.jsonl` (`ts`, `who`, `text`; companion lines also carry `asleep`) and `report.json`. Exit code 1 if a check fails.
+
+Checks:
+
+| Check | What it counts | Default | Parameter |
+| --- | --- | --- | --- |
+| Overnight | Companion messages emitted while the user is asleep (23:00 to 07:00) | 0 | `--max-overnight`, `--sleep-from`, `--wake-at` |
+| Memory | Process RSS growth in MB per virtual hour (least-squares slope over hourly samples, first hour skipped as warm-up) | 20 | `--max-rss-mb-per-hour`, `--warmup-hours` |
+| Repeats | Companion lines equal, after lowercasing and dropping punctuation, to one of the previous 50 lines, or at least 90% similar (difflib). Reported as a fraction of all lines, only asserted from 8 lines up | 10% | `--max-repeat-fraction` |
+
+Limits to know:
+
+- Only the module clock is virtual. Anything in the code that reads wall-clock time (`time.time()`, `datetime.now()`) still sees real time.
+- RSS is the whole test process, so the sim user's client counts too. Install `psutil` for a current-RSS reading; without it Linux uses `/proc` and other systems fall back to peak RSS, which never falls.
+- One run is one seed (`--seed`). Short runs with a fast model are only a smoke test; the memory slope needs several hours of virtual time to mean anything.
+
 ## More information
 
 - [Example characters and optional histories](docs/workflows/example-characters.md)
