@@ -7,13 +7,13 @@ services fail an enabled gate. Saved review never establishes runtime behavior.
 from collections.abc import Callable
 from datetime import datetime, timezone
 import json
-import os
 from pathlib import Path
 import subprocess
 import sys
 import unittest
 from uuid import uuid4
 
+from pm.utils.operating_system import OperatingSystem
 from dev.work_items.a18b.runner import load_suite
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -99,10 +99,15 @@ def invoke(command: str, *extra: str) -> tuple[subprocess.CompletedProcess, Path
     parent = ROOT / ".runtime" / "live" / "a18b" / name
     parent.mkdir(parents=True)
     out = parent / command
-    config = os.environ.get("PM_MODEL_CONFIG", str(ROOT / "config.alpha.openrouter.yaml"))
+    config = OperatingSystem.environment.get("PM_MODEL_CONFIG", str(ROOT / "config.alpha.openrouter.yaml"))
     with (parent / "command.log").open("w", encoding="utf-8") as log:
-        result = subprocess.run([sys.executable, "-m", "dev.work_items.a18b", command,
-            "--config", config, "--out", str(out), *extra], cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
+        result = OperatingSystem.run_binary(
+            [sys.executable, "-m", "dev.work_items.a18b", command,
+            "--config", config, "--out", str(out), *extra],
+            cwd=ROOT,
+            stdout=log,
+            stderr=OperatingSystem.merged_output
+        )
     return result, out
 
 
@@ -116,7 +121,7 @@ class LiveA18BCalibrationTests(unittest.TestCase):
         self.assertTrue(receipt["passed"], str(out))
 
 
-@unittest.skipUnless(os.environ.get("PM_A18B_FRESH") == "1", "Set PM_A18B_FRESH=1 to generate all 16 real cases.")
+@unittest.skipUnless(OperatingSystem.environment.get("PM_A18B_FRESH") == "1", "Set PM_A18B_FRESH=1 to generate all 16 real cases.")
 class LiveA18BFreshSuiteTests(unittest.TestCase):
     def test_complete_repertoire(self):
         """Apply the declared suite gate after full-runtime conversations."""
@@ -126,11 +131,11 @@ class LiveA18BFreshSuiteTests(unittest.TestCase):
         self.assertTrue(receipt["passed"], str(out))
 
 
-@unittest.skipUnless(os.environ.get("PM_A18B_SAVED"), "Set PM_A18B_SAVED to a saved A18B corpus for reviewer regression.")
+@unittest.skipUnless(OperatingSystem.environment.get("PM_A18B_SAVED"), "Set PM_A18B_SAVED to a saved A18B corpus for reviewer regression.")
 class LiveA18BSavedReviewTests(unittest.TestCase):
-    def test_frozen_repertoire(self):
+    def test_frozen_repertoire(self) -> None:
         """Run real judges over saved packets, without executing the companion."""
-        process, out = invoke("review-saved", "--source", os.environ["PM_A18B_SAVED"])
+        process, out = invoke("review-saved", "--source", OperatingSystem.environment["PM_A18B_SAVED"])
         receipt = json.loads((out / "suite-score.json").read_text(encoding="utf-8"))
         self.assertEqual(process.returncode, 0, str(out))
         self.assertTrue(receipt["passed"], str(out))
@@ -144,7 +149,7 @@ class LiveA18BSelectedCaseTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         """Validate the complete selection before any live case starts."""
-        cls.selected_cases = select_cases(os.environ.get("PM_A18B_CASES"), SCENARIO_IDS)
+        cls.selected_cases = select_cases(OperatingSystem.environment.get("PM_A18B_CASES"), SCENARIO_IDS)
 
 
 def make_case_test(scenario_id: str) -> Callable[[LiveA18BSelectedCaseTests], None]:

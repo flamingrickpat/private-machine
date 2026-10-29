@@ -5,13 +5,13 @@ Each check writes into a temporary directory, so the operator's
 """
 from __future__ import annotations
 
-import os
 import json
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
+from pm.utils.operating_system import OperatingSystem
 from pm.llm.config import resolve_connection
 from pm.llm.prompt_log import (
     MAX_LINE, finish_prompt_log, log_directory, start_prompt_log, wrap_text,
@@ -135,8 +135,8 @@ class WriteTests(unittest.TestCase):
             self.assertIn("- status: error (RuntimeError)", text)
             self.assertIn("transport down", text)
 
-    def test_logging_can_be_disabled(self):
-        with tempfile.TemporaryDirectory() as directory, mock.patch.dict(os.environ, {"PM_PROMPT_LOG": "0"}):
+    def test_logging_can_be_disabled(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, mock.patch.dict(OperatingSystem.environment, {"PM_PROMPT_LOG": "0"}):
             path = start_prompt_log(connection=example_connection(),
                                     payload={"messages": [{"role": "user", "content": "hello"}]},
                                     route="chat/completions", request_count=1, directory=Path(directory))
@@ -153,9 +153,9 @@ class WriteTests(unittest.TestCase):
                                     route="chat/completions", request_count=1, directory=blocked)
             self.assertIsNone(path)
 
-    def test_default_directory_is_the_private_machine_home(self):
-        with mock.patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("PM_PROMPT_LOG_DIR", None)
+    def test_default_directory_is_the_private_machine_home(self) -> None:
+        with mock.patch.dict(OperatingSystem.environment, {}, clear=False):
+            OperatingSystem.environment.pop("PM_PROMPT_LOG_DIR", None)
             from pm.llm.cache import cache_root
             self.assertEqual(log_directory(), cache_root())
 

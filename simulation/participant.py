@@ -14,13 +14,12 @@ fixed replies; the package overview is in ``simulation/__init__.py``.
 """
 from __future__ import annotations
 
+from pm.utils.operating_system import OperatingSystem
 import argparse
 from datetime import datetime, timezone
 import json
-import os
 from pathlib import Path
 import shutil
-import signal
 import threading
 import time
 from types import FrameType
@@ -342,8 +341,7 @@ class Participant:
 
 def main() -> int:
     """Run one controlled participant. Process errors remain visible to its owner."""
-    from pm.host.processes import ensure_process_cleanup
-    ensure_process_cleanup()
+    OperatingSystem.install_child_cleanup()
     parser = argparse.ArgumentParser()
     parser.add_argument("--home", type=Path, required=True)
     parser.add_argument("--config", required=True)
@@ -353,10 +351,9 @@ def main() -> int:
     participant = Participant(args.home, args.config, args.port)
     def stop(signum: int, frame: FrameType | None) -> None:
         participant.closed.set()
-    signal.signal(signal.SIGINT, stop)
-    signal.signal(signal.SIGTERM, stop)
+    OperatingSystem.register_stop_signals(stop)
     participant.server.start()
-    atomic_json(args.ready_file, {"url": participant.server.url, "home": str(participant.home), "pid": os.getpid()})
+    atomic_json(args.ready_file, {"url": participant.server.url, "home": str(participant.home), "pid": OperatingSystem.process_id()})
     try:
         while not participant.closed.wait(.1):
             if participant.app is not None and participant.app.shutdown_event.is_set() and not participant.starting:

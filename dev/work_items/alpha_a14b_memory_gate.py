@@ -11,7 +11,6 @@ import asyncio
 from dataclasses import replace
 import hashlib
 import json
-import os
 from pathlib import Path
 import statistics
 import shutil
@@ -23,8 +22,7 @@ from typing import Literal
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from fastmcp import FastMCP
-from pydantic import BaseModel, ConfigDict
+from pm.utils.operating_system import OperatingSystem
 from pm.bus.bus import BusSystem
 from pm.host.folder_target import FolderEnvironment
 from pm.llm.activation import ModelActivation, ChatClient
@@ -35,9 +33,12 @@ from pm.memory.embeddings import EmbeddingService
 from pm.memory.retrieval import retrieve
 from pm.memory.store import MemoryStore
 from pm.runs.draft_session import DraftValidation, run_draft_session
-from pm_workflows.runtime import WorkflowRuntime
 from workflows.minecraft.host import project_memory_config
 from workflows.public_speech.user_input import UserInputProxy
+
+from fastmcp import FastMCP
+from pydantic import BaseModel, ConfigDict
+from pm_workflows.runtime import WorkflowRuntime
 
 
 class NoteDecision(BaseModel):
@@ -168,7 +169,7 @@ def run(config_path: Path, out: Path, trials: int, fixtures: Path | None = None)
     if not out.is_relative_to(ROOT / ".runtime"):
         raise ValueError("Keep inference evidence under .runtime.")
     out.mkdir(parents=True, exist_ok=False)
-    os.environ["PM_PROMPT_LOG_DIR"] = str(out / "prompts")
+    OperatingSystem.environment["PM_PROMPT_LOG_DIR"] = str(out / "prompts")
     config = load_config(config_path)
     models = WorkflowModels(config, ModelActivation())
     embeddings = EmbeddingService(config.embedding, live_test=True)

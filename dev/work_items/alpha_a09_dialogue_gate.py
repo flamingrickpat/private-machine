@@ -1,16 +1,13 @@
 """Run A09 through the real console and retain original state and reply evidence."""
 from __future__ import annotations
 
-from pm.memory.checkpoint import read_checkpoint
 
 import argparse
 import hashlib
 import json
-import os
 from pathlib import Path
 import shutil
 import socket
-import subprocess
 import sys
 import time
 import urllib.error
@@ -19,11 +16,14 @@ import urllib.request
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from pm.utils.operating_system import OperatingSystem
+from pm.memory.checkpoint import read_checkpoint
+
 
 class ConsoleGate:
     """Own an isolated console and correlate each exchange with its real input."""
 
-    def __init__(self, out: Path, port: int, timeout: float):
+    def __init__(self, out: Path, port: int, timeout: float) -> None:
         self.out, self.timeout = out.resolve(), timeout
         if not self.out.is_relative_to(ROOT / ".runtime"):
             raise ValueError("Keep live evidence under .runtime.")
@@ -32,9 +32,14 @@ class ConsoleGate:
             probe.bind(("127.0.0.1", port))
         self.base = f"http://127.0.0.1:{port}"
         self.log = (self.out / "server.log").open("w", encoding="utf-8")
-        self.process = subprocess.Popen([sys.executable, "-u", "-m", "pm.console.server", "--port", str(port),
-            "--root", str(self.out / "instances")], cwd=ROOT, stdout=self.log, stderr=subprocess.STDOUT,
-            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+        self.process = OperatingSystem.start_binary_process(
+            [sys.executable, "-u", "-m", "pm.console.server", "--port", str(port),
+            "--root", str(self.out / "instances")],
+            cwd=ROOT,
+            stdout=self.log,
+            stderr=OperatingSystem.merged_output,
+            hidden=True
+        )
         self.instance = None
         self.events, self.after = [], 0
         self.receipt = {"ok": False, "exchanges": [], "failures": [], "human_immersion": "pending with operator"}
@@ -172,7 +177,7 @@ class ConsoleGate:
         print(json.dumps({"turn": name, "reply": reply["text"], "seconds": row["seconds"]}, ensure_ascii=False), flush=True)
         return row
 
-    def close(self):
+    def close(self) -> None:
         if self.instance:
             try:
                 self.command("stop")
@@ -180,7 +185,7 @@ class ConsoleGate:
             except Exception as error:
                 self.receipt["cleanup_error"] = str(error)
                 self.command("kill")
-        self.process.terminate()
+        OperatingSystem.terminate_process(self.process)
         self.process.wait(timeout=15)
         self.log.close()
         self.save("observed-events.json", self.events)

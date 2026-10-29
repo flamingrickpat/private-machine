@@ -1,9 +1,9 @@
 """Fence each body with an operating-system lease and a durable epoch."""
 from __future__ import annotations
 
+from pm.utils.operating_system import OperatingSystem
 from contextlib import contextmanager
 import hashlib
-import os
 from pathlib import Path
 import threading
 import time
@@ -38,8 +38,8 @@ class BodyLeases:
     """
 
     def __init__(self, root: Path | None = None) -> None:
-        base = Path(os.environ.get("LOCALAPPDATA", str(Path.home() / ".local/share")))
-        self.root = Path(root or os.environ.get("PM_BODY_LEASE_ROOT", base / "pm-next-v2/body-leases"))
+        base = Path(OperatingSystem.environment.get("LOCALAPPDATA", str(Path.home() / ".local/share")))
+        self.root = Path(root or OperatingSystem.environment.get("PM_BODY_LEASE_ROOT", base / "pm-next-v2/body-leases"))
         self._lock = threading.RLock()
         self._tokens: dict[str, dict] = {}
 
@@ -66,7 +66,7 @@ class BodyLeases:
         try:
             previous = read_json(path) if path.exists() else {}
             token = {"endpoint": key, "owner": owner, "epoch": previous.get("epoch", 0) + 1,
-                     "session": uuid.uuid4().hex, "pid": os.getpid(), "active": True,
+                     "session": uuid.uuid4().hex, "pid": OperatingSystem.process_id(), "active": True,
                      "acquired_at": time.time()}
             atomic_json(path, token)
             with self._lock:

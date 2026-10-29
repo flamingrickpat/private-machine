@@ -5,7 +5,6 @@ asked to read a run's status and must actually execute the granted tool. The
 reply is committed only when a receipt supports its claim.
 """
 import json
-import os
 import time
 import unittest
 from datetime import datetime, timezone
@@ -15,6 +14,7 @@ from uuid import uuid4
 
 import yaml
 
+from pm.utils.operating_system import OperatingSystem
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope
 from workflows.dialogue_assistant.host import AssistantDialogue
@@ -49,9 +49,9 @@ def _wait_for(predicate, timeout=20.0):
 
 
 class LiveAssistantTests(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         default = "config.local.yaml" if Path("config.local.yaml").is_file() else "config.example.yaml"
-        self.config = load_config(os.environ.get("PM_MODEL_CONFIG", default))
+        self.config = load_config(OperatingSystem.environment.get("PM_MODEL_CONFIG", default))
 
     def test_assistant_executes_a_real_management_tool(self):
         with TemporaryDirectory() as tmp:

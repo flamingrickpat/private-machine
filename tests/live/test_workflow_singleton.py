@@ -7,7 +7,6 @@ This gate does not establish general conversation or gameplay acceptance.
 from contextlib import ExitStack
 from datetime import datetime, timezone
 import json
-import os
 from pathlib import Path
 from threading import Timer
 import time
@@ -17,6 +16,7 @@ from uuid import uuid4
 
 import yaml
 
+from pm.utils.operating_system import OperatingSystem
 from dev.tools.alpha_snapshot import capture
 from dev.work_items.a18b.runner import case_config
 from dev.work_items.conversation_review import SEED, start_minecraft
@@ -30,9 +30,9 @@ from pm.runs.workflow_runner import WorkflowStatus
 from tests.support import Recorder
 
 
-@unittest.skipUnless(os.environ.get('PM_SINGLETON_LIVE') == '1', 'Set PM_SINGLETON_LIVE=1 for real services and inference.')
+@unittest.skipUnless(OperatingSystem.environment.get('PM_SINGLETON_LIVE') == '1', 'Set PM_SINGLETON_LIVE=1 for real services and inference.')
 class LiveWorkflowSingletonTests(unittest.TestCase):
-    def test_busy_feedback_and_explicit_release(self):
+    def test_busy_feedback_and_explicit_release(self) -> None:
         name = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ-') + uuid4().hex[:8]
         out = REPO_ROOT / '.runtime/a18b-current/singleton' / ('live-' + name)
         out.mkdir(parents=True)
@@ -40,21 +40,21 @@ class LiveWorkflowSingletonTests(unittest.TestCase):
                    'human_review': 'pending', 'started_at': datetime.now(timezone.utc).isoformat()}
         try:
             with ExitStack() as cleanup:
-                previous = {key: os.environ.get(key) for key in ['MINECRAFT_MCP_URL', 'PM_PROMPT_LOG_DIR']}
-                def restore():
+                previous = {key: OperatingSystem.environment.get(key) for key in ['MINECRAFT_MCP_URL', 'PM_PROMPT_LOG_DIR']}
+                def restore() -> None:
                     for key, value in previous.items():
                         if value is None:
-                            os.environ.pop(key, None)
+                            OperatingSystem.environment.pop(key, None)
                         else:
-                            os.environ[key] = value
+                            OperatingSystem.environment[key] = value
                 cleanup.callback(restore)
                 (out / 'source').mkdir()
                 save_json(out / 'origin.json', capture(REPO_ROOT, out / 'source'))
                 config = case_config(REPO_ROOT / 'config.alpha.openrouter.yaml', out)
                 stack = start_minecraft(out, False)
                 cleanup.callback(stack.stop)
-                os.environ['MINECRAFT_MCP_URL'] = stack.mcp_url
-                os.environ['PM_PROMPT_LOG_DIR'] = str(out / 'llm-logs')
+                OperatingSystem.environment['MINECRAFT_MCP_URL'] = stack.mcp_url
+                OperatingSystem.environment['PM_PROMPT_LOG_DIR'] = str(out / 'llm-logs')
                 from workflows.companion import build_app
                 from workflows.minecraft_body.lease import BODY_LEASES
                 from workflows.minecraft_body.mcp_client import build_minecraft_tools

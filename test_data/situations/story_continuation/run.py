@@ -20,7 +20,6 @@ from __future__ import annotations
 
 from datetime import datetime
 import json
-import os
 from pathlib import Path
 import shutil
 import sys
@@ -31,6 +30,7 @@ ROOT = HERE.parents[2]
 sys.path.insert(0, str(ROOT))
 
 from workflows.companion import DEFAULT_SEED, build_app  # noqa: E402
+from pm.utils.operating_system import OperatingSystem
 
 SITUATION = json.loads((HERE / "situation.json").read_text(encoding="utf-8"))
 
@@ -40,7 +40,7 @@ def main() -> Path:
     out = ROOT / ".runtime" / "situations" / SITUATION["name"] / datetime.now().strftime("%Y%m%d-%H%M%S")
     out.mkdir(parents=True)
     shutil.copy2(HERE / "ghost.json", out / "ghost.json")
-    os.environ["PM_PROMPT_LOG_DIR"] = str(out / "llm-logs")
+    OperatingSystem.environment["PM_PROMPT_LOG_DIR"] = str(out / "llm-logs")
     print(f"run directory: {out}")
     # The same arguments as dev/work_items/alpha_a19_review.py. A long thought
     # period keeps the timed inner loop out of the replay.

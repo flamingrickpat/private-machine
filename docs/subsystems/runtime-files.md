@@ -94,11 +94,23 @@ The advertised web URL uses loopback when the server binds to all IPv4 interface
 Console memory searches also receive cancellation and join.
 Partially started applications use the same cleanup path.
 
-[`pm.host.processes.ensure_process_cleanup`][] places the Windows runtime and its children in an owned Job Object.
+[`OperatingSystem`][pm.utils.operating_system.OperatingSystem] is the shared boundary for native host operations.
+It owns process creation and tree termination, stop signals, native file locks, environment access, and low-level file publication.
+Application modules keep their waiting, cancellation, and resource-ownership policy.
+The class has no PM package dependencies, so memory and model access can use it without importing the host application.
+Platform-specific branches stay in this class for later Linux and macOS changes.
+
+[`install_child_cleanup`][pm.utils.operating_system.OperatingSystem.install_child_cleanup] places the Windows runtime and its children in an owned Job Object.
 Windows kills remaining descendants after runtime exit, including a forced parent exit.
 Existing external services stay outside that job.
 See the [Windows Job Object contract](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects).
 If a host rejects the job, the process log records the Windows error. Normal cancellation and joins still apply.
+The method returns whether installation succeeded.
+A runtime-owned job does not bind that runtime to an external shell that launched it.
+The external launcher must own its own lifetime boundary if that relationship is required.
+Existing model autorestart scripts remain separately owned and unchanged.
+Historical development gates and test helpers use the same native boundary.
+Their process streams, explicit deadlines, and file-sharing scenarios retain their existing policy.
 
 ## Causal recovery and exports
 

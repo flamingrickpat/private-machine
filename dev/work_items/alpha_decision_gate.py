@@ -1,16 +1,13 @@
 """Record real A02 decisions, limits, contention, and owned-service failures."""
 from __future__ import annotations
 
-from pm.memory.checkpoint import read_checkpoint
 
 import argparse
 import asyncio
 from importlib import metadata
 import json
-import os
 from pathlib import Path
 import socket
-import subprocess
 import sys
 import threading
 import time
@@ -27,7 +24,10 @@ from pm_decision import (
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-from dev.work_items.shared.evidence import save_json, sha256_bytes  # noqa: E402
+
+from pm.utils.operating_system import OperatingSystem
+from pm.memory.checkpoint import read_checkpoint
+from dev.work_items.shared.evidence import save_json, sha256_bytes
 REPORT = ROOT / ".runtime/alpha/a01/console-spamuel/instances/fd71e4655da44430b9779eb6739d45f5/managed_tasks/dd8a80caec16462b97e0e85cbdf87346/outbox/report.yaml"
 CHECKPOINT = REPORT.parents[3] / "ghost.pickle"
 CRITERIA = {"COMPLETE": "The task completed.", "FAILED": "The task failed.", "INVALID": "The report cannot establish completion or failure."}
@@ -87,8 +87,12 @@ async def owned_failures(out: Path, binary: Path, model: Path, port: int, state:
                "--ctx-size", "8192", "--batch-size", "8192", "--ubatch-size", "8192", "--threads", "4", "--jinja", "--slots"]
     value = {"command": command, "binary_sha256": sha256_bytes(binary.read_bytes()), "model_sha256": sha256_bytes(model.read_bytes())}
     log = (out / "owned-service.log").open("wb")
-    process = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT,
-                               creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+    process = OperatingSystem.start_binary_process(
+        command,
+        stdout=log,
+        stderr=OperatingSystem.merged_output,
+        hidden=True
+    )
     url = f"http://127.0.0.1:{port}"
     task: asyncio.Task | None = None
     try:
@@ -136,7 +140,7 @@ async def owned_failures(out: Path, binary: Path, model: Path, port: int, state:
 
             task = asyncio.create_task(client.decide(state, many))
             value["loss_active_slots"] = await active()
-            process.terminate()
+            OperatingSystem.terminate_process(process)
             await asyncio.to_thread(process.wait, 10)
             try: await task
             except DecisionTransportError as error: value["process_loss"] = error.receipt.to_dict()
@@ -147,7 +151,7 @@ async def owned_failures(out: Path, binary: Path, model: Path, port: int, state:
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
         if process.poll() is None:
-            process.terminate()
+            OperatingSystem.terminate_process(process)
             await asyncio.to_thread(process.wait, 10)
         log.close()
         save_json(out / "owned-failures.json", value)

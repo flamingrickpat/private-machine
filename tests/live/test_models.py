@@ -6,13 +6,13 @@ inference replacement is used. Every run keeps its own evidence directory.
 """
 import hashlib
 import json
-import os
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Event
 from uuid import uuid4
 
+from pm.utils.operating_system import OperatingSystem
 from pm.memory.embeddings import EmbeddingService, cosine_similarity, fit_embedding_text
 from pm.llm.workflow_sessions import serving_context
 from pm.llm.activation import ChatClient, ModelActivation
@@ -33,9 +33,9 @@ def record_evidence(name: str, payload: dict):
 
 
 class LiveModelTests(unittest.IsolatedAsyncioTestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         default = "config.local.yaml" if Path("config.local.yaml").is_file() else "config.example.yaml"
-        self.config = load_config(os.environ.get("PM_MODEL_CONFIG", default))
+        self.config = load_config(OperatingSystem.environment.get("PM_MODEL_CONFIG", default))
 
     async def test_actual_spamuel_vector_survives_pickle_without_another_request(self):
         ghost = fresh_ghost(load_seed_state())

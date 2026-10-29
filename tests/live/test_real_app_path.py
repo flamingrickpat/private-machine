@@ -7,13 +7,13 @@ correlated public reply. Missing endpoints fail the suite.
 from __future__ import annotations
 
 import json
-import os
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from uuid import uuid4
 
+from pm.utils.operating_system import OperatingSystem
 from pm.memory.store import MemoryStore
 from pm.llm.stage_model import LazyStageModel
 from pm.llm.activation import ModelActivation
@@ -36,9 +36,9 @@ def save(name: str, payload) -> None:
 
 
 class LiveAppPathTests(unittest.TestCase):
-    def test_real_input_produces_gwt_intent_and_correlated_reply(self):
+    def test_real_input_produces_gwt_intent_and_correlated_reply(self) -> None:
         default = "config.local.yaml" if Path("config.local.yaml").is_file() else "config.example.yaml"
-        config = load_config(os.environ.get("PM_MODEL_CONFIG", default))
+        config = load_config(OperatingSystem.environment.get("PM_MODEL_CONFIG", default))
         connection = resolve_connection(config)
         model = LazyStageModel(connection, ModelActivation(), live_test=True)
 

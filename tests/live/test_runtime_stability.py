@@ -9,15 +9,14 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone
 import json
-import os
 from pathlib import Path
-import subprocess
 from threading import Event
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 from uuid import uuid4
 
+from pm.utils.operating_system import OperatingSystem
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import new_envelope
 from pm.context_render.turns import Role, Turn
@@ -45,24 +44,30 @@ ROOT = Path(__file__).resolve().parents[2]
 
 class LiveRuntimeStabilityTests(unittest.TestCase):
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls) -> None:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid4().hex[:8]
-        cls.out = Path(os.environ.get("PM_STABILITY_EVIDENCE", ROOT / ".runtime/stability" / stamp))
+        cls.out = Path(OperatingSystem.environment.get("PM_STABILITY_EVIDENCE", ROOT / ".runtime/stability" / stamp))
         cls.out.mkdir(parents=True, exist_ok=False)
-        cls.enterClassContext(patch.dict(os.environ, {
+        cls.enterClassContext(patch.dict(OperatingSystem.environment, {
             "PM_COMPLETION_CACHE": "0", "PM_PROMPT_LOG": "1",
             "PM_PROMPT_LOG_DIR": str(cls.out / "prompts"),
         }))
         cls.connection = Connection(
-            base_url=os.environ.get("PM_STABILITY_LLM_URL", "http://127.0.0.1:8080/v1"),
-            model=os.environ.get("PM_STABILITY_LLM_MODEL", "qwen"),
+            base_url=OperatingSystem.environment.get("PM_STABILITY_LLM_URL", "http://127.0.0.1:8080/v1"),
+            model=OperatingSystem.environment.get("PM_STABILITY_LLM_MODEL", "qwen"),
         )
-        revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+        revision = OperatingSystem.output_text(
+            ["git", "rev-parse", "HEAD"],
+            cwd=ROOT
+        ).strip()
         (cls.out / "run.json").write_text(json.dumps({
             "revision": revision, "base_url": cls.connection.base_url, "model": cls.connection.model,
             "completion_cache": False, "scope": "Engineering checks. No human quality rating.",
         }, indent=2), encoding="utf-8")
-        (cls.out / "source.patch").write_bytes(subprocess.check_output(["git", "diff", "--binary", "HEAD"], cwd=ROOT))
+        (cls.out / "source.patch").write_bytes(OperatingSystem.output_bytes(
+            ["git", "diff", "--binary", "HEAD"],
+            cwd=ROOT
+        ))
         (cls.out / "test_runtime_stability.py").write_bytes(Path(__file__).read_bytes())
         print(f"Runtime stability evidence: {cls.out}", flush=True)
 

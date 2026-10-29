@@ -5,16 +5,17 @@ import argparse
 from datetime import datetime, timezone
 import hashlib
 import json
-import os
 from pathlib import Path
 import socket
-import subprocess
 import sys
 import time
 import zipfile
 
+
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+
+from pm.utils.operating_system import OperatingSystem
 
 
 def block_matches(reply: dict, point: dict, name: str, *, observed_dimension: str) -> bool:
@@ -32,7 +33,7 @@ def block_matches(reply: dict, point: dict, name: str, *, observed_dimension: st
         "observed_dimension": observed_dimension}])["fixture"]
 
 
-def run(args) -> None:
+def run(args: argparse.Namespace) -> None:
     """Own the real stack and full-history application for one selected case.
 
     Every case retains bus events, checkpoints, and independent world reads.
@@ -145,13 +146,16 @@ def run(args) -> None:
             raise AssertionError("Independent observation failed: " + name)
         return result["result"]
 
-    def fixture(command):
+    def fixture(command: str) -> None:
         code = ("import sys; from pathlib import Path; from mcrcon import MCRcon; "
                 "v=dict(l.split('=',1) for l in Path(sys.argv[1]).read_text().splitlines() if '=' in l); "
                 "r=MCRcon('127.0.0.1',v['MINECRAFT_RCON_PASSWORD'],port=int(v['MINECRAFT_RCON_PORT'])); "
                 "r.connect(); print(r.command(sys.argv[2])); r.disconnect()")
-        result = subprocess.run([values["PYTHON_EXE"], "-c", code, str(env_path), command],
-                                check=True, capture_output=True, text=True)
+        result = OperatingSystem.run_text(
+            [values["PYTHON_EXE"], "-c", code, str(env_path), command],
+            check=True,
+            capture_output=True
+        )
         receipt.setdefault("fixture_commands", []).append({"command": command, "result": result.stdout, "time": time.time()})
         save()
 
@@ -166,7 +170,7 @@ def run(args) -> None:
     save()
     try:
         stack.start()
-        os.environ["MINECRAFT_MCP_URL"] = stack.mcp_url
+        OperatingSystem.environment["MINECRAFT_MCP_URL"] = stack.mcp_url
         transport = build_minecraft_tools(stack.mcp_url)["minecraft_call"]
         if args.cleanup_from is not None:
             cleanup_source = args.cleanup_from.resolve()

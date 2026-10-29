@@ -10,11 +10,11 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 
+from pm.utils.operating_system import OperatingSystem
 from pm.llm.activation import ChatClient, ModelActivation
 from pm.llm.config import load_config, resolve_connection
 from pm.llm.stage_model import complete_with_retry
@@ -46,9 +46,9 @@ IN_CHARACTER = ("You vanished for a thousand years and come back with dish updat
 
 
 class LiveSpeechReviewTests(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         default = "config.local.yaml" if Path("config.local.yaml").is_file() else "config.example.yaml"
-        config = load_config(os.environ.get("PM_MODEL_CONFIG", default))
+        config = load_config(OperatingSystem.environment.get("PM_MODEL_CONFIG", default))
         self.connection = resolve_connection(config)
         owner = ModelActivation()
         asyncio.run(owner.activate(self.connection, live_test=True))

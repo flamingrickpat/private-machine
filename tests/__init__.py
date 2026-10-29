@@ -11,11 +11,12 @@ operator or a test can still select its own log directory, and
 ``PM_PROMPT_LOG=0`` still disables the log completely. The temporary directory
 lives under the system temp root, and the operating system owns its cleanup.
 """
-import os
 import tempfile
 
-os.environ.setdefault(
+from pm.utils.operating_system import OperatingSystem
+
+OperatingSystem.environment.setdefault(
     "PM_PROMPT_LOG_DIR",
     tempfile.mkdtemp(prefix="pm-test-prompt-log-"),
 )
-os.environ.setdefault("PM_CACHE_DIR", tempfile.mkdtemp(prefix="pm-test-cache-"))
+OperatingSystem.environment.setdefault("PM_CACHE_DIR", tempfile.mkdtemp(prefix="pm-test-cache-"))

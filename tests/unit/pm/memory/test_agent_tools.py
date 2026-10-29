@@ -5,7 +5,6 @@ from datetime import datetime
 import gc
 import json
 from pathlib import Path
-import subprocess
 import sys
 from tempfile import TemporaryDirectory
 from threading import Event, Timer
@@ -15,6 +14,7 @@ import weakref
 
 from fastmcp import Client
 
+from pm.utils.operating_system import OperatingSystem
 from pm.host.mcp_listeners import serve_services
 from pm.llm.config import EmbeddingConfig
 from pm.memory.agent_tools import MemoryReadSession, MemoryToolConfig, MemoryView
@@ -239,7 +239,7 @@ class MemoryAgentToolTests(unittest.TestCase):
         with self.assertRaises(GhostCancelled):
             asyncio.run(tools["memory_search"]("wood"))
 
-    def test_independent_grants_in_separate_client_process_and_listener_cleanup(self):
+    def test_independent_grants_in_separate_client_process_and_listener_cleanup(self) -> None:
         first = self.say("Visible copper lantern.")
         hidden = self.say("Private granite marker.")
         config = self.config()
@@ -247,8 +247,12 @@ class MemoryAgentToolTests(unittest.TestCase):
         with MemoryReadSession(config) as memory:
             code = "import asyncio,json,sys; from fastmcp import Client\nasync def run():\n async with Client(sys.argv[1]) as c:\n  r=await c.call_tool('memory_search',{'query':'copper'}); print(json.dumps(r.data))\nasyncio.run(run())"
             with serve_services({"memory": memory.server()}) as descriptors:
-                result = subprocess.run([sys.executable, "-c", code, descriptors["memory"]["url"]],
-                                        capture_output=True, text=True, check=True, timeout=30)
+                result = OperatingSystem.run_text(
+                    [sys.executable, "-c", code, descriptors["memory"]["url"]],
+                    capture_output=True,
+                    check=True,
+                    timeout_seconds=30
+                )
                 reply = json.loads(result.stdout)
                 self.assertEqual([row["record_id"] for row in reply["matches"]], [first.id])
                 self.assertNotIn(hidden.id, memory.accessed)

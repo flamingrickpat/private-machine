@@ -1,11 +1,11 @@
 """Direct model-config tests. No server, model launch, or module thread."""
-import os
 import tempfile
 import unittest
 from pathlib import Path
 
 from pydantic import ValidationError
 
+from pm.utils.operating_system import OperatingSystem
 from pm.llm.config import ConnectionConfig, LlmPreset, ModelConfig, load_config, resolve_connection
 
 
@@ -35,43 +35,43 @@ class ModelConfigTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             resolve_connection()
 
-    def test_env_file_supplies_a_missing_credential_without_exporting_it(self):
+    def test_env_file_supplies_a_missing_credential_without_exporting_it(self) -> None:
         name = "PM_W1_ENV_FILE_SECRET"
-        previous = os.environ.pop("PM_ENV_FILE", None)
+        previous = OperatingSystem.environment.pop("PM_ENV_FILE", None)
         try:
             with tempfile.TemporaryDirectory() as directory:
                 env_file = Path(directory) / ".env"
                 env_file.write_text(f'# local\nexport {name}="file-marker"\n', encoding="utf-8")
-                os.environ["PM_ENV_FILE"] = str(env_file)
+                OperatingSystem.environment["PM_ENV_FILE"] = str(env_file)
                 config = ConnectionConfig(base_url="http://localhost:8080/v1", model="qwen", api_key_env=name)
                 self.assertEqual(config.resolve().api_key.get_secret_value(), "file-marker")
-                self.assertNotIn(name, os.environ)
-                os.environ[name] = "process-marker"
+                self.assertNotIn(name, OperatingSystem.environment)
+                OperatingSystem.environment[name] = "process-marker"
                 self.assertEqual(config.resolve().api_key.get_secret_value(), "process-marker")
         finally:
-            os.environ.pop(name, None)
-            os.environ.pop("PM_ENV_FILE", None)
+            OperatingSystem.environment.pop(name, None)
+            OperatingSystem.environment.pop("PM_ENV_FILE", None)
             if previous is not None:
-                os.environ["PM_ENV_FILE"] = previous
+                OperatingSystem.environment["PM_ENV_FILE"] = previous
 
-    def test_environment_reference_resolves_once(self):
+    def test_environment_reference_resolves_once(self) -> None:
         name = "PM_W1_TEST_SECRET"
-        previous = os.environ.get(name)
+        previous = OperatingSystem.environment.get(name)
         try:
-            os.environ[name] = "first-marker"
+            OperatingSystem.environment[name] = "first-marker"
             config = ConnectionConfig(base_url="http://localhost:8080/v1", model="qwen", api_key_env=name)
             connection = config.resolve()
-            os.environ[name] = "second-marker"
+            OperatingSystem.environment[name] = "second-marker"
             self.assertEqual(connection.api_key.get_secret_value(), "first-marker")
-            self.assertEqual(os.environ[name], "second-marker")
-            del os.environ[name]
+            self.assertEqual(OperatingSystem.environment[name], "second-marker")
+            del OperatingSystem.environment[name]
             with self.assertRaises(ValueError):
                 config.resolve()
         finally:
             if previous is None:
-                os.environ.pop(name, None)
+                OperatingSystem.environment.pop(name, None)
             else:
-                os.environ[name] = previous
+                OperatingSystem.environment[name] = previous
 
     def test_secret_redaction_and_exclusive_credentials(self):
         marker = "credential-marker-not-a-real-key"

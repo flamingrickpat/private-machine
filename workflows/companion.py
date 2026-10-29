@@ -39,6 +39,7 @@ Reading map: ``_managed_workflows`` (managed run specifications),
 """
 from __future__ import annotations
 
+from pm.utils.operating_system import OperatingSystem
 from pm import vclock
 
 from datetime import datetime
@@ -381,15 +382,14 @@ def _minecraft_endpoint(loaded: ModelConfig) -> str | None:
     server on a random port and name it. A character with no body omits the
     section and gets no world poll and no body tools.
     """
-    import os
-    override = os.environ.get("MINECRAFT_MCP_URL")
+    override = OperatingSystem.environment.get("MINECRAFT_MCP_URL")
     if override:
         return override
     return loaded.minecraft.mcp_url if loaded.minecraft is not None else None
 
 
 def build_app(
-    seed_path: str | Path,
+    seed_path: str | Path | None,
     runtime_root: str | Path,
     thought_period: float = 30.0,
     task_period: float = 0.1,

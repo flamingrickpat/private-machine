@@ -23,17 +23,51 @@ Three ways to start:
 """
 from __future__ import annotations
 
+from pm.utils.operating_system import OperatingSystem
 import argparse
-import signal
 import sys
 import threading
 import time
 import logging
 from pathlib import Path
+from types import FrameType
+from collections.abc import Callable, Sequence
+from typing import Protocol
 
 from pydantic import BaseModel
 
 from pm.constants import INSPECTOR_PORT, WEB_CHAT_PORT
+from pm.host.application import Application
+from pm.memory.store import MemoryStore
+
+
+class TerminalAssembly(Protocol):
+    """The module contract supplied to the generic terminal launcher."""
+
+    @property
+    def DEFAULT_SEED(self) -> Path:
+        """Return the assembly's default persona seed."""
+        ...
+
+    @property
+    def BANNER(self) -> str:
+        """Return the terminal banner for dummy cognition."""
+        ...
+
+    @property
+    def REAL_BANNER(self) -> str:
+        """Return the terminal banner for real cognition."""
+        ...
+
+    @staticmethod
+    def build_app(
+        *, seed_path: str | Path | None, runtime_root: str | Path,
+        emit_reply: Callable[[str], None], ghost: MemoryStore | None = None,
+        checkpoint_path: str | Path | None = None, cognition: str = "dummy",
+        config_path: str | None = None,
+    ) -> Application:
+        """Construct the real application without starting its services."""
+        ...
 
 
 class LaunchPlan(BaseModel):
@@ -93,7 +127,7 @@ def build_parser(default_seed: Path) -> argparse.ArgumentParser:
     return parser
 
 
-def launch_plan(argv, default_seed: Path) -> LaunchPlan:
+def launch_plan(argv: Sequence[str] | None, default_seed: Path) -> LaunchPlan:
     """Parse ``argv`` into a launch plan. Invalid combinations exit through argparse.
 
     ``--home`` excludes ``--seed`` and ``--runtime-root``, because the home
@@ -131,7 +165,7 @@ def launch_plan(argv, default_seed: Path) -> LaunchPlan:
     )
 
 
-def build_from_plan(plan: LaunchPlan, *, assembly):
+def build_from_plan(plan: LaunchPlan, *, assembly: TerminalAssembly) -> Application:
     """Build the application of ``plan`` without starting it.
 
     With a home, the character home opens the store; it raises
@@ -152,7 +186,7 @@ def build_from_plan(plan: LaunchPlan, *, assembly):
     )
 
 
-def main(argv=None, *, assembly) -> int:
+def main(argv: Sequence[str] | None = None, *, assembly: TerminalAssembly) -> int:
     """Own diagnostics and child cleanup for the full terminal session.
 
     ``--inspector`` and ``--embed`` leave before any of that: neither starts a
@@ -160,7 +194,6 @@ def main(argv=None, *, assembly) -> int:
     ``--embed`` is the one place that writes memory outside a session.
     """
     from pm.host.diagnostics import configure_logging, close_logging
-    from pm.host.processes import ensure_process_cleanup
 
     plan = launch_plan(argv, assembly.DEFAULT_SEED)
     if plan.clean is not None:
@@ -178,7 +211,7 @@ def main(argv=None, *, assembly) -> int:
     configure_logging(plan.home or plan.runtime_root)
     from pm.llm.prompt_log import configure_root
     configure_root((plan.home or plan.runtime_root) / "logs" / "prompts")
-    ensure_process_cleanup()
+    OperatingSystem.install_child_cleanup()
     try:
         from pm.llm.prompt_log import backfill_cache_logs
         if plan.home is None:
@@ -191,7 +224,7 @@ def main(argv=None, *, assembly) -> int:
         close_logging()
 
 
-def _run_session(plan: LaunchPlan, *, assembly) -> int:
+def _run_session(plan: LaunchPlan, *, assembly: TerminalAssembly) -> int:
     """Run one session of ``assembly`` until stdin closes (terminal mode), Ctrl+C, or an error.
 
     Shutdown signals modules and workers, closes the web chat, and joins work.
@@ -225,7 +258,7 @@ def _run_session(plan: LaunchPlan, *, assembly) -> int:
     # a console window closes, so a long model call can still cut the stop.
     stop_signals = 0
 
-    def stop_on_signal(signum, frame) -> None:
+    def stop_on_signal(signum: int, frame: FrameType | None) -> None:
         nonlocal stop_signals
         stop_signals += 1
         if stop_signals > 1:
@@ -233,10 +266,7 @@ def _run_session(plan: LaunchPlan, *, assembly) -> int:
             exit_after_repeated_signal()
         app.request_shutdown()
 
-    previous = {signal.SIGINT: signal.signal(signal.SIGINT, stop_on_signal),
-                signal.SIGTERM: signal.signal(signal.SIGTERM, stop_on_signal)}
-    if sys.platform == "win32":
-        previous[signal.SIGBREAK] = signal.signal(signal.SIGBREAK, stop_on_signal)
+    previous = OperatingSystem.register_stop_signals(stop_on_signal, console_break=True)
 
     try:
         if plan.web:
@@ -263,7 +293,6 @@ def _run_session(plan: LaunchPlan, *, assembly) -> int:
             try:
                 app.join()
             finally:
-                for signum, handler in previous.items():
-                    signal.signal(signum, handler)
+                OperatingSystem.restore_signals(previous)
         app.raise_if_error()
     return 0

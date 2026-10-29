@@ -1,10 +1,10 @@
 """Read current domain capabilities without moving the Minecraft character."""
 from __future__ import annotations
 
+from pm.utils.operating_system import OperatingSystem
 from pm import vclock
 
 import asyncio
-import os
 import socket
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
@@ -38,7 +38,7 @@ def capability_snapshot(ghost: MemoryStore, workflow_names: Iterable[str]) -> di
     from pm.app.operator_config import environment_values
     from pm.records.mental_state import StateEmotions
     values, _ = environment_values()
-    url = os.environ.get("MINECRAFT_MCP_URL") or values.get("MINECRAFT_MCP_URL") or "http://127.0.0.1:6767/mcp"
+    url = OperatingSystem.environment.get("MINECRAFT_MCP_URL") or values.get("MINECRAFT_MCP_URL") or "http://127.0.0.1:6767/mcp"
     result = {"status": "disconnected", "endpoint": url, "tools": [],
               "visual_interpretation": False, "observed_at": vclock.now_aware().isoformat()}
 

@@ -12,7 +12,6 @@ import hashlib
 from importlib.metadata import distribution
 import json
 from pathlib import Path
-import subprocess
 import sys
 import shutil
 from threading import Event, Thread
@@ -25,6 +24,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from pm.utils.operating_system import OperatingSystem
 from pm.bus.envelopes import new_envelope
 from pm.llm.activation import ModelActivation
 from pm.llm.config import load_config, resolve_connection
@@ -35,6 +35,7 @@ from pm.records.memory_records import ActionSchemaRecord
 from workflows.companion import DEFAULT_SEED, build_app
 
 
+
 def save(path: Path, value: object) -> None:
     """Write a private receipt. The caller owns the evidence directory."""
     path.write_text(json.dumps(value, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -42,8 +43,9 @@ def save(path: Path, value: object) -> None:
 
 def snapshot(out: Path, config: Path) -> None:
     """Retain exact working files and installed origins before real inference."""
-    files = subprocess.check_output(
-        ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"], cwd=ROOT
+    files = OperatingSystem.output_bytes(
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+        cwd=ROOT
     ).decode().split("\0")
     hashes = {}
     with zipfile.ZipFile(out / "source.zip", "w", zipfile.ZIP_DEFLATED) as archive:
@@ -60,8 +62,14 @@ def snapshot(out: Path, config: Path) -> None:
                          "direct_url": json.loads(installed.read_text("direct_url.json") or "null")}
     save(out / "source-files.json", hashes)
     save(out / "source.json", {
-        "head": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
-        "status": subprocess.check_output(["git", "status", "--short"], cwd=ROOT, text=True),
+        "head": OperatingSystem.output_text(
+            ["git", "rev-parse", "HEAD"],
+            cwd=ROOT
+        ).strip(),
+        "status": OperatingSystem.output_text(
+            ["git", "status", "--short"],
+            cwd=ROOT
+        ),
         "config_sha256": hashlib.sha256(config.read_bytes()).hexdigest(),
         "seed_sha256": hashlib.sha256(DEFAULT_SEED.read_bytes()).hexdigest(), "origins": origins})
 

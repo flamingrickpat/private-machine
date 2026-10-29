@@ -58,6 +58,39 @@ def python_files(folder: str):
 
 
 class RuntimeDependencyTests(unittest.TestCase):
+    def test_native_operations_use_the_operating_system_boundary(self) -> None:
+        boundary = ROOT / "pm/utils/operating_system.py"
+        problems: list[str] = []
+        paths = (python_files("pm") + python_files("simulation") + python_files("workflows")
+                 + python_files("dev") + python_files("tests") + python_files("test_data")
+                 + sorted(ROOT.glob("*.py")))
+        for path in paths:
+            if path == boundary:
+                continue
+            relative = path.relative_to(ROOT).as_posix()
+            tree = ast.parse(path.read_text(encoding="utf-8-sig"))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for imported in node.names:
+                        if imported.name.split(".")[0] in {"ctypes", "msvcrt", "fcntl"}:
+                            problems.append(f"{relative}:{node.lineno} imports native API {imported.name}")
+                elif isinstance(node, ast.ImportFrom) and node.module:
+                    if node.module.split(".")[0] in {"ctypes", "msvcrt", "fcntl"}:
+                        problems.append(f"{relative}:{node.lineno} imports native API {node.module}")
+                elif isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+                    if node.value.id == "os" or (node.value.id == "sys" and node.attr == "platform"):
+                        problems.append(f"{relative}:{node.lineno} accesses {node.value.id}.{node.attr}")
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+                    function = node.func
+                    if not isinstance(function.value, ast.Name):
+                        continue
+                    native_call = (function.value.id == "subprocess" and function.attr in {"Popen", "run", "check_output"})
+                    native_call = native_call or (function.value.id == "signal" and function.attr == "signal")
+                    native_call = native_call or (function.value.id == "asyncio" and function.attr == "create_subprocess_exec")
+                    if native_call:
+                        problems.append(f"{relative}:{node.lineno} calls {function.value.id}.{function.attr}")
+        self.assertEqual(problems, [])
+
     def test_runtime_packages_import_only_allowed_runtime_packages(self):
         problems = []
         for path in python_files("pm"):

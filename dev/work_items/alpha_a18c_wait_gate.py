@@ -13,7 +13,6 @@ import hashlib
 from importlib.metadata import distribution
 import json
 from pathlib import Path
-import subprocess
 import sys
 from threading import Lock
 import time
@@ -25,12 +24,14 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from pm.utils.operating_system import OperatingSystem
 from pm.llm.activation import ModelActivation
 from pm.llm.config import load_config, resolve_connection
 from pm.llm.stage_model import LazyStageModel
 from pm.llm.workflow_sessions import WorkflowModels
 from workflows.companion import DEFAULT_SEED, build_app
 from dev.work_items.a18b.runner import accepted_pause
+
 
 
 def save(path: Path, data: object) -> None:
@@ -150,15 +151,27 @@ def run(config_path: Path, out: Path, deadline_seconds: float = 1800, *, pause_o
             dist = distribution(name)
             origins[name] = {"version": dist.version, "direct_url": json.loads(dist.read_text("direct_url.json") or "null")}
         save(out / "source.json", {
-            "head": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
-            "status": subprocess.check_output(["git", "status", "--short"], cwd=ROOT, text=True),
+            "head": OperatingSystem.output_text(
+                ["git", "rev-parse", "HEAD"],
+                cwd=ROOT
+            ).strip(),
+            "status": OperatingSystem.output_text(
+                ["git", "status", "--short"],
+                cwd=ROOT
+            ),
             "seed": str(DEFAULT_SEED), "seed_sha256": hashlib.sha256(DEFAULT_SEED.read_bytes()).hexdigest(),
             "config_sha256": hashlib.sha256(config_path.read_bytes()).hexdigest(),
             "effective_config_sha256": hashlib.sha256(effective_path.read_bytes()).hexdigest(),
             "model": model.connection.model, "origins": origins})
-        patch = subprocess.check_output(["git", "diff", "--binary"], cwd=ROOT)
+        patch = OperatingSystem.output_bytes(
+            ["git", "diff", "--binary"],
+            cwd=ROOT
+        )
         (out / "source.patch").write_bytes(patch)
-        files = subprocess.check_output(["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"], cwd=ROOT).decode().split("\0")
+        files = OperatingSystem.output_bytes(
+            ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+            cwd=ROOT
+        ).decode().split("\0")
         hashes = {}
         with zipfile.ZipFile(out / "source.zip", "w", zipfile.ZIP_DEFLATED) as archive:
             for name in sorted(set(files) - {""}):

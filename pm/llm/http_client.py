@@ -13,9 +13,9 @@ tokenizer probes that do not go through :class:`JsonClient`.
 """
 from __future__ import annotations
 
+from pm.utils.operating_system import OperatingSystem
 import asyncio
 import json
-import os
 import secrets
 import sys
 import time
@@ -244,7 +244,7 @@ class JsonClient:
             headers["Authorization"] = f"Bearer {key}"
         cache_path: Path | None = None
         chat = method == "POST" and route == "chat/completions"
-        cached_chat = chat and os.environ.get("PM_COMPLETION_CACHE", "1") != "0"
+        cached_chat = chat and OperatingSystem.environment.get("PM_COMPLETION_CACHE", "1") != "0"
         if chat:
             payload = {**(payload or {}), "seed": secrets.randbelow(2**31)}
         # Connecting can fail. Once connected, inference has no speed deadline.

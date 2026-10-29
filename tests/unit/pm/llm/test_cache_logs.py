@@ -1,11 +1,11 @@
 """Keep readable cache transcripts without changing stored response bytes."""
 import json
-import os
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
 
+from pm.utils.operating_system import OperatingSystem
 from pm.llm.cache import publish
 from pm.llm.config import Connection, load_config
 from pm.llm.prompt_log import backfill_cache_logs, finish_prompt_log, start_prompt_log
@@ -40,8 +40,8 @@ class CacheLogTests(unittest.TestCase):
             self.assertIsNone(receipt["tokens_per_second"])
             self.assertIn("- tokens_per_second: unknown", path.read_text(encoding="utf-8"))
 
-    def test_backfill_preserves_exact_response_bytes(self):
-        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"PM_CACHE_DIR": directory}):
+    def test_backfill_preserves_exact_response_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, patch.dict(OperatingSystem.environment, {"PM_CACHE_DIR": directory}):
             path = Path(directory) / "model" / "cache_comp_old_1.json"
             encoded = b'{"choices":[{"message":{"content":"{\\"ok\\":true}"}}]}'
             publish(path, encoded)

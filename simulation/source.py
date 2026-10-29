@@ -12,11 +12,11 @@ in ``simulation/__init__.py``.
 """
 from __future__ import annotations
 
+from pm.utils.operating_system import OperatingSystem
 import hashlib
 from importlib.metadata import distribution
 from pathlib import Path
 import shutil
-import subprocess
 
 from pydantic import JsonValue
 
@@ -33,7 +33,7 @@ def freeze_source(destination: Path, config: Path) -> dict[str, JsonValue]:
     ``FileExistsError`` when the destination already exists.
     """
     def git(*arguments: str) -> bytes:
-        return subprocess.check_output(["git", *arguments], cwd=REPO_ROOT)
+        return OperatingSystem.output_bytes(["git", *arguments], cwd=REPO_ROOT)
     paths = git("ls-files", "-z", "--cached", "--others", "--exclude-standard").split(b"\0")
     destination.mkdir(parents=True, exist_ok=False)
     hashes: dict[str, str] = {}

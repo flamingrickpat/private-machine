@@ -9,7 +9,8 @@ external effect.
 from __future__ import annotations
 
 import hashlib
-import os
+from collections.abc import MutableMapping
+from contextlib import AbstractContextManager
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import socket
 import struct
@@ -24,6 +25,7 @@ from unittest import mock
 
 from pydantic import ValidationError
 
+from pm.utils.operating_system import OperatingSystem
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope, new_id
 from pm.llm.config import load_config
@@ -70,24 +72,24 @@ def red_png(size: int = 4) -> bytes:
             + chunk(b"IDAT", zlib.compress(row * size)) + chunk(b"IEND", b""))
 
 
-def no_env_file():
+def no_env_file() -> AbstractContextManager[MutableMapping[str, str]]:
     """Point the .env fallback at a missing file, so only the process environment counts."""
-    return mock.patch.dict(os.environ, {"PM_ENV_FILE": str(Path(__file__).with_name("no-such.env"))})
+    return mock.patch.dict(OperatingSystem.environment, {"PM_ENV_FILE": str(Path(__file__).with_name("no-such.env"))})
 
 
 class ConfigTests(unittest.TestCase):
-    def test_missing_header_variable_is_an_explicit_config_error(self):
+    def test_missing_header_variable_is_an_explicit_config_error(self) -> None:
         config = tools_config({"Authorization": "Bearer ${" + MISSING + "}"})
         with no_env_file():
-            os.environ.pop(MISSING, None)
+            OperatingSystem.environment.pop(MISSING, None)
             with self.assertRaisesRegex(McpConfigError, MISSING):
                 config.check_environment()
             with self.assertRaisesRegex(McpConfigError, MISSING):
                 build_workflow_spec(config)
 
-    def test_header_reference_resolves_from_the_environment(self):
+    def test_header_reference_resolves_from_the_environment(self) -> None:
         config = tools_config({"Authorization": "Bearer ${" + MISSING + "}"})
-        with no_env_file(), mock.patch.dict(os.environ, {MISSING: "secret"}):
+        with no_env_file(), mock.patch.dict(OperatingSystem.environment, {MISSING: "secret"}):
             self.assertEqual(config.mcp_servers[0].resolved_headers(), {"Authorization": "Bearer secret"})
         self.assertNotIn("secret", repr(config))
 

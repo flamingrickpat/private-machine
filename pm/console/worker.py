@@ -15,6 +15,7 @@ or the application's first error.
 """
 from __future__ import annotations
 
+from pm.utils.operating_system import OperatingSystem
 from collections.abc import Callable, Sequence
 from threading import Event
 import json
@@ -51,9 +52,8 @@ def run(settings: InstanceSettings, root: Path) -> None:
     keeps the worker running; a crash reaches the application error path.
     """
     from pm.host.diagnostics import configure_logging
-    from pm.host.processes import ensure_process_cleanup
     configure_logging(root)
-    ensure_process_cleanup()
+    OperatingSystem.install_child_cleanup()
     from pm.llm.prompt_log import backfill_cache_logs
     backfill_cache_logs()
     output = sys.stdout

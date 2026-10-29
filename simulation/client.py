@@ -13,8 +13,8 @@ an empty turn. The package overview is in ``simulation/__init__.py``.
 """
 from __future__ import annotations
 
+from pm.utils.operating_system import OperatingSystem
 import json
-import os
 from pathlib import Path
 import queue
 import subprocess
@@ -68,14 +68,13 @@ class PMProcess:
         self.endpoint_file.unlink(missing_ok=True)
         self._log = (self.endpoint_file.parent / f"{self.id}-process.log").open("ab")
         from pm.llm.env_file import env_file_path
-        environment = dict(os.environ)
+        environment = dict(OperatingSystem.environment)
         environment.update(PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
         environment.setdefault("PM_ENV_FILE", str(env_file_path().resolve()))
-        self.process = subprocess.Popen(
-            [sys.executable, "-m", "simulation.participant", "--home", str(self.home), "--config", self.config,
-             "--ready-file", str(self.endpoint_file.resolve())], cwd=self.source_root, stdin=subprocess.DEVNULL,
-            stdout=self._log, stderr=subprocess.STDOUT, env=environment,
-            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+        self.process = OperatingSystem.start_logged_process(
+            [OperatingSystem.python_executable(), "-m", "simulation.participant", "--home", str(self.home), "--config", self.config,
+             "--ready-file", str(self.endpoint_file.resolve())], cwd=self.source_root,
+            log=self._log, environment=environment)
         while not self.endpoint_file.exists():
             self.check_process()
             time.sleep(.05)

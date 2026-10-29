@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import random
 import re
 import sys
@@ -31,7 +30,13 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from difflib import SequenceMatcher
 from pathlib import Path
+from typing import TYPE_CHECKING, NamedTuple
 
+if TYPE_CHECKING:
+    from pm.llm.completion import TextCompletion
+    from pm.llm.stage_model import LazyStageModel
+
+from pm.utils.operating_system import OperatingSystem
 from tests.support import ManualClock, Recorder, fresh_ghost, load_seed_state
 from workflows.companion import build_app
 
@@ -49,19 +54,7 @@ SIM_SYSTEM = (
 
 def rss_mb() -> float:
     """Current process resident memory in MB. psutil, else /proc, else peak RSS."""
-    try:
-        import psutil
-        return psutil.Process().memory_info().rss / 1e6
-    except ImportError:
-        pass
-    try:
-        with open("/proc/self/statm") as handle:
-            return int(handle.read().split()[1]) * os.sysconf("SC_PAGE_SIZE") / 1e6
-    except (OSError, ValueError, AttributeError):
-        pass
-    import resource  # Unix; ru_maxrss is a peak, so it only ever rises
-    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    return peak / (1e6 if sys.platform == "darwin" else 1e3)
+    return OperatingSystem.resident_memory_mb()
 
 
 def is_asleep(moment: datetime, sleep_from: int, wake_at: int) -> bool:
@@ -174,14 +167,21 @@ class Result:
     failures: list[str] = field(default_factory=list)
 
 
-def _model_complete():
+class ModelCompletion(NamedTuple):
+    """The live harness's model owner and its synchronous completion contract."""
+
+    model: LazyStageModel
+    complete: TextCompletion
+
+
+def _model_complete() -> ModelCompletion:
     from pm.llm.activation import ModelActivation
     from pm.llm.config import load_config, resolve_connection
     from pm.llm.stage_model import LazyStageModel
     default = "config.local.yaml" if Path("config.local.yaml").is_file() else "config.example.yaml"
-    connection = resolve_connection(load_config(os.environ.get("PM_MODEL_CONFIG", default)))
+    connection = resolve_connection(load_config(OperatingSystem.environment.get("PM_MODEL_CONFIG", default)))
     stage_model = LazyStageModel(connection, ModelActivation(), live_test=True)
-    return stage_model, stage_model.complete
+    return ModelCompletion(stage_model, stage_model.complete)
 
 
 def run(params: Params) -> Result:

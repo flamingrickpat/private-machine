@@ -12,13 +12,14 @@ configured external endpoint is never started or stopped.
 """
 from __future__ import annotations
 
-import os
 import shutil
 import socket
 import subprocess
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+
+from pm.utils.operating_system import OperatingSystem
 
 DEFAULT_REPO = Path("C:/source/pm/pm-minecraft")
 DEFAULT_ENV_FILE = ".env_tdd"
@@ -44,7 +45,7 @@ def _port_open(host: str, port: int, timeout: float = 0.3) -> bool:
         return False
 
 
-def _wait_port(process: subprocess.Popen, host: str, port: int, timeout: float, label: str) -> None:
+def _wait_port(process: subprocess.Popen[str], host: str, port: int, timeout: float, label: str) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if process.poll() is not None:
@@ -80,8 +81,8 @@ class MinecraftStack:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         base = Path(run_root) if run_root is not None else Path(self.values["TEST_RUN_ROOT"])
         self.run_dir = base / f"pm_next_v2_{stamp}"
-        self.server: subprocess.Popen | None = None
-        self.mcp: subprocess.Popen | None = None
+        self.server: subprocess.Popen[str] | None = None
+        self.mcp: subprocess.Popen[str] | None = None
 
     @property
     def host(self) -> str:
@@ -113,7 +114,7 @@ class MinecraftStack:
                 self._control("/test/body/stop", timeout=30)
             except Exception:
                 pass
-            self.mcp.terminate()
+            OperatingSystem.terminate_process(self.mcp)
             self._reap(self.mcp, 15)
         if self.server is not None and self.server.poll() is None:
             try:
@@ -140,20 +141,24 @@ class MinecraftStack:
         log = log_path.open("w", encoding="utf-8")
         memory = self.values.get("SERVER_MEMORY", "2G")
         jar = Path(self.values["MINECRAFT_SERVER_JAR"])
-        self.server = subprocess.Popen(
+        self.server = OperatingSystem.start_text_process(
             [self.values["JAVA_EXE"], f"-Xms{memory}", f"-Xmx{memory}",
              "-jar", str(jar), "nogui"],
-            cwd=run_dir, stdin=subprocess.PIPE, stdout=log,
-            stderr=subprocess.STDOUT, text=True,
+            cwd=run_dir,
+            stdin=OperatingSystem.pipe,
+            stdout=log,
+            stderr=OperatingSystem.merged_output
         )
         _wait_log(log_path, "Done (", timeout, "The Minecraft server")
 
     def _start_mcp(self) -> None:
         log = (self.run_dir / "mcp.log").open("w", encoding="utf-8")
-        self.mcp = subprocess.Popen(
+        self.mcp = OperatingSystem.start_text_process(
             [self.values["PYTHON_EXE"], "main.py", str(self.env_path)],
-            cwd=self.repo, stdin=subprocess.PIPE, stdout=log,
-            stderr=subprocess.STDOUT, text=True,
+            cwd=self.repo,
+            stdin=OperatingSystem.pipe,
+            stdout=log,
+            stderr=OperatingSystem.merged_output
         )
 
     def _control(self, path: str, *, timeout: float = 15) -> None:
@@ -178,18 +183,18 @@ class MinecraftStack:
         raise TimeoutError(f"The Minecraft body did not become ready in {timeout:g}s: {last!r}")
 
     @staticmethod
-    def _reap(process: subprocess.Popen, timeout: float) -> None:
+    def _reap(process: subprocess.Popen[str], timeout: float) -> None:
         try:
             process.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
-            process.kill()
+            OperatingSystem.kill_process(process)
             process.wait()
 
 
 def autostart_enabled(mcp_url: str) -> bool:
     """Autostart only for the default local endpoint and when it is offline."""
     from workflows.minecraft_body.mcp_client import DEFAULT_MCP_URL
-    override = os.environ.get("PM_MINECRAFT_AUTOSTART", "1") != "0"
+    override = OperatingSystem.environment.get("PM_MINECRAFT_AUTOSTART", "1") != "0"
     if not override or mcp_url != DEFAULT_MCP_URL:
         return False
     from urllib.parse import urlsplit

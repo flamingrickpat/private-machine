@@ -3,13 +3,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-import subprocess
 import sys
 from tempfile import TemporaryDirectory
 import threading
 import unittest
 
 from pm_workflows.runtime import WorkflowRuntime
+from pm.utils.operating_system import OperatingSystem
 from pm.host.durable_files import BodyBusy, ProcessLock, atomic_json
 from workflows.minecraft_body.lease import BodyLeases, StaleEpoch
 from pm.runs.run_receipt import ManagedRunError, ManagedRunReceipt
@@ -72,13 +72,17 @@ class RecoveryTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
 
-    def test_a_different_process_cannot_take_the_same_endpoint_alias(self):
+    def test_a_different_process_cannot_take_the_same_endpoint_alias(self) -> None:
         script = "from pathlib import Path; import sys; from workflows.minecraft_body.lease import BodyLeases; " \
                  "lease=BodyLeases(Path(sys.argv[1])); " \
                  "scope=lease.acquire('http://localhost:6767/mcp/','child'); " \
                  "token=scope.__enter__(); print(token['epoch'],flush=True); sys.stdin.readline(); scope.__exit__(None,None,None)"
-        process = subprocess.Popen([sys.executable, "-c", script, str(self.root)],
-                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        process = OperatingSystem.start_text_process(
+            [sys.executable, "-c", script, str(self.root)],
+            stdin=OperatingSystem.pipe,
+            stdout=OperatingSystem.pipe,
+            stderr=OperatingSystem.pipe
+        )
         try:
             first_epoch = int(process.stdout.readline())
             leases = BodyLeases(self.root)

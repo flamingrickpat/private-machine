@@ -7,7 +7,6 @@ import hashlib
 from importlib import metadata
 import json
 from pathlib import Path
-import subprocess
 import sys
 import tomllib
 import urllib.request
@@ -16,6 +15,9 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from pm.utils.operating_system import OperatingSystem
+
+
 
 def digest(path: Path) -> dict:
     data = path.read_bytes()
@@ -23,7 +25,10 @@ def digest(path: Path) -> dict:
 
 
 def git(repo: Path, *args: str) -> bytes:
-    return subprocess.check_output(["git", "-C", str(repo), *args], stderr=subprocess.DEVNULL)
+    return OperatingSystem.output_bytes(
+        ["git", "-C", str(repo), *args],
+        suppress_errors=True
+    )
 
 
 def capture(repo: Path, out: Path) -> dict:

@@ -12,6 +12,8 @@ Related: [glossary](../../concepts/glossary.md), [naming rules](../../concepts/n
 
 ## Typing and docstring pass
 
+The [operating-system boundary](operating-system-boundary.md) records the owner's single-class platform encapsulation and its verification.
+
 The [typing and docstring pass](typing-and-docstrings.md) is a separate, behavior-preserving quality pass over the moved code.
 It adds annotations and named contracts, rewrites module docstrings, and records the exact test comparison against the previous commit.
 Read it when you need the verification evidence or the list of intended differences.

@@ -5,8 +5,8 @@ the debugger. This module does not retry a failed commit or publish memory.
 """
 from __future__ import annotations
 
+from pm.utils.operating_system import OperatingSystem
 import json
-import os
 import pickle
 import tempfile
 from abc import ABC, abstractmethod
@@ -121,9 +121,9 @@ def write_checkpoint(path: Path, checkpoint: Checkpoint, check_cancelled: Callab
             temporary = Path(stream.name)
             stream.write(encoded)
             stream.flush()
-            os.fsync(stream.fileno())
+            OperatingSystem.sync_file(stream.fileno())
         check_cancelled()
-        os.replace(temporary, path)
+        OperatingSystem.replace_file(temporary, path)
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)

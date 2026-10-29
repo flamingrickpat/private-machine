@@ -34,7 +34,6 @@ from __future__ import annotations
 
 from datetime import datetime
 import json
-import os
 from pathlib import Path
 import shutil
 import sys
@@ -43,12 +42,14 @@ import traceback
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from pm.bus.envelopes import new_envelope  # noqa: E402
-from pm.records.cognitive_records import ExpectationRecord  # noqa: E402
-from pm.records.enums import EntityClass, FeatureType, InterlocusType, SourceKind  # noqa: E402
-from pm.records.memory_records import Entity, new_feature  # noqa: E402
-from workflows.companion import DEFAULT_SEED, build_app  # noqa: E402
-from workflows.main_cognition.cycle_work import CycleWork  # noqa: E402
+from pm.utils.operating_system import OperatingSystem
+from pm.bus.envelopes import new_envelope
+from pm.records.cognitive_records import ExpectationRecord
+from pm.records.enums import EntityClass, FeatureType, InterlocusType, SourceKind
+from pm.records.memory_records import Entity, new_feature
+from workflows.companion import DEFAULT_SEED, build_app
+from workflows.main_cognition.cycle_work import CycleWork
+
 
 SITUATION = ROOT / "test_data" / "situations" / "story_continuation"
 #: The synthetic second companion of this gate. Test data, not product data.
@@ -102,7 +103,7 @@ def main() -> Path:
     out = ROOT / ".runtime" / "alpha" / (datetime.now().strftime("%Y%m%d-%H%M%S") + "-a19f-groups")
     out.mkdir(parents=True)
     shutil.copy2(SITUATION / "ghost.pickle", out / "ghost.pickle")
-    os.environ["PM_PROMPT_LOG_DIR"] = str(out / "llm-logs")
+    OperatingSystem.environment["PM_PROMPT_LOG_DIR"] = str(out / "llm-logs")
     receipt: dict = {"run_directory": str(out), "status": "started"}
     app = build_app(DEFAULT_SEED, out / "app", cognition="real", config_path=str(ROOT / config),
                     checkpoint_path=out / "ghost.pickle", thought_period=3600, world_poll_seconds=None,

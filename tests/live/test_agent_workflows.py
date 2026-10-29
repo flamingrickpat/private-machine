@@ -1,7 +1,6 @@
 """Real agent reports on application targets, with retained runtime evidence."""
 import asyncio
 import json
-import os
 from pathlib import Path
 from threading import Event
 import unittest
@@ -10,6 +9,7 @@ from uuid import uuid4
 import yaml
 from pm_workflows.runtime import AgentModel, WorkflowRuntime
 
+from pm.utils.operating_system import OperatingSystem
 from pm.host.mcp_listeners import ScopedMcpRegistry
 from pm.llm.activation import ModelActivation
 from pm.llm.config import load_config, resolve_connection
@@ -21,9 +21,9 @@ from pm.memory.bash_view import MemoryBashEnvironment
 
 class LiveAgentWorkflowTests(unittest.TestCase):
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls) -> None:
         default = "config.local.yaml" if Path("config.local.yaml").is_file() else "config.example.yaml"
-        cls.connection = resolve_connection(load_config(os.environ.get("PM_MODEL_CONFIG", default)))
+        cls.connection = resolve_connection(load_config(OperatingSystem.environment.get("PM_MODEL_CONFIG", default)))
         cls.owner = ModelActivation()
         asyncio.run(cls.owner.activate(cls.connection, live_test=True))
 

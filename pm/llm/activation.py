@@ -9,11 +9,8 @@ The owner covers clients in this process, not unrelated external model users.
 """
 from __future__ import annotations
 
+from pm.utils.operating_system import OperatingSystem
 import asyncio
-import os
-import shutil
-import subprocess
-import sys
 import logging
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
@@ -77,13 +74,9 @@ def script_command(script: Path) -> list[str]:
     """
     if not script.is_file():
         raise ModelError("The startup script does not exist. Correct startup_script in the config.")
-    if script.suffix.lower() == ".ps1":
-        return [shutil.which("pwsh") or "powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(script)]
-    if script.suffix.lower() == ".py":
-        return [sys.executable, str(script)]
-    if script.suffix.lower() == ".sh":
-        return ["bash", str(script)]
-    raise ModelError("Use a finite .ps1, .sh, or .py startup script.")
+    if script.suffix.lower() not in {".ps1", ".py", ".sh"}:
+        raise ModelError("Use a finite .ps1, .sh, or .py startup script.")
+    return OperatingSystem.script_command(script)
 
 
 async def run_startup(script: Path, cancel: Event | None = None) -> None:
@@ -95,19 +88,13 @@ async def run_startup(script: Path, cancel: Event | None = None) -> None:
     """
     if cancel is not None and cancel.is_set():
         raise asyncio.CancelledError
-    process = await asyncio.create_subprocess_exec(
-        *script_command(script), cwd=script.parent,
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
-    )
+    process = await OperatingSystem.start_async_process(script_command(script), cwd=script.parent)
     try:
         code = await cancellable(process.wait(), cancel)
         if code != 0:
             raise ModelError(f"The model startup script failed (exit {code}). Check the script's local log.")
     finally:
-        if process.returncode is None:
-            process.terminate()
-            await process.wait()
+        await OperatingSystem.terminate_async_process(process)
 
 
 class ModelActivation:

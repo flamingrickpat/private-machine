@@ -17,15 +17,14 @@ is the deployment table, and :func:`serve` is the HTTP boundary.
 """
 from __future__ import annotations
 
+from pm.utils.operating_system import OperatingSystem
 import argparse
 import asyncio
 from collections import deque
 import json
-import os
 from pathlib import Path
 import subprocess
 import sys
-import shutil
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -148,11 +147,9 @@ class Instance:
             (self.root / "logs").mkdir(exist_ok=True)
             error_log = (self.root / "logs" / "worker.log").open("a", encoding="utf-8")
             try:
-                self.process = subprocess.Popen(
-                    [sys.executable, "-u", "-m", "pm.console.worker", str(self.root / "instance.json")],
-                    cwd=ROOT, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=error_log,
-                    text=True, encoding="utf-8", bufsize=1,
-                    creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+                self.process = OperatingSystem.start_piped_process(
+                    [OperatingSystem.python_executable(), "-u", "-m", "pm.console.worker", str(self.root / "instance.json")],
+                    cwd=ROOT, error_log=error_log,
                 )
             finally:
                 error_log.close()
@@ -215,11 +212,7 @@ class Instance:
             process = self.process
             if process is None:
                 return
-            if os.name == "nt":
-                subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],
-                               capture_output=True, check=True, creationflags=subprocess.CREATE_NO_WINDOW)
-            else:
-                process.kill()
+            OperatingSystem.kill_process_tree(process)
             process.wait(timeout=10)
         self.record({"kind": "instance.kill", "time": time.time()})
 
@@ -342,15 +335,7 @@ def serve(root: Path, port: int = 8090) -> None:
                     path = (path if path.is_absolute() else ROOT / path).resolve()
                     if not path.is_relative_to(ROOT) or path.suffix not in {".md", ".py", ".yaml", ".yml"} or not path.is_file():
                         raise ValueError("Select an existing source file within the project.")
-                    if path.suffix == ".md":
-                        os.startfile(str(path))
-                    else:
-                        editor = shutil.which("subl") or next((str(p) for p in
-                            [Path("C:/Program Files/Sublime Text/sublime_text.exe"),
-                             Path("C:/Program Files/Sublime Text 3/sublime_text.exe")] if p.is_file()), None)
-                        if editor is None:
-                            raise ValueError("Sublime Text is required to open Python and YAML source safely.")
-                        subprocess.Popen([editor, str(path)], creationflags=subprocess.CREATE_NO_WINDOW)
+                    OperatingSystem.open_source_file(path)
                     return self.respond({"opened": str(path)})
                 if self.path == "/api/connections":
                     from pm.app.operator_config import connection_status

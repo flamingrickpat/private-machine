@@ -6,12 +6,12 @@ endpoint and real time, so it only runs with ``PM_LONGRUN_LIVE=1``; set
 """
 from __future__ import annotations
 
-import os
 import unittest
 from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from pm.utils.operating_system import OperatingSystem
 from tests.live import long_run as lr
 
 
@@ -43,13 +43,13 @@ class StubRunTests(unittest.TestCase):
             self.assertEqual(result.failures, [])
 
 
-@unittest.skipUnless(os.environ.get("PM_LONGRUN_LIVE") == "1",
+@unittest.skipUnless(OperatingSystem.environment.get("PM_LONGRUN_LIVE") == "1",
                      "Set PM_LONGRUN_LIVE=1 to run the live long-run test (model endpoint, long).")
 class LiveLongRunTests(unittest.TestCase):
-    def test_long_run(self):
-        card = Path(os.environ.get("PM_LONGRUN_CARD", lr.DEFAULT_CARD))
+    def test_long_run(self) -> None:
+        card = Path(OperatingSystem.environment.get("PM_LONGRUN_CARD", lr.DEFAULT_CARD))
         out = Path(".runtime/longrun") / datetime.now().strftime("%Y%m%dT%H%M%S")
-        result = lr.run(lr.Params(hours=float(os.environ.get("PM_LONGRUN_HOURS", "24")),
+        result = lr.run(lr.Params(hours=float(OperatingSystem.environment.get("PM_LONGRUN_HOURS", "24")),
                                   card=card, out=out))
         print(result.report)
         self.assertEqual(result.failures, [], result.failures)

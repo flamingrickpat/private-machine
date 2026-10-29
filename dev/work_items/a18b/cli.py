@@ -9,9 +9,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timedelta, timezone
 import json
-import os
 from pathlib import Path
-import subprocess
 import sys
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -19,6 +17,7 @@ from threading import Lock
 
 import yaml
 
+from pm.utils.operating_system import OperatingSystem
 from dev.work_items.a18b.identity import save_review_origin, save_suite, saved_suite
 from dev.work_items.a18b.policy import Fact, PublicMessage, ReviewCriterion, ReviewPacket, Scenario, score_case, score_suite
 from dev.work_items.a18b.supervision import run_worker, worker_cancellation
@@ -364,7 +363,7 @@ def main() -> int:
     if args.command == "review-case":
         if len(args.case) != 1:
             parser.error("review-case requires exactly one --case.")
-        os.environ["PM_PROMPT_LOG_DIR"] = str(args.out.parent / "review-llm-logs")
+        OperatingSystem.environment["PM_PROMPT_LOG_DIR"] = str(args.out.parent / "review-llm-logs")
         save_review_origin(args.out)
         with worker_cancellation(args.out, suite.review_timeout_seconds) as cancel:
             review_case(args.out, choices[args.case[0]], suite, model(args.config), cancel=cancel)
@@ -385,7 +384,7 @@ def main() -> int:
         "source_run": str(args.source.resolve()) if args.source is not None else None,
         "source_origin_sha256": sha256_file(args.source / "run-origin.json") if args.command == "review-saved" else None,
         "started_at": datetime.now(timezone.utc).isoformat(), "command": sys.argv})
-    os.environ["PM_PROMPT_LOG_DIR"] = str(out / "review-llm-logs")
+    OperatingSystem.environment["PM_PROMPT_LOG_DIR"] = str(out / "review-llm-logs")
     if args.command == "calibrate":
         with (out / "calibration.log").open("w", encoding="utf-8") as log:
             worker = run_worker([sys.executable, "-m", "dev.work_items.a18b", "calibrate-worker",
@@ -431,13 +430,21 @@ def main() -> int:
         report = summarize(out, suite, results)
         print(render(out, suite, report))
         if args.register:
-            subprocess.run([sys.executable, "-m", "simulation.review", "register", str(bundle(out, suite, report))], cwd=ROOT, check=True)
+            OperatingSystem.run_binary(
+                [sys.executable, "-m", "simulation.review", "register", str(bundle(out, suite, report))],
+                cwd=ROOT,
+                check=True
+            )
         return 0 if report["passed"] else 1
     results = run_cases(out, suite, args.config, args.case, seed=args.seed, jobs=args.jobs)
     report = summarize(out, suite, results)
     render(out, suite, report)
     path = bundle(out, suite, report)
     if args.register:
-        subprocess.run([sys.executable, "-m", "simulation.review", "register", str(path)], cwd=ROOT, check=True)
+        OperatingSystem.run_binary(
+            [sys.executable, "-m", "simulation.review", "register", str(path)],
+            cwd=ROOT,
+            check=True
+        )
     print(path, flush=True)
     return 0 if report["passed"] else 1

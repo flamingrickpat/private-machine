@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 from pathlib import Path
 import random
 import time
@@ -21,6 +20,7 @@ from typing import Callable
 
 import yaml
 
+from pm.utils.operating_system import OperatingSystem
 from dev.work_items.a18b.constants import HUMAN_THINK_SECONDS, OVERLAP_TYPING_SECONDS
 from dev.work_items.a18b.policy import Fact, JessePacket, PublicMessage, ReviewCriterion, ReviewPacket, Scenario, Scene, Suite
 from dev.work_items.a18b.review import compose
@@ -325,8 +325,8 @@ def run_case(scenario: Scenario, suite: Suite, config: Path, root: Path, seed: i
     if suite.cadence_policy != "normal_wait_v1":
         raise ValueError("Legacy generation requires its original checkout. Do not relabel its cadence.")
     if not scenario.minecraft:
-        os.environ["MINECRAFT_MCP_URL"] = "http://127.0.0.1:1/mcp"
-    os.environ["PM_PROMPT_LOG_DIR"] = str(root / "llm-logs")
+        OperatingSystem.environment["MINECRAFT_MCP_URL"] = "http://127.0.0.1:1/mcp"
+    OperatingSystem.environment["PM_PROMPT_LOG_DIR"] = str(root / "llm-logs")
     # Set the case environment before importing bindings that read it.
     from dev.work_items.conversation_review import ChatCapture, SEED, shift_history, start_minecraft
     from dev.tools.alpha_snapshot import capture

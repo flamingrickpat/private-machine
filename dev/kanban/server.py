@@ -12,13 +12,17 @@ import argparse
 import hashlib
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
-import os
+import sys
 from pathlib import Path
 import tempfile
 import time
 from typing import TypedDict, cast
 from urllib.parse import urlsplit
 import webbrowser
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from pm.utils.operating_system import OperatingSystem
 
 
 HERE = Path(__file__).resolve().parent
@@ -95,7 +99,7 @@ def write_board(path: Path, board: Board) -> None:
         json.dump(board, stream, ensure_ascii=False, indent=2)
         stream.write("\n")
         stream.flush()
-        os.fsync(stream.fileno())
+        OperatingSystem.sync_file(stream.fileno())
     try:
         while True:
             try:

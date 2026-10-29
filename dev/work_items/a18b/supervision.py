@@ -8,13 +8,17 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
-import os
 from pathlib import Path
-import signal
 import subprocess
 import time
 from threading import Event, Thread
 from typing import TextIO
+
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+
+from pm.utils.operating_system import OperatingSystem
 
 
 @dataclass(frozen=True)
@@ -61,24 +65,20 @@ def run_worker(command: list[str], *, cwd: Path, case: Path, log: TextIO,
     caller must retain this result even when no terminal case receipt exists.
     """
     started = time.monotonic()
-    process = subprocess.Popen(command, cwd=cwd, stdout=log, stderr=subprocess.STDOUT,
-                               start_new_session=os.name != "nt")
+    process = OperatingSystem.start_binary_process(
+        command,
+        cwd=cwd,
+        stdout=log,
+        stderr=OperatingSystem.merged_output,
+        new_process_group=True
+    )
     reason = None
     stop_at = None
     forced = False
-    def kill_tree():
+    def kill_tree() -> None:
         if process.poll() is not None:
             return
-        if os.name == "nt":
-            result = subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],
-                                    stdout=log, stderr=subprocess.STDOUT, check=False)
-            if result.returncode != 0 and process.poll() is None:
-                raise RuntimeError(f"Could not stop owned worker tree {process.pid}. Inspect its log and service ports.")
-        else:
-            try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass  # The worker exited between poll and the signal.
+        OperatingSystem.kill_process_group(process, log=log)
         process.wait()
 
     try:

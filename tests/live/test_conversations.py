@@ -11,14 +11,13 @@ Set ``PM_W7_SCENARIOS`` / ``PM_W7_EXCHANGES`` for a smaller smoke run.
 from __future__ import annotations
 
 import json
-import os
-import subprocess
 import tomllib
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
+from pm.utils.operating_system import OperatingSystem
 from pm.llm.stage_model import LazyStageModel
 from pm.llm.activation import ChatClient, ModelActivation
 from pm.llm.config import load_config, resolve_connection
@@ -37,32 +36,33 @@ def _save(path: Path, payload) -> None:
 
 def _git_revision() -> str:
     try:
-        return subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], text=True, stderr=subprocess.DEVNULL,
+        return OperatingSystem.output_text(
+            ["git", "rev-parse", "HEAD"],
+            suppress_errors=True
         ).strip()
     except Exception:
         return ""
 
 
 class ConversationAcceptanceTests(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         default = "config.local.yaml" if Path("config.local.yaml").is_file() else "config.example.yaml"
-        self.config = load_config(os.environ.get("PM_MODEL_CONFIG", default))
+        self.config = load_config(OperatingSystem.environment.get("PM_MODEL_CONFIG", default))
         self.owner = ModelActivation()
         self.connection = resolve_connection(self.config)
         self.stage_model = LazyStageModel(self.connection, self.owner, live_test=True)
         self.jesse = ChatClient(self.connection, self.owner, live_test=True)
 
-    def test_ten_scenarios_twenty_exchanges(self):
-        selected = os.environ.get("PM_W7_SCENARIOS")
+    def test_ten_scenarios_twenty_exchanges(self) -> None:
+        selected = OperatingSystem.environment.get("PM_W7_SCENARIOS")
         names = [name for name in selected.split(",") if name] if selected else None
         scenarios = [s for s in conv.SCENARIOS if names is None or s.name in names]
         self.assertTrue(scenarios, "No conversation scenarios were selected.")
         if names is not None:
             self.assertEqual(set(names), {s.name for s in scenarios}, "Unknown scenario name.")
-        exchanges = int(os.environ.get("PM_W7_EXCHANGES", "20"))
+        exchanges = int(OperatingSystem.environment.get("PM_W7_EXCHANGES", "20"))
         self.assertGreater(exchanges, 0)
-        evaluate = os.environ.get("PM_W7_EVALUATE", "1") != "0"
+        evaluate = OperatingSystem.environment.get("PM_W7_EVALUATE", "1") != "0"
 
         results: list[conv.ScenarioResult] = []
         for scenario in scenarios:

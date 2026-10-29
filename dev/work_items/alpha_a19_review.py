@@ -8,7 +8,6 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import json
-import os
 from pathlib import Path
 import shutil
 import sys
@@ -17,9 +16,11 @@ import time
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from pm.utils.operating_system import OperatingSystem
 from dev.work_items.alpha_a18c_mental_gate import save, snapshot
 from dev.work_items.conversation_review import ChatCapture
 from workflows.companion import DEFAULT_SEED, build_app
+
 
 
 def run(source: Path, out: Path, config: Path, *, drain_only: bool = False) -> dict:
@@ -31,7 +32,7 @@ def run(source: Path, out: Path, config: Path, *, drain_only: bool = False) -> d
     out.mkdir(parents=True, exist_ok=False)
     snapshot(out, config)
     shutil.copy2(source, out / "ghost.pickle")
-    os.environ["PM_PROMPT_LOG_DIR"] = str(out / "llm-logs")
+    OperatingSystem.environment["PM_PROMPT_LOG_DIR"] = str(out / "llm-logs")
     app = build_app(DEFAULT_SEED, out / "app", cognition="real", config_path=str(config),
                     checkpoint_path=out / "ghost.pickle", thought_period=3600,
                     world_poll_seconds=None, record_lifecycle=False, emit_reply=lambda text: None)

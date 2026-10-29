@@ -12,11 +12,11 @@ exact three messages without contacting a model.
 """
 from __future__ import annotations
 
+from pm.utils.operating_system import OperatingSystem
 from pm import vclock
 
 import argparse
 import asyncio
-import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -39,8 +39,8 @@ REQUIRED_GOOD = 7
 
 
 def _config_path() -> str:
-    if os.environ.get("PM_MODEL_CONFIG"):
-        return os.environ["PM_MODEL_CONFIG"]
+    if OperatingSystem.environment.get("PM_MODEL_CONFIG"):
+        return OperatingSystem.environment["PM_MODEL_CONFIG"]
     if Path("config.local.yaml").is_file():
         return "config.local.yaml"
     return "config.example.yaml"

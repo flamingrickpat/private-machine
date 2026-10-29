@@ -1,6 +1,5 @@
 """Real subprocess and cancellation tests, separate from live generation."""
 import asyncio
-import os
 import socket
 import tempfile
 import unittest
@@ -8,13 +7,14 @@ from unittest import mock
 from pathlib import Path
 from threading import Event
 
+from pm.utils.operating_system import OperatingSystem
 from pm.llm.activation import ModelActivation, run_startup
 from pm.llm.http_client import JsonClient, ModelError
 from pm.llm.config import resolve_connection
 
 
 class ActivationTests(unittest.IsolatedAsyncioTestCase):
-    async def test_failed_chat_attempt_retains_prompt_without_credentials(self):
+    async def test_failed_chat_attempt_retains_prompt_without_credentials(self) -> None:
         import json
         with tempfile.TemporaryDirectory() as directory, socket.socket() as reserved:
             reserved.bind(("127.0.0.1", 0))
@@ -22,7 +22,7 @@ class ActivationTests(unittest.IsolatedAsyncioTestCase):
                                             model="qwen", api_key="private-credential-marker")
             client = JsonClient(connection, live_test=True)
             payload = {"model": "qwen", "messages": [{"role": "user", "content": "hello"}]}
-            with mock.patch.dict(os.environ, {"PM_PROMPT_LOG_DIR": directory, "PM_PROMPT_LOG": "1"}):
+            with mock.patch.dict(OperatingSystem.environment, {"PM_PROMPT_LOG_DIR": directory, "PM_PROMPT_LOG": "1"}):
                 with self.assertRaises(ModelError):
                     await client.request("POST", "chat/completions", payload=payload)
             prompt = next(Path(directory).glob("*.md"))
@@ -44,10 +44,10 @@ class ActivationTests(unittest.IsolatedAsyncioTestCase):
             await run_startup(script)
             self.assertEqual((script.parent / "started.txt").read_text(), "started")
 
-    async def test_native_shell_startup_script(self):
+    async def test_native_shell_startup_script(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            script = Path(directory) / ("start.ps1" if os.name == "nt" else "start.sh")
-            body = "Set-Content -LiteralPath 'started.txt' -Value 'started'\nexit 0\n" if os.name == "nt" else "printf started > started.txt\nexit 0\n"
+            script = Path(directory) / ("start.ps1" if OperatingSystem.is_windows() else "start.sh")
+            body = "Set-Content -LiteralPath 'started.txt' -Value 'started'\nexit 0\n" if OperatingSystem.is_windows() else "printf started > started.txt\nexit 0\n"
             script.write_text(body, encoding="utf-8")
             await run_startup(script)
             self.assertEqual((script.parent / "started.txt").read_text().strip(), "started")

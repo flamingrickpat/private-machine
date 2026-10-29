@@ -5,9 +5,9 @@ each other's counters. Timestamp normalization changes keys only.
 """
 from __future__ import annotations
 
+from pm.utils.operating_system import OperatingSystem
 import hashlib
 import json
-import os
 from pathlib import Path
 import re
 import tempfile
@@ -27,7 +27,7 @@ _CONTEXT_FIELDS = {"evidence", "stimuli", "records", "candidates", "public_conte
 
 def cache_root() -> Path:
     """Return the shared cache root. PM_CACHE_DIR overrides it for tests."""
-    return Path(os.environ.get("PM_CACHE_DIR", str(Path.home() / ".pm/private-machine/cache"))).expanduser()
+    return Path(OperatingSystem.environment.get("PM_CACHE_DIR", str(Path.home() / ".pm/private-machine/cache"))).expanduser()
 
 
 def model_directory(model: str, root: Path | None = None) -> Path:
@@ -112,9 +112,9 @@ def publish(path: Path, content: bytes) -> None:
             temporary = Path(stream.name)
             stream.write(content)
             stream.flush()
-            os.fsync(stream.fileno())
+            OperatingSystem.sync_file(stream.fileno())
         try:
-            os.link(temporary, path)
+            OperatingSystem.link_file(temporary, path)
         except FileExistsError:
             pass
     finally:

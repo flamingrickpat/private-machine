@@ -12,8 +12,8 @@ helper removes a lock file, because the operating system releases the handle.
 """
 from __future__ import annotations
 
+from pm.utils.operating_system import OperatingSystem
 import json
-import os
 from pathlib import Path
 from threading import Event
 import time
@@ -51,7 +51,7 @@ def atomic_json(path: Path, value: dict[str, JsonValue]) -> None:
         with temporary.open("w", encoding="utf-8") as stream:
             json.dump(value, stream, ensure_ascii=False, indent=2)
             stream.flush()
-            os.fsync(stream.fileno())
+            OperatingSystem.sync_file(stream.fileno())
         for attempt in range(5):
             try:
                 temporary.replace(path)
@@ -90,12 +90,7 @@ class ProcessLock:
                 raise WorkflowTerminated()
             try:
                 stream.seek(0)
-                if os.name == "nt":
-                    import msvcrt
-                    msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
-                else:
-                    import fcntl
-                    fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                OperatingSystem.lock_file(stream)
                 self.stream = stream
                 return self
             except OSError as error:

@@ -5,14 +5,14 @@ endpoint knowledge.
 """
 from __future__ import annotations
 
+from pm.utils.operating_system import OperatingSystem
 import asyncio
-import os
 import socket
 
 
 def prepare_environment(environment: dict) -> None:
     """Export the MCP endpoint before the assembly builds its tools."""
-    os.environ.setdefault("MINECRAFT_MCP_URL", environment.get("MINECRAFT_MCP_URL") or
+    OperatingSystem.environment.setdefault("MINECRAFT_MCP_URL", environment.get("MINECRAFT_MCP_URL") or
                           f"http://127.0.0.1:{environment.get('PM_MC_MCP_PORT', '6767')}/mcp")
 
 

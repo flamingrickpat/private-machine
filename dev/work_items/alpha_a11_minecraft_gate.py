@@ -5,19 +5,20 @@ import argparse
 from datetime import datetime, timezone
 import hashlib
 import json
-import os
 from pathlib import Path
 import socket
 import shutil
-import subprocess
 import sys
 import time
 from urllib.request import urlopen
 
 import yaml
 
+
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+
+from pm.utils.operating_system import OperatingSystem
 
 
 DEFAULT_GOAL = (
@@ -61,7 +62,7 @@ def project_contract_manifest(source: Path, target: Path, *, plan: bool, complet
     return target
 
 
-def run(args) -> None:
+def run(args: argparse.Namespace) -> None:
     """Own the real stack and retain a reviewed plan or verified project receipt.
 
     An optional reset uses the authorized real-server procedure after port and
@@ -146,8 +147,12 @@ def run(args) -> None:
     component = ROOT.parent / "pm-minecraft"
     receipt["minecraft_component"] = {
         "repository": str(component),
-        "head": subprocess.check_output(["git", "-C", str(component), "rev-parse", "HEAD"], text=True).strip(),
-        "working_changes": subprocess.check_output(["git", "-C", str(component), "status", "--short", "--untracked-files=no"], text=True).splitlines(),
+        "head": OperatingSystem.output_text(
+            ["git", "-C", str(component), "rev-parse", "HEAD"]
+        ).strip(),
+        "working_changes": OperatingSystem.output_text(
+            ["git", "-C", str(component), "status", "--short", "--untracked-files=no"]
+        ).splitlines(),
         "source_files_sha256": {name: hashlib.sha256((component / name).read_bytes()).hexdigest()
                                  for name in ("body/src/bot.ts", "body/src/server.ts", "body/dist/bot.js", "body/dist/server.js",
                                               "mcmcp/body.py", "mcmcp/body_models.py", "mcmcp/runtime.py", "mcmcp/models.py")}}
@@ -189,9 +194,12 @@ def run(args) -> None:
                 target = (server / name).resolve()
                 if not target.is_relative_to(server) or target == server:
                     raise ValueError("A world reset target escaped the named server directory.")
-            subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(server / "wipe-world.ps1")], check=True)
+            OperatingSystem.run_binary(
+                ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(server / "wipe-world.ps1")],
+                check=True
+            )
         stack.start(reset_character=previous is None)
-        os.environ["MINECRAFT_MCP_URL"] = stack.mcp_url
+        OperatingSystem.environment["MINECRAFT_MCP_URL"] = stack.mcp_url
         app = build_app(ROOT / "test_data/personas/spamuel/canon.yaml", runtime_root, cognition="real",
             config_path=str(args.config.resolve()), checkpoint_path=checkpoint, record_lifecycle=False)
         plan_constraints = getattr(args, "plan_constraints", None)

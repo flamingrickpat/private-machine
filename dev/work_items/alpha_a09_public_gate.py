@@ -8,16 +8,17 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import shutil
 from pathlib import Path
 import socket
-import subprocess
 import sys
 import time
 
+
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+
+from pm.utils.operating_system import OperatingSystem
 CASE_NAMES = (
     "failed-method", "correction", "offline-capability", "private-withhold",
     "intentional-tease", "unavailable-sense-emotion", "stale-publication",
@@ -25,7 +26,7 @@ CASE_NAMES = (
 )
 
 
-def run(args):
+def run(args: argparse.Namespace) -> None:
     """Compare both real generators and inspect stale and failed publication."""
     from pm.bus.envelopes import Envelope, new_id
     from workflows.companion import build_app
@@ -270,11 +271,16 @@ def run(args):
             stack = RealServerStack(server, service_root, env_path)
             # Keep Windows service helpers hidden. The actual server and world stay
             # in their configured location. No world reset runs in this gate.
-            def start_mcp():
+            def start_mcp() -> None:
                 with (stack.run_dir / "mcp.log").open("w", encoding="utf-8") as log:
-                    stack.mcp = subprocess.Popen([values["PYTHON_EXE"], "main.py", str(env_path)], cwd=stack.repo,
-                        stdin=subprocess.PIPE, stdout=log, stderr=subprocess.STDOUT, text=True,
-                        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+                    stack.mcp = OperatingSystem.start_text_process(
+                        [values["PYTHON_EXE"], "main.py", str(env_path)],
+                        cwd=stack.repo,
+                        stdin=OperatingSystem.pipe,
+                        stdout=log,
+                        stderr=OperatingSystem.merged_output,
+                        hidden=True
+                    )
             stack._start_mcp = start_mcp
             stack.start()
             observation = build_minecraft_tools(stack.mcp_url)["minecraft_call"]("minecraft_observe", {"include_image": False})

@@ -1,7 +1,6 @@
 """Run actual Python workflows synchronously on real and virtual targets."""
 from pathlib import Path
 import json
-import os
 from tempfile import TemporaryDirectory
 import threading
 import unittest
@@ -9,6 +8,7 @@ import unittest
 import yaml
 from pm_workflows.runtime import WorkflowRuntime
 
+from pm.utils.operating_system import OperatingSystem
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope
 from pm.runs.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
@@ -52,30 +52,22 @@ class WorkflowRunnerTests(unittest.TestCase):
         )
         return WorkflowRuntime(environment, threading.Event(), {}, propagate_python_errors=True)
 
-    @unittest.skipUnless(os.name == "nt", "Windows file sharing")
-    def test_state_file_lock_retries_projection_without_repeating_the_phase(self):
-        import ctypes
+    @unittest.skipUnless(OperatingSystem.is_windows(), "Windows file sharing")
+    def test_state_file_lock_retries_projection_without_repeating_the_phase(self) -> None:
         runner = self.runner(
             "    context.runtime.environment.write_text('outbox/report.yaml', 'text: complete')\n"
             "    context.runtime.tools['hold_state']()\n"
             "    return {'status': 'done', 'summary': 'one execution'}\n"
         )
         state = self.root / "runtime/standalone/locked/workspace/agents/tasks/locked/state.md"
-        held = []
-        releases = []
-        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-        kernel32.CreateFileW.restype = ctypes.c_void_p
-        kernel32.CreateFileW.argtypes = [ctypes.c_wchar_p, ctypes.c_uint32, ctypes.c_uint32,
-                                       ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p]
-        kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
-        def hold_state():
-            handle = kernel32.CreateFileW(str(state), 0x80000000, 3, None, 3, 0, None)
-            if handle == ctypes.c_void_p(-1).value:
-                raise ctypes.WinError(ctypes.get_last_error())
+        held: list[int] = []
+        releases: list[threading.Thread] = []
+        def hold_state() -> None:
+            handle = OperatingSystem.open_shared_read_handle(state, share_writes=True)
             held.append(handle)
-            def release():
+            def release() -> None:
                 threading.Event().wait(.4)
-                kernel32.CloseHandle(handle)
+                OperatingSystem.close_native_handle(handle)
             thread = threading.Thread(target=release)
             releases.append(thread)
             thread.start()

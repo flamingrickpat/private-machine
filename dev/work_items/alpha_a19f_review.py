@@ -43,7 +43,6 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import json
-import os
 from pathlib import Path
 import shutil
 import sys
@@ -53,15 +52,17 @@ import time
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from dev.work_items.alpha_a18c_mental_gate import save, snapshot  # noqa: E402
-from pm.context_render.turns import Role, Turn  # noqa: E402
-from pm.introspection.record_packages import capture_cycle, capture_records, dump_package  # noqa: E402
-from pm.llm.activation import ModelActivation  # noqa: E402
-from pm.llm.config import load_config, resolve_connection  # noqa: E402
-from pm.llm.stage_model import LazyStageModel  # noqa: E402
-from pm.memory.store import MemoryStore  # noqa: E402
-from pm.records.enums import FeatureType  # noqa: E402
-from workflows.companion import DEFAULT_SEED, build_app  # noqa: E402
+from pm.utils.operating_system import OperatingSystem
+from dev.work_items.alpha_a18c_mental_gate import save, snapshot
+from pm.context_render.turns import Role, Turn
+from pm.introspection.record_packages import capture_cycle, capture_records, dump_package
+from pm.llm.activation import ModelActivation
+from pm.llm.config import load_config, resolve_connection
+from pm.llm.stage_model import LazyStageModel
+from pm.memory.store import MemoryStore
+from pm.records.enums import FeatureType
+from workflows.companion import DEFAULT_SEED, build_app
+
 
 SITUATION = ROOT / "test_data" / "situations" / "story_continuation"
 #: Seconds that one exchange may take before the run fails. Upstream rate limits (HTTP 429) retry
@@ -184,7 +185,7 @@ def run(out: Path, config: Path) -> dict:
     out.mkdir(parents=True, exist_ok=False)
     snapshot(out, config)
     shutil.copy2(SITUATION / "ghost.pickle", out / "ghost.pickle")
-    os.environ["PM_PROMPT_LOG_DIR"] = str(out / "llm-logs")
+    OperatingSystem.environment["PM_PROMPT_LOG_DIR"] = str(out / "llm-logs")
     app = build_app(DEFAULT_SEED, out / "app", cognition="real", config_path=str(config),
                     checkpoint_path=out / "ghost.pickle", thought_period=3600, world_poll_seconds=None,
                     record_lifecycle=False, emit_reply=lambda text: None)

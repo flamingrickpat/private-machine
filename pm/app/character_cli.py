@@ -17,9 +17,9 @@ The module is runtime code. It never imports ``workflows``.
 """
 from __future__ import annotations
 
+from pm.utils.operating_system import OperatingSystem
 import argparse
 import json
-import os
 import shutil
 import time
 import traceback
@@ -311,12 +311,11 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     from pm.host.diagnostics import configure_logging, close_logging
-    from pm.host.processes import ensure_process_cleanup
     # Initialization must check the destination before creating its log folder.
     if args.command == "init":
         return _run_command(args)
     configure_logging(args.home)
-    ensure_process_cleanup()
+    OperatingSystem.install_child_cleanup()
     try:
         return _run_command(args)
     except BaseException:

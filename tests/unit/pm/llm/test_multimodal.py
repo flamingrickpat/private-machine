@@ -1,7 +1,6 @@
 """The prompt encoder: tags become image parts under the last-N rule, or alt text."""
 from __future__ import annotations
 
-import os
 import socket
 import struct
 import tempfile
@@ -10,6 +9,7 @@ import zlib
 from pathlib import Path
 from unittest import mock
 
+from pm.utils.operating_system import OperatingSystem
 from pm.constants import PROMPT_IMAGE_TOKENS, PROMPT_MAX_IMAGES
 from pm.context_render.turns import Role, Turn
 from pm.llm.activation import ChatClient, ModelActivation
@@ -140,7 +140,7 @@ class AgentImageTests(unittest.TestCase):
 
 
 class ChatClientHookTests(unittest.IsolatedAsyncioTestCase):
-    async def test_the_chat_client_sends_image_parts(self):
+    async def test_the_chat_client_sends_image_parts(self) -> None:
         image = image_from_bytes(png(7), alt_text="dot", alt_text_source="model")
         install_media_lookup(type("Lookup", (), {"find_image": staticmethod({image.id: image}.get)})())
         self.addCleanup(install_media_lookup, None)
@@ -151,7 +151,7 @@ class ChatClientHookTests(unittest.IsolatedAsyncioTestCase):
             owner = ModelActivation()
             owner._ready[connection.base_url] = connection.model
             client = ChatClient(connection, owner, live_test=True)
-            with mock.patch.dict(os.environ, {"PM_PROMPT_LOG_DIR": directory, "PM_PROMPT_LOG": "1"}), \
+            with mock.patch.dict(OperatingSystem.environment, {"PM_PROMPT_LOG_DIR": directory, "PM_PROMPT_LOG": "1"}), \
                  mock.patch("pm.llm.prompt_log.start_prompt_log", wraps=start_prompt_log) as log:
                 with self.assertRaises(ModelError):
                     await client.complete([Turn(Role.User, f"what is this?\n{image.tag}")])

@@ -17,6 +17,7 @@ from pm.records.enums import FeatureType, InterlocusType
 from pm.records.global_workspace import GwtTurnRecord
 from pm.records.memory_records import new_feature
 from tests.unit.pm.app.test_web_chat import make_home
+from workflows import companion
 
 SEED = Path("seed.yaml")
 
@@ -51,11 +52,11 @@ class LaunchPlanTests(unittest.TestCase):
         plan = launch_plan(["--runtime-root", "r", "--ephemeral", "--web"], SEED)
         self.assertEqual((plan.runtime_root, plan.checkpoint, plan.web), (Path("r"), None, True))
 
-    def test_missing_ghost_json_stops_the_start(self):
+    def test_missing_ghost_json_stops_the_start(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             plan = launch_plan(["--home", tmp], SEED)
             with self.assertRaises(FileNotFoundError):
-                build_from_plan(plan, assembly=None)
+                build_from_plan(plan, assembly=companion)
 
 
 class RestartTests(unittest.TestCase):

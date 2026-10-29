@@ -5,12 +5,12 @@ Fresh full-canon conversations remain a separate gate.
 """
 from datetime import datetime, timezone
 import json
-import os
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
 from uuid import uuid4
 
+from pm.utils.operating_system import OperatingSystem
 from dev.work_items.a18b.cli import model
 from dev.work_items.a18b.policy import Fact, PublicMessage, ReviewCriterion, ReviewPacket
 from dev.work_items.a18b.review import CitationRepair, complete_structured, evaluate, prompts
@@ -26,21 +26,21 @@ CAPTURE = ROOT / "test_data/captures/alpha/cognitive-format-recovery.json"
 
 class LiveCognitiveRecoveryTests(unittest.TestCase):
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls) -> None:
         cls.capture = json.loads(CAPTURE.read_text(encoding="utf-8"))
-        cls.model = model(Path(os.environ.get("PM_MODEL_CONFIG", ROOT / "config.alpha.openrouter.yaml")))
+        cls.model = model(Path(OperatingSystem.environment.get("PM_MODEL_CONFIG", ROOT / "config.alpha.openrouter.yaml")))
         name = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid4().hex[:8]
         cls.out = ROOT / ".runtime/a18b-current/checks" / ("real-recovery-" + name)
         cls.out.mkdir(parents=True)
-        cls.previous_log = os.environ.get("PM_PROMPT_LOG_DIR")
-        os.environ["PM_PROMPT_LOG_DIR"] = str(cls.out / "llm-logs")
+        cls.previous_log = OperatingSystem.environment.get("PM_PROMPT_LOG_DIR")
+        OperatingSystem.environment["PM_PROMPT_LOG_DIR"] = str(cls.out / "llm-logs")
 
     @classmethod
-    def tearDownClass(cls):
+    def tearDownClass(cls) -> None:
         if cls.previous_log is None:
-            os.environ.pop("PM_PROMPT_LOG_DIR", None)
+            OperatingSystem.environment.pop("PM_PROMPT_LOG_DIR", None)
         else:
-            os.environ["PM_PROMPT_LOG_DIR"] = cls.previous_log
+            OperatingSystem.environment["PM_PROMPT_LOG_DIR"] = cls.previous_log
 
     def test_real_model_repairs_the_captured_unescaped_quote(self):
         raw = self.capture["malformed_thought"]["text"]

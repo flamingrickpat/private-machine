@@ -17,10 +17,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import time
 from pathlib import Path
 
+from pm.utils.operating_system import OperatingSystem
 from pm.llm.activation import ModelActivation
 from pm.llm.config import load_config
 from pm.llm.mcp_config import ToolCallConfig
@@ -44,7 +44,7 @@ def main() -> None:
     args = parser.parse_args()
     out = (args.out / time.strftime("run-%Y%m%d-%H%M%S")).resolve()
     out.mkdir(parents=True)
-    os.environ.setdefault("PM_PROMPT_LOG_DIR", str(out / "llm_logs"))
+    OperatingSystem.environment.setdefault("PM_PROMPT_LOG_DIR", str(out / "llm_logs"))
     servers = [dict(zip(("name", "url"), item.split("=", 1))) for item in args.mcp]
     tool_call = ToolCallConfig.model_validate({"mcp_servers": servers})
     config = load_config(args.config)

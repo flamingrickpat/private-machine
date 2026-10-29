@@ -17,7 +17,7 @@ different directory.
 """
 from __future__ import annotations
 
-import os
+from pm.utils.operating_system import OperatingSystem
 import json
 import sys
 import textwrap
@@ -101,7 +101,7 @@ def configure_root(path: Path | None) -> None:
 
 def logging_enabled() -> bool:
     """Return False only when the caller explicitly disables the log."""
-    return os.environ.get("PM_PROMPT_LOG", "1").strip().lower() not in {"0", "false", "off", "no"}
+    return OperatingSystem.environment.get("PM_PROMPT_LOG", "1").strip().lower() not in {"0", "false", "off", "no"}
 
 
 def log_directory() -> Path:
@@ -110,7 +110,7 @@ def log_directory() -> Path:
         return _SCOPED_ROOT.get()
     if _PERSONA_ROOT is not None:
         return _PERSONA_ROOT
-    raw = os.environ.get("PM_PROMPT_LOG_DIR")
+    raw = OperatingSystem.environment.get("PM_PROMPT_LOG_DIR")
     return Path(raw).expanduser() if raw else cache_root()
 
 
@@ -258,7 +258,7 @@ def _event(path: Path, event: dict) -> None:
     """
     row = {"call_id": path.stem, "time": datetime.now(timezone.utc).isoformat(), **event}
     with _EVENT_LOCK:
-        with (path.parent / f"usage-{os.getpid()}.jsonl").open("a", encoding="utf-8") as stream:
+        with (path.parent / f"usage-{OperatingSystem.process_id()}.jsonl").open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
     usage = row.get("usage") or {}
     #print(f"[llm] {row['event']} {path.stem} {row.get('model', '')} "
@@ -278,13 +278,13 @@ def start_prompt_log(*, connection: LogTarget, payload: dict[str, object] | None
         return None
     default = model_directory(connection.model, cache_root() / "embeddings" if route == "embeddings" else cache_root())
     target = directory or (log_directory() if _PERSONA_ROOT is not None or _SCOPED_ROOT.get() is not None
-                           or os.environ.get("PM_PROMPT_LOG_DIR") else default)
+                           or OperatingSystem.environment.get("PM_PROMPT_LOG_DIR") else default)
     path = target / f"{uuid.uuid4().hex}.md"
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         record = {"endpoint": connection.base_url, "model": connection.model,
                   "route": route, "owner_thread": current_thread().name, "thread_id": get_native_id(),
-                  "pid": os.getpid(), "started_at": datetime.now(timezone.utc).isoformat(),
+                  "pid": OperatingSystem.process_id(), "started_at": datetime.now(timezone.utc).isoformat(),
                   "request_count": request_count, "payload": payload}
         from pm import vclock
         record["world_time"] = vclock.now_aware().isoformat()

@@ -2,7 +2,6 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import json
-import os
 from pathlib import Path
 import tempfile
 from threading import Event
@@ -12,6 +11,7 @@ from unittest.mock import patch
 import httpx
 from pydantic import BaseModel, Field
 
+from pm.utils.operating_system import OperatingSystem
 from pm.llm import cache
 from pm.llm.config import Connection
 from pm.llm.config import EmbeddingConfig
@@ -22,11 +22,11 @@ from pm.llm.concurrency import inference_admission, background_inference
 
 
 class CacheTests(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         self.root = Path(directory.name)
-        env = patch.dict(os.environ, {"PM_CACHE_DIR": directory.name})
+        env = patch.dict(OperatingSystem.environment, {"PM_CACHE_DIR": directory.name})
         env.start()
         self.addCleanup(env.stop)
 
@@ -82,7 +82,7 @@ class CacheTests(unittest.TestCase):
         self.assertIn(json.loads(path.read_bytes())["value"], range(8))
         self.assertEqual(list(self.root.glob("*.tmp")), [])
 
-    def test_transport_retry_and_process_restart_replay_without_inference(self):
+    def test_transport_retry_and_process_restart_replay_without_inference(self) -> None:
         requests = []
 
         def handle(request):
@@ -96,7 +96,7 @@ class CacheTests(unittest.TestCase):
         payload = self.payload("abc")
         logs = self.root / "logs"
         transcript = self.root / "mirror.md"
-        with patch.dict(os.environ, {"PM_PROMPT_LOG_DIR": str(logs), "PM_PROMPT_LOG": "1"}), \
+        with patch.dict(OperatingSystem.environment, {"PM_PROMPT_LOG_DIR": str(logs), "PM_PROMPT_LOG": "1"}), \
              self.assertLogs("pm.llm.http_client", level="INFO") as captured, \
              patch("pm.llm.http_client.httpx.AsyncClient", side_effect=lambda **kwargs:
                    original(transport=httpx.MockTransport(handle), **kwargs)):

@@ -5,14 +5,15 @@ or a model service. Real inference must finish the checkpoint's approved reply.
 """
 from __future__ import annotations
 
+from pm.utils.operating_system import OperatingSystem
 import argparse
-import ctypes
 from datetime import datetime, timezone
 import json
-import os
 from pathlib import Path
 import queue
 import time
+from pydantic import BaseModel, JsonValue
+from typing import Literal
 
 from pm.app.transport import event_cursor
 from pm.host.durable_files import atomic_json
@@ -23,10 +24,35 @@ from simulation.personas import fork_home
 from simulation.source import freeze_source
 
 
-def run(args) -> dict:
+class RecoveryOptions(BaseModel):
+    """Explicit command-line inputs for the isolated recovery gate."""
+
+    home: Path
+    snapshot: Path
+    config: Path
+    clock: str
+    out: Path
+
+
+class RecoveryReceipt(BaseModel):
+    """The existing outbound recovery receipt, validated before publication."""
+
+    status: Literal["passed"]
+    original_tick: int
+    recovered_tick: int
+    approved_action_ids: list[int]
+    reply_id: int
+    excluded_input_id: int
+    raw_input_preserved: bool
+    real_cognition_prompt_files: list[str]
+    forced_process_id: int
+    evidence: dict[str, JsonValue]
+
+
+def run(args: RecoveryOptions) -> RecoveryReceipt:
     """Resume approved speech, crash during a newer cognition run, and reopen cleanly."""
     receipt_path = args.out / "result.json"
-    def progress(stage, **fields):
+    def progress(stage: str, **fields: JsonValue) -> None:
         atomic_json(receipt_path, {"status": "running", "stage": stage, **fields})
     progress("fork")
     source = freeze_source(args.out / "source", args.config)
@@ -72,23 +98,7 @@ def run(args) -> dict:
     # The readiness receipt identifies only the child created by this gate.
     endpoint = json.loads(process.endpoint_file.read_text(encoding="utf-8"))
     process.reader_stop.set()
-    if os.name == "nt":
-        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
-        kernel.OpenProcess.restype = ctypes.c_void_p
-        kernel.OpenProcess.argtypes = [ctypes.c_ulong, ctypes.c_int, ctypes.c_ulong]
-        kernel.TerminateProcess.argtypes = [ctypes.c_void_p, ctypes.c_uint]
-        kernel.CloseHandle.argtypes = [ctypes.c_void_p]
-        handle = kernel.OpenProcess(0x0001, False, endpoint["pid"])
-        if not handle:
-            raise ctypes.WinError(ctypes.get_last_error())
-        try:
-            if not kernel.TerminateProcess(handle, 137):
-                raise ctypes.WinError(ctypes.get_last_error())
-        finally:
-            kernel.CloseHandle(handle)
-    else:
-        import signal
-        os.kill(endpoint["pid"], signal.SIGKILL)
+    OperatingSystem.terminate_process_id(endpoint["pid"], exit_code=137)
     process.process.wait()
     process.reader.join()
     process.http.close()
@@ -116,25 +126,26 @@ def run(args) -> dict:
         "approved_action_ids": selected, "reply_id": event["output_id"], "excluded_input_id": latest.id,
         "raw_input_preserved": raw.get_knoxel_by_id(latest.id) is not None,
         "real_cognition_prompt_files": pending, "forced_process_id": endpoint["pid"], "evidence": captured}
-    atomic_json(receipt_path, result)
-    return result
+    receipt = RecoveryReceipt.model_validate(result)
+    atomic_json(receipt_path, receipt.model_dump(mode="json"))
+    return receipt
 
 
 def main() -> int:
     """Run the isolated real gate. Retain a failure receipt and propagate errors."""
-    from pm.host.processes import ensure_process_cleanup
-    ensure_process_cleanup()
+    OperatingSystem.install_child_cleanup()
     parser = argparse.ArgumentParser()
     parser.add_argument("--home", type=Path, required=True)
     parser.add_argument("--snapshot", type=Path, required=True)
     parser.add_argument("--config", type=Path, default=Path("config.alpha.example.yaml"))
     parser.add_argument("--clock", required=True)
     parser.add_argument("--out", type=Path, required=True)
-    args = parser.parse_args()
-    args.out = args.out.resolve()
+    parsed = parser.parse_args()
+    args = RecoveryOptions(home=parsed.home, snapshot=parsed.snapshot, config=parsed.config,
+                           clock=parsed.clock, out=parsed.out.resolve())
     args.out.mkdir(parents=True, exist_ok=False)
     try:
-        print(json.dumps(run(args), ensure_ascii=False), flush=True)
+        print(run(args).model_dump_json(), flush=True)
         return 0
     except BaseException as error:
         atomic_json(args.out / "failure.json", {"error": repr(error), "at": datetime.now(timezone.utc).isoformat()})

@@ -3,7 +3,7 @@
 The process environment always wins. When a variable is not set there, the
 config falls back to this file, so local runs, tests, and gates need no manual
 export. Values are returned to the caller only; nothing is written into
-``os.environ``, so resolving a credential never changes global process state.
+``OperatingSystem.environment``, so resolving a credential never changes global process state.
 
 The file is ``PM_ENV_FILE`` when that variable is set, otherwise ``.env`` in
 the repository root. A missing file means no values. Lines are ``KEY=value``;
@@ -12,14 +12,14 @@ accepted.
 """
 from __future__ import annotations
 
-import os
+from pm.utils.operating_system import OperatingSystem
 from pathlib import Path
 
 from pm.paths import REPO_ROOT
 
 
 def env_file_path() -> Path:
-    return Path(os.environ["PM_ENV_FILE"]) if os.environ.get("PM_ENV_FILE") else REPO_ROOT / ".env"
+    return Path(OperatingSystem.environment["PM_ENV_FILE"]) if OperatingSystem.environment.get("PM_ENV_FILE") else REPO_ROOT / ".env"
 
 
 def read_env_file(path: Path | None = None) -> dict[str, str]:
@@ -39,7 +39,7 @@ def read_env_file(path: Path | None = None) -> dict[str, str]:
 
 def credential(name: str) -> str:
     """Return a credential from the process environment, then the env file, or ""."""
-    return os.environ.get(name) or read_env_file().get(name, "")
+    return OperatingSystem.environment.get(name) or read_env_file().get(name, "")
 
 
 __all__ = ["credential", "env_file_path", "read_env_file"]

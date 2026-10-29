@@ -14,10 +14,10 @@ arrives during a wedged shutdown.
 """
 from __future__ import annotations
 
+from pm.utils.operating_system import OperatingSystem
 from collections.abc import Callable
 import faulthandler
 import logging
-import os
 from pathlib import Path
 import sys
 import threading
@@ -46,7 +46,7 @@ def configure_logging(home: Path) -> Path:
     directory = Path(home) / "logs"
     directory.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
-    path = directory / f"runtime_{stamp}_{os.getpid()}.log"
+    path = directory / f"runtime_{stamp}_{OperatingSystem.process_id()}.log"
     handler = logging.FileHandler(path, encoding="utf-8")
     formatter = logging.Formatter(
         "%(asctime)s.%(msecs)03dZ %(levelname)s pid=%(process)d thread=%(thread)d "
@@ -114,9 +114,9 @@ def exit_after_repeated_signal() -> None:
     the process job at exit, which also removes remaining owned children.
     """
     stream = _HANDLER.stream if _HANDLER is not None else sys.stderr
-    os.write(stream.fileno(), b"Repeated stop signal: forced exit after thread dump.\n")
+    OperatingSystem.write_descriptor(stream.fileno(), b"Repeated stop signal: forced exit after thread dump.\n")
     faulthandler.dump_traceback(file=stream, all_threads=True)
-    os._exit(130)
+    OperatingSystem.exit_immediately(130)
 
 
 def join_thread(thread: threading.Thread) -> None:

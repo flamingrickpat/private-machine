@@ -30,7 +30,7 @@ from uuid import uuid4
 from pydantic import JsonValue
 
 from pm.host.durable_files import atomic_json
-from pm.host.processes import ensure_process_cleanup
+from pm.utils.operating_system import OperatingSystem
 from pm.memory.store import MemoryStore
 from simulation.agents import Agents
 from simulation.engine import RunEngine
@@ -305,7 +305,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--config", default="config.alpha.example.yaml")
     parser.add_argument("--port", type=int, default=8095)
     args = parser.parse_args(argv)
-    ensure_process_cleanup()
+    OperatingSystem.install_child_cleanup()
     application = Simulation(args.homes, args.data, args.config)
     server = ThreadingHTTPServer(("127.0.0.1", args.port), handler(application))
     print(f"Simulation: http://127.0.0.1:{server.server_port}/", flush=True)

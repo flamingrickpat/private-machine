@@ -5,7 +5,6 @@ import argparse
 from datetime import datetime, timezone
 import hashlib
 import json
-import os
 from pathlib import Path
 import socket
 import subprocess
@@ -13,8 +12,11 @@ import sys
 import threading
 import time
 
+
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+
+from pm.utils.operating_system import OperatingSystem
 
 
 def wait_for(predicate, timeout=120):
@@ -37,26 +39,26 @@ def read(path):
         return None
 
 
-def spawn(arguments, out):
+def spawn(arguments: list[str], out: Path) -> subprocess.Popen[bytes]:
     """Start a hidden owned worker and retain its complete output."""
     log = (out / "worker.log").open("a", encoding="utf-8")
     log.write(f"\nWorker launch {datetime.now(timezone.utc).isoformat()} {arguments}\n")
     log.flush()
-    process = subprocess.Popen([sys.executable, "-u", str(Path(__file__).resolve()), *arguments], cwd=ROOT,
-        stdout=log, stderr=subprocess.STDOUT,
-        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+    process = OperatingSystem.start_binary_process(
+        [sys.executable, "-u", str(Path(__file__).resolve()), *arguments],
+        cwd=ROOT,
+        stdout=log,
+        stderr=OperatingSystem.merged_output,
+        hidden=True
+    )
     log.close()
     return process
 
 
-def kill_worker(process):
+def kill_worker(process: subprocess.Popen[bytes]) -> None:
     """Stop the owned process tree, including the Windows interpreter launcher."""
     if process.poll() is None:
-        if os.name == "nt":
-            subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-        else:
-            process.kill()
+        OperatingSystem.kill_process_tree(process)
         process.wait(15)
 
 
@@ -148,7 +150,7 @@ def native_worker(args):
         app.supervisor.join(task["run_id"], 30)
 
 
-def run(args):
+def run(args: argparse.Namespace) -> None:
     """Own the selected real server without resets, grants, or lost evidence."""
     import yaml
     from urllib.request import urlopen
@@ -195,7 +197,7 @@ def run(args):
     stack, workers = RealServerStack(server, out, env_path), []
     try:
         stack.start()
-        os.environ["MINECRAFT_MCP_URL"] = stack.mcp_url
+        OperatingSystem.environment["MINECRAFT_MCP_URL"] = stack.mcp_url
         tools = build_minecraft_tools(stack.mcp_url)
         if args.protocol:
             for phase in ("before_call", "in_flight", "after_effect", "before_publication"):

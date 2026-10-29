@@ -1,11 +1,11 @@
 """Expose live schemas through a leased, journaled Minecraft MCP gateway."""
 from __future__ import annotations
 
+from pm.utils.operating_system import OperatingSystem
 import asyncio
 import base64
 import json
 import math
-import os
 import threading
 import time
 from typing import Any
@@ -303,18 +303,18 @@ class BodyGateway:
         path.parent.mkdir(parents=True, exist_ok=True)
         if path.exists() and path.stat().st_size:
             with path.open("rb") as existing:
-                existing.seek(-1, os.SEEK_END)
+                existing.seek(-1, OperatingSystem.seek_from_end)
                 torn = existing.read(1) != b"\n"
             if torn:
                 tail = path.read_text(encoding="utf-8").splitlines()[-1]
                 with path.open("a", encoding="utf-8") as stream:
                     stream.write("\n" + json.dumps({"event": "torn_tail", "text": tail}) + "\n")
                     stream.flush()
-                    os.fsync(stream.fileno())
+                    OperatingSystem.sync_file(stream.fileno())
         with path.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(receipt, ensure_ascii=False) + "\n")
             stream.flush()
-            os.fsync(stream.fileno())
+            OperatingSystem.sync_file(stream.fileno())
 
     def reconcile(self, sources: list, *, history_sources: list | None = None) -> dict:
         """Read uncertain target cells after the new epoch's body observation.

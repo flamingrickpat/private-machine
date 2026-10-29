@@ -5,9 +5,9 @@ workflows that are allowed to touch host files.
 """
 from __future__ import annotations
 
+from pm.utils.operating_system import OperatingSystem
 import posixpath
 import shutil
-import subprocess
 from pathlib import Path
 
 
@@ -90,11 +90,9 @@ class FolderEnvironment(WorkingEnvironment):
 
     def exec(self, command: str) -> CommandResult:
         """Run one command in this folder and return stdout, stderr, and its code."""
-        result = subprocess.run(
+        result = OperatingSystem.run_text(
             [self.bash_executable, "--noprofile", "--norc", "-c", command],
             cwd=self.root,
-            capture_output=True,
-            text=True,
             encoding="utf-8",
             errors="replace",
         )

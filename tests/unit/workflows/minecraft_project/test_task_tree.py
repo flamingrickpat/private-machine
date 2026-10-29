@@ -1,12 +1,11 @@
 """Task graph and evidence contracts. Live behavior has a separate real gate."""
 from __future__ import annotations
 
+from pm.utils.operating_system import OperatingSystem
 from pm.records.copying import pickle_copy
 
-import ctypes
 from graphlib import TopologicalSorter
 import json
-import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Event, Thread
@@ -156,21 +155,15 @@ class TaskGraphTests(unittest.TestCase):
             self.assertTrue(store.valid("craft"))
             self.assertEqual(store.state["acceptances"]["craft"]["files"], before)
 
-    @unittest.skipUnless(os.name == "nt", "Windows file sharing establishes this boundary.")
-    def test_transient_real_file_lock_retries_only_the_commit(self):
+    @unittest.skipUnless(OperatingSystem.is_windows(), "Windows file sharing establishes this boundary.")
+    def test_transient_real_file_lock_retries_only_the_commit(self) -> None:
         with TemporaryDirectory() as folder:
             store = TreeStore(Path(folder))
             store.write("proof.json", {"revision": 1})
-            kernel = ctypes.windll.kernel32
-            create = kernel.CreateFileW
-            create.argtypes = [ctypes.c_wchar_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p]
-            create.restype = ctypes.c_void_p
-            kernel.CloseHandle.argtypes = [ctypes.c_void_p]
-            handle = create(str(store.path_for("proof.json")), 0x80000000, 1, None, 3, 0, None)
-            self.assertNotEqual(handle, ctypes.c_void_p(-1).value)
-            def release():
+            handle = OperatingSystem.open_shared_read_handle(store.path_for("proof.json"))
+            def release() -> None:
                 time.sleep(0.08)
-                kernel.CloseHandle(handle)
+                OperatingSystem.close_native_handle(handle)
             worker = Thread(target=release)
             worker.start()
             try:
@@ -179,23 +172,17 @@ class TaskGraphTests(unittest.TestCase):
                 worker.join()
             self.assertEqual(json.loads(store.path_for("proof.json").read_text()), {"revision": 2})
 
-    @unittest.skipUnless(os.name == "nt", "Windows file sharing establishes this boundary.")
-    def test_persistent_real_file_lock_cannot_trigger_phase_retry(self):
+    @unittest.skipUnless(OperatingSystem.is_windows(), "Windows file sharing establishes this boundary.")
+    def test_persistent_real_file_lock_cannot_trigger_phase_retry(self) -> None:
         with TemporaryDirectory() as folder:
             store = TreeStore(Path(folder))
             store.write("proof.json", {"revision": 1})
-            kernel = ctypes.windll.kernel32
-            create = kernel.CreateFileW
-            create.argtypes = [ctypes.c_wchar_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p]
-            create.restype = ctypes.c_void_p
-            kernel.CloseHandle.argtypes = [ctypes.c_void_p]
-            handle = create(str(store.path_for("proof.json")), 0x80000000, 1, None, 3, 0, None)
-            self.assertNotEqual(handle, ctypes.c_void_p(-1).value)
+            handle = OperatingSystem.open_shared_read_handle(store.path_for("proof.json"))
             try:
                 with self.assertRaisesRegex(RuntimeError, "Do not replay"):
                     store.write("proof.json", {"revision": 2})
             finally:
-                kernel.CloseHandle(handle)
+                OperatingSystem.close_native_handle(handle)
             self.assertEqual(json.loads(store.path_for("proof.json").read_text()), {"revision": 1})
 
     def test_local_actor_stop_keeps_planner_and_next_actor_active(self):

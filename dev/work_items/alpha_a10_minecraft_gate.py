@@ -5,7 +5,6 @@ import argparse
 from datetime import datetime, timezone
 import hashlib
 import json
-import os
 from pathlib import Path
 import socket
 import sys
@@ -14,11 +13,14 @@ import time
 
 import yaml
 
+
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from pm.utils.operating_system import OperatingSystem
 
-def run(args) -> None:
+
+def run(args: argparse.Namespace) -> None:
     """Own the real stack, retain failures, and inspect actual actor effects."""
     from workflows.companion import build_app
     from pm.bus.envelopes import Envelope, new_id
@@ -60,7 +62,7 @@ def run(args) -> None:
     app = None
     try:
         stack.start()
-        os.environ["MINECRAFT_MCP_URL"] = stack.mcp_url
+        OperatingSystem.environment["MINECRAFT_MCP_URL"] = stack.mcp_url
         app = build_app(ROOT / "test_data/personas/spamuel/canon.yaml", out / "app", cognition="real",
                         config_path=str(args.config.resolve()), checkpoint_path=out / "ghost.pickle", record_lifecycle=False)
         app.supervisor.on_error = lambda error: print(f"Worker error: {type(error).__name__}: {error}", flush=True)

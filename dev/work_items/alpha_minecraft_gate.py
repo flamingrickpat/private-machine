@@ -4,16 +4,16 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 from pathlib import Path
 import socket
-import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from pm.utils.operating_system import OperatingSystem
 from tests.live.minecraft_stack import MinecraftStack, _wait_log, load_env_file
+
 
 
 class RealServerStack(MinecraftStack):
@@ -29,10 +29,15 @@ class RealServerStack(MinecraftStack):
         log_path = self.run_dir / "server.log"
         with log_path.open("w", encoding="utf-8") as log:
             memory = self.values.get("SERVER_MEMORY", "2G")
-            self.server = subprocess.Popen([self.values["JAVA_EXE"], f"-Xms{memory}", f"-Xmx{memory}",
+            self.server = OperatingSystem.start_text_process(
+                [self.values["JAVA_EXE"], f"-Xms{memory}", f"-Xmx{memory}",
                 "-jar", str(self.server_root / "fabric-server-launch.jar"), "nogui"],
-                cwd=self.server_root, stdin=subprocess.PIPE, stdout=log, stderr=subprocess.STDOUT,
-                text=True, creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+                cwd=self.server_root,
+                stdin=OperatingSystem.pipe,
+                stdout=log,
+                stderr=OperatingSystem.merged_output,
+                hidden=True
+            )
         _wait_log(log_path, "Done (", timeout, "The real Minecraft server")
 
     def stop(self) -> None:
@@ -41,7 +46,7 @@ class RealServerStack(MinecraftStack):
                 try:
                     self._control("/test/body/stop", timeout=30)
                 finally:
-                    self.mcp.terminate()
+                    OperatingSystem.terminate_process(self.mcp)
                     self._reap(self.mcp, 15)
         finally:
             if self.server is not None and self.server.poll() is None:
@@ -92,13 +97,19 @@ def main() -> None:
                 target = (server / name).resolve()
                 if not target.is_relative_to(server) or target == server:
                     raise ValueError(f"The wipe target leaves the selected server directory: {target}")
-            subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(server / "wipe-world.ps1")], check=True)
+            OperatingSystem.run_binary(
+                ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(server / "wipe-world.ps1")],
+                check=True
+            )
         stack.start()
-        environment = os.environ.copy()
+        environment = OperatingSystem.copy_environment()
         environment.update({"PM_MODEL_CONFIG": str(args.config.resolve()), "MINECRAFT_MCP_URL": stack.mcp_url,
             "PM_MINECRAFT_AUTOSTART": "0"})
-        result = subprocess.run([sys.executable, "-m", "unittest", "tests.live.test_minecraft_body", "-v", "-b"],
-            cwd=ROOT, env=environment)
+        result = OperatingSystem.run_binary(
+            [sys.executable, "-m", "unittest", "tests.live.test_minecraft_body", "-v", "-b"],
+            cwd=ROOT,
+            env=environment
+        )
         receipt.update({"exit_code": result.returncode, "status": "passed" if result.returncode == 0 else "failed"})
         if result.returncode:
             raise RuntimeError("The existing Minecraft gate failed. Inspect the gate and service logs.")

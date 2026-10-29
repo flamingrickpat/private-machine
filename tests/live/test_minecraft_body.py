@@ -13,10 +13,10 @@ The test demonstrates observation, one real action, status, an instruction
 update, termination, and memory recovery from a reopened checkpoint.
 """
 from __future__ import annotations
+from pm.utils.operating_system import OperatingSystem
 from workflows.minecraft_body.lease import BODY_LEASES
 
 import json
-import os
 import time
 import unittest
 from datetime import datetime, timezone
@@ -61,15 +61,15 @@ def _save(name: str, payload) -> None:
 
 class LiveMinecraftBodyTests(unittest.TestCase):
     @classmethod
-    def setUpClass(cls):
-        cls.mcp_url = os.environ.get("MINECRAFT_MCP_URL", DEFAULT_MCP_URL)
+    def setUpClass(cls) -> None:
+        cls.mcp_url = OperatingSystem.environment.get("MINECRAFT_MCP_URL", DEFAULT_MCP_URL)
         cls.stack = None
         if autostart_enabled(cls.mcp_url):
             # No endpoint is running. Start a fresh server and the MCP so the
             # gate is self-contained instead of failing on a missing endpoint.
             cls.stack = MinecraftStack(
-                repo=Path(os.environ.get("PM_MINECRAFT_REPO", "C:/source/pm/pm-minecraft")),
-                env_file=os.environ.get("PM_MINECRAFT_ENV", ".env_tdd"),
+                repo=Path(OperatingSystem.environment.get("PM_MINECRAFT_REPO", "C:/source/pm/pm-minecraft")),
+                env_file=OperatingSystem.environment.get("PM_MINECRAFT_ENV", ".env_tdd"),
             )
             cls.stack.start()
 
@@ -79,7 +79,7 @@ class LiveMinecraftBodyTests(unittest.TestCase):
             cls.stack.stop()
             cls.stack = None
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.mcp_url = type(self).mcp_url
         tools = build_minecraft_tools(self.mcp_url)
         try:
@@ -88,7 +88,7 @@ class LiveMinecraftBodyTests(unittest.TestCase):
             self.fail(f"The Minecraft MCP is not reachable at {self.mcp_url}: {error!r}")
         self.assertIn("minecraft_observe", names)
         self.tools = tools
-        config_path = os.environ.get("PM_MODEL_CONFIG", "config.local.yaml" if Path("config.local.yaml").is_file() else "config.example.yaml")
+        config_path = OperatingSystem.environment.get("PM_MODEL_CONFIG", "config.local.yaml" if Path("config.local.yaml").is_file() else "config.example.yaml")
         self.model = LazyStageModel(resolve_connection(load_config(config_path)), ModelActivation(), live_test=True)
 
     def _target(self) -> dict:

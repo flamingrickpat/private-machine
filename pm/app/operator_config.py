@@ -14,9 +14,9 @@ endpoint knowledge.
 """
 from __future__ import annotations
 
+from pm.utils.operating_system import OperatingSystem
 import asyncio
 from collections.abc import Awaitable, Callable, Mapping, Sequence
-import os
 from pathlib import Path
 import time
 from typing import TypedDict
@@ -66,10 +66,10 @@ def environment_values() -> tuple[dict[str, str], str]:
     ``../pm_next/.env`` is the fallback. Process environment values win.
     """
     from pm.llm.env_file import env_file_path, read_env_file
-    candidates = [env_file_path()] if os.environ.get("PM_ENV_FILE") else [env_file_path(), ROOT.parent / "pm_next/.env"]
+    candidates = [env_file_path()] if OperatingSystem.environment.get("PM_ENV_FILE") else [env_file_path(), ROOT.parent / "pm_next/.env"]
     path = next((p for p in candidates if p.is_file()), None)
     values = read_env_file(path) if path else {}
-    values.update(os.environ)
+    values.update(OperatingSystem.environment)
     return values, str(path) if path else "process environment"
 
 
@@ -88,8 +88,8 @@ def operator_config(config_path: str | None = None) -> tuple[ModelConfig, dict[s
         if values.get(key):
             embedding[field] = values[key]
     credential_name = embedding.get("api_key_env")
-    if credential_name and os.environ.get(credential_name):
-        embedding.update(api_key=SecretStr(os.environ[credential_name]), api_key_env=None)
+    if credential_name and OperatingSystem.environment.get(credential_name):
+        embedding.update(api_key=SecretStr(OperatingSystem.environment[credential_name]), api_key_env=None)
     elif values.get("OPENAI_EMBEDDING_API_KEY"):
         embedding.update(api_key=SecretStr(values["OPENAI_EMBEDDING_API_KEY"]), api_key_env=None)
     elif embedding.get("api_key_env") and values.get(embedding["api_key_env"]):
@@ -133,8 +133,8 @@ async def connection_status(config_path: str | None = None, probes: Probes | Non
 
 def default_config_path() -> str:
     """Return the model config file that an unnamed launch would use."""
-    if os.environ.get("PM_MODEL_CONFIG"):
-        return os.environ["PM_MODEL_CONFIG"]
+    if OperatingSystem.environment.get("PM_MODEL_CONFIG"):
+        return OperatingSystem.environment["PM_MODEL_CONFIG"]
     if Path("config.local.yaml").is_file():
         return "config.local.yaml"
     return "config.example.yaml"

@@ -11,7 +11,7 @@ here, so a real run needs no environment variable.
 
 from __future__ import annotations
 
-import os
+from pm.utils.operating_system import OperatingSystem
 from typing import TYPE_CHECKING, Any, Callable
 
 from workflows.minecraft_body.mcp_client import DEFAULT_MCP_URL, build_minecraft_tools
@@ -36,7 +36,7 @@ def build_minecraft_module_tools(
     ``MINECRAFT_MCP_URL`` override and then the default endpoint apply, which
     is what a unit run that never calls a world tool relies on.
     """
-    url = mcp_url or os.environ.get("MINECRAFT_MCP_URL", DEFAULT_MCP_URL)
+    url = mcp_url or OperatingSystem.environment.get("MINECRAFT_MCP_URL", DEFAULT_MCP_URL)
 
     def factory(run_id: str, environment: object) -> dict[str, object]:
         """Return the body tools and request hooks of one managed run."""

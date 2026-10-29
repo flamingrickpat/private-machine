@@ -11,11 +11,9 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from importlib import metadata
 import json
-import os
 from pathlib import Path
 import random
 import socket
-import subprocess
 import sys
 import threading
 import time
@@ -24,6 +22,7 @@ import traceback
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from pm.utils.operating_system import OperatingSystem
 from dev.work_items.alpha_minecraft_gate import RealServerStack
 from dev.work_items.shared.evidence import save_json, sha256_file
 from dev.tools.alpha_snapshot import capture
@@ -32,8 +31,13 @@ from pm.llm.activation import ModelActivation
 from pm.llm.config import load_config, resolve_connection
 from pm.llm.stage_model import LazyStageModel
 from pm.memory.store import MemoryStore
+from pm.host.application import Application
+from pm.bus.envelopes import Envelope
+from pydantic import JsonValue
+from typing import Literal, NotRequired, TypedDict
 from tests.live.minecraft_stack import load_env_file
 from workflows.companion import build_app
+
 
 SEED = ROOT / "test_data/personas/spamuel/canon.yaml"
 TOPICS = [
@@ -75,15 +79,20 @@ def start_minecraft(out: Path, reset_world: bool) -> RealServerStack:
         raise ValueError("The selected server must use level-name=world for this fixture.")
     save_json(out / "minecraft-fixture.json", {"server": str(server), "seed": properties["level-seed"],
         "reset_world": reset_world, "server_properties_sha256": sha256_file(server / "server.properties"),
-        "mcp_revision": subprocess.check_output(["git", "-C", str(ROOT.parent / "pm-minecraft"), "rev-parse", "HEAD"], text=True).strip(),
+        "mcp_revision": OperatingSystem.output_text(
+            ["git", "-C", str(ROOT.parent / "pm-minecraft"), "rev-parse", "HEAD"]
+        ).strip(),
         "character": str(out / "character")})
     if reset_world:
         for name in ("world", "logs", ".fabric"):
             target = (server / name).resolve()
             if not target.is_relative_to(server) or target == server:
                 raise ValueError(f"Reset leaves the selected server: {target}")
-        subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
-                        str(server / "wipe-world.ps1")], check=True)
+        OperatingSystem.run_binary(
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                        str(server / "wipe-world.ps1")],
+            check=True
+        )
     env_path = out / ".env.minecraft"
     env_path.write_text("\n".join(f"{key}={value}" for key, value in values.items()) + "\n", encoding="utf-8")
     stack = RealServerStack(server, out, env_path)
@@ -95,7 +104,7 @@ def start_minecraft(out: Path, reset_world: bool) -> RealServerStack:
     except BaseException:
         stack.stop()
         raise
-    os.environ["MINECRAFT_MCP_URL"] = stack.mcp_url
+    OperatingSystem.environment["MINECRAFT_MCP_URL"] = stack.mcp_url
     return stack
 
 
@@ -145,16 +154,45 @@ def shift_history(out: Path) -> MemoryStore:
     return ghost
 
 
+class CapturedChatMessage(TypedDict):
+    """One public event retained in the existing conversation JSON receipt."""
+
+    at: str
+    speaker: str
+    text: str
+    id: int
+    correlation: str
+    cause: str | None
+    metadata: dict[str, JsonValue]
+
+
+class ConversationReceipt(TypedDict):
+    """Existing conversation receipt fields, including its in-progress state."""
+
+    schema: str
+    started_at: str
+    condition: str
+    topic: str
+    human_review: Literal["pending"]
+    ok: bool
+    failures: list[str]
+    ended_at: NotRequired[str]
+    messages: NotRequired[list[CapturedChatMessage]]
+    runs: NotRequired[dict[str, JsonValue]]
+    user_messages: NotRequired[int]
+    companion_messages: NotRequired[int]
+
+
 class ChatCapture:
     """Capture actual public delivery order and separate causal diagnostics."""
 
-    def __init__(self, app, root: Path):
+    def __init__(self, app: Application, root: Path) -> None:
         self.app, self.root = app, root
         self.lock = threading.RLock()
-        self.rows: list[dict] = []
+        self.rows: list[CapturedChatMessage] = []
         self.seen: set[int] = set()
 
-    def receive(self, envelope) -> None:
+    def receive(self, envelope: Envelope) -> None:
         """Append an observed public event once, before any later review."""
         key = int(envelope.payload["knoxel_id"])
         with self.lock:
@@ -163,7 +201,7 @@ class ChatCapture:
             self.seen.add(key)
             with self.app.ghost.lock:
                 record = self.app.ghost.get_knoxel_by_id(key)
-                row = {"at": now(), "speaker": record.source, "text": str(record.content),
+                row: CapturedChatMessage = {"at": now(), "speaker": record.source, "text": str(record.content),
                        "id": key, "correlation": envelope.correlation_id,
                        "cause": envelope.causation_id, "metadata": dict(record.metadata)}
             self.rows.append(row)
@@ -191,13 +229,13 @@ def jesse_message(model, history: list[dict], situation: str, topic: str, index:
     return model.complete(messages, temperature=0.85, enable_thinking=False).strip()
 
 
-def run_conversation(args, root: Path) -> dict:
+def run_conversation(args: argparse.Namespace, root: Path) -> ConversationReceipt:
     """Run independent composition and delivery beside the full application.
 
     A deadline ends missing progress as a failure. A short final quiet interval
     lets queued companion messages arrive. It never supplies a dummy reply.
     """
-    os.environ["PM_PROMPT_LOG_DIR"] = str(root / "llm-logs")
+    OperatingSystem.environment["PM_PROMPT_LOG_DIR"] = str(root / "llm-logs")
     rng = random.Random(args.random_seed)
     topic = args.topic or rng.choice(TOPICS)
     situation = ("You shut Spamuel down months ago and have now restarted him. Acknowledge that once at the start. Then let the conversation move naturally."
@@ -214,7 +252,7 @@ def run_conversation(args, root: Path) -> dict:
     save_json(root / "jesse-setup.json", {"situation": situation, "topic": topic, "public_history": public_background,
         "condition": args.condition, "random_seed": args.random_seed})
     model = LazyStageModel(resolve_connection(load_config(args.config)), ModelActivation())
-    receipt = {"schema": "pm.conversation-review.v1", "started_at": now(), "condition": args.condition,
+    receipt: ConversationReceipt = {"schema": "pm.conversation-review.v1", "started_at": now(), "condition": args.condition,
         "topic": topic, "human_review": "pending", "ok": False, "failures": []}
     started = time.monotonic()
     app.run()
@@ -274,7 +312,7 @@ def run_conversation(args, root: Path) -> dict:
         if not receipt["companion_messages"]:
             receipt["ok"] = False
             receipt["failures"].append("No companion message reached public delivery.")
-        save_json(root / "receipt.json", receipt)
+        save_json(root / "receipt.json", dict(receipt))
     return receipt
 
 

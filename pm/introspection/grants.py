@@ -17,6 +17,7 @@ accompanies a reading.
 """
 from __future__ import annotations
 
+from pm.utils.operating_system import OperatingSystem
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
@@ -190,9 +191,8 @@ def git_revision(root: Path, *, timeout: float = 10.0) -> str:
     separately when that distinction matters.
     """
     try:
-        result = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=str(root), capture_output=True,
-            text=True, timeout=timeout, check=False,
+        result = OperatingSystem.run_text(
+            ["git", "rev-parse", "HEAD"], cwd=str(root), timeout_seconds=timeout, check=False,
         )
     except (OSError, subprocess.SubprocessError):
         return ""

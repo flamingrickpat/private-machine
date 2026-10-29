@@ -24,7 +24,6 @@ from __future__ import annotations
 import argparse
 from datetime import datetime
 import json
-import os
 from pathlib import Path
 import shutil
 import sys
@@ -33,11 +32,13 @@ import traceback
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from pm.bus.envelopes import new_envelope  # noqa: E402
-from pm.memory.store import MemoryStore  # noqa: E402
-from pm.records.enums import FeatureType, InterlocusType  # noqa: E402
-from pm.records.memory_records import Narrative, new_feature  # noqa: E402
-from workflows.companion import DEFAULT_SEED, build_app  # noqa: E402
+from pm.utils.operating_system import OperatingSystem
+from pm.bus.envelopes import new_envelope
+from pm.memory.store import MemoryStore
+from pm.records.enums import FeatureType, InterlocusType
+from pm.records.memory_records import Narrative, new_feature
+from workflows.companion import DEFAULT_SEED, build_app
+
 
 SITUATION = ROOT / "test_data" / "situations" / "story_continuation"
 #: An anger-heavy message from the user. Test data, not product data.
@@ -64,7 +65,7 @@ def main() -> Path:
     out = ROOT / ".runtime" / "alpha" / (datetime.now().strftime("%Y%m%d-%H%M%S") + "-a19f-narrative")
     out.mkdir(parents=True)
     shutil.copy2(SITUATION / "ghost.pickle", out / "ghost.pickle")
-    os.environ["PM_PROMPT_LOG_DIR"] = str(out / "llm-logs")
+    OperatingSystem.environment["PM_PROMPT_LOG_DIR"] = str(out / "llm-logs")
     baseline_ghost = MemoryStore.from_checkpoint(args.baseline.resolve() / "ghost.pickle")
     receipt: dict = {"run_directory": str(out), "status": "started", "baseline": str(args.baseline),
                      "baseline_self_narratives": self_narratives(baseline_ghost, baseline_ghost.states[-1])}

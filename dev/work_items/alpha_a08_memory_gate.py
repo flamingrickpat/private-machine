@@ -9,10 +9,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 from pathlib import Path
 import socket
-import subprocess
 import sys
 import time
 import urllib.error
@@ -20,10 +18,12 @@ import urllib.request
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+
+from pm.utils.operating_system import OperatingSystem
 from dev.work_items.shared.evidence import save_json
 
 
-def run(args):
+def run(args: argparse.Namespace) -> None:
     """Own one console service and stop its workers after the run."""
     out = Path(args.out).resolve()
     if not out.is_relative_to(ROOT / ".runtime"):
@@ -33,9 +33,14 @@ def run(args):
         probe.bind(("127.0.0.1", args.port))
     base = f"http://127.0.0.1:{args.port}"
     log = (out / "server.log").open("w", encoding="utf-8")
-    process = subprocess.Popen([sys.executable, "-u", "-m", "pm.console.server", "--port", str(args.port),
-        "--root", str(out / "instances")], cwd=ROOT, stdout=log, stderr=subprocess.STDOUT,
-        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+    process = OperatingSystem.start_binary_process(
+        [sys.executable, "-u", "-m", "pm.console.server", "--port", str(args.port),
+        "--root", str(out / "instances")],
+        cwd=ROOT,
+        stdout=log,
+        stderr=OperatingSystem.merged_output,
+        hidden=True
+    )
     receipt = {"ok": False, "personas": [], "failures": [], "human_review": "pending"}
     instance = None
     events = []
@@ -228,7 +233,7 @@ def run(args):
                 wait_for(lambda saved, info: info["state"] == "stopped")
             except (OSError, TimeoutError, RuntimeError):
                 command("kill")
-        process.terminate()
+        OperatingSystem.terminate_process(process)
         process.wait(timeout=15)
         log.close()
         save_json(out / "session-receipt.json", receipt, default=str)

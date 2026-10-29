@@ -3,18 +3,19 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 from pathlib import Path
 import socket
-import subprocess
 import sys
 import threading
 import time
 
 import yaml
 
+
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+
+from pm.utils.operating_system import OperatingSystem
 
 
 def contained_water_pit(gateway, current: dict) -> dict:
@@ -255,7 +256,7 @@ def native_adaptation(app, environment, tools, target: dict, unreachable: dict, 
     return checks
 
 
-def run(args) -> None:
+def run(args: argparse.Namespace) -> None:
     """Own real services and keep fixture effects separate from actor actions.
 
     Operator setup places temporary route obstructions and a liquid source.
@@ -306,8 +307,12 @@ def run(args) -> None:
     component = ROOT.parent / "pm-minecraft"
     receipt["minecraft_component"] = {
         "repository": str(component),
-        "head": subprocess.check_output(["git", "-C", str(component), "rev-parse", "HEAD"], text=True).strip(),
-        "working_changes": subprocess.check_output(["git", "-C", str(component), "status", "--short", "--untracked-files=no"], text=True).splitlines(),
+        "head": OperatingSystem.output_text(
+            ["git", "-C", str(component), "rev-parse", "HEAD"]
+        ).strip(),
+        "working_changes": OperatingSystem.output_text(
+            ["git", "-C", str(component), "status", "--short", "--untracked-files=no"]
+        ).splitlines(),
         "sources": {name: hashlib.sha256((component / name).read_bytes()).hexdigest()
                     for name in ("body/src/bot.ts", "body/dist/bot.js", "body/src/server.ts", "body/dist/server.js",
                                  "mcmcp/body.py", "mcmcp/body_models.py", "mcmcp/runtime.py", "mcmcp/models.py")}}
@@ -322,13 +327,16 @@ def run(args) -> None:
         receipt["history_fixture"] = str(args.history_fixture.resolve())
         receipt["history_receipt_sha256"] = hashlib.sha256((args.history_fixture / "receipt.json").read_bytes()).hexdigest()
     save()
-    def fixture(command):
+    def fixture(command: str) -> None:
         code = ("import sys; from pathlib import Path; from mcrcon import MCRcon; "
                 "v=dict(l.split('=',1) for l in Path(sys.argv[1]).read_text().splitlines() if '=' in l); "
                 "r=MCRcon('127.0.0.1',v['MINECRAFT_RCON_PASSWORD'],port=int(v['MINECRAFT_RCON_PORT'])); "
                 "r.connect(); print(r.command(sys.argv[2])); r.disconnect()")
-        result = subprocess.run([values["PYTHON_EXE"], "-c", code, str(env_path), command],
-                                check=True, capture_output=True, text=True)
+        result = OperatingSystem.run_text(
+            [values["PYTHON_EXE"], "-c", code, str(env_path), command],
+            check=True,
+            capture_output=True
+        )
         receipt["fixture_commands"].append({"command": command, "result": result.stdout, "time": time.time()})
         save()
     stack, app, restored = RealServerStack(server, out, env_path), None, []
@@ -348,8 +356,11 @@ def run(args) -> None:
                 target_path = (server / name).resolve()
                 if not target_path.is_relative_to(server) or target_path == server:
                     raise ValueError("A world reset target escaped the named server directory.")
-            subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
-                            str(server / "wipe-world.ps1")], check=True)
+            OperatingSystem.run_binary(
+                ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                            str(server / "wipe-world.ps1")],
+                check=True
+            )
         stack.start()
         if args.restore_fixture:
             from workflows.minecraft_body.journal import read_actor_journal
@@ -368,7 +379,7 @@ def run(args) -> None:
             time.sleep(3)
             receipt["restored_fixture"] = str(args.restore_fixture)
             save()
-        os.environ["MINECRAFT_MCP_URL"] = stack.mcp_url
+        OperatingSystem.environment["MINECRAFT_MCP_URL"] = stack.mcp_url
         app = build_app(ROOT / "test_data/personas/spamuel/canon.yaml", out / "app", cognition="real",
             config_path=str(args.config.resolve()), checkpoint_path=out / "ghost.pickle", record_lifecycle=False)
         app.supervisor.on_error = lambda error: print(type(error).__name__, str(error), flush=True)

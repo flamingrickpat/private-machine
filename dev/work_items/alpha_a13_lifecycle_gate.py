@@ -6,15 +6,17 @@ import hashlib
 from pathlib import Path
 import shutil
 import socket
-import subprocess
 import sys
 import time
+
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from pm.utils.operating_system import OperatingSystem
 
-def run(args) -> None:
+
+def run(args: argparse.Namespace) -> None:
     """Retain real protocol evidence without claiming native model acceptance.
 
     The fixture kills only its separate character, after checking empty
@@ -74,8 +76,11 @@ def run(args) -> None:
             "v=dict(l.split('=',1) for l in Path(sys.argv[1]).read_text().splitlines() if '=' in l); "
             "r=MCRcon('127.0.0.1',v['MINECRAFT_RCON_PASSWORD'],port=int(v['MINECRAFT_RCON_PORT'])); "
             "r.connect(); print(r.command('kill a13_life_probe')); r.disconnect()")
-        killed = subprocess.run([values["PYTHON_EXE"], "-c", code, str(env_path)],
-            capture_output=True, text=True, check=True)
+        killed = OperatingSystem.run_text(
+            [values["PYTHON_EXE"], "-c", code, str(env_path)],
+            capture_output=True,
+            check=True
+        )
         receipt["fixture_command"] = {"command": "kill a13_life_probe", "result": killed.stdout, "time": time.time()}
         deadline = time.monotonic() + 30
         while True:

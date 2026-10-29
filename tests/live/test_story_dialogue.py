@@ -13,12 +13,12 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
+from pm.utils.operating_system import OperatingSystem
 from pm.memory.store import MemoryStore
 from pm.llm.activation import ChatClient, ModelActivation
 from pm.llm.config import LlmPreset, load_config, resolve_connection
@@ -44,9 +44,9 @@ def save(name: str, payload) -> Path:
 
 
 class LiveStoryDialogueTests(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         default = "config.local.yaml" if Path("config.local.yaml").is_file() else "config.example.yaml"
-        self.config = load_config(os.environ.get("PM_MODEL_CONFIG", default))
+        self.config = load_config(OperatingSystem.environment.get("PM_MODEL_CONFIG", default))
         self.owner = ModelActivation()
         self.default = resolve_connection(self.config)
         self.client = ChatClient(self.default, self.owner, live_test=True)
