@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from typing import Literal, TypedDict, TypeAlias
+from typing import Literal, NotRequired, TypedDict, TypeAlias
 
 #: A value that survives a JSON round trip. Payloads are built by workflows and
 #: modules, so the concrete keys differ per topic; the value domain does not.
@@ -30,7 +30,11 @@ EnvelopeKind: TypeAlias = Literal["data", "telemetry", "control"]
 
 
 class EnvelopeJson(TypedDict):
-    """The JSON object that ``Envelope.to_json`` writes and ``from_json`` reads."""
+    """Serialized envelope fields, with constructor defaults allowed on input.
+
+    ``to_json`` always writes both optional fields. A reader also accepts their
+    omission, as the constructor does.
+    """
 
     id: str
     source: str
@@ -38,8 +42,8 @@ class EnvelopeJson(TypedDict):
     topic: str
     correlation_id: str
     payload: JsonObject
-    target: str | None
-    causation_id: str | None
+    target: NotRequired[str | None]
+    causation_id: NotRequired[str | None]
 
 
 def new_id() -> str:
@@ -110,18 +114,13 @@ class Envelope:
 
     @classmethod
     def from_json(cls, text: str) -> "Envelope":
-        """Rebuild an envelope from ``to_json`` text. A missing key raises ``KeyError``."""
+        """Decode an envelope through its constructor contract.
+
+        Omitted optional fields keep their constructor defaults. Missing required
+        fields and unknown fields raise ``TypeError`` instead of losing data.
+        """
         data: EnvelopeJson = json.loads(text)
-        return cls(
-            id=data["id"],
-            source=data["source"],
-            kind=data["kind"],
-            topic=data["topic"],
-            correlation_id=data["correlation_id"],
-            payload=data["payload"],
-            target=data["target"],
-            causation_id=data["causation_id"],
-        )
+        return cls(**data)
 
 
 def new_envelope(

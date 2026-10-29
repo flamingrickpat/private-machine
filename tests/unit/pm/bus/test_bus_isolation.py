@@ -6,6 +6,27 @@ from pm.bus.envelopes import Envelope
 from tests.unit.pm.host.test_bus_module import _EchoModule
 
 
+class EnvelopeDeserializationTests(unittest.TestCase):
+    def test_omitted_optional_fields_keep_constructor_defaults(self) -> None:
+        encoded = ('{"id":"id","source":"sender","kind":"data","topic":"ping",'
+                   '"correlation_id":"corr","payload":{}}')
+        envelope = Envelope.from_json(encoded)
+        self.assertIsNone(envelope.target)
+        self.assertIsNone(envelope.causation_id)
+
+    def test_unknown_fields_raise_instead_of_disappearing(self) -> None:
+        encoded = ('{"id":"id","source":"sender","kind":"data","topic":"ping",'
+                   '"correlation_id":"corr","payload":{},"target":null,"causation_id":null,"unexpected":1}')
+        with self.assertRaisesRegex(TypeError, "unexpected"):
+            Envelope.from_json(encoded)
+
+    def test_missing_required_field_raises_constructor_error(self) -> None:
+        encoded = ('{"id":"id","source":"sender","kind":"data","topic":"ping",'
+                   '"correlation_id":"corr"}')
+        with self.assertRaisesRegex(TypeError, "payload"):
+            Envelope.from_json(encoded)
+
+
 class BusIsolationTests(unittest.TestCase):
     def test_observer_receives_an_isolated_copy_outside_the_lock(self):
         bus = BusSystem()

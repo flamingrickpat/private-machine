@@ -21,13 +21,14 @@ can select a verbatim speech span when narration surrounds it.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal
+from collections.abc import Sequence
+from typing import Literal, TypedDict
 from pm.constants import Sampler
 from pm.context_render.turns import Role, Turn
 from pm.llm.completion import AsyncTextCompletion
 
 from pm.utils import yaml_util
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, TypeAdapter, with_config
 
 from workflows.main_cognition.model_json import StageOutputError, extract_json
 from workflows.public_speech.public_context import (
@@ -88,9 +89,18 @@ def select_spoken_text(candidate: str, review: SpeechReview) -> str:
     return text
 
 
-def load_prompts(path: Path | None = None) -> dict:
+@with_config(ConfigDict(extra="forbid"))
+class ReviewPrompts(TypedDict):
+    """The two prose templates in the existing review YAML file."""
+
+    system_prompt: str
+    user_template: str
+
+
+def load_prompts(path: Path | None = None) -> ReviewPrompts:
     """Load the review prompt file. It holds prose only, never weights."""
-    return yaml_util.safe_load((path or REVIEW_FILE).read_text(encoding="utf-8"))
+    data = yaml_util.safe_load((path or REVIEW_FILE).read_text(encoding="utf-8"))
+    return TypeAdapter(ReviewPrompts).validate_python(data)
 
 
 def _ontology_lines(context: PublicContext) -> list[str]:
@@ -104,9 +114,9 @@ def _ontology_lines(context: PublicContext) -> list[str]:
     return ontology_lines(context)
 
 
-def build_review_messages(candidate: str, context: PublicContext, prompts: dict, *,
-                          conversation: list[DialogueTurn] = (),
-                          receipts: list[dict] | None = None) -> list[Turn]:
+def build_review_messages(candidate: str, context: PublicContext, prompts: ReviewPrompts, *,
+                          conversation: Sequence[DialogueTurn] = (),
+                          receipts: list[dict[str, JsonValue]] | None = None) -> list[Turn]:
     """Return the two review messages. Pure: no model, no store."""
     names = {"companion_name": context.companion_name, "partner_name": context.partner_name}
     presentation = context.presentation
@@ -199,20 +209,26 @@ def finding_summary(review: SpeechReview) -> str:
 
 
 async def review_speech(complete: AsyncTextCompletion, candidate: str, context: PublicContext, *,
-                        conversation: list[DialogueTurn] = (),
-                        receipts: list[dict] | None = None,
-                        prompts: dict | None = None, attempts: int = 2) -> SpeechReview:
+                        conversation: Sequence[DialogueTurn] = (),
+                        receipts: list[dict[str, JsonValue]] | None = None,
+                        prompts: ReviewPrompts | None = None, attempts: int = 2,
+                        prepared_messages: Sequence[Turn] | None = None) -> SpeechReview:
     """Repair an invalid review without changing the candidate reply.
 
     ``attempts`` remains accepted for existing callers. Context capacity now
     bounds repairs. The completion must provide context measurement.
     Invalid speech spans receive repair feedback with the unchanged draft.
+    ``prepared_messages`` carries an already budgeted prompt, including its
+    omission notice. The same selected context must accompany that prompt.
     """
     from pm.llm.structured import complete_json_async
     prompts = prompts or load_prompts()
-    messages = build_review_messages(candidate, context, prompts, conversation=conversation, receipts=receipts)
+    if prepared_messages is None:
+        messages = build_review_messages(candidate, context, prompts, conversation=list(conversation), receipts=receipts)
+    else:
+        messages = list(prepared_messages)
 
-    def validate(payload: dict, raw: str) -> SpeechReview:
+    def validate(payload: dict[str, object], raw: str) -> SpeechReview:
         result = parse_review(payload, raw=raw)
         select_spoken_text(candidate, result)
         return result

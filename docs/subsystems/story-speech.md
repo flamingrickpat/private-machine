@@ -24,24 +24,33 @@ The voice therefore read like a careful witness instead of the character.
 
 ## Message layout
 
-[`build_story_messages`][workflows.dialogue_story.steps.build_story_messages] returns three messages:
+[`build_story_messages`][workflows.dialogue_story.steps.build_story_messages] interleaves speech and artifacts in world-time order:
 
 | Role | Content | Source |
 | --- | --- | --- |
-| system | The story-writer instruction | `prompts.yaml`: `system_prompt` |
-| user | Character card, inner architecture, abilities, time, memories, goals, task results, current feelings, mind, intent, presentation, and an optional "avoid this" note | [`build_context_message`][workflows.dialogue_story.steps.build_context_message] |
-| assistant | Prior dialogue exactly as spoken, the current user line, and the open prefill `Spamuel says: "` | The public dialogue records |
+| system | Story-writer instruction, architecture, abilities, and ontology | [`build_system_text`][workflows.dialogue_story.steps.build_system_text] |
+| opening user | Character card, story instruction, and time | [`build_opening_text`][workflows.dialogue_story.steps.build_opening_text] |
+| alternating assistant and user | Verbatim dialogue in assistant turns. Dated memories and private thoughts in user turns. | [`render_interleaved_story`][workflows.public_speech.story_rendering.render_interleaved_story] |
+| final user | Shards, goals, task results, feelings, intent, presentation, and the continuation instruction | [`build_directive_text`][workflows.dialogue_story.steps.build_directive_text] |
 
-The rule is strict: verbatim prose goes only in the assistant turn, and derived prose goes only in the user turn.
-The model continues its own transcript, so real dialogue anchors the voice.
-Summary wording, memory labels, and instructions cannot leak into the style.
-A memory that repeats a transcript line or the current message is left out of the user turn.
+Real speech anchors the voice through assistant turns. Derived context and private thoughts stay in user turns.
+A memory that repeats a transcript line or the current message stays outside the artifact blocks.
+The prompt has no assistant prefill.
+[`clean_reply`][workflows.dialogue_story.steps.clean_reply] cuts the completion at an invented next user turn.
 
-The final assistant message ends with the open quotation mark.
-The model continues after it. [`clean_reply`][workflows.dialogue_story.steps.clean_reply] cuts the text at any invented next user turn.
-A live check on 2026-10-13 confirmed that `qwen/qwen3.8-flash` on OpenRouter continues a trailing assistant message.
+### Context capacity
 
-### The user turn
+The runtime supplies the conservative input ceiling for the complete Story prompt.
+[`select_story_prompt`][workflows.dialogue_story.context.select_story_prompt] reserves instructions, current speech, dialogue, shard evidence, and correction feedback first.
+The shared selector then admits optional memory by its recorded relevance score.
+Selected memories retain their supplied source records. An omission notice identifies excluded optional groups.
+Each completion attempt retains a typed selection receipt.
+The review applies the same selection policy to its own template and the complete generated draft.
+Its separate receipt identifies any further optional omissions. Task results remain required in both prompts.
+Required context that exceeds the ceiling raises before inference.
+The memory lane allowance alone cannot establish that the final prompt fits.
+
+### Context sections
 
 | Section | Content |
 | --- | --- |
@@ -51,7 +60,7 @@ A live check on 2026-10-13 confirmed that `qwen/qwen3.8-flash` on OpenRouter con
 | Words for inner state | The private ontology terms, from [`term_lines`][workflows.public_speech.ontology.term_lines]. Each word comes from an implemented mechanism. The companion may use these words and should not invent a state word that is not here. |
 | Time | The current time and the gap since the last prior turn, in words ("about 4 months ago, on 30 May 2026, 21:03"). |
 | Awareness | The workspace shards of the cycle that chose the reply: the self shard and the partner's shard, in the words of the cycle's story prefix (`PublicContext.shard_story`). The verbatim lines of the tails are in the transcript instead. |
-| Memories | The disclosed private state, and for a standalone situation one section per plan lane, from [`memory_sections`][workflows.public_speech.public_context.memory_sections]: dated plain lines, oldest first, without IDs or machine labels. Dialogue reads "<name> said: …". Internal-state records with numbers do not render. |
+| Memories | Retrieved records and disclosed private state enter artifact blocks in recorded time order. Transcript duplicates stay outside these blocks. |
 | Goals | The active goals. |
 | Task and tool results | Worker state, effect verification, and the full durable task receipt. |
 | Inside the companion | Feelings in words from [`feelings_in_words`][workflows.public_speech.public_context.feelings_in_words], the regulation mode, the subjective experience of the cycle, the in-character decision text as the intent, and the presentation (candid, withhold, or deceive). |
@@ -60,22 +69,24 @@ A live check on 2026-10-13 confirmed that `qwen/qwen3.8-flash` on OpenRouter con
 
 The reply addresses the partner of the action request. All `{partner_name}` texts of the prompt name that entity.
 A reply to a second companion therefore reads "<that companion> says: …" lines and is cut at that companion's next line.
-The [shard context](context-planning.md#shard-context) fills the assistant turn: the dialogue in the tail of the partner shard and the companion's private thoughts of that exchange (at most `DIALOGUE_THOUGHT_LIMIT`), oldest first.
+The [shard context](context-planning.md#shard-context) supplies the partner's dialogue and the companion's private thoughts from that exchange.
+It retains at most `DIALOGUE_THOUGHT_LIMIT` thoughts, in recorded time order.
+Spoken lines enter assistant turns. Private thoughts enter user artifact blocks.
 A thought renders as `<companion> thinks: *...*`. A day marker such as `*(30 May 2026)*` starts each new day in the window.
 A standalone situation has no shards. Its context plan fills the transcript and the memory sections.
 
 ### Completion echoes
 
-Some local servers include the entire assistant prefill in the completion text.
-[`clean_reply`][workflows.dialogue_story.steps.clean_reply] removes that exact prefix before it searches for speaker or day markers.
-Otherwise, the first historical date can become the candidate instead of the new reply.
+The normal Story layout supplies no assistant prefill.
+Legacy callers can supply an exact prefix to [`clean_reply`][workflows.dialogue_story.steps.clean_reply].
+The cleaner removes that prefix before it searches for speaker or day markers.
 The report and prompt logs retain the original completion text.
 The candidate contains only the new spoken words.
 A completion with no new speech receives one recovery attempt before review.
-The recovery appends a user instruction after the three original turns.
+The recovery appends a user instruction after the original interleaved turns.
 It preserves the full transcript, derived context, source IDs, task results, and uncertainty.
 The final user turn requests only the new spoken words, without an assistant prefill.
-The normal path still uses three messages. Recovery uses four.
+The normal message count depends on the interleaved history. Empty-output recovery adds one user turn.
 Leading date markers, private thoughts, state lines, and raw tool protocol do not count as public speech.
 
 Two unusable attempts raise [`SpeechOutputError`][workflows.public_speech.speech_text.SpeechOutputError].
@@ -83,7 +94,7 @@ The [public host](public-dialogue.md#model-output-failures) saves the attempts a
 Programming, filesystem, and cancellation errors keep their original boundaries.
 
 The generation instruction asks for a reply to the current message and only the newly written words.
-The three message roles and the full transcript remain intact.
+The original roles and required transcript remain intact.
 The [focused local checks](context-planning.md#empty-history-records) cover normal history, empty history, empty-prefill recovery, review repair, and committed replies.
 
 ## Agentic review
@@ -173,7 +184,7 @@ It expects the in-character exaggeration and tease to pass.
 2. Read each attempt's `candidate`, `generation_error`, `message_roles`, and `blocked` fields.
 3. Read the review's `judgment`, `reason`, `false_task_result`, and `findings` fields.
 4. Read `review_reason` for the recorded reason of the accepted reply.
-5. Run `python -m workflows.dialogue_story.run show` to print the exact three messages for the fixed situation without generation.
+5. Run `python -m workflows.dialogue_story.run show` to print the fixed situation's rendered messages without generation.
 
 ## Limits
 

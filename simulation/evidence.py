@@ -32,6 +32,7 @@ def capture_participant(home: Path, destination: Path, first_record_id: int) -> 
     to the forked source and stay out of the participant's activity packages.
     Returns the relative paths of the captured evidence. Raises
     ``FileExistsError`` when the destination already exists.
+    Relative artifact paths use forward slashes for the browser.
     """
     destination.mkdir(parents=True, exist_ok=False)
     checkpoint = home / "ghost.pickle"
@@ -62,12 +63,12 @@ def capture_participant(home: Path, destination: Path, first_record_id: int) -> 
         path = destination / "cycles" / f"{state.tick_id}.json"
         dump_package(package, path)
         cycles.append({"tick_id": state.tick_id, "slot": turn.slot_id, "summary": turn.summary,
-                       "path": str(path.relative_to(destination))})
+                       "path": path.relative_to(destination).as_posix()})
     transactions: list[dict[str, JsonValue]] = [{**item.model_dump(mode="json"), "accepted": key in clean}
                                                 for key, item in raw.causal_history.transactions.items()]
     atomic_json(destination / "transactions.json", {"transactions": transactions})
     return {"home": str(home), "chat": "chat.json", "activity": "activity.json", "cycles": cycles,
             "transactions": "transactions.json", "checkpoint": "ghost.pickle",
             "raw_activity": "raw-activity.json",
-            "prompt_files": [str(path.relative_to(destination)) for path in (destination / "logs").rglob("*.md")],
+            "prompt_files": [path.relative_to(destination).as_posix() for path in (destination / "logs").rglob("*.md")],
             "telemetry": "runtime/telemetry.jsonl"}

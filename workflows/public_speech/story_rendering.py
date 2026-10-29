@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Sequence
+from typing import Sequence, TypedDict
 
 from pm.context_render.turns import Role, Turn
 from pm.memory.retrieval import utc_time
@@ -51,7 +51,15 @@ class ArtifactLine:
     text: str
 
 
-def dialogue_lines(turns: Sequence[DialogueTurn], prompts: dict) -> list[DialogueLine]:
+class DialogueTemplates(TypedDict, total=False):
+    """Optional speech, thought, and day templates from a workflow prompt file."""
+
+    speaker_line: str
+    thought_line: str
+    day_marker: str
+
+
+def dialogue_lines(turns: Sequence[DialogueTurn], prompts: DialogueTemplates) -> list[DialogueLine]:
     """Return one renderable line per dialogue turn, with day markers attached.
 
     A day marker belongs to the first turn of that day, so a block boundary

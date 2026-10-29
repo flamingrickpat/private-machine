@@ -8,6 +8,7 @@ No human quality rating has been supplied.
 
 Parent: [K002](index.md).
 Operation: [simulation and review](../../subsystems/simulation.md).
+Current continuation: [refactor audit and fresh live acceptance](refactor-audit.md).
 
 ## Source and services
 
@@ -153,3 +154,21 @@ The captured outcome fixture supplies only its eligibility grant. Its repair che
 Fixed-completion contract checks establish boundaries, not companion quality.
 The replay is an offline rendering regression. It does not replace the unfinished live cat scenario or owner review.
 Live services and scenarios remain stopped at the owner's request.
+
+## Refactor audit continuation on 2026-10-29
+
+The owner resumed live acceptance against the services on ports 8080 and 8081.
+The previous local K002 evidence folders are absent from this checkout.
+Fresh runs use the unchanged source persona homes.
+The [refactor audit](refactor-audit.md) records the comparison, repairs, commands, and new evidence paths.
+
+The live runs exposed complete-prompt overflows in Story generation and review.
+Both layouts now use the shared conservative selector, with required context preserved and optional memory omissions recorded.
+An uncached real Story kernel completed generation and review and retained physical selection receipts.
+The cat run completed arrival and midnight sleep. Its morning stage remains pending.
+The peer run completed both greeting stages, with accepted delivery in both directions.
+Its later follow-up remains explicitly pending at the final barrier.
+Both runs resumed as attempt 4 with completion caching disabled after coordinated pauses.
+The separate forced-interruption recovery gate passed with real inference and a normal restart.
+The completed peer report now opens its captured records after a Windows path repair.
+No human quality rating was entered.

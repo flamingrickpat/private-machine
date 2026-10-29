@@ -1,7 +1,7 @@
 """Select rendered context by workflow salience within a conservative ceiling."""
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from math import ceil
 
@@ -121,11 +121,7 @@ def select_context(instructions: Sequence[Turn], groups: Sequence[ContextGroup],
     A group must include its citations and required support. The caller supplies
     domain salience; this function performs no model call or memory query.
     """
-    chosen = [group for group in groups if group.required]
-    optional = sorted((group for group in groups if not group.required), key=lambda group: group.salience, reverse=True)
-    omitted: list[str] = []
-
-    def assemble() -> tuple[Turn, ...]:
+    def assemble(chosen: Sequence[ContextGroup], omitted: Sequence[str]) -> tuple[Turn, ...]:
         """Render the current selection, including the omission receipt."""
         evidence = Content("")
         for group in chosen:
@@ -135,17 +131,52 @@ def select_context(instructions: Sequence[Turn], groups: Sequence[ContextGroup],
             evidence += "\nOmitted optional context groups: " + ", ".join(omitted)
         return (*instructions, Turn(Role.User, evidence))
 
-    budget.require_fit(assemble())
+    return select_rendered_context(groups, budget.input_ceiling, assemble, estimator=budget)
+
+
+def select_rendered_context(
+    groups: Sequence[ContextGroup],
+    input_ceiling: int,
+    assemble: Callable[[Sequence[ContextGroup], Sequence[str]], Sequence[Turn]],
+    *,
+    estimator: TokenEstimator,
+) -> PromptSelection:
+    """Select optional groups against the caller's complete rendered prompt.
+
+    The renderer preserves workflow-specific role ordering and includes required
+    instructions, citations, omission notices, and any repair turns. Required
+    content must fit before optional groups compete by their existing salience.
+    """
+    if input_ceiling <= 0:
+        raise ValueError("The rendered prompt input ceiling must be positive.")
+    chosen = [group for group in groups if group.required]
+    optional = sorted((group for group in groups if not group.required), key=lambda group: group.salience, reverse=True)
+    omitted: list[str] = []
+
+    def require_fit() -> int:
+        tokens = estimator.estimate(assemble(chosen, omitted))
+        if tokens > input_ceiling:
+            raise RequiredContextTooLarge(
+                f"Required prompt uses an estimated {tokens} tokens; input ceiling is {input_ceiling}."
+            )
+        return tokens
+
+    require_fit()
     # Reserve the omission receipt before deciding which optional groups fit.
     omitted.extend(group.name for group in optional)
-    budget.require_fit(assemble())
+    require_fit()
     for group in optional:
         chosen.append(group)
         omitted.remove(group.name)
-        if budget.estimate(assemble()) > budget.input_ceiling:
+        if estimator.estimate(assemble(chosen, omitted)) > input_ceiling:
             chosen.pop()
             omitted.append(group.name)
-    turns = assemble()
-    source_ids = tuple(sorted({key for group in chosen for key in group.source_ids}))
-    episode_ids = tuple(sorted({key for group in chosen for key in group.episode_ids}))
-    return PromptSelection(turns, tuple(group.name for group in chosen), tuple(omitted), budget.require_fit(turns), source_ids, episode_ids)
+    turns = tuple(assemble(chosen, omitted))
+    selected_sources: set[int] = set()
+    selected_episodes: set[int] = set()
+    for group in chosen:
+        selected_sources.update(group.source_ids)
+        selected_episodes.update(group.episode_ids)
+    source_ids = tuple(sorted(selected_sources))
+    episode_ids = tuple(sorted(selected_episodes))
+    return PromptSelection(turns, tuple(group.name for group in chosen), tuple(omitted), require_fit(), source_ids, episode_ids)

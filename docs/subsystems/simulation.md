@@ -130,6 +130,8 @@ PM prompt IDs remain in persona logs; they are not contributor gateway IDs.
 ## Evidence and human review
 
 Attempt reports link conversation, private activity, GWT cycles, transactions, and captured prompt files.
+Relative artifact paths use `/` separators so browser links work on Windows.
+The browser also opens existing captures that contain Windows filesystem separators.
 Ready review packages use the accepted causal view.
 Raw branch records remain separate debugging evidence.
 Record links follow captured IDs through appraisal, codelets, attention, decisions, and public replies.

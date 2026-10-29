@@ -2,11 +2,12 @@
 
 ## Summary
 
-The context planner decides which memory records go into one standalone public reply, within a token budget.
+The context planner selects memory records for public replies within a lane allowance.
 It divides the budget into lanes: verbatim dialogue, focus, earlier times, facts, and narratives.
-Since A19F step 10, a reply that main cognition chose does not use the planner.
-It reads the workspace shards of its cycle ([shard context](#shard-context)).
-Only the standalone Story situation (`python -m workflows.dialogue_story.run`) still plans its context.
+A runtime reply retains the deciding cycle's workspace shards as its core context.
+With a configured encoder, it adds memory from the planner and merges older speech in recorded time order.
+A standalone Story situation uses the planner without a deciding cycle's shards.
+The complete Story prompt receives a separate [capacity check and selection](story-speech.md#context-capacity).
 
 Parent: [public dialogue](public-dialogue.md).
 Related: [Story speech](story-speech.md) and [codelets and attention](codelets.md).
@@ -28,6 +29,7 @@ The v2 planner keeps the lane design and adds the workspace focus.
 | Plans | `workflows/public_speech/context_plans.yaml` | The `story` plan: budgets, lanes, weights. |
 | Integration | `workflows/public_speech/context_planning.py` | Scope, stored record vectors, focus queries, and conversion to dialogue turns and evidence. |
 | Caller | [`plan_story_request`][workflows.dialogue_story.context.plan_story_request] | Plans the standalone Story situation. |
+| Runtime caller | [`PublicDialogue.reply_context`][workflows.public_speech.public_dialogue.PublicDialogue.reply_context] | Combines the deciding shards with retrieved memory and older speech. |
 | Shard context | [`shard_context`][workflows.public_speech.shard_context.shard_context] | Builds the context of a reply that a cycle chose, from the shards of its action request. |
 | Index tool | `dev/tools/prepare_context_index.py` | Embeds every missing record and saves a pickle checkpoint. |
 
@@ -37,9 +39,15 @@ The v2 planner keeps the lane design and adds the workspace focus.
 
 | Part | Source | Goes to |
 | --- | --- | --- |
-| Transcript | The dialogue in the tail of the partner shard, and the private thoughts of the self tail that belong to that exchange ([`exchange_thoughts`][workflows.public_speech.shard_context.exchange_thoughts]), in world-time order | Story: assistant turn, verbatim. Assistant: chat messages, speech only. |
+| Transcript | Partner dialogue and the selected private thoughts from the self tail, in recorded time order | Story: speech in assistant turns, thoughts in user artifacts. Assistant: speech only. |
 | Shard story | Each shard, rendered with [`shard_block`][workflows.main_cognition.story_prefix.shard_block] as in the story prefix of the cycle, without the verbatim lines | User turn |
 | Evidence | Every item and tail record of the shards, with the lane `shard:<name>` | Speech review and the commit guard |
+
+Runtime planning excludes current stimuli and shard transcript IDs from the retrieval lanes.
+The merge retains each selected memory once and orders added speech by recorded time.
+An explicitly absent encoder leaves the runtime reply on shard context.
+Configured encoder errors and internal planning errors propagate. They do not silently produce a partial context.
+The shared model HTTP boundary retries transient transport failures.
 
 A thought belongs to the exchange when it is not older than the oldest dialogue line of the transcript.
 Of these thoughts, the newest `DIALOGUE_THOUGHT_LIMIT` (12) stay.
@@ -113,15 +121,20 @@ Further rules:
 - `latest_per` keeps the newest record per key, for example the latest refinement of each narrative kind and person.
 - After a pass, lanes that ran out of candidates give back their unused budget. The first lane in `priority` that still had candidates receives it, and the plan runs again, up to `redistribution_rounds` times.
 
-### The story plan (9,000 tokens)
+### The story plan
+
+The plan file defaults to 9,000 lane tokens. The runtime supplies its model-derived allowance instead.
+Final Story selection separately fits the complete generation and review prompts.
 
 | Lane | Share | Content | Goes to |
 | --- | --- | --- | --- |
-| `dialogue` | 45% | Dialogue, thoughts, and inner monologue, newest first | Assistant turn, verbatim |
-| `focus` | 12% | Records that the workspace points at | User turn |
-| `history` | 20% | Topical and temporal summary clusters older than the dialogue window | User turn |
-| `facts` | 10% | Declarative facts and beliefs, with an importance weight | User turn |
-| `narratives` | 13% | The latest narrative of each kind and person | User turn |
+| `dialogue` | 30% | Dialogue, thoughts, and inner monologue, newest first | Speech in assistant turns; private thoughts in user artifacts |
+| `focus` | 5% | Records that the workspace points at | User artifacts |
+| `history` | 40% | Temporal summaries and raw features older than the dialogue window | User artifacts |
+| `facts` | 8% | Facts, preferences, traits, relationships, capabilities, locations, and resources | User artifacts |
+| `inner` | 5% | Beliefs and goals | User artifacts |
+| `rules` | 4% | Causal patterns, rules, hazards, procedures, and event outcomes | User artifacts |
+| `narratives` | 8% | The latest narrative of each kind and person | User artifacts |
 
 ## Embeddings
 
@@ -129,7 +142,9 @@ Records score semantically from the vectors stored on their knoxels.
 Startup prepares every missing vector and saves the full state with pickle.
 The planner never reads vector cache files or embeds a bounded candidate subset.
 It embeds its temporary focus queries directly.
-If the query embedding fails, the plan uses lexical scoring and records `semantic.status: unavailable`.
+An explicitly absent encoder permits direct lexical planning and records `semantic.status: disabled`.
+A configured encoder retries transient transport failures through its HTTP client.
+Permanent service errors and internal planning errors propagate; they do not produce partial reply context.
 
 Each invocation normalizes the supplied vectors for its lane calculations.
 It reuses these local calculations across lanes and budget rounds.

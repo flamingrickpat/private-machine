@@ -130,6 +130,7 @@ nav:
           - Requirements and status: work_items/k002/index.md
           - Causal memory and recovery: work_items/k002/causal-memory.md
           - Execution evidence: work_items/k002/verification.md
+          - Refactor audit: work_items/k002/refactor-audit.md
       - Development process: work_items/process.md
       - Structural refactor:
           - Plan: work_items/refactor/index.md

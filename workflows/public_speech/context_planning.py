@@ -1,9 +1,9 @@
-"""Plan the memory context of one standalone public reply.
+"""Plan retrieved memory for standalone and runtime public replies.
 
-A reply that main cognition chose reads the workspace shards of its cycle
-(:mod:`workflows.public_speech.shard_context`). It does not retrieve memory
-again. A standalone Story situation has no cycle, so it plans its context
-here. The focus decides what the plan looks for:
+A runtime reply retains the workspace shards of its deciding cycle and adds
+retrieval from this planner. A standalone situation has no cycle and uses the
+plan directly. Final Story prompt fitting belongs to
+``workflows.dialogue_story.context``. The focus decides what the plan looks for:
 
 - a workspace text of the situation,
 - the current message,
@@ -15,8 +15,10 @@ and budgets come from ``context_plans.yaml``.
 
 Network work embeds the temporary focus queries. Record vectors come from
 the central knoxels. Application startup embeds every missing record.
-An unavailable embedding service falls back to lexical scoring and is
-recorded in the trace; it never stops the reply. Cancellation propagates.
+An explicitly absent encoder leaves direct planning on lexical scoring.
+A configured encoder owns transport retries. Its permanent errors and internal
+planning errors propagate instead of producing a partial reply context.
+Cancellation propagates.
 """
 from __future__ import annotations
 
@@ -26,13 +28,12 @@ from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
 from threading import Event
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, NotRequired, TypedDict
 
 import tiktoken
 from pydantic import BaseModel, ConfigDict, Field
 from pm.utils import yaml_util
 
-from pm.llm.http_client import ModelError
 from pm.records.base import RecordBase
 from pm.records.memory_records import Feature
 from pm.memory.context_plan import ContextPlan, Focus, PlanSpec, plan_context
@@ -41,7 +42,7 @@ from workflows.public_speech.public_context import DialogueTurn, EvidenceItem
 
 if TYPE_CHECKING:
     from pm.memory.embeddings import EmbeddingService
-    from pm.memory.snapshot import RecordView
+    from pm.memory.snapshot import Snapshot
 
 PLANS_FILE = Path(__file__).resolve().parent / "context_plans.yaml"
 THOUGHT_TYPES = {"Thought", "InnerMonologue"}
@@ -89,7 +90,7 @@ def focus_queries(focus: FocusInput) -> list[tuple[float, str]]:
     return [(weight, text.strip()) for weight, text in queries if text and text.strip()]
 
 
-def _scopes(view: RecordView, ids: Sequence[int]) -> set[tuple[int, str]]:
+def _scopes(view: Snapshot, ids: Sequence[int]) -> set[tuple[int, str]]:
     """Return the reality scopes of the current stimuli, or the in-world default."""
     scopes: set[tuple[int, str]] = set()
     for key in ids:
@@ -99,7 +100,7 @@ def _scopes(view: RecordView, ids: Sequence[int]) -> set[tuple[int, str]]:
     return scopes or {(-1, "in_world")}
 
 
-def _turn(view: RecordView, key: int, record: RecordBase) -> DialogueTurn:
+def _turn(view: Snapshot, key: int, record: RecordBase) -> DialogueTurn:
     """Render one record as a transcript line, marked as speech or thought."""
     kind = "thought" if isinstance(record, Feature) and record.feature_type.value in THOUGHT_TYPES else "speech"
     speaker = record.source if isinstance(record, Feature) else "unknown"
@@ -107,22 +108,36 @@ def _turn(view: RecordView, key: int, record: RecordBase) -> DialogueTurn:
                         timestamp=record.timestamp_world_begin.isoformat(), kind=kind)
 
 
+class EmbeddingFocusTrace(TypedDict):
+    """Persisted encoder state for one context plan."""
+
+    status: Literal["disabled", "ready"]
+    model: NotRequired[str]
+
+
+class EmbeddedFocus(NamedTuple):
+    """The existing weighted vector contract and its named trace boundary."""
+
+    vectors: list[tuple[float, list[float]]]
+    trace: EmbeddingFocusTrace
+
+
 async def _embed_focus(
     embeddings: EmbeddingService | None,
     queries: list[tuple[float, str]],
     cancel: Event | None,
-) -> tuple[list[tuple[float, list[float]]], dict[str, Any]]:
-    """Embed the focus queries, reporting an unavailable service instead of failing."""
+) -> EmbeddedFocus:
+    """Embed each query. Configured encoder errors retain their real failure."""
     if embeddings is None:
-        return [], {"status": "disabled"}
-    try:
-        vectors = [(weight, await embeddings.embed(text, cancel=cancel)) for weight, text in queries]
-        return vectors, {"status": "ready", "model": embeddings.config.model}
-    except ModelError as error:
-        return [], {"status": "unavailable", "error": str(error), "fallback": "lexical"}
+        return EmbeddedFocus([], EmbeddingFocusTrace(status="disabled"))
+    vectors: list[tuple[float, list[float]]] = []
+    for weight, text in queries:
+        vector = await embeddings.embed(text, cancel=cancel)
+        vectors.append((weight, vector))
+    return EmbeddedFocus(vectors, EmbeddingFocusTrace(status="ready", model=embeddings.config.model))
 
 
-async def plan_reply_context(view: RecordView, plan_name: str, focus: FocusInput,
+async def plan_reply_context(view: Snapshot, plan_name: str, focus: FocusInput,
                              embeddings: EmbeddingService | None = None, *,
                              now: datetime | None = None, cancel: Event | None = None,
                              total_tokens: int | None = None) -> PlannedContext:
@@ -147,8 +162,8 @@ async def plan_reply_context(view: RecordView, plan_name: str, focus: FocusInput
         return view.get(key).embedding or None
 
     queries = focus_queries(focus)
-    vectors, semantic = await _embed_focus(embeddings, queries, cancel)
-    focus_model = Focus(texts=queries, vectors=vectors, required_ids=focus.required_ids, exclude_ids=focus.exclude_ids)
+    embedded_focus = await _embed_focus(embeddings, queries, cancel)
+    focus_model = Focus(texts=queries, vectors=embedded_focus.vectors, required_ids=focus.required_ids, exclude_ids=focus.exclude_ids)
     now = now or vclock.utcnow()
     plan = plan_context(records, spec, focus_model, vector_of=vector_of, tokens_of=tokens_of, now=now,
                         total_tokens=total_tokens)
@@ -174,6 +189,11 @@ async def plan_reply_context(view: RecordView, plan_name: str, focus: FocusInput
             item.lane = lane.name
             evidence.append(item)
     dialogue.sort(key=lambda t: (t.timestamp or "", t.knoxel_id or 0))
+    # This trace is the persisted JSON boundary. Keep encoder state named until
+    # serialization, while retaining the existing disabled/ready wire fields.
+    semantic: dict[str, str] = {"status": embedded_focus.trace["status"]}
+    if "model" in embedded_focus.trace:
+        semantic["model"] = embedded_focus.trace["model"]
     return PlannedContext(dialogue=dialogue, evidence=evidence, trace=_trace(plan, semantic, embedded))
 
 

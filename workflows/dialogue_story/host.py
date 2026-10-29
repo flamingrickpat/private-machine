@@ -1,8 +1,15 @@
-"""Module-level tool factory for the real Story dialogue module.
+"""Run selected Story reply actions through generation, review, and publication.
 
-The application supplies one lazily-activated model. This factory is called on
-the module thread when a run starts, so the model is activated then and the
-role receives an async completion tool bound to the already-active client.
+``StoryDialogue`` receives an approved action from main cognition and freezes
+its current partner lines, shard state, and retrieved memory into ``StoryRequest``.
+The runtime supplies the conservative input ceiling. ``context.py`` fits complete
+generation and review prompts; ``steps.py`` runs those model calls and records
+their selections. Required context overflow and unexpected errors propagate.
+
+The tool factory binds the application's model and cancellation event on the
+module thread. The shared ``PublicDialogue`` base owns source guards, durable
+utterance commits, and public delivery. A model draft has no public side effect
+until that base accepts and commits the reviewed result.
 """
 
 from __future__ import annotations
@@ -14,6 +21,8 @@ from datetime import datetime
 from functools import partial
 from threading import Event
 from typing import TYPE_CHECKING, Any
+
+from pydantic import JsonValue
 
 from pm.bus.envelopes import Envelope
 from workflows.dialogue_story.schemas import StoryReport, StoryRequest
@@ -61,7 +70,7 @@ class StoryDialogue(PublicDialogue):
             return envelope.target in {None, self.module_id, self.WORKFLOW_NAME}
         return super().accepts(envelope)
 
-    def prepare_input(self, batch: list[Envelope]) -> dict:
+    def prepare_input(self, batch: list[Envelope]) -> dict[str, JsonValue]:
         """Build the typed Story request from the typed action request.
 
         The reply answers the partner of the request: the user or another
@@ -94,6 +103,7 @@ class StoryDialogue(PublicDialogue):
             workspace=public.workspace,
             selected_action=intent,
             public_context=public,
+            input_budget_tokens=self.context_budget,
         )
         return request.model_dump(mode="json")
 

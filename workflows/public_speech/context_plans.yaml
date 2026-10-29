@@ -1,8 +1,8 @@
 # Context plans for public speech. See pm/memory/context_plan.py.
 #
-# A reply that main cognition chose reads the workspace shards of its cycle
-# (workflows/public_speech/shard_context.py) and uses no plan. Only a
-# standalone Story situation, which has no cycle, plans its context here.
+# Runtime replies retain their deciding shards and supplement them with this
+# plan. Standalone Story situations use it without a deciding cycle's shards.
+# Final Story generation and review fitting account for the complete prompts.
 #
 # Each plan divides a token budget into lanes. "recent" lanes take the
 # newest contiguous records; "focus" lanes take the required ids; "score"
@@ -26,8 +26,8 @@
 # relevant gaps. The solver optimizes total timeline span under the token budget.
 #
 # story: the companion writes prose for the other character to read.
-#   Verbatim dialogue and the companion's own earlier thoughts form the
-#   transcript in the assistant turn.
+#   Verbatim speech enters assistant turns. Earlier private thoughts enter
+#   user artifact blocks alongside retrieved evidence.
 
 story:
   total_tokens: 9000
@@ -88,5 +88,4 @@ story:
       latest_per: [narrative_type, entity_id]
       weights: {semantic: 0.5, lexical: 0.2}
 
-# Bound on new record embeddings per planned reply. Records near the cut that
-# have no cached vector are embedded first; the rest score lexically.
+# Startup prepares record vectors. The planner embeds temporary focus queries.

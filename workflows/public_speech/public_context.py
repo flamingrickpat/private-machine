@@ -9,7 +9,7 @@ import re
 import json
 import hashlib
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -386,7 +386,22 @@ def describe_elapsed(seconds: float | None) -> str:
     return f"about {round(days / 365)} years"
 
 
-def time_lines(now: str, turns: list[DialogueTurn], templates: dict, names: dict) -> list[str]:
+class TimeTemplates(TypedDict):
+    """Required time and conversation-gap templates from a workflow prompt file."""
+
+    time_now: str
+    time_since: str
+    time_first: str
+
+
+class MemoryLaneTemplate(TypedDict):
+    """One existing prompt section: the retrieval lane and its visible title."""
+
+    lane: str
+    title: str
+
+
+def time_lines(now: str, turns: list[DialogueTurn], templates: TimeTemplates, names: dict[str, str]) -> list[str]:
     """Describe now and the gap since the last spoken exchange, in words.
 
     ``templates`` holds ``time_now``, ``time_since``, and ``time_first`` from a
@@ -449,7 +464,7 @@ def memory_lines(context: PublicContext, *, exclude_ids: Iterable[int] = (),
     return [line for _, line in sorted(rows, key=lambda row: row[0])]
 
 
-def memory_sections(context: PublicContext, sections: list[dict[str, str]], *,
+def memory_sections(context: PublicContext, sections: list[MemoryLaneTemplate], *,
                     exclude_ids: Iterable[int] = (), exclude_texts: Iterable[str] = ()) -> list[str]:
     """Render one titled block per context-plan lane, skipping empty lanes.
 

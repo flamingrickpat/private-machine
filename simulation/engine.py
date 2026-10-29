@@ -499,6 +499,6 @@ class RunEngine:
             "source": "source.json" if (attempt / "source.json").exists() else None,
             "automated_fact_checks": self.state["facts"]}
         atomic_json(attempt / "report.json", report)
-        self.state["reports"].append(str((attempt / "report.json").relative_to(self.root)))
+        self.state["reports"].append((attempt / "report.json").relative_to(self.root).as_posix())
         self.state["requested_status"] = None
         self.save()

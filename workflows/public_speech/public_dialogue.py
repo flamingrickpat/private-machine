@@ -100,7 +100,8 @@ class PublicDialogue(CognitiveWorkflow):
         broader store. The focus query comes from the workspace text, the
         current stimuli, and the active goals.
 
-        When no embedding service is available, the planner scores lexically.
+        With no configured embedding service, the reply uses its shard context.
+        Configured service and internal planning errors propagate.
         The shard tail stops at the cycle that chose the action. Partner lines
         that arrived after that cycle are read from the live store and added.
         """
@@ -122,13 +123,10 @@ class PublicDialogue(CognitiveWorkflow):
         # Exclude records already shown in the shard transcript.
         shard_ids = {t.knoxel_id for t in shard.dialogue if t.knoxel_id}
         focus.exclude_ids = list(set(focus.exclude_ids) | shard_ids)
-        try:
-            planned = asyncio.run(plan_reply_context(
-                view, "story", focus, self.context_embeddings,
-                total_tokens=self.context_budget,
-            ))
-        except Exception:
-            return shard
+        planned = asyncio.run(plan_reply_context(
+            view, "story", focus, self.context_embeddings,
+            total_tokens=self.context_budget,
+        ))
         # Merge: shard dialogue stays, planned evidence fills the rest.
         existing_ids = {item.knoxel_id for item in shard.evidence if item.knoxel_id}
         merged_evidence = list(shard.evidence)

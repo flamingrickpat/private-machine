@@ -171,6 +171,8 @@ async function artifact(path) {
   return path.endsWith(".json") ? response.json() : response.text();
 }
 async function openReport(path) {
+  // Existing Windows captures contain filesystem separators in relative paths.
+  path = path.replaceAll("\\", "/");
   const report = await artifact(path);
   const base = path.slice(0, path.lastIndexOf("/"));
   const panel = $("reports");
@@ -207,6 +209,7 @@ async function openReport(path) {
   panel.append(links);
 }
 async function readPackage(path, title) {
+  path = path.replaceAll("\\", "/");
   const value = await artifact(path);
   const checkpoint = path.match(/^(attempts\/\d+\/evidence\/[^/]+)\//);
   recordCheckpoint = checkpoint ? checkpoint[1] + "/ghost.pickle" : "";

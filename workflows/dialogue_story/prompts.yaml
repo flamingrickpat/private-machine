@@ -1,13 +1,12 @@
-# Story dialogue prompt. Three messages:
+# Story dialogue prompt. The current layout interleaves history and artifacts:
 #
-#   1. system     the story-writer instruction (this file: system_prompt)
-#   2. user       everything derived or summarized: character card, inner
-#                 architecture, abilities, time, memories, goals, current
-#                 feelings, the chosen intent (context_* fields)
-#   3. assistant  only verbatim prose: the prior dialogue exactly as spoken,
-#                 the current line from the user, and the open companion
-#                 prefill. The model continues its own transcript, so the
-#                 voice is anchored only by real speech.
+#   system       story-writer instruction, architecture, abilities, ontology
+#   opening user character card, story instruction, time
+#   alternating  verbatim speech in assistant turns; memories and private
+#                thoughts in user artifact blocks, ordered by world time
+#   final user   shards, goals, task results, feelings, intent, continuation
+#
+# There is no assistant prefill. The spoken history anchors the voice.
 #
 # The derived material never enters the assistant turn, so summary prose and
 # memory labels cannot change the voice. Current context supplies the accepted

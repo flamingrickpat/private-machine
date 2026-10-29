@@ -3,6 +3,7 @@
 Entry point: ``run(context)``. The role builds interleaved Story messages,
 generates and reviews companion lines until one passes the agentic review.
 It writes a full report to ``outbox/report.yaml``.
+Runtime ownership is described in [the Story host overview][workflows.dialogue_story.host].
 
 The message layout is a contract:
 
@@ -38,13 +39,18 @@ from __future__ import annotations
 
 import asyncio
 import re
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from collections.abc import Callable
+from typing import Literal, TypedDict, Unpack, cast
+
+from pydantic import TypeAdapter
 
 from pm_workflows.python_role import RoleContext
 from pm.context_render.turns import Role, Turn
 from pm.llm.completion import AsyncTextCompletion
 from pm.llm.http_client import EmptyCompletionError
+from pm.host.durable_files import atomic_json
 
 from pm.utils import yaml_util
 from pm.memory.retrieval import utc_time
@@ -53,12 +59,12 @@ from workflows.public_speech.public_context import (
 )
 from workflows.public_speech.public_context import Presentation, PublicContext
 from workflows.public_speech.story_rendering import (
-    ArtifactLine, dialogue_lines, render_interleaved_story,
+    ArtifactLine, DialogueLine, dialogue_lines, render_interleaved_story,
 )
 from workflows.public_speech.speech_text import SpeechOutputError, strip_narrator_setup
 from workflows.public_speech.speech_review import (
-    block_reason, finding_summary, is_blocked, load_prompts as load_review_prompts, review_speech,
-    select_spoken_text,
+    block_reason, build_review_messages, finding_summary, is_blocked, load_prompts as load_review_prompts, review_speech,
+    select_spoken_text, ReviewPrompts,
 )
 
 from workflows.dialogue_story.schemas import (
@@ -67,14 +73,17 @@ from workflows.dialogue_story.schemas import (
     StoryAttempt,
     StoryReport,
     StoryRequest,
+    StoryPrompts,
 )
 
 WORKFLOW_DIR = Path(__file__).resolve().parent
 
 
 
-def load_prompts(path: Path | None = None) -> dict:
-    return yaml_util.safe_load((path or WORKFLOW_DIR / "prompts.yaml").read_text(encoding="utf-8"))
+def load_prompts(path: Path | None = None) -> StoryPrompts:
+    """Validate the existing YAML fields before any rendering or model call."""
+    data = yaml_util.safe_load((path or WORKFLOW_DIR / "prompts.yaml").read_text(encoding="utf-8"))
+    return TypeAdapter(StoryPrompts).validate_python(data)
 
 
 def render_prior_dialogue(turns: list[DialogueTurn], prompts: dict | None = None) -> str:
@@ -105,8 +114,9 @@ def _section(title: str, lines: list[str]) -> str:
     return f"{title}\n{body}" if body else ""
 
 
-def _inner_lines(request: StoryRequest, prompts: dict, names: dict) -> list[str]:
-    lines = []
+def _inner_lines(request: StoryRequest, prompts: StoryPrompts, names: dict[str, str]) -> list[str]:
+    """Render the required private state and disclosure choice for generation."""
+    lines: list[str] = []
     if request.feelings:
         lines.append(prompts["inner_feelings"].format(feelings=request.feelings, **names))
     if request.regulation in prompts["inner_regulation"]:
@@ -122,7 +132,7 @@ def _inner_lines(request: StoryRequest, prompts: dict, names: dict) -> list[str]
     return lines
 
 
-def build_context_message(request: StoryRequest, prompts: dict, *, avoid: str = "") -> str:
+def build_context_message(request: StoryRequest, prompts: StoryPrompts, *, avoid: str = "") -> str:
     """Render the user message: every derived or summarized piece of context.
 
     Verbatim dialogue never appears here. Memories that duplicate a verbatim
@@ -187,20 +197,20 @@ def build_context_message(request: StoryRequest, prompts: dict, *, avoid: str = 
     return "\n\n".join(part for part in parts if part)
 
 
-def build_story_messages(request: StoryRequest, prompts: dict, *, avoid: str = "") -> list[Turn]:
+def build_story_messages(request: StoryRequest, prompts: StoryPrompts, *, avoid: str = "") -> list[Turn]:
     """Return the interleaved Story turns: system, opening, alternating blocks, directive."""
-    speech, thoughts = _split_dialogue(request, prompts)
-    artifacts = _artifact_lines(request, prompts) + _thought_lines(thoughts, prompts)
+    dialogue = _split_dialogue(request, prompts)
+    artifacts = _artifact_lines(request, prompts) + _thought_lines(dialogue.private_thoughts, prompts)
     return render_interleaved_story(
         system_text=build_system_text(request, prompts),
         opening_text=build_opening_text(request, prompts),
-        dialogue=speech,
+        dialogue=dialogue.speech,
         artifacts=artifacts,
         directive_text=build_directive_text(request, prompts, avoid=avoid),
     )
 
 
-def build_system_text(request: StoryRequest, prompts: dict) -> str:
+def build_system_text(request: StoryRequest, prompts: StoryPrompts) -> str:
     """System turn: story-writer instruction + architecture + abilities + ontology."""
     names = {"companion_name": request.companion_name, "partner_name": request.partner_name}
     parts = [prompts["system_prompt"].strip()]
@@ -221,7 +231,7 @@ def build_system_text(request: StoryRequest, prompts: dict) -> str:
     return "\n\n".join(part for part in parts if part)
 
 
-def build_opening_text(request: StoryRequest, prompts: dict) -> str:
+def build_opening_text(request: StoryRequest, prompts: StoryPrompts) -> str:
     """Opening user turn: story instruction + character card + time."""
     names = {"companion_name": request.companion_name, "partner_name": request.partner_name}
     parts = [
@@ -232,7 +242,7 @@ def build_opening_text(request: StoryRequest, prompts: dict) -> str:
     return "\n\n".join(part for part in parts if part)
 
 
-def build_directive_text(request: StoryRequest, prompts: dict, *, avoid: str = "") -> str:
+def build_directive_text(request: StoryRequest, prompts: StoryPrompts, *, avoid: str = "") -> str:
     """Final user turn: shards + goals + tasks + inner state + continue directive."""
     names = {"companion_name": request.companion_name, "partner_name": request.partner_name}
     context = request.public_context
@@ -254,8 +264,16 @@ def build_directive_text(request: StoryRequest, prompts: dict, *, avoid: str = "
     return "\n\n".join(part for part in parts if part)
 
 
-def _split_dialogue(request: StoryRequest, prompts: dict) -> tuple[list, list]:
-    """Return (speech dialogue lines, thought turns) from prior dialogue + current message.
+@dataclass(frozen=True, slots=True)
+class StoryDialogueParts:
+    """Spoken transcript lines and the private turns rendered as artifacts."""
+
+    speech: list[DialogueLine]
+    private_thoughts: list[DialogueTurn]
+
+
+def _split_dialogue(request: StoryRequest, prompts: StoryPrompts) -> StoryDialogueParts:
+    """Separate spoken lines and thoughts from prior dialogue and current speech.
 
     Only real spoken utterances become assistant dialogue lines. The companion's
     own earlier thoughts stay out of the spoken transcript; the caller renders
@@ -267,10 +285,10 @@ def _split_dialogue(request: StoryRequest, prompts: dict) -> tuple[list, list]:
                                   knoxel_id=request.current_message_id))
     speech_turns = [t for t in turns if t.kind != "thought"]
     thought_turns = [t for t in turns if t.kind == "thought"]
-    return dialogue_lines(speech_turns, prompts), thought_turns
+    return StoryDialogueParts(dialogue_lines(speech_turns, prompts), thought_turns)
 
 
-def _thought_lines(thought_turns: list, prompts: dict) -> list[ArtifactLine]:
+def _thought_lines(thought_turns: list[DialogueTurn], prompts: StoryPrompts) -> list[ArtifactLine]:
     """Render the companion's earlier thoughts as user artifact lines."""
     template = prompts.get("thought_line", "{speaker} thinks: *{text}*")
     lines: list[ArtifactLine] = []
@@ -286,7 +304,7 @@ def _thought_lines(thought_turns: list, prompts: dict) -> list[ArtifactLine]:
     return lines
 
 
-def _artifact_lines(request: StoryRequest, prompts: dict) -> list[ArtifactLine]:
+def _artifact_lines(request: StoryRequest, prompts: StoryPrompts) -> list[ArtifactLine]:
     """Evidence records as ArtifactLine items, excluding verbatim transcript lines."""
     context = request.public_context
     if context is None:
@@ -295,12 +313,13 @@ def _artifact_lines(request: StoryRequest, prompts: dict) -> list[ArtifactLine]:
     if request.current_message_id is not None:
         shown.add(request.current_message_id)
     transcript_texts = [turn.text for turn in request.prior_dialogue] + [request.current_user_message]
+    shown_texts = {" ".join(text.split()) for text in transcript_texts}
     lines: list[ArtifactLine] = []
     for item in context.evidence:
         if item.knoxel_id in shown:
             continue
         body = plain_memory_text(item.text)
-        if not body or body in {" ".join(t.split()) for t in transcript_texts}:
+        if not body or body in shown_texts:
             continue
         ts = None
         if item.timestamp:
@@ -424,8 +443,18 @@ def review_conversation(request: StoryRequest) -> list[DialogueTurn]:
                       if request.current_user_message else [])]
 
 
-def generate_reviewed(request: StoryRequest, prompts: dict, generate: AsyncTextCompletion, review_complete: AsyncTextCompletion,
-                      **review_deps) -> tuple[list[StoryAttempt], StoryAttempt]:
+class StoryReviewDependencies(TypedDict, total=False):
+    """Explicit review inputs supplied by standalone generation and runtime capture."""
+
+    context: PublicContext
+    review_prompts: ReviewPrompts
+    conversation: list[DialogueTurn]
+    on_attempt: Callable[[int, StoryAttempt], None]
+
+
+def generate_reviewed(request: StoryRequest, prompts: StoryPrompts, generate: AsyncTextCompletion,
+                      review_complete: AsyncTextCompletion,
+                      **review_deps: Unpack[StoryReviewDependencies]) -> tuple[list[StoryAttempt], StoryAttempt]:
     """Revise rejected speech until the review accepts a draft.
 
     Each rejection adds the draft and review reason to the generation context.
@@ -434,28 +463,43 @@ def generate_reviewed(request: StoryRequest, prompts: dict, generate: AsyncTextC
     Each draft permits one empty-output recovery. Exhaustion raises SpeechOutputError.
     Transport, cancellation, recording, and programming errors propagate.
     ``on_attempt`` records each attempt before review and after its result.
+    Runtime prompts select optional evidence against their full rendered layout.
+    Generation includes required repair turns. Review includes the complete
+    candidate. Their separate selection receipts remain on ``StoryAttempt``.
     """
     context = review_deps.get("context") or request.public_context or review_context(request)
     review_prompts = review_deps.get("review_prompts") or load_review_prompts()
     conversation = review_deps.get("conversation") or review_conversation(request)
     original_messages = build_story_messages(request, prompts)
     messages = original_messages
+    repair_turns: list[Turn] = []
     prefill = ""  # The interleaved layout has no assistant prefill.
     on_attempt = review_deps.get("on_attempt")
-    attempts = []
+    attempts: list[StoryAttempt] = []
     followups = 0
     while True:
         for index in range(2):
+            selection = None
+            generation_context = context
+            generation_request = request
+            if request.input_budget_tokens is not None:
+                from workflows.dialogue_story.context import select_story_prompt
+                budgeted = select_story_prompt(request, prompts, repair_turns)
+                messages = list(budgeted.selection.turns)
+                selection = budgeted.selection.receipt()
+                generation_request = budgeted.request
+                generation_context = budgeted.request.public_context or context
+            else:
+                messages = [*original_messages, *repair_turns]
             error = ""
             try:
                 raw = asyncio.run(generate(messages, **prompts.get("generation", {})))
             except EmptyCompletionError as failure:
                 raw, error = "", str(failure)
-            if not isinstance(raw, str):
-                raise TypeError("story_complete must return the completion text as a string.")
             candidate = clean_reply(raw, request.companion_name, request.partner_name, prefill=prefill)
             attempt = StoryAttempt(raw_completion=raw, candidate=candidate,
                 message_roles=[message.role.value for message in messages],
+                context_selection=selection,
                 generation_error=error or ("" if candidate else "The completion contains no new public speech."))
             attempts.append(attempt)
             if on_attempt is not None:
@@ -464,12 +508,26 @@ def generate_reviewed(request: StoryRequest, prompts: dict, generate: AsyncTextC
                 break
             if index == 0:
                 # Keep the full context and request only new speech after empty output.
-                messages = [*messages, Turn(Role.User, prompts["empty_completion_recovery"].format(
-                    companion_name=request.companion_name, partner_name=request.partner_name))]
+                repair_turns.append(Turn(Role.User, prompts["empty_completion_recovery"].format(
+                    companion_name=request.companion_name, partner_name=request.partner_name)))
         else:
             raise SpeechOutputError("The Story completion returned no new speech after two generation attempts.")
-        review = asyncio.run(review_speech(review_complete, candidate, context, conversation=conversation,
-                                           prompts=review_prompts))
+        review_messages = None
+        if request.input_budget_tokens is not None:
+            from workflows.dialogue_story.context import select_story_prompt
+
+            def render_review(selected: StoryRequest) -> list[Turn]:
+                return build_review_messages(candidate, selected.public_context or context,
+                                             review_prompts, conversation=conversation)
+
+            reviewed = select_story_prompt(generation_request, prompts, render=render_review)
+            generation_context = reviewed.request.public_context or context
+            attempt.review_context_selection = reviewed.selection.receipt()
+            review_messages = reviewed.selection.turns
+            if on_attempt is not None:
+                on_attempt(len(attempts), attempt)
+        review = asyncio.run(review_speech(review_complete, candidate, generation_context, conversation=conversation,
+                                           prompts=review_prompts, prepared_messages=review_messages))
         candidate = select_spoken_text(candidate, review)
         attempt.candidate = candidate
         attempt.review = review
@@ -484,29 +542,46 @@ def generate_reviewed(request: StoryRequest, prompts: dict, generate: AsyncTextC
         print(f"[dialogue_story] Reply rejected (attempt {len(attempts)}): {reason}", flush=True)
         if followups >= 10:
             print("[dialogue_story] Ten follow-ups failed. Restarting from the original context.", flush=True)
-            messages = original_messages
+            repair_turns = []
             followups = 0
         else:
             print(f"[dialogue_story] Requesting correction {followups + 1}/10.", flush=True)
-            messages = [*messages, Turn(Role.Assistant, raw),
-                        Turn(Role.User, prompts["rejected_reply_recovery"].format(reason=reason))]
+            repair_turns.extend([Turn(Role.Assistant, raw),
+                                 Turn(Role.User, prompts["rejected_reply_recovery"].format(reason=reason))])
             followups += 1
 
 
-def run(context: RoleContext) -> dict[str, Any]:
+class StoryRoleResult(TypedDict):
+    """The kernel role result; the reviewed speech stays in its separate report."""
+
+    status: Literal["done"]
+    summary: str
+
+
+def run(context: RoleContext) -> StoryRoleResult:
     """Kernel entry point. Runs synchronously on the calling thread."""
-    environment = context.runtime.environment
+    runtime = context.runtime
+    assert runtime is not None, "The Story role requires its workflow runtime."
+    environment = runtime.environment
     request = StoryRequest.model_validate(
         yaml_util.safe_load(environment.read_text("inbox/request.yaml"))
     )
     prompts = load_prompts()
-    tools = context.runtime.tools
-    review_complete = tools.get("public_complete") or tools["story_complete"]
+    atomic_json(context.kernel_data / "story-request.json", request.model_dump(mode="json"))
+    tools = runtime.tools
+    # The foreign kernel registry erases callable signatures. The host tool
+    # factory supplies these concrete asynchronous completion contracts.
+    generate = cast(AsyncTextCompletion, tools["story_complete"])
+    review_complete = cast(AsyncTextCompletion, tools.get("public_complete") or tools["story_complete"])
 
     def record_attempt(number: int, attempt: StoryAttempt) -> None:
         environment.write_text(f"scratch/story-attempt-{number:02}.json", attempt.model_dump_json(indent=2))
+        # The working target is virtual. Retain the selection and draft in the
+        # kernel's physical evidence folder before the next model operation.
+        path = context.kernel_data / "story-attempts" / f"{context.phase}-{context.attempt}-{number:02}.json"
+        atomic_json(path, attempt.model_dump(mode="json"))
 
-    attempts, chosen = generate_reviewed(request, prompts, tools["story_complete"], review_complete,
+    attempts, chosen = generate_reviewed(request, prompts, generate, review_complete,
                                         on_attempt=record_attempt)
     accepted = bool(chosen.candidate) and not chosen.blocked
     review = chosen.review

@@ -1,26 +1,125 @@
-"""Prepare standalone Story with the shared context plan and public evidence.
+"""Prepare standalone Story and fit runtime Story prompts to their input ceiling.
 
 The operator's situation supplies one accepted user input in the trial MemoryStore.
 The ``story`` context plan reads vectors from the shared records. Capability discovery
 runs outside the async loop. The companion's earlier private thoughts can
 appear in the verbatim transcript as ``thinks: *...*`` lines; they guide the
 voice and are never published.
+
+``select_story_prompt`` also serves ordinary runtime replies. It preserves the
+required Story layout while the shared selector admits optional retrieval by
+score. The returned context tells the reviewer exactly which evidence survived.
+Runtime ownership is described in [the Story host overview][workflows.dialogue_story.host].
 """
 from __future__ import annotations
 
 from pm import vclock
 
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from datetime import datetime
 from threading import Event
 from typing import TYPE_CHECKING, Any
 
 from pm.memory.embeddings import EmbeddingService
 from pm.memory.retrieval import distinctive_terms
+from pm.context_render.budget import ContextGroup, PromptSelection, TokenEstimator, select_rendered_context
+from pm.context_render.turns import Content, Turn
 
-from workflows.dialogue_story.schemas import DialogueTurn, StoryRequest
+from workflows.dialogue_story.schemas import DialogueTurn, StoryPrompts, StoryRequest
 
 if TYPE_CHECKING:
     from pm.memory.store import MemoryStore
+    from workflows.public_speech.public_context import EvidenceItem
+
+
+@dataclass(frozen=True, slots=True)
+class StoryPrompt:
+    """One fully rendered prompt and the exact evidence supplied to its reviewer."""
+
+    request: StoryRequest
+    selection: PromptSelection
+
+
+def select_story_prompt(
+    request: StoryRequest,
+    prompts: StoryPrompts,
+    repair_turns: Sequence[Turn] = (),
+    *,
+    render: Callable[[StoryRequest], Sequence[Turn]] | None = None,
+) -> StoryPrompt:
+    """Fit optional retrieval against a complete Story generation or review prompt.
+
+    Current speech, prior dialogue, shard evidence, private state, instructions,
+    and repair turns remain required. Retrieval records compete by their saved
+    scores. A selected record keeps any support records present in the supplied
+    evidence. Nothing is clipped, and required overflow remains an error.
+    """
+    from workflows.dialogue_story.steps import build_story_messages
+    from workflows.public_speech.context_planning import load_plan
+
+    if request.input_budget_tokens is None:
+        raise ValueError("Story context selection requires the runtime input ceiling.")
+    context = request.public_context
+    evidence: list[EvidenceItem] = list(context.evidence) if context is not None else []
+    by_id = {item.knoxel_id: item for item in evidence}
+    retrieval_lanes = {lane.name for lane in load_plan("story").lanes}
+    optional = [item for item in evidence if item.knoxel_id != 0 and item.lane in retrieval_lanes]
+    optional_ids = {item.knoxel_id for item in optional}
+    required_ids = {item.knoxel_id for item in evidence if item.knoxel_id not in optional_ids}
+    required_ids.update(turn.knoxel_id for turn in request.prior_dialogue if turn.knoxel_id is not None)
+    if request.current_message_id is not None:
+        required_ids.add(request.current_message_id)
+    pending_required = [record_id for record_id in required_ids if record_id in by_id]
+    while pending_required:
+        current = by_id[pending_required.pop()]
+        for source_id in current.source_ids:
+            if source_id in by_id and source_id not in required_ids:
+                required_ids.add(source_id)
+                pending_required.append(source_id)
+    groups = [ContextGroup(name="Required Story context", content=Content(""), salience=0,
+                           required=True, source_ids=tuple(sorted(required_ids)))]
+    for item in optional:
+        if item.knoxel_id in required_ids:
+            continue
+        support_ids = {item.knoxel_id}
+        pending = [item.knoxel_id]
+        while pending:
+            current = by_id[pending.pop()]
+            for source_id in current.source_ids:
+                if source_id in by_id and source_id not in support_ids:
+                    support_ids.add(source_id)
+                    pending.append(source_id)
+        groups.append(ContextGroup(name=f"memory:{item.knoxel_id}", content=Content(item.text),
+                                   salience=item.score, source_ids=tuple(sorted(support_ids))))
+
+    def selected_request(chosen: Sequence[ContextGroup]) -> StoryRequest:
+        if context is None:
+            return request
+        selected_ids: set[int] = set()
+        for group in chosen:
+            selected_ids.update(group.source_ids)
+        selected_evidence = [item for item in evidence
+                             if item.knoxel_id not in optional_ids or item.knoxel_id in selected_ids]
+        selected_context = context.model_copy(update={"evidence": selected_evidence})
+        return request.model_copy(update={"public_context": selected_context})
+
+    def assemble(chosen: Sequence[ContextGroup], omitted: Sequence[str]) -> Sequence[Turn]:
+        selected = selected_request(chosen)
+        if render is None:
+            turns = build_story_messages(selected, prompts)
+        else:
+            turns = list(render(selected))
+        if omitted:
+            last = turns[-1]
+            notice = "\n\nOmitted optional context groups: " + ", ".join(omitted)
+            turns[-1] = Turn(last.role, last.content + notice)
+        return [*turns, *repair_turns]
+
+    selection = select_rendered_context(groups, request.input_budget_tokens, assemble, estimator=TokenEstimator())
+    included_names = set(selection.included)
+    included_groups = [group for group in groups if group.name in included_names]
+    return StoryPrompt(selected_request(included_groups), selection)
 
 
 async def plan_story_request(
@@ -91,4 +190,4 @@ async def plan_story_request(
     )
 
 
-__all__ = ["distinctive_terms", "plan_story_request"]
+__all__ = ["StoryPrompt", "distinctive_terms", "plan_story_request", "select_story_prompt"]
