@@ -223,6 +223,8 @@ WEB_CHAT_MAX_NAME_CHARS = 64  # Longest accepted login name, in characters.
 INSPECTOR_HOST = "127.0.0.1"  # Bind address. The inspector never serves the network.
 INSPECTOR_PORT = 8771  # Default TCP port. `--inspector-port` changes it.
 INSPECTOR_PAGE_SIZE = 200  # Records, cycles, or relations that one API page returns.
+TIMELINE_HOST = "127.0.0.1"  # Bind address. The execution timeline never serves the network.
+TIMELINE_PORT = 8772  # Default TCP port. `--port` changes it.
 
 # Character import (pm.app.chat_import). Times are naive UTC.
 IMPORT_MESSAGE_SPACING_SECONDS = 120  # Synthetic gap between two messages of a log without timestamps.

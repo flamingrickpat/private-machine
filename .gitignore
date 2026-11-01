@@ -9,6 +9,7 @@ __pycache__/
 .env.*
 !.env.example
 config.local.yaml
+/config.yaml
 .pytest_cache/
 site/
 hs_err_pid*.log

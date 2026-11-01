@@ -125,6 +125,8 @@ Stored source-version maps and dispatch payloads do not become prompt content.
 It does not fill unused space.
 [`pm.context_render.budget.select_context`][] reserves required instructions and evidence before selecting optional groups.
 Workflows supply existing salience signals. Selection makes no new scoring model calls.
+When the complete prompt fits, selection retains every group in one fit check.
+Otherwise, optional groups compete by salience within the input ceiling.
 A group retains its citations and supporting evidence together.
 The selection receipt records included groups, omitted groups, and the conservative token estimate.
 

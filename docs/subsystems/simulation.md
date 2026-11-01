@@ -13,12 +13,32 @@ Capture format: [record packages](record-packages.md).
 
 ## Start the browser
 
-Start the local model and embedding services first.
-The selected configuration must name their actual endpoints and models.
+The selected configuration supplies chat, evaluation, and embedding endpoints.
+The default configuration is the private `config.yaml` in the repository root.
+Git ignores this file because it can contain credentials.
+
+For an OpenRouter run, use the launcher:
 
 ```powershell
-uv run --locked python -m simulation --config config.alpha.example.yaml --port 8095
+.\simulation\start.ps1
 ```
+
+The launcher requires OpenRouter for all three connections and rejects local startup scripts.
+It disables completion replay for the browser and its participant processes.
+It opens the server without starting a scenario.
+No local model or embedding service is required.
+
+The equivalent command is:
+
+```powershell
+uv run --locked python -m simulation --config config.yaml --openrouter-only --port 8095
+```
+
+`api_key` contains a literal credential. `api_key_env` contains an environment-variable name.
+Configure only one credential field per connection.
+An embedding provider can return a shorter model name; set its exact `response_model` alias when needed.
+Set the embedding `context_window` from the provider's embedding catalog when chat discovery cannot find it.
+For other endpoints, omit `--openrouter-only` and select their configuration explicitly.
 
 Open `http://127.0.0.1:8095/`.
 The default homes directory is `~/.pm/private-machine`.
@@ -60,6 +80,9 @@ Virtual time advances through semantic wake and private-thought deadlines.
 Model transport, process supervision, and diagnostics use real time.
 Fast scheduler polls do not create artificial inference steps.
 Clock receipts retain the virtual origin and timer deadlines for resume.
+The local speech stream sends keepalive pings without a response deadline.
+Long context preparation must not impose a transport deadline on inference.
+An actual stream closure or participant exit still fails the attempt.
 
 ## Pause, stop, and resume
 
@@ -162,4 +185,4 @@ Existing capture files under `.runtime/dev-review/` remain unchanged.
 
 The simulation imports the runtime and workflow assembly.
 Product runtime code does not import the simulation application.
-K003 can add richer inspection through the capture and presentation interfaces.
+K003 adds the read-only [execution timeline](timeline.md) over the same capture and presentation interfaces.

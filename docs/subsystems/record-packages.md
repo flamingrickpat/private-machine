@@ -97,14 +97,14 @@ Conflicting copies in a combined item raise an error instead of choosing one sil
 
 The desk opens chat as speech in caller order.
 The **Cycles** view arranges each `cycle` package as the path of one tick: stimuli, the mental state before and after, the appraisal, the codelet selector and runs with their percepts, the CSM, the structures with their attention ratings, the shard changes, the experience, the decisions and routes, the expectations, the shard items that the action carried to the reply, and the reply.
-The formatter for this view is [`simulation.review.record_format.present_cycle`][].
+The formatter for this view is [`pm.introspection.record_format.present_cycle`][].
 The **Record packages** view selects named collections and displays GWT summaries beside their member content.
 Hover over a record heading or **Record metadata** to see timestamps, source, revision, appraisal, and codelet fields.
 Expand **Record metadata** to read all captured fields.
 The desk formats text as text. Captured content cannot execute HTML or scripts.
 Uncaptured linked records stay disabled and identify their missing capture.
 
-The formatter is [`simulation.review.record_format.present_packages`][].
+The formatter is [`pm.introspection.record_format.present_packages`][].
 It imports no runtime code, reads no checkpoint, and runs no inference.
 The server reads the immutable bundle, formats its packages, and saves ratings in separate feedback files.
 The A19 exporter now uses this package contract for the chat, private activity, and each retained GWT tick.

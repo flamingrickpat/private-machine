@@ -123,8 +123,10 @@ class PMProcess:
         """
         def read() -> None:
             try:
+                # Context preparation and checkpoints can delay the server's
+                # memory lock. Keep pings without imposing an inference deadline.
                 with connect(self.url.replace("http:", "ws:") + f"/v1/events?after={cursor}",
-                             proxy=None, max_size=None) as websocket:
+                             proxy=None, max_size=None, ping_timeout=None) as websocket:
                     while not self.reader_stop.is_set():
                         try:
                             value = websocket.recv(timeout=.2)

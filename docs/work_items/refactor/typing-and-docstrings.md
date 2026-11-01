@@ -40,7 +40,7 @@ No test, prompt, workflow manifest, Pydantic field name, JSON key, or control-fl
 - `workflows.main_cognition`: `GoalChangeReceipt`, `BeliefUpdateReceipt`, `RejectedBeliefUpdate`, `UtteranceMetadata`, and `NarrativeDefinition`.
 - `workflows.companion`: `CognitionModules` and `DummyWorkflowPaths`.
 - `workflows.demo`: `TaskRecord`.
-- `simulation.review.record_format`: `RecordLink`.
+- `pm.introspection.record_format`: `RecordLink`.
 
 Mappings that stay open JSON keep a JSON mapping type and a docstring that names the expected keys.
 Examples are provider request bodies, tool results, and the simulation controller document.

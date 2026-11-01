@@ -32,12 +32,13 @@ from pydantic import JsonValue
 from pm.host.durable_files import atomic_json
 from pm.utils.operating_system import OperatingSystem
 from pm.memory.store import MemoryStore
+from pm.llm.config import load_config
 from simulation.agents import Agents
 from simulation.engine import RunEngine
 from simulation.personas import DEFAULT_HOMES, DEFAULT_RUNS, canon_home, fork_home, homes
 from simulation.plans import ScenarioPlan
 from simulation.review.catalog import captures, identifier, load_capture
-from simulation.review.record_format import present_packages, record_links, visible_data
+from pm.introspection.record_format import present_packages, record_links, visible_data
 
 
 STATIC = Path(__file__).parent / "static"
@@ -302,9 +303,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="PM simulation browser")
     parser.add_argument("--homes", type=Path, default=DEFAULT_HOMES)
     parser.add_argument("--data", type=Path, default=DEFAULT_RUNS)
-    parser.add_argument("--config", default="config.alpha.example.yaml")
+    parser.add_argument("--config", default="config.yaml")
+    parser.add_argument("--openrouter-only", action="store_true",
+                        help="require OpenRouter chat, evaluation, and embeddings without local startup scripts")
     parser.add_argument("--port", type=int, default=8095)
     args = parser.parse_args(argv)
+    if args.openrouter_only:
+        config = load_config(args.config)
+        connections = [*config.chat.values(), config.embedding]
+        for connection in connections:
+            if connection.base_url != "https://openrouter.ai/api/v1" or connection.startup_script is not None:
+                parser.error("--openrouter-only requires OpenRouter for every model and no startup scripts.")
+            if not connection.resolve().api_key.get_secret_value():
+                parser.error("--openrouter-only requires a credential for every model.")
+        OperatingSystem.environment["PM_COMPLETION_CACHE"] = "0"
+        print("OpenRouter only: chat, evaluation, embeddings; completion replay disabled.", flush=True)
     OperatingSystem.install_child_cleanup()
     application = Simulation(args.homes, args.data, args.config)
     server = ThreadingHTTPServer(("127.0.0.1", args.port), handler(application))

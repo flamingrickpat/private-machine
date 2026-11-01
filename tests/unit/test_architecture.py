@@ -28,10 +28,11 @@ ALLOWED_IN_PM: dict[str, set[str]] = {
     "bus": {"bus", "paths"},
     "host": {"host", "bus", "memory", "records", "paths"},
     "runs": {"runs", "host", "memory", "llm", "records", "bus", "paths"},
-    # The maintainer's inspection tools read one checkpoint and draw it. They
-    # need no bus, host, run, app, or console code, and they never import a
-    # workflow: they read a workflow prompt file as data, by path.
-    "tools": {"tools", "context_render", "memory", "records", "paths"},
+    # The maintainer's inspection tools read a checkpoint or captured evidence
+    # and draw it. They need no bus, host, run, app, or console code, and they
+    # never import a workflow: they read a workflow prompt file as data, by path.
+    # ``introspection`` supplies the shared serialized-record formatter.
+    "tools": {"tools", "context_render", "memory", "records", "paths", "introspection"},
     # Only the launcher starts the inspector, so only ``app`` may import it.
     "app": EVERYTHING_IN_PM | {"tools"},
     "console": EVERYTHING_IN_PM,

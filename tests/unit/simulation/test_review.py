@@ -13,7 +13,7 @@ from pm.records.memory_records import Feature
 from pm import vclock
 from simulation.plans import ScenarioPlan, StageJudgment
 from simulation.review.catalog import load_capture, register
-from simulation.review.record_format import present_packages
+from pm.introspection.record_format import present_packages
 
 
 class SimulationReviewTests(unittest.TestCase):

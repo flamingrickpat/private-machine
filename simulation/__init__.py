@@ -25,6 +25,6 @@ restart resumes from the last coordinated checkpoint; a run that ends without
 delivery evidence is a failure, not a completed scenario.
 
 Reading map: ``engine.RunEngine`` is the run controller,
-``participant`` hosts one companion, ``review.record_format`` presents captured
-records, and ``review.catalog`` freezes a capture for human review.
+``participant`` hosts one companion, ``pm.introspection.record_format`` presents
+captured records, and ``review.catalog`` freezes a capture for human review.
 """

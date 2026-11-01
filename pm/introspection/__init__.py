@@ -4,6 +4,9 @@ The package gathers evidence about the companion's own implementation. It
 distinguishes design, wiring, and observed execution, and it keeps every claim
 beside its evidence revision. It owns no model call and no state outside the
 accepted memory store.
+
+``record_format`` formats serialized captured records for the simulation review
+page and the K003 execution timeline. It reads captured JSON only.
 """
 from pm.introspection.capabilities import (
     CapabilityContext,

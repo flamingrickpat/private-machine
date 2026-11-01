@@ -146,6 +146,7 @@ def select_rendered_context(
     The renderer preserves workflow-specific role ordering and includes required
     instructions, citations, omission notices, and any repair turns. Required
     content must fit before optional groups compete by their existing salience.
+    A complete prompt that fits needs no per-group fitting pass.
     """
     if input_ceiling <= 0:
         raise ValueError("The rendered prompt input ceiling must be positive.")
@@ -165,12 +166,19 @@ def select_rendered_context(
     # Reserve the omission receipt before deciding which optional groups fit.
     omitted.extend(group.name for group in optional)
     require_fit()
-    for group in optional:
-        chosen.append(group)
-        omitted.remove(group.name)
-        if estimator.estimate(assemble(chosen, omitted)) > input_ceiling:
-            chosen.pop()
-            omitted.append(group.name)
+    complete = [*chosen, *optional]
+    if estimator.estimate(assemble(complete, ())) <= input_ceiling:
+        # Large remote windows often hold the entire retrieval result. Avoid
+        # rebuilding and tokenizing thousands of successively larger prompts.
+        chosen = complete
+        omitted.clear()
+    else:
+        for group in optional:
+            chosen.append(group)
+            omitted.remove(group.name)
+            if estimator.estimate(assemble(chosen, omitted)) > input_ceiling:
+                chosen.pop()
+                omitted.append(group.name)
     turns = tuple(assemble(chosen, omitted))
     selected_sources: set[int] = set()
     selected_episodes: set[int] = set()

@@ -7,11 +7,12 @@ number of tokens, so each budget decision is easy to read.
 from __future__ import annotations
 
 import unittest
+import math
 from datetime import datetime
 
 from pm.records.base import RecordBase
 from pm.memory.yaml_codec import KNOXEL_TYPE_REGISTRY
-from pm.memory.context_plan import Focus, LaneSpec, LaneWeights, PlanSpec, plan_context
+from pm.memory.context_plan import Focus, LaneSpec, LaneWeights, PlanSpec, _Scorer, plan_context
 
 NOW = datetime(2026, 10, 13, 12, 0)
 
@@ -53,6 +54,21 @@ def run(spec: PlanSpec, focus: Focus, **kwargs):
 
 
 class LaneTests(unittest.TestCase):
+    def test_similarity_threshold_retains_the_scalar_boundary(self) -> None:
+        candidates = records()
+        vectors: dict[int, list[float]] = {20: [0.1, 0.2, 0.3], 21: [0.3, 0.2, 0.1]}
+
+        def vector_of(key: int) -> list[float] | None:
+            return vectors.get(key)
+
+        scorer = _Scorer(candidates, Focus(), vector_of, NOW)
+        left = [value / math.hypot(*vectors[20]) for value in vectors[20]]
+        right = [value / math.hypot(*vectors[21]) for value in vectors[21]]
+        exact_similarity = math.sumprod(left, right)
+        self.assertTrue(scorer.similar(20, [21], exact_similarity))
+        self.assertTrue(scorer.similar(20, [21], exact_similarity - 1e-15))
+        self.assertFalse(scorer.similar(20, [21], exact_similarity + 1e-15))
+
     def test_a_new_plan_observes_changed_vectors(self):
         spec = PlanSpec(name="fresh", total_tokens=10, lanes=[
             lane("history", 1.0, order="score", record_types=["MemoryClusterKnoxel"],

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PM execution timeline</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+  <div class="title">
+    <a class="home" href="#/">PM execution timeline</a>
+    <span class="tag">K003</span>
+    <span id="meta" class="meta">loading&hellip;</span>
+  </div>
+  <div class="controls">
+    <label>run <select id="run-select"></select></label>
+    <label>attempt <select id="attempt-select"></select></label>
+    <label>participant <select id="participant-select"><option value="">all</option></select></label>
+    <button id="reload" type="button">Reload</button>
+    <button id="theme" type="button" title="switch light and dark">dark</button>
+  </div>
+</header>
+
+<main>
+  <aside id="sidebar" class="panel"></aside>
+  <section class="panel main-panel">
+    <nav id="tabs"></nav>
+    <div id="tab"></div>
+  </section>
+  <aside id="detail" class="panel detail"></aside>
+</main>
+
+<div id="notice" class="notice hidden"></div>
+<script src="/app.js"></script>
+</body>
+</html>

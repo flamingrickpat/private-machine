@@ -40,6 +40,7 @@ from collections import Counter
 from datetime import datetime
 from typing import Callable, Literal
 
+import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
 from pm.memory.embeddings import valid_vector
@@ -198,7 +199,7 @@ class _Scorer:
         self.vector_of = vector_of
         # One plan owns a frozen record view. Keep vectors and semantic scores
         # across its lanes and budget rounds. A new plan gets fresh caches.
-        self._vectors: dict[int, array | None] = {}
+        self._vectors: dict[int, array[float] | None] = {}
         self._semantic: dict[int, float] = {}
         self._queries = [(weight, self._normalized(vector)) for weight, vector in focus.vectors]
         self.now = now
@@ -210,13 +211,13 @@ class _Scorer:
         self.lexical_max = max((self._lexical_raw(key) for key in texts), default=1.0) or 1.0
 
     @staticmethod
-    def _normalized(vector: list[float]) -> array:
+    def _normalized(vector: list[float]) -> array[float]:
         """Validate once and retain a compact unit vector for dot products."""
         valid_vector(vector, len(vector))
         norm = math.hypot(*vector)
         return array("d", (value / norm for value in vector))
 
-    def _vector(self, key: int) -> array | None:
+    def _vector(self, key: int) -> array[float] | None:
         """Read each record vector once during this frozen plan."""
         if key not in self._vectors:
             vector = self.vector_of(key)
@@ -228,14 +229,33 @@ class _Scorer:
         return sum(weight * self.idf[term] for weight, term in self.terms if term in text)
 
     def similar(self, key: int, chosen: list[int], threshold: float) -> bool:
-        """Return True when ``key`` nearly repeats a chosen record."""
+        """Return whether a candidate repeats selected text or a unit vector.
+
+        Large remote contexts can admit thousands of records. Batch their dot
+        products in NumPy, then confirm possible matches with ``math.sumprod``.
+        The conservative floating-point margin keeps threshold decisions with
+        the original calculation, including values close to the boundary.
+        """
         text = self.texts.get(key, "")
         vector = self._vector(key)
+        selected_vectors: list[array[float]] = []
         for other in chosen:
             if text and text == self.texts.get(other, ""):
                 return True
             other_vector = self._vector(other)
-            if vector is not None and other_vector is not None and math.sumprod(vector, other_vector) >= threshold:
+            if vector is not None and other_vector is not None:
+                selected_vectors.append(other_vector)
+        if vector is None or not selected_vectors:
+            return False
+        matrix = np.asarray(selected_vectors, dtype=np.float64)
+        similarities = np.einsum("ij,j->i", matrix, np.asarray(vector), optimize=False)
+        # Each unit-vector dot product has at most one rounding error per
+        # coordinate. Leave extra room for NumPy's reduction order; all possible
+        # matches still use the original scalar comparison.
+        rounding_margin = 4 * len(vector) * np.finfo(np.float64).eps
+        possible_matches = np.flatnonzero(similarities >= threshold - rounding_margin)
+        for index in possible_matches:
+            if math.sumprod(vector, selected_vectors[int(index)]) >= threshold:
                 return True
         return False
 

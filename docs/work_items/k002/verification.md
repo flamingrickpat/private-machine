@@ -172,3 +172,83 @@ Both runs resumed as attempt 4 with completion caching disabled after coordinate
 The separate forced-interruption recovery gate passed with real inference and a normal restart.
 The completed peer report now opens its captured records after a Windows path repair.
 No human quality rating was entered.
+
+## OpenRouter overnight preparation on 2026-11-01
+
+The private `config.yaml` selects `deepseek/deepseek-v4.1-flash-1017` for
+chat and evaluation. Embeddings use `perplexity/pplx-embed-v1-0.6b` through
+OpenRouter, with the observed response alias `pplx-embed-v1-0.6b` and the
+catalog's 32,000-token context. No local service supplies these connections.
+
+The original credential was placed in `api_key_env`. It now uses the literal
+`api_key` field. The root configuration is Git-ignored and excluded from frozen
+source trees. Attempt-local configurations remain private ignored runtime data.
+
+Real preparation checks include the normal application model wrapper, the
+embedding quality probe, and indexing the full 11,202-record Spamuel seed.
+The model wrapper discovered a 1,048,576-token serving context and returned an
+actual response. Full-seed indexing completed with the remote embedding model.
+The short harness check uses the same seed and real companion process; its
+attempt evidence is under
+`.runtime/overnight-prep-20261101/smoke/runs/openrouter-smoke-fixed/`.
+That check does not replace the mandatory overnight cat acceptance.
+
+The prepared run is `.runtime/simulation/runs/20261101-overnight-cat/`.
+It remains `ready`, with no attempt started. Its generated plan retains arrival
+at 23:58, midnight sleep, and the mandatory 07:00 morning facts, including the
+cat's mess and Jesse's commitment to keep it.
+
+The active browser uses `config.yaml`. `simulation/start.ps1` requires
+OpenRouter for chat, evaluation, and embeddings, rejects local startup scripts,
+and disables completion replay. Starting the browser does not start the run.
+
+Older runs and the duplicate source persona are archived under
+`.runtime/archive/20261101-overnight-prep/`. The cat review run remains available
+under `.runtime/debugger/runs/` for the K003 timeline. Archives preserve failed
+receipts; they are not registered as fresh acceptance runs.
+
+Preparation logs, browser screenshots, configured strict-check results, and
+the focused 16-check result are under `.runtime/overnight-prep-20261101/`.
+The morning gate and owner quality review remain pending.
+
+### Large-context preparation performance
+
+The first real smoke exposed expensive scalar duplicate checks while preparing
+a public reply. The new remote model's larger context admitted thousands of
+records. Batched NumPy comparisons now locate possible duplicates, and the
+original scalar dot product confirms every possible match. This preserves the
+threshold decision without reducing the context window.
+
+The actual 11,202-record seed supplied the benchmark vectors. Twelve queries
+against 2,000 selected vectors took 1.25 seconds with the scalar loop and
+0.075 seconds with batching. Answers matched, including 48 additional checks
+at and around exact thresholds. The complete profiled reply planner selected
+4,944 evidence rows in 123 seconds, including profiling overhead and real
+OpenRouter focus embeddings. The pure planner selection and threshold tests
+passed 11 checks.
+
+Complete-prompt fitting also accepts all evidence immediately when it fits.
+This avoids thousands of redundant tokenization passes in a large context.
+The existing fitting path still handles overflow; required context and its
+failure remain explicit. Nine focused budget and Story checks passed.
+
+Earlier smoke attempts were deliberately interrupted for these repairs and
+remain failed development evidence. The fixed smoke resumes through the
+ordinary checkpoint and delivery-ledger path. No cognition phase was bypassed.
+The configured strict selection remains clean. A matched strict comparison of
+the planner module reports 58 legacy diagnostics before this change and 31
+after it; the modified similarity method has no diagnostics.
+
+The next real recovery attempt exposed an event-stream failure during long
+reply preparation. The stream client now retains keepalive pings without a
+ping-response deadline. A busy runtime must not become a failed scenario
+because of a transport library's default inference timeout. Process failure
+and actual stream closure still fail explicitly. Attempt failure receipts now
+retain the complete traceback and chained cause for diagnosis.
+
+The fixed smoke completed attempt 3: both greeting stages and all four facts
+passed, with actual public replies, ordinary checkpoint recovery, normal
+shutdown, and captured evidence. Attempt 3 has no new failures. The intentionally
+interrupted attempt 1 and failed stream attempt 2 remain separate receipts.
+The report is `smoke/runs/openrouter-smoke-fixed/attempts/3/report.json` below
+the preparation folder. This is engineering evidence, not an owner quality rating.

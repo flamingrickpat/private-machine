@@ -32,7 +32,7 @@ They describe requested behavior. They do not establish an implementation result
 | Evidence | Capture actual prompts, outputs, workflow activity, memory inputs, causal links, and failures. |
 | Files | Keep pm-coder sessions and persona diagnostics under their owning persona home. |
 | Review | Replace the development review desk with the simulation report and review path. Preserve captured evidence. |
-| K003 | Keep capture and viewer interfaces modular. K002 does not implement the future memory debugger. |
+| K003 | Keep capture and viewer interfaces modular. K002 does not implement the future memory debugger. The POC is the [K003 execution timeline](../k003/index.md). |
 | Recovery | Startup opens the clean causal view and retains raw history for debugging. |
 | Memory identity | Every logical knoxel change creates a new knoxel ID. Existing knoxel payloads remain unchanged. |
 | Mental events | Thoughts, appraisals, and other occurred mental features remain immutable. Persistent goals and intentions can acquire successor records. |
@@ -84,8 +84,10 @@ The contributor checkout is at `542143f4b01dfc75add7fff66bc9efac939cbb85`.
 The current runtime audit started at `aa57839e517b19d28776083dac5e17238a717690`.
 The initial strict documentation build passed in 102.08 seconds.
 
-Implementation is in progress. Focused recovery, transport, and workflow checks have passed.
-Real acceptance is still running. No companion-quality rating has been supplied.
+The harness is implemented, but morning acceptance and owner quality review remain incomplete.
+Focused recovery, transport, and workflow checks have passed.
+The new OpenRouter overnight run is prepared without starting it.
+No companion-quality rating has been supplied.
 
 Operation: [simulation and review](../../subsystems/simulation.md).
 Verification: [K002 execution evidence](verification.md).

@@ -7,7 +7,7 @@ payload for an ID that already exists. Owner feedback lives in a separate
 
 Owns: the capture registry and the legacy registration list. Does not own: bundle
 construction (``simulation.review.cognitive_trace``) or record presentation
-(``simulation.review.record_format``).
+(``pm.introspection.record_format``).
 """
 from __future__ import annotations
 
@@ -60,7 +60,7 @@ def register(bundle: dict[str, JsonValue], *, root: Path = DEFAULT_RUNS) -> str:
     under the registry lock: ``capture.json`` first, then the receipt that makes
     the capture visible. Returns the browser URL of the registered capture.
     """
-    from simulation.review.record_format import present_packages
+    from pm.introspection.record_format import present_packages
     for item in bundle.get("items", []):
         present_packages(item)
     capture_id = identifier(bundle["id"])

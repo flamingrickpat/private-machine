@@ -23,6 +23,7 @@ import queue
 import shutil
 import threading
 import time
+import traceback
 from typing import Literal
 from uuid import uuid4
 from contextlib import closing
@@ -446,7 +447,7 @@ class RunEngine:
             except BaseException as error:
                 outcome = "failed"
                 self.state["failures"].append({"attempt": self.state["attempt"], "error": repr(error)})
-                atomic_json(attempt / "failure.json", {"error": repr(error)})
+                atomic_json(attempt / "failure.json", {"error": repr(error), "traceback": traceback.format_exc()})
             finally:
                 for process in self.processes.values():
                     try:
