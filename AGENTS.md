@@ -605,6 +605,23 @@ If the environment cannot run a required command, report `NOT RUN`, the missing 
 
 ## 19. Completion and reporting contract
 
+### Commit messages
+
+Use scoped Conventional Commit subjects: `type(scope): imperative summary`.
+Choose a type that describes the change: `feat`, `fix`, `refactor`, `perf`, `docs`, `test`, or `chore`.
+Name the owning subsystem in the scope, such as `simulation`, `memory`, or `introspection`.
+Describe the concrete result. Avoid vague subjects such as "Update files", "Misc fixes", or "Finish work".
+For substantial changes, use the body to explain the problem, resulting behavior, and relevant verification.
+
+Examples:
+
+- `feat(introspection): add an execution timeline for simulation review`
+- `fix(simulation): preserve event streams during long inference`
+- `perf(memory): batch context duplicate comparisons`
+- `docs(agents): require scoped conventional commit messages`
+
+### Delivery report
+
 For each meaningful implementation or refactor, report in this order:
 
 1. **Changed:** exact components, contracts, and architecture boundaries affected.
