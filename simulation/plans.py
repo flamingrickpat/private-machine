@@ -14,9 +14,17 @@ defaults are part of the run format. The package overview is in
 from __future__ import annotations
 
 from datetime import datetime
+from enum import StrEnum
 from typing import Self
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+class FactKind(StrEnum):
+    """An event is observed; a commitment is maintained through choices."""
+
+    Event = "event"
+    Commitment = "commitment"
 
 
 class Fact(BaseModel):
@@ -24,6 +32,7 @@ class Fact(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: str = Field(min_length=1)
     text: str = Field(min_length=1)
+    kind: FactKind = Field(description="Whether evidence establishes an event or a continuing actor commitment.")
     at: datetime | None = Field(default=None, description="Exact scenario time when the brief states one, including its UTC offset.")
 
 
@@ -33,6 +42,7 @@ class Step(BaseModel):
     id: str = Field(min_length=1)
     at: datetime
     instruction: str = Field(min_length=1)
+    actor_intent: str = Field(min_length=1, description="Private actor goal; never a mandatory line to recite.")
     fact_ids: list[str] = Field(default_factory=list)
     completion: str = Field(min_length=1)
     target: str = "primary"
@@ -71,16 +81,32 @@ class ScenarioPlan(BaseModel):
         return self
 
 
+class ChronologyEvent(BaseModel):
+    """One scheduled event extracted before planning."""
+
+    at: datetime
+    event: str
+
+
+def facts_for_scene(plan: ScenarioPlan, step: Step) -> list[Fact]:
+    """Expose current requirements and established commitments, never later plot."""
+    visible: list[Fact] = []
+    for fact in plan.facts:
+        current = fact.id in step.fact_ids
+        active = fact.kind == FactKind.Commitment and fact.at is not None and fact.at <= step.at
+        if current or active:
+            visible.append(fact)
+    return visible
+
+
 class ExtractedFacts(BaseModel):
     """The first director pass, before chronological planning.
 
-    ``chronology`` keeps the director's raw ``{at, event}`` rows for the planning
-    pass. They are JSON values, not a run contract, so they stay unvalidated
-    beyond being JSON objects.
+    ``chronology`` preserves scheduled events for the chronological planning pass.
     """
 
     facts: list[Fact] = Field(min_length=1)
-    chronology: list[dict[str, JsonValue]] = Field(default_factory=list[dict[str, JsonValue]])
+    chronology: list[ChronologyEvent] = Field(default_factory=list[ChronologyEvent])
 
 
 class ActorTurn(BaseModel):
@@ -89,9 +115,21 @@ class ActorTurn(BaseModel):
 
 
 class ActorDraftReview(BaseModel):
-    """Check the scripted speaker and facts before delivering a draft to PM."""
+    """Check immersion and scenario consistency before public delivery."""
     accepted: bool
+    voice_faithful: bool
+    identity_correct: bool
+    natural_dialogue: bool
+    scenario_consistent: bool
     reason: str
+
+    @model_validator(mode="after")
+    def consistent_verdict(self) -> Self:
+        """A failed immersion check cannot be accepted by a separate verdict."""
+        if self.accepted != all((self.voice_faithful, self.identity_correct,
+                                 self.natural_dialogue, self.scenario_consistent)):
+            raise ValueError("Acceptance must agree with all four review checks.")
+        return self
 
 
 class StageJudgment(BaseModel):

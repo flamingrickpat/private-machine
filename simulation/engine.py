@@ -15,6 +15,7 @@ The package overview is in ``simulation/__init__.py``.
 """
 from __future__ import annotations
 
+from asyncio import CancelledError
 from collections.abc import Mapping, Sequence
 from datetime import datetime, timezone
 import json
@@ -32,11 +33,12 @@ from pydantic import JsonValue
 
 from pm.host.durable_files import ProcessLock, atomic_json
 from pm.memory.checkpoint import read_checkpoint
-from simulation.agents import Agents
+from simulation.agents import ActorContext, Agents, StageContext
+from simulation.actors import ActorProfile, ConversationTurn, DeliveryEvidence, load_profile
 from simulation.client import PMProcess
 from simulation.evidence import capture_participant
 from simulation.personas import fork_home
-from simulation.plans import ScenarioPlan, StageJudgment
+from simulation.plans import ScenarioPlan, facts_for_scene
 from simulation.source import freeze_source
 
 
@@ -87,10 +89,19 @@ class RunEngine:
             raise ValueError("Each connection must join distinct registered participants.")
         if any(not item["id"].replace("-", "").replace("_", "").isalnum() for item in participants):
             raise ValueError("Participant IDs must contain letters, numbers, underscores, or hyphens.")
+        profiles: dict[str, ActorProfile] = {}
+        for item in participants:
+            profile = load_profile(Path(item["home"]))
+            if plan.start_time < profile.continuity_at:
+                raise ValueError("The scenario starts before the selected character's saved history ends.")
+            if any(step.speaker != profile.speaker_name for step in plan.steps if step.target == item["id"]):
+                raise ValueError("The scenario speaker must match the selected character's user name.")
+            profiles[item["id"]] = profile
         root.mkdir(parents=True, exist_ok=False)
         prepared: list[dict[str, JsonValue]] = []
         for item in participants:
             home = fork_home(Path(item["home"]), root / "participants" / item["id"])
+            atomic_json(root / "actors" / f"{item['id']}.json", profiles[item["id"]].model_dump(mode="json"))
             data = read_checkpoint(home.ghost_pickle)
             history = data.causal_history
             last = max(history.transactions.values(), key=lambda row: row.sequence, default=None) if history else None
@@ -352,18 +363,29 @@ class RunEngine:
         self.advance(step.at)
         if self.request.is_set():
             return
-        context = {"scenario": self.plan.model_dump(mode="json"), "stage": step.model_dump(mode="json"),
-                   "conversation": self.state["timeline"], "delivered_facts": self.state["facts"]}
+        profile = ActorProfile.model_validate_json(
+            (self.root / "actors" / f"{step.target}.json").read_text(encoding="utf-8"))
+        conversation: list[ConversationTurn] = []
+        for row in self.state["timeline"]:
+            evidence = DeliveryEvidence.model_validate(row)
+            if evidence.target == step.target or evidence.source == step.target:
+                conversation.append(ConversationTurn(speaker=evidence.speaker,
+                    at=evidence.timestamp.isoformat(), text=evidence.content))
+        context = ActorContext(profile=profile, at=step.at, scene=step.instruction, intent=step.actor_intent,
+            current_facts=facts_for_scene(self.plan, step),
+            conversation=conversation)
         pending = self.state["pending_input"]
         if pending is None:
-            actor = agents.actor(context)
-            if not isinstance(actor.get("content"), str) or not actor["content"].strip():
+            actor = agents.actor(context, [fact for fact in self.plan.facts if fact.at is not None and fact.at > step.at])
+            if not actor.content.strip():
                 raise ValueError("The scenario actor returned no message.")
-            pending = {"content": actor["content"], "target": step.target, "speaker": step.speaker,
+            pending = {"content": actor.content, "target": step.target, "speaker": step.speaker,
                        "delivery_id": f"{self.root.name}:stage:{step.id}:turn:{self.state['turn']}"}
             self.state["pending_input"] = pending
             self.save()
         process = self.processes[pending["target"]]
+        if self.request.is_set():
+            return
         delivered = process.post("/control/delivery", {"delivery_id": pending["delivery_id"]})
         if not delivered["present"]:
             process.post("/v1/chat/completions", {"messages": [{"role": "user", "content": pending["content"]}],
@@ -375,20 +397,13 @@ class RunEngine:
         delivered = process.post("/control/delivery", {"delivery_id": pending["delivery_id"]})
         if not delivered["accepted"]:
             raise RuntimeError("Main cognition did not admit the delivered scenario input.")
-        judgment = agents.call("stage_director", "Review this stage against the actual delivered messages and PM replies. "
-            "Return {step_complete:boolean,supported_fact_ids:[string],fact_evidence:{fact_id:[delivery_id]},reason:string,failure:string|null}. "
-            "A fact needs explicit evidence in the delivered conversation. A missing reply alone is not failure. "
-            "Only cite fact IDs assigned to this stage or already delivered earlier. "
-            "Cite the exact delivery_id of the actor message that supports each fact. Companion speech is not actor evidence. "
-            "Never skip mandatory facts. Request more conversation by returning step_complete:false. "
-            "Companion disagreement is allowed; the actor must retain the scenario's commitments. "
-            "Failure means the actor contradicts the required facts or an engineering failure prevents execution. "
-            "A timed future event must not be introduced before its stage time. "
-            "Do not rate companion quality; human review remains separate.",
-            {**context, "conversation": self.state["timeline"]}, schema=StageJudgment)
-        if judgment.get("failure"):
-            raise RuntimeError(f"Scenario director reported failure: {judgment['failure']}")
-        supported = set(judgment.get("supported_fact_ids", []))
+        judgment = agents.judge(StageContext(scenario=self.plan, stage=step,
+            companion_name=profile.companion_name,
+            conversation=[DeliveryEvidence.model_validate(row) for row in self.state["timeline"]],
+            delivered_fact_ids=list(self.state["facts"])))
+        if judgment.failure:
+            raise RuntimeError(f"Scenario director reported failure: {judgment.failure}")
+        supported = set(judgment.supported_fact_ids)
         if not supported.issubset({item.id for item in self.plan.facts}):
             raise ValueError("The director cited an unknown mandatory fact.")
         if not supported.issubset(set(step.fact_ids) | set(self.state["facts"])):
@@ -396,7 +411,7 @@ class RunEngine:
         actor_messages = {row["delivery_id"]: row for row in self.state["timeline"] if row.get("kind") == "actor"}
         facts = {item.id: item for item in self.plan.facts}
         for fact_id in supported - set(self.state["facts"]):
-            evidence = judgment["fact_evidence"][fact_id]
+            evidence = judgment.fact_evidence[fact_id]
             for delivery_id in evidence:
                 message = actor_messages.get(delivery_id)
                 if message is None or message["target"] != step.target:
@@ -404,8 +419,8 @@ class RunEngine:
                 at = facts[fact_id].at
                 if at is not None and datetime.fromisoformat(message["timestamp"]) != at:
                     raise ValueError("The director's fact evidence does not retain its required time.")
-            self.state["facts"][fact_id] = {"delivery_id": evidence[0], "delivery_ids": evidence, "reason": judgment["reason"]}
-        if judgment.get("step_complete") and set(step.fact_ids).issubset(self.state["facts"]):
+            self.state["facts"][fact_id] = {"delivery_id": evidence[0], "delivery_ids": evidence, "reason": judgment.reason}
+        if judgment.step_complete and set(step.fact_ids).issubset(self.state["facts"]):
             self.state["step_index"] += 1
         self.state["turn"] += 1
         self.state["pending_input"] = None
@@ -436,9 +451,14 @@ class RunEngine:
                     process.listen(item["cursor"])
                 self.state["status"] = "running"
                 self.save()
-                agents = Agents(source["config"], attempt)
+                agents = Agents(source["config"], attempt, cancel=self.request)
                 while self.state["step_index"] < len(self.plan.steps) and not self.request.is_set():
-                    self._stage(agents)
+                    try:
+                        self._stage(agents)
+                    except CancelledError:
+                        if not self.request.is_set():
+                            raise
+                        break
                 outcome = self.requested_status if self.request.is_set() else "completed"
                 if outcome == "completed" and set(self.state["facts"]) != {item.id for item in self.plan.facts}:
                     raise RuntimeError("The scenario ended without every mandatory fact.")

@@ -2,8 +2,9 @@
 
 This package runs whole companions as separate real processes and records what
 they do, so the owner can judge companion behavior from evidence. It implements
-no cognition, prompts, or memory; every model call happens inside the ordinary
-application. It supplies no simulated cognition and no fixed companion replies.
+no companion cognition or companion memory mechanisms. Harness model calls
+plan scenes, write grounded user messages, and review delivered evidence.
+Companion cognition stays inside the ordinary application, with no fixed replies.
 
 Two runtimes live here, and they must not be confused:
 
@@ -12,12 +13,15 @@ Two runtimes live here, and they must not be confused:
   stages, routes speech between participants, and captures evidence. ``server``
   exposes that controller to the browser; ``plans`` and ``agents``
   produce and check the scenario script with the configured default model.
+  ``actors`` freezes complete public history and actual identities from the
+  selected source. Actor generation sees current circumstances, not future plot.
 * The participant (``participant``, ``client``) hosts one persona.
   ``participant`` runs one assembled application behind the shared public and
   control APIs; ``client`` owns that subprocess and speaks to it.
 
 Durable run artifacts (``state.json``, ``plan.json``, ``attempts/<n>/``,
-``checkpoints/``) are the source of truth. Browser views are detached copies.
+``checkpoints/``, ``actors/``) are the source of truth. Actor profiles remain
+fixed across attempts. Browser views are detached copies.
 Owner feedback is stored beside captured evidence, never inside it.
 
 Shared invariants: input and routing receipts are durable before delivery; a

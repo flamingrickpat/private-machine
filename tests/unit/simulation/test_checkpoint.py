@@ -9,16 +9,17 @@ from pm.host.durable_files import atomic_json
 from pm.memory.checkpoint import write_checkpoint
 from pm.memory.store import MemoryStore
 from pm.records.cycle_state import PersonaConfig
-from pm.records.enums import FeatureType
+from pm.records.enums import FeatureType, InterlocusType
 from pm.records.global_workspace import GwtTurnRecord
 from pm.records.memory_records import Feature
 from pm.vclock import VirtualClock
+from pm import vclock
 from simulation.engine import RunEngine
 from simulation.personas import write_home
 from simulation.plans import ScenarioPlan
 
 
-def admit(store, text):
+def admit(store: MemoryStore, text: str) -> int:
     batch = store.begin_batch(text, new_tick=True)
     record = batch.create(Feature(content=text, feature_type=FeatureType.Thought))
     batch.set_gwt(GwtTurnRecord(tick_id=batch.tick_id, knoxel_ids=[record.id]))
@@ -27,15 +28,25 @@ def admit(store, text):
 
 
 class CoordinatedCheckpointTests(unittest.TestCase):
-    def test_restore_keeps_both_ghosts_clock_and_transit_on_the_same_branch(self):
+    def setUp(self) -> None:
+        self.addCleanup(vclock.install, vclock.active())
+        vclock.install(VirtualClock(datetime.fromisoformat("2026-05-30T21:03:00+00:00")))
+
+    def test_restore_keeps_both_ghosts_clock_and_transit_on_the_same_branch(self) -> None:
         with TemporaryDirectory() as directory:
             root = Path(directory)
             seed = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"))
             first = admit(seed, "Before the barrier")
+            dialogue = seed.begin_batch("public dialogue", new_tick=True)
+            public = dialogue.create(Feature(content="hey spamuel", feature_type=FeatureType.Dialogue,
+                interlocus=InterlocusType.Public, override_source="Jesse",
+                timestamp_world_begin=datetime.fromisoformat("2026-05-30T21:03:00+00:00")))
+            dialogue.set_gwt(GwtTurnRecord(tick_id=dialogue.tick_id, knoxel_ids=[public.id]))
+            seed.commit(dialogue)
             home = write_home(seed, root / "source")
             plan = ScenarioPlan.model_validate({"title": "Checkpoint", "brief": "Say hello", "start_time": "2026-10-28T21:00:00+01:00",
-                "facts": [{"id": "hello", "text": "Say hello"}],
-                "steps": [{"id": "hello", "at": "2026-10-28T21:00:00+01:00", "instruction": "Say hello",
+                "facts": [{"id": "hello", "text": "Say hello", "kind": "event"}],
+                "steps": [{"id": "hello", "at": "2026-10-28T21:00:00+01:00", "instruction": "Say hello", "actor_intent": "Greet Spamuel",
                            "fact_ids": ["hello"], "completion": "Hello was delivered"}]})
             original_clock = VirtualClock(datetime.fromisoformat("2026-10-28T20:00:00+01:00"))
             original_clock.set(plan.start_time)

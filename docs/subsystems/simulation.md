@@ -49,7 +49,7 @@ Use `--homes` or `--data` to select different directories.
 1. Select an existing home, or load the unchanged Spamuel canon into a new home.
 2. Inspect its history and select a checkpoint before creating a fork.
 3. Select the primary character and an optional connected character.
-4. Enter a scenario and a start time with an explicit UTC offset.
+4. Enter a scenario. Inspect the proposed start time, or enter a time with an explicit UTC offset.
 5. Generate the plan, inspect its facts, and edit its JSON when necessary.
 6. Create the run, then select **Start / resume**.
 7. Inspect conversation, mandatory facts, and the attempt report.
@@ -62,15 +62,57 @@ Minecraft and its managed workflows remain disabled for simulation participants.
 
 ## Scenario execution
 
+Immersion depends on believable user input as well as companion behavior.
+The harness reads the selected home's complete public dialogue and actual user and companion names.
+It freezes this actor profile under `actors/<participant>.json` when the run is created.
+The profile excludes private companion thoughts and remains fixed across attempts.
+Missing user dialogue fails explicitly; the harness does not substitute a generic user.
+
+The browser proposes the next 23:58 after the source's saved history and clock.
+An explicit later date remains available, with the gap shown before planning.
+A start before saved continuity is rejected.
+
 The planner first extracts mandatory facts, then creates the editable plan.
+Facts distinguish events from commitments. Initial choices and later reaffirmations stay separate.
+A semantic plan review rejects premature plot disclosures and invented completion requirements.
 A timed fact must occur at its stage time.
-The actor generates a draft. A focused check verifies its identity and current stage facts before delivery.
+Delivery timestamps establish time; actors do not have to announce clock values.
+Stage circumstances and private intent guide dialogue without prescribing exact words.
+The actor sees public history, current circumstances, active commitments, and delivered conversation.
+Future events and completion rubrics stay outside its generation context.
+A separate checker sees future facts to detect premature claims.
+It checks historical voice, correct identity, natural conversation, and scenario consistency before delivery.
+Incidental details and future intentions are allowed. Required facts can emerge across several turns.
 Rejected drafts remain available for debugging.
 The actor sends ordinary entity messages through the public API.
 The director checks the delivered conversation against the stage facts.
 Each completed fact cites actual actor delivery IDs. Timed facts must retain their specified time and recipient.
 It cannot end the scenario successfully while mandatory facts remain missing.
 Companion disagreement does not cancel the actor's required commitments.
+
+```mermaid
+flowchart TB
+    Home[Source public history and clock] --> Profile[Frozen actor profile]
+    Brief[Scenario brief] --> Planner[Semantic facts and scenes]
+    Planner --> PlanReview[Plan review]
+    PlanReview --> Scene[Current scene and active commitments]
+    Profile --> Actor[User actor]
+    Scene --> Actor
+    Actor --> Check[Immersion check]
+    Check -->|reject with feedback| Actor
+    Check -->|accept| Delivery[Durable public delivery]
+    Delivery --> PM[Real companion process]
+    PM --> Conversation[Public conversation]
+    Conversation --> Actor
+    Delivery --> Director[Completion judgment with delivery IDs]
+    PlanReview --> Director
+    Check --> Receipts[Attempt model receipts]
+    Director --> Receipts
+```
+
+The diagram separates actor input from director evidence.
+The controller waits for participant work before judging a stage.
+Model receipts preserve drafts and rejections; completion receipts cite actual public deliveries.
 
 No harness quota limits turns, model calls, cost, or execution time.
 The configured serving context still limits an individual prompt.
@@ -179,6 +221,8 @@ Existing capture files under `.runtime/dev-review/` remain unchanged.
 ## Code ownership
 
 - [`simulation.engine.RunEngine`][] owns scenario progress, routing, and attempt evidence.
+- [`simulation.actors.ActorProfile`][] preserves user voice, identity, and source continuity.
+- [`simulation.agents.Agents`][] owns harness planning, actor generation, and immersion checks.
 - [`simulation.participant.Participant`][] owns one controlled PM process.
 - [`simulation.review.catalog.register`][] registers immutable offline captures.
 - [`pm.app.control.RuntimeControl`][] supplies ordinary runtime controls.

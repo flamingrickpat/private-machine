@@ -12,6 +12,8 @@ let polling = false;
 let reportKey = "";
 let recordCheckpoint = "";
 let recordFeedback = {};
+let actorSummary = null;
+let profileHome = null;
 
 function node(tag, text, className) {
   const result = document.createElement(tag);
@@ -87,6 +89,26 @@ async function refreshCatalog() {
     if ([...$(id).options].some(option => option.value === current)) $(id).value = current;
   }
 }
+async function refreshActorProfile() {
+  const home = $("primary").value;
+  if (!home) return;
+  const summary = await api(`/api/actor-profile?home=${encodeURIComponent(home)}`);
+  if (home !== $("primary").value) return;
+  actorSummary = summary;
+  profileHome = home;
+  $("plan-card").hidden = true;
+  $("start-time").value = summary.suggested_start_time;
+  $("actor-summary").textContent = `${summary.speaker_name}: ${summary.speaker_turns} historical messages with ${summary.companion_name}, their AI companion. History ends ${summary.continuity_at}.`;
+  showTimeGap();
+}
+function showTimeGap() {
+  if (!actorSummary) return;
+  const hours = (Date.parse($("start-time").value) - Date.parse(actorSummary.continuity_at)) / 3600000;
+  $("time-gap").textContent = hours > 24 ? `This starts ${Math.floor(hours / 24)} days after saved history. That absence becomes part of the scene.` : "Starts after the selected history, with no long absence added.";
+}
+$("primary").addEventListener("change", () => refreshActorProfile().catch(notice));
+$("start-time").addEventListener("input", showTimeGap);
+
 async function job(kind, body) {
   const started = await api(kind, body);
   for (;;) {
@@ -103,7 +125,7 @@ function previewPlan() {
   for (const fact of plan.facts) $("plan-preview").append(node("p", `${fact.id} · ${fact.text}`, "muted"));
   for (const step of plan.steps) {
     const stage = node("div", undefined, "stage");
-    stage.append(node("time", step.at), node("p", step.instruction), node("p", `Complete when: ${step.completion}`, "muted"));
+    stage.append(node("time", step.at), node("p", step.instruction), node("p", `Private intent: ${step.actor_intent}`, "muted"), node("p", `Complete when: ${step.completion}`, "muted"));
     $("plan-preview").append(stage);
   }
 }
@@ -275,10 +297,10 @@ function renderRecords() {
     $("records").append(card);
   }
 }
-action("new", async () => { selectedRun = null; selectedHome = null; show("setup", "New simulation"); });
+action("new", async () => { selectedRun = null; selectedHome = null; show("setup", "New simulation"); if (profileHome !== $("primary").value) await refreshActorProfile(); });
 action("reload", refreshCatalog);
 action("load-canon", async () => { const name = prompt("New home folder name", "spamuel-new"); if (name) { await job("/api/homes/canon", {name}); await refreshCatalog(); } });
-action("generate", async () => { const result = await job("/api/plans", {brief: $("brief").value, start_time: $("start-time").value}); $("plan-json").value = JSON.stringify(result.plan, null, 2); $("plan-card").hidden = false; $("job-status").textContent = "Plan ready for review."; previewPlan(); });
+action("generate", async () => { const result = await job("/api/plans", {home: $("primary").value, brief: $("brief").value, start_time: $("start-time").value || null}); $("plan-json").value = JSON.stringify(result.plan, null, 2); $("plan-card").hidden = false; $("job-status").textContent = "Plan ready for review."; previewPlan(); });
 action("preview", async () => previewPlan());
 action("create-run", async () => {
   const primary = $("primary").value;
@@ -300,7 +322,8 @@ for (const button of document.querySelectorAll("[data-tab]")) button.addEventLis
 $("record-filter").addEventListener("input", renderRecords);
 action("save-review", async () => { const rating = $("review-rating").value; await api(`/api/runs/${selectedRun}/feedback`, {notes: $("review-notes").value, rating: rating ? Number(rating) : null}); $("review-saved").textContent = "Saved separately from captured evidence."; });
 setInterval(async () => { if (!selectedRun || polling) return; polling = true; try { await updateRun(); } catch (error) { notice(error); } finally { polling = false; } }, 2000);
-refreshCatalog().then(() => {
+refreshCatalog().then(async () => {
+  await refreshActorProfile();
   const match = location.hash.match(/^#run\/([A-Za-z0-9_-]+)/);
   if (match) return openRun(match[1]);
   const capture = location.hash.match(/^#capture\/([A-Za-z0-9_-]+)/);

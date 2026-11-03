@@ -27,13 +27,14 @@ import threading
 from urllib.parse import parse_qs, unquote, urlparse
 from uuid import uuid4
 
-from pydantic import JsonValue
+from pydantic import AwareDatetime, BaseModel, JsonValue
 
 from pm.host.durable_files import atomic_json
 from pm.utils.operating_system import OperatingSystem
 from pm.memory.store import MemoryStore
 from pm.llm.config import load_config
 from simulation.agents import Agents
+from simulation.actors import load_profile, suggested_start, summarize
 from simulation.engine import RunEngine
 from simulation.personas import DEFAULT_HOMES, DEFAULT_RUNS, canon_home, fork_home, homes
 from simulation.plans import ScenarioPlan
@@ -42,6 +43,14 @@ from pm.introspection.record_format import present_packages, record_links, visib
 
 
 STATIC = Path(__file__).parent / "static"
+
+
+class BrowserPlanRequest(BaseModel):
+    """Selected source and optional explicit date at the browser boundary."""
+
+    home: str
+    brief: str
+    start_time: AwareDatetime | None = None
 
 
 class Simulation:
@@ -113,7 +122,13 @@ class Simulation:
         def work() -> None:
             try:
                 if kind == "plan":
-                    plan = Agents(self.config, root).plan(body["brief"], body["start_time"])
+                    request = BrowserPlanRequest.model_validate(body)
+                    profile = load_profile(self.home(request.home))
+                    start_time = request.start_time or suggested_start(profile)
+                    if start_time < profile.continuity_at:
+                        raise ValueError("The scenario starts before the selected character's saved history ends.")
+                    atomic_json(root / "actor-profile.json", profile.model_dump(mode="json"))
+                    plan = Agents(self.config, root).plan(request.brief, start_time, profile)
                     result = {"plan": plan.model_dump(mode="json")}
                 else:
                     name = body["name"]
@@ -189,6 +204,9 @@ def handler(application: Simulation) -> type[BaseHTTPRequestHandler]:
             query = {key: values[0] for key, values in parse_qs(path.query).items()}
             if path.path == "/api/catalog":
                 return self.output(application.catalog())
+            if path.path == "/api/actor-profile":
+                profile = load_profile(application.home(query["home"]))
+                return self.output(summarize(profile).model_dump(mode="json"))
             if path.path.startswith("/api/captures/"):
                 capture_id = identifier(path.path.split("/")[3])
                 if path.path.endswith("/feedback"):

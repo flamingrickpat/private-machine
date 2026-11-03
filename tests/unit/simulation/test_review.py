@@ -60,10 +60,10 @@ class SimulationReviewTests(unittest.TestCase):
         self.assertEqual(restored.now().hour, 7)
         self.assertEqual(restored.utc().hour, 6)
 
-    def test_timed_fact_cannot_move_to_a_different_stage_time(self):
+    def test_timed_fact_cannot_move_to_a_different_stage_time(self) -> None:
         plan = {"title": "Morning", "brief": "Wake at seven", "start_time": "2026-10-28T21:00:00+01:00",
-                "facts": [{"id": "wake", "text": "Wake at seven", "at": "2026-10-29T07:00:00+01:00"}],
-                "steps": [{"id": "morning", "at": "2026-10-29T07:00:00+01:00", "instruction": "Wake",
+                "facts": [{"id": "wake", "text": "Wake at seven", "kind": "event", "at": "2026-10-29T07:00:00+01:00"}],
+                "steps": [{"id": "morning", "at": "2026-10-29T07:00:00+01:00", "instruction": "Wake", "actor_intent": "Talk to Spamuel after waking",
                            "fact_ids": ["wake"], "completion": "The actor reports waking"}]}
         ScenarioPlan.model_validate(plan)
         plan["steps"][0]["at"] = "2026-10-29T07:00:00+00:00"
