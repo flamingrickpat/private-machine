@@ -1,6 +1,6 @@
-"""The loopback HTTP server for the K003 review timeline.
+"""The HTTP server for the K003 review timeline.
 
-Only ``127.0.0.1`` belongs here. The page shows private prompts, captured
+The server defaults to ``0.0.0.0``. The page shows private prompts, captured
 records, and companion speech, and it has no login. Every endpoint is a read.
 The launcher builds the evidence store and this module serves the API and the
 three static files.

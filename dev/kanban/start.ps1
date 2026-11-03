@@ -2,7 +2,7 @@
 .SYNOPSIS
 Open the local development board with the repository's locked Python environment.
 .PARAMETER Port
-The loopback port. The default is 8767.
+The listening port. The default is 8767.
 .PARAMETER Data
 An existing board file. Relative paths start in the caller's directory.
 .PARAMETER NoBrowser

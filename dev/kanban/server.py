@@ -162,8 +162,8 @@ def board_handler(path: Path) -> type[BaseHTTPRequestHandler]:
                 self._json(404, {"error": "Page not found."})
                 return
             origin = self.headers.get("Origin")
-            if origin is not None and origin != f"http://127.0.0.1:{self.server.server_port}":
-                self._json(403, {"error": "Open the board at its printed local address."})
+            if origin is not None and origin != f"http://{self.headers.get('Host', '')}":
+                self._json(403, {"error": "Cross-origin requests are rejected."})
                 return
             if self.headers.get_content_type() != "application/json":
                 self._json(415, {"error": "Send the board as application/json."})
@@ -196,7 +196,7 @@ def board_handler(path: Path) -> type[BaseHTTPRequestHandler]:
 
 
 def main() -> None:
-    """Serve the selected JSON file on loopback until Ctrl+C.
+    """Serve the selected JSON file on all IPv4 interfaces until Ctrl+C.
 
     --port selects the local port. --data selects an existing board file.
     --no-browser leaves the browser closed. Startup errors exit with plain text.
@@ -208,7 +208,7 @@ def main() -> None:
     args = parser.parse_args()
     try:
         read_board(args.data)
-        server = HTTPServer(("127.0.0.1", args.port), board_handler(args.data))
+        server = HTTPServer(("0.0.0.0", args.port), board_handler(args.data))
     except (ValueError, OSError) as error:
         parser.exit(1, f"Cannot start the board: {error}\n")
     address = f"http://127.0.0.1:{server.server_port}"

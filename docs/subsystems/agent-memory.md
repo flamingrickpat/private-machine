@@ -36,7 +36,7 @@ Memory tools retain their separate accepted view.
 Without `memory`, construction adds no tools or embedding requests.
 
 [`pm.runs.draft_session.run_draft_session`][] accepts the same optional session.
-It mounts a separate `memory` server on an OS-assigned loopback port.
+It mounts a separate `memory` server on an OS-assigned port bound to `0.0.0.0`.
 The native process receives its private descriptor in `draft-mcp.json`.
 It does not restore the live owner's checkpoint.
 

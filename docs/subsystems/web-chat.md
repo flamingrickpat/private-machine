@@ -4,7 +4,7 @@
 
 The web chat lets you talk to one running companion in a browser.
 It looks like a normal messenger: you log in with a name, you see the full history, and you type at the bottom.
-The server runs in the app process on `127.0.0.1` and reads the live memory store.
+The server runs in the app process on `0.0.0.0` and reads the live memory store.
 Every message on the page is an accepted record, so a restart shows the same history.
 
 Parent: [operator service](console.md).
@@ -127,7 +127,7 @@ The startup event records the offline gap.
 
 ## Limits
 
-- The server has no authentication. Anyone who can open the loopback URL can speak as any name.
+- The server has no authentication. Anyone who can reach its URL can speak as any name.
 - The login name is not an identity check. Two browsers with the same name are the same speaker.
 - `thinking` is an estimate. A spontaneous companion line ends it before the reply comes. A message that cognition chooses not to answer keeps it until the next companion line.
 - The dummy fixture does not resolve exchanges. Its messages stay `pending`, but its reply still ends `thinking`.

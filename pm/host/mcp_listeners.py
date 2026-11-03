@@ -1,7 +1,7 @@
-"""Temporary loopback MCP listeners for one workflow run.
+"""Temporary MCP listeners for one workflow run.
 
 Each named scoped service becomes a FastMCP HTTP server on an
-operating-system-assigned loopback port. The bound socket is held for the
+operating-system-assigned port on all IPv4 interfaces. The bound socket is held for the
 listener's whole lifetime, so the port cannot be taken between selection and
 startup. Connection descriptors stay private to the run; servers close after
 success, error, or cancellation.
@@ -45,7 +45,7 @@ class _Listener:
             # Scoped tools return one complete result per request. Stateless
             # JSON avoids background SSE sessions that outlive this listener.
             app = self.server.http_app(transport="http", stateless_http=True, json_response=True)
-            config = uvicorn.Config(app, host="127.0.0.1", port=self.port,
+            config = uvicorn.Config(app, host="0.0.0.0", port=self.port,
                                     lifespan="on", log_level="error", timeout_graceful_shutdown=2)
             self.http_server = uvicorn.Server(config)
             async with self.server._lifespan_manager():
@@ -96,7 +96,7 @@ class _Listener:
 
 
 class ScopedMcpRegistry:
-    """Owns the loopback listeners started for one run and tears them down."""
+    """Owns the all-interface listeners started for one run and tears them down."""
 
     def __init__(self) -> None:
         self._listeners: dict[str, _Listener] = {}
@@ -114,7 +114,7 @@ class ScopedMcpRegistry:
                     raise ValueError(f"MCP service '{name}' is already running.")
                 bound = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 bound.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                bound.bind(("127.0.0.1", 0))
+                bound.bind(("0.0.0.0", 0))
                 bound.listen(128)
                 listener = _Listener(name, server, bound)
                 self._listeners[name] = listener

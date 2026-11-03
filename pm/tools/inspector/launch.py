@@ -1,7 +1,7 @@
 """Start the inspector: load one checkpoint, serve the page, change nothing.
 
 The launcher is the only place in the inspector that touches the disk. It
-reads a checkpoint, builds the index and the renderer, and starts a loopback
+reads a checkpoint, builds the index and the renderer, and starts an all-interface
 HTTP server. It never saves the store, never starts an embedder, never opens a
 model endpoint, and never runs a cycle, so it is safe to point at a
 character's own ``ghost.pickle`` while that character is asleep.
@@ -41,8 +41,8 @@ def open_index(checkpoint: Path) -> MemoryIndex:
 def serve(index: MemoryIndex, host: str, port: int) -> ThreadingHTTPServer:
     """Bind the inspector API of ``index`` to ``host`` and ``port`` and return the server.
 
-    The caller runs ``serve_forever``. Pass a loopback host unless you know
-    why the memory of a character should reach another machine.
+    The caller runs ``serve_forever``. The launcher defaults to ``0.0.0.0``
+    so the page can be reached from another machine.
     """
     return server_factory(InspectorApi(index))((host, port))
 
@@ -74,7 +74,9 @@ def run_inspector(*, home: Path | None = None, checkpoint: Path | None = None,
     except OSError as error:
         print(f"Cannot open {host}:{port}: {error}. Pass --inspector-port with a free port.", flush=True)
         return 1
-    print(f"Inspector for {index.companion_name}: http://{host}:{server.server_port}", flush=True)
+    browser_host = "127.0.0.1" if host == "0.0.0.0" else host
+    print(f"Inspector for {index.companion_name}: http://{browser_host}:{server.server_port}", flush=True)
+    print(f"  listening on: {host}:{server.server_port}", flush=True)
     print(f"  checkpoint: {path}", flush=True)
     print(f"  records: {len(index.records)}   cycles: {len(index.states)}   gwt turns: {len(index.turns)}",
           flush=True)
@@ -94,7 +96,7 @@ def main(argv: list[str] | None = None) -> int:
                                      description="Inspect one character checkpoint in a browser. Reads only.")
     parser.add_argument("--home", help="character home folder; reads <home>/ghost.pickle")
     parser.add_argument("--checkpoint", help="path to a ghost.pickle to read")
-    parser.add_argument("--inspector-host", default=constants.INSPECTOR_HOST, help="host to bind (default: loopback)")
+    parser.add_argument("--inspector-host", default=constants.INSPECTOR_HOST, help="host to bind (default: 0.0.0.0)")
     parser.add_argument("--inspector-port", type=int, default=constants.INSPECTOR_PORT,
                         help=f"port to serve (default: {constants.INSPECTOR_PORT})")
     args = parser.parse_args(argv)

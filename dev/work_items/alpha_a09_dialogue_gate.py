@@ -29,7 +29,7 @@ class ConsoleGate:
             raise ValueError("Keep live evidence under .runtime.")
         self.out.mkdir(parents=True, exist_ok=False)
         with socket.socket() as probe:
-            probe.bind(("127.0.0.1", port))
+            probe.bind(("0.0.0.0", port))
         self.base = f"http://127.0.0.1:{port}"
         self.log = (self.out / "server.log").open("w", encoding="utf-8")
         self.process = OperatingSystem.start_binary_process(

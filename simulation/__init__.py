@@ -10,7 +10,7 @@ Two runtimes live here, and they must not be confused:
 * The controller (``engine``, ``server``) owns runs. It forks persona homes into
   a run folder, keeps the coordinated controller document, schedules scenario
   stages, routes speech between participants, and captures evidence. ``server``
-  exposes that controller to the loopback browser; ``plans`` and ``agents``
+  exposes that controller to the browser; ``plans`` and ``agents``
   produce and check the scenario script with the configured default model.
 * The participant (``participant``, ``client``) hosts one persona.
   ``participant`` runs one assembled application behind the shared public and

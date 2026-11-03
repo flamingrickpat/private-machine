@@ -74,7 +74,7 @@ def start_minecraft(out: Path, reset_world: bool) -> RealServerStack:
              int(values.get("MCMCP_VIEWER_PORT", "6769"))]
     for port in ports:
         with socket.socket() as probe:
-            probe.bind(("127.0.0.1", port))
+            probe.bind(("0.0.0.0", port))
     if properties["level-name"] != "world":
         raise ValueError("The selected server must use level-name=world for this fixture.")
     save_json(out / "minecraft-fixture.json", {"server": str(server), "seed": properties["level-seed"],

@@ -48,7 +48,7 @@ class WorkflowModelTests(unittest.TestCase):
 
     def test_actual_connection_refusal_releases_activation(self):
         with socket.socket() as reserved:
-            reserved.bind(("127.0.0.1", 0))
+            reserved.bind(("0.0.0.0", 0))
             connection = self.config.chat["Default"].model_copy(update={"base_url": f"http://127.0.0.1:{reserved.getsockname()[1]}/v1"})
             self.config.chat["Default"] = connection
             models = WorkflowModels(self.config, self.owner, live_test=True)

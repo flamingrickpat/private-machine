@@ -85,6 +85,14 @@ Before moving modules, find imports, string-based references, configuration refe
 
 ## 4. Owner-first engineering goals
 
+### Server bind addresses
+
+Bind every server to `0.0.0.0` by default. This includes HTTP, WebSocket, MCP, console, debugger, simulation, development, and test servers.
+Reserve listening ports on `0.0.0.0` too. Use another bind address only when the owner explicitly requests it.
+Do not add loopback-only Host restrictions. Browser mutations must compare their Origin with the request's actual Host.
+Keep bind addresses separate from client URLs. Clients can use `127.0.0.1`, a hostname, or the machine's address.
+`0.0.0.0` is a listening address, not a browser destination.
+
 This is an active alpha project, developed and tested directly by its owner. Prioritize, in order:
 
 1. Correct behavior in the real local environment.

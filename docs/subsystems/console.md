@@ -2,7 +2,7 @@
 
 ## Summary
 
-The console uses a loopback HTTP server and one subprocess per instance.
+The console uses an HTTP server and one subprocess per instance.
 Workers record bus deliveries, module activity, workflow reports, model calls, and accepted memory snapshots.
 The browser polls this evidence every second.
 
@@ -65,7 +65,7 @@ The graph shows observed connections after traffic occurs.
 It does not show an unexecuted static topology.
 
 The console has no remote authentication or remote deployment mechanism.
-The HTTP service binds to `127.0.0.1` and rejects mutations from other browser origins.
+The HTTP service binds to `0.0.0.0` and rejects mutations from other browser origins.
 Trace files contain user messages and model prompts.
 Trace serialization and storage add some overhead to measured execution times.
 The UI does not expose model credentials from configuration files.

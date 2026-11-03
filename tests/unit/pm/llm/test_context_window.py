@@ -44,7 +44,7 @@ class ModelContextTests(unittest.TestCase):
 
     def test_missing_capacity_still_reports_a_discovery_failure(self):
         with socket.socket() as reserved:
-            reserved.bind(("127.0.0.1", 0))
+            reserved.bind(("0.0.0.0", 0))
             connection = ConnectionConfig(base_url=f"http://127.0.0.1:{reserved.getsockname()[1]}/v1", model="qwen").resolve()
             with self.assertRaisesRegex(ModelError, "Serving context discovery failed"):
                 asyncio.run(measure_context(connection, [], Event(), live_test=True))

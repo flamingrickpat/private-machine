@@ -32,7 +32,7 @@ def main() -> None:
         raise ValueError("Use a fresh console directory under .runtime.")
     out.mkdir(parents=True, exist_ok=False)
     with socket.socket() as probe:
-        probe.bind(("127.0.0.1", args.port))
+        probe.bind(("0.0.0.0", args.port))
     seed = ROOT / "test_data/personas/spamuel/canon.yaml"
     if args.persona == "cheerful":
         import yaml

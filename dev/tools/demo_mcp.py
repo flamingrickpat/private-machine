@@ -84,7 +84,7 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=9881)
     parser.add_argument("--log", type=Path, default=Path(".runtime/toolcall-test/demo-mcp-calls.jsonl"))
     args = parser.parse_args()
-    build_server(args.log.resolve()).run(transport="http", host="127.0.0.1", port=args.port, path="/mcp")
+    build_server(args.log.resolve()).run(transport="http", host="0.0.0.0", port=args.port, path="/mcp")
 
 
 if __name__ == "__main__":

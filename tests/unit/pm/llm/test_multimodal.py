@@ -145,7 +145,7 @@ class ChatClientHookTests(unittest.IsolatedAsyncioTestCase):
         install_media_lookup(type("Lookup", (), {"find_image": staticmethod({image.id: image}.get)})())
         self.addCleanup(install_media_lookup, None)
         with tempfile.TemporaryDirectory() as directory, socket.socket() as reserved:
-            reserved.bind(("127.0.0.1", 0))
+            reserved.bind(("0.0.0.0", 0))
             connection = resolve_connection(base_url=f"http://127.0.0.1:{reserved.getsockname()[1]}/v1",
                                             model="qwen", api_key="")
             owner = ModelActivation()

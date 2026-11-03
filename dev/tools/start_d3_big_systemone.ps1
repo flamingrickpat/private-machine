@@ -65,7 +65,7 @@ $logParent = Split-Path -Parent ([IO.Path]::GetFullPath($LogFile))
 New-Item -ItemType Directory -Force -Path $logParent | Out-Null
 
 $serverArgs = @(
-    "--host", "127.0.0.1", "--port", "$Port", "--alias", "d3-big",
+    "--host", "0.0.0.0", "--port", "$Port", "--alias", "d3-big",
     "--model", $model, "--mmproj", $projector,
     "--no-mmproj-offload", "--mmproj-device", "none",
     "--device", "CUDA0", "--split-mode", "none", "--main-gpu", "0",

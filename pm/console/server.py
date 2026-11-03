@@ -1,4 +1,4 @@
-"""Loopback HTTP service for instance lifecycle and recorded runtime evidence.
+"""HTTP service for instance lifecycle and recorded runtime evidence.
 
 The operator console is one local process that starts, observes, and stops
 companion instances. An :class:`Instance` owns one worker process
@@ -6,9 +6,9 @@ companion instances. An :class:`Instance` owns one worker process
 ``events.jsonl`` log. :class:`Console` owns the deployment definitions under a
 private runtime root and the set of instances.
 
-The service binds to loopback only and answers JSON. Every browser mutation
-must carry the console's own origin, because another page could otherwise post
-to loopback. A running worker reports its own state; the console never claims
+The service binds to all IPv4 interfaces and answers JSON. Browser mutations
+must use an Origin that matches the request Host. A running worker reports
+its own state; the console never claims
 progress it did not observe. The event log is the evidence trail: it holds the
 worker's events, commands, protocol errors, and lifecycle transitions.
 
@@ -262,7 +262,7 @@ class Console:
 
 
 def serve(root: Path, port: int = 8090) -> None:
-    """Serve only on loopback until the process ends.
+    """Serve on all IPv4 interfaces until the process ends.
 
     Browser mutations require the console origin. On the way out, every
     running worker is asked to stop and is killed when it does not.
@@ -285,8 +285,6 @@ def serve(root: Path, port: int = 8090) -> None:
 
         def do_GET(self) -> None:
             """Serve the deployment list, one instance's events, or one page file."""
-            if self.headers.get("Host") != f"127.0.0.1:{self.server.server_port}":
-                return self.respond({"error": "Use the console through its loopback address."}, 403)
             path = urlparse(self.path)
             try:
                 if path.path == "/api/instances":
@@ -320,9 +318,9 @@ def serve(root: Path, port: int = 8090) -> None:
 
         def do_POST(self) -> None:
             """Apply one browser mutation: open a file, probe, deploy, or command."""
-            expected = f"http://127.0.0.1:{self.server.server_port}"
-            if self.headers.get("Host") != expected.removeprefix("http://") or self.headers.get("Origin") not in {None, expected}:
-                return self.respond({"error": "Use the console through its loopback address."}, 403)
+            expected = f"http://{self.headers.get('Host', '')}"
+            if self.headers.get("Origin") not in {None, expected}:
+                return self.respond({"error": "Cross-origin requests are rejected."}, 403)
             if self.headers.get("Content-Type") != "application/json":
                 return self.respond({"error": "Use application/json."}, 415)
             try:
@@ -358,7 +356,7 @@ def serve(root: Path, port: int = 8090) -> None:
             except (KeyError, ValueError, TimeoutError, OSError, subprocess.SubprocessError) as exc:
                 self.respond({"error": str(exc)}, 400)
 
-    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
     print(f"Operator console: http://127.0.0.1:{server.server_port}", flush=True)
     try:
         server.serve_forever()

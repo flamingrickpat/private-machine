@@ -212,18 +212,18 @@ MOOD_DOMINANCE_THRESHOLD = 0.3  # Core dominance that reads as sure (+) or out o
 BEHAVIOR_PRESSING = 0.5  # Expression tendency at which the text names the urge.
 ATTENTION_DRIFT_THRESHOLD = 0.2  # Valence focus bias at which attention drifts toward threat (-) or reward (+).
 
-# Web chat (pm.app.web_chat). The server binds to loopback only.
+# Web chat (pm.app.web_chat). Servers listen on every IPv4 interface.
 WEB_CHAT_HOST = "0.0.0.0"  # Bind address. The browser URL uses loopback.
 WEB_CHAT_PORT = 8770  # Default TCP port. `--web-port` changes it.
 WEB_CHAT_POLL_MS = 1500  # Milliseconds between two browser polls for new messages.
 WEB_CHAT_MAX_BODY_BYTES = 64_000  # Largest accepted POST body, in bytes.
 WEB_CHAT_MAX_NAME_CHARS = 64  # Longest accepted login name, in characters.
 
-# Memory inspector (pm.tools.inspector). Read-only, and it binds to loopback only.
-INSPECTOR_HOST = "127.0.0.1"  # Bind address. The inspector never serves the network.
+# Memory inspector (pm.tools.inspector). Read-only, with an all-interface bind.
+INSPECTOR_HOST = "0.0.0.0"  # Bind address; clients use a hostname or machine address.
 INSPECTOR_PORT = 8771  # Default TCP port. `--inspector-port` changes it.
 INSPECTOR_PAGE_SIZE = 200  # Records, cycles, or relations that one API page returns.
-TIMELINE_HOST = "127.0.0.1"  # Bind address. The execution timeline never serves the network.
+TIMELINE_HOST = "0.0.0.0"  # Bind address; clients use a hostname or machine address.
 TIMELINE_PORT = 8772  # Default TCP port. `--port` changes it.
 
 # Character import (pm.app.chat_import). Times are naive UTC.

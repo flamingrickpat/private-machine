@@ -30,7 +30,7 @@ def run(args: argparse.Namespace) -> None:
         raise ValueError("Use a fresh output directory under .runtime.")
     out.mkdir(parents=True, exist_ok=False)
     with socket.socket() as probe:
-        probe.bind(("127.0.0.1", args.port))
+        probe.bind(("0.0.0.0", args.port))
     base = f"http://127.0.0.1:{args.port}"
     log = (out / "server.log").open("w", encoding="utf-8")
     process = OperatingSystem.start_binary_process(

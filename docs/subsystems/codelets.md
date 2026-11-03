@@ -165,8 +165,8 @@ A `chain` codelet makes two calls, as the old `AgentSimpleCodelet` did:
 An `agent` codelet runs one pm-coder session through the `codelet_agent` tool ([`build_codelet_agent`][workflows.main_cognition.codelet_agent.build_codelet_agent]).
 The session follows the `focus_management` pattern:
 
-- A `MemoryReadSession` over the frozen grant of the run serves the memory tools through a loopback MCP server.
-- A second loopback server offers `mind_view`, the codelet's CSM view.
+- A `MemoryReadSession` over the frozen grant of the run serves the memory tools through an MCP server bound to `0.0.0.0`.
+- A second server on `0.0.0.0` offers `mind_view`, the codelet's CSM view.
 - The prompt holds the shared story, the view, the instruction, and the `data_aquisation` list as retrieval plan.
 - Every cited id must be a line of the view or a record that the memory tools read.
 

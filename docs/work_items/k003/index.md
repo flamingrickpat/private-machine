@@ -95,7 +95,7 @@ A selected view can be linked. The hash has this shape:
 #/run/<run_id>/<attempt>/<tab>/<detail>/<participant>/<id>
 ```
 
-The server binds to `127.0.0.1` only.
+The server binds to `0.0.0.0` by default.
 It has no write endpoint.
 
 ## Verification

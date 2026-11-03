@@ -265,7 +265,7 @@ def run(args: argparse.Namespace) -> None:
             for key, default in [("MINECRAFT_PORT", "12345"), ("MINECRAFT_RCON_PORT", "25575"),
                                  ("MCP_PORT", "6767"), ("MCMCP_BODY_PORT", "6768"), ("MCMCP_VIEWER_PORT", "6769")]:
                 with socket.socket() as probe:
-                    probe.bind(("127.0.0.1", int(values.get(key, default))))
+                    probe.bind(("0.0.0.0", int(values.get(key, default))))
             env_path = service_root / ".env.alpha"
             env_path.write_text("\n".join(f"{key}={value}" for key, value in values.items()) + "\n", encoding="utf-8")
             stack = RealServerStack(server, service_root, env_path)

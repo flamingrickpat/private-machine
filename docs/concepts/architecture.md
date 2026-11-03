@@ -11,7 +11,7 @@ Parent: [manual](../index.md).
 ## Control and data flow
 
 ```text
-Browser -> loopback HTTP service -> worker commands
+Browser -> HTTP service -> worker commands
                                    |
                     UserInputProxy -> private bus mailboxes
                                          |

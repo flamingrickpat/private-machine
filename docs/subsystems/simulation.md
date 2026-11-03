@@ -41,6 +41,7 @@ Set the embedding `context_window` from the provider's embedding catalog when ch
 For other endpoints, omit `--openrouter-only` and select their configuration explicitly.
 
 Open `http://127.0.0.1:8095/`.
+The server binds to `0.0.0.0`. Remote browsers can use the machine address or a forwarded local port.
 The default homes directory is `~/.pm/private-machine`.
 The default evidence directory is `.runtime/simulation/`.
 Use `--homes` or `--data` to select different directories.

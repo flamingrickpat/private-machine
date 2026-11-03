@@ -256,7 +256,7 @@ class McpProbeTests(unittest.TestCase):
     """The reachability probe splits answering servers from unreachable ones."""
 
     def test_a_listening_server_is_live_and_a_refused_port_is_dead(self):
-        server = HTTPServer(("127.0.0.1", 0), _RefuseHandler)
+        server = HTTPServer(("0.0.0.0", 0), _RefuseHandler)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         try:
@@ -291,7 +291,7 @@ class _RefuseHandler(BaseHTTPRequestHandler):
 def _closed_port() -> int:
     """Return a loopback port that no process listens on."""
     with socket.socket() as probe:
-        probe.bind(("127.0.0.1", 0))
+        probe.bind(("0.0.0.0", 0))
         return probe.getsockname()[1]
 
 

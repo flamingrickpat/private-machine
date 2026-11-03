@@ -17,7 +17,7 @@ class ActivationTests(unittest.IsolatedAsyncioTestCase):
     async def test_failed_chat_attempt_retains_prompt_without_credentials(self) -> None:
         import json
         with tempfile.TemporaryDirectory() as directory, socket.socket() as reserved:
-            reserved.bind(("127.0.0.1", 0))
+            reserved.bind(("0.0.0.0", 0))
             connection = resolve_connection(base_url=f"http://127.0.0.1:{reserved.getsockname()[1]}/v1",
                                             model="qwen", api_key="private-credential-marker")
             client = JsonClient(connection, live_test=True)
@@ -72,7 +72,7 @@ class ActivationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_readiness_wait_is_cancellable(self):
         with socket.socket() as reserved:
-            reserved.bind(("127.0.0.1", 0))
+            reserved.bind(("0.0.0.0", 0))
             connection = resolve_connection(base_url=f"http://127.0.0.1:{reserved.getsockname()[1]}/v1", model="qwen", api_key="")
             owner = ModelActivation()
             cancel = Event()
@@ -86,7 +86,7 @@ class ActivationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_live_test_mode_fails_without_retry_or_credential_echo(self):
         with socket.socket() as reserved:
-            reserved.bind(("127.0.0.1", 0))
+            reserved.bind(("0.0.0.0", 0))
             connection = resolve_connection(base_url=f"http://127.0.0.1:{reserved.getsockname()[1]}/v1", model="qwen", api_key="private-credential-marker")
             client = JsonClient(connection, live_test=True)
             with self.assertRaises(ModelError) as error:

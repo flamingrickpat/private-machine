@@ -16,7 +16,7 @@ Where a link is not recorded, the page says so instead of inventing one.
 Reading map: ``evidence`` discovers runs and attempts, ``calls`` reads prompt
 logs, ``workflows`` reads kernel journals, ``records`` presents captured
 records and cycles, ``timeline`` merges the event stream, and ``api`` exposes
-that stream to the loopback browser.
+that stream to the browser.
 
 Owns: read-only evidence discovery, projection, and the review page.
 Does not own: simulation execution, scenario plans, cognition, or capture.

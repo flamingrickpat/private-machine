@@ -67,7 +67,7 @@ Each evidence source has one owner:
 | [`pm.tools.timeline.workflows`][] | Read kernel journals, workflow names, phases, and local artifacts. |
 | [`pm.tools.timeline.records`][] | Read chat, activity, and cycle packages; call the shared record formatter. |
 | [`pm.tools.timeline.timeline`][] | Merge the sources into one ordered event stream. |
-| [`pm.tools.timeline.api`][] and [`pm.tools.timeline.server`][] | Expose the view on the loopback browser. |
+| [`pm.tools.timeline.api`][] and [`pm.tools.timeline.server`][] | Expose the view in the browser. |
 
 `AttemptView` loads one participant's `RecordIndex`, `CallIndex`, and
 `KernelIndex` once. Moving between tabs does not re-read the same call or kernel
@@ -120,7 +120,7 @@ An unreadable prompt log becomes an error row.
 A conflicting captured record stops the attempt view instead of choosing one
 version silently.
 A file outside the selected evidence root is refused.
-The server binds only to `127.0.0.1`.
+The server binds to `0.0.0.0` by default.
 
 ## Telemetry and provenance
 
@@ -145,7 +145,7 @@ Start the page from the repository root:
 uv run --locked python -m pm.tools.timeline --port 8772
 ```
 
-Open the printed loopback address.
+Open the page through the machine address or your forwarded local port.
 Select a run and an attempt.
 Use the timeline to find the moment, then open the call, workflow, cycle, or
 record behind it.

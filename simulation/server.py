@@ -3,7 +3,7 @@
 ``Simulation`` is the browser-facing owner of background jobs and run
 controllers: it forks persona homes, starts plan generation, holds the one
 ``RunEngine`` per run, and stores owner feedback. The handler below serves the
-static page and a JSON API on ``127.0.0.1`` only.
+static page and a JSON API on ``0.0.0.0`` by default.
 
 Browser/API boundary: a request body is a JSON object read from the socket, a
 response is JSON or a captured artifact, and a path is resolved only after it is
@@ -320,7 +320,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print("OpenRouter only: chat, evaluation, embeddings; completion replay disabled.", flush=True)
     OperatingSystem.install_child_cleanup()
     application = Simulation(args.homes, args.data, args.config)
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), handler(application))
+    server = ThreadingHTTPServer(("0.0.0.0", args.port), handler(application))
     print(f"Simulation: http://127.0.0.1:{server.server_port}/", flush=True)
     try:
         server.serve_forever()

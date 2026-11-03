@@ -81,8 +81,8 @@ async def owned_failures(out: Path, binary: Path, model: Path, port: int, state:
     Slot observations establish that each failure occurred after dispatch.
     """
     with socket.socket() as probe:
-        probe.bind(("127.0.0.1", port))
-    command = [str(binary), "--model", str(model), "--alias", "laya", "--host", "127.0.0.1",
+        probe.bind(("0.0.0.0", port))
+    command = [str(binary), "--model", str(model), "--alias", "laya", "--host", "0.0.0.0",
                "--port", str(port), "--device", "none", "--n-gpu-layers", "0", "--parallel", "1",
                "--ctx-size", "8192", "--batch-size", "8192", "--ubatch-size", "8192", "--threads", "4", "--jinja", "--slots"]
     value = {"command": command, "binary_sha256": sha256_bytes(binary.read_bytes()), "model_sha256": sha256_bytes(model.read_bytes())}

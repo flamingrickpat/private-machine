@@ -177,7 +177,7 @@ def run(args: argparse.Namespace) -> None:
         "TEST_RUN_ROOT": str(out), "SERVER_MEMORY": "1G", "SERVER_START_TIMEOUT_SECONDS": "180"})
     for key in ("MINECRAFT_PORT", "MINECRAFT_RCON_PORT", "MCP_PORT", "MCMCP_BODY_PORT", "MCMCP_VIEWER_PORT"):
         with socket.socket() as probe:
-            probe.bind(("127.0.0.1", int(values[key])))
+            probe.bind(("0.0.0.0", int(values[key])))
     env_path = out / ".env.alpha"
     env_path.write_text("\n".join(f"{key}={value}" for key, value in values.items()) + "\n", encoding="utf-8")
     configuration = yaml.safe_load(args.config.read_text(encoding="utf-8"))

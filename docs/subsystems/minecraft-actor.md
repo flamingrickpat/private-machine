@@ -39,7 +39,7 @@ Explicit `action_tool` requests and the old instruction-wait fixtures select the
 The request has no `max_actions` field or workflow tool-call ceiling.
 
 [`workflows.minecraft.specialist_session.run_specialist_session`][] acquires the lease, observes the body, and discovers upstream tool schemas.
-It starts a temporary loopback MCP gateway and passes its descriptor to `PmCoderDriver.run_session`.
+It starts a temporary MCP gateway bound to `0.0.0.0` and passes its descriptor to `PmCoderDriver.run_session`.
 The model comes from the supplied `agent_model` or the lazy `Default` model session.
 The driver uses pm-coder's native session, serving context, history, and automatic compaction.
 Its existing session deadline remains 7,200 seconds.

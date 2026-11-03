@@ -23,7 +23,7 @@ From `dev/kanban`, run `.\start.ps1`.
 The launcher finds the repository from its own location.
 It uses `uv` and the locked repository environment, regardless of the current directory.
 The command opens `http://127.0.0.1:8767` in your browser.
-The server binds only to the local loopback address.
+The server binds to `0.0.0.0` so remote and forwarded addresses work.
 Stop the server with Ctrl+C in its terminal.
 
 If port 8767 is occupied, select another port:

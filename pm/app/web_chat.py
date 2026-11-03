@@ -1,4 +1,4 @@
-"""A loopback web chat for one running companion.
+"""A network web chat for one running companion.
 
 The server runs in its own thread beside the application. It reads public
 dialogue from the live ``MemoryStore`` and hands new messages to a submit
@@ -18,7 +18,7 @@ API:
 - ``GET /api/media/<record_id>/<image_id>`` returns the bytes of one image
   of one public dialogue record, with its MIME type. History never holds base64.
 
-The server binds to ``127.0.0.1`` and has no authentication. The login name
+The server binds to ``0.0.0.0`` and has no authentication. The login name
 only selects the speaker. Anyone who can open the URL can speak as any name.
 """
 from __future__ import annotations
@@ -200,7 +200,7 @@ def read_messages(store: MemoryStore, after: int = 0) -> MessagePage:
 
 
 class WebChatServer:
-    """Serve the chat page and its API on loopback in one background thread.
+    """Serve the chat page and its API on all IPv4 interfaces in one background thread.
 
     ``submit`` must commit the message before it returns, so the next poll
     shows it. ``port`` 0 takes a free port; ``url`` names the real one.

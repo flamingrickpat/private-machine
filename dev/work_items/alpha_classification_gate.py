@@ -185,7 +185,7 @@ def response_recorder(model: AgentModel, out: Path):
             self.end_headers()
             self.wfile.write(response.content)
 
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    server = ThreadingHTTPServer(("0.0.0.0", 0), Handler)
     server.daemon_threads = True
     worker = Thread(target=server.serve_forever, daemon=True)
     worker.start()

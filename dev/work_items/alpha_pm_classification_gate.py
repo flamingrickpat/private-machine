@@ -188,7 +188,7 @@ def main() -> None:
         assert classified[0]["result"]["receipt"]["invalid_code"] == "stale_output"
         receipt["cases"].append({"name": "stale-producer", "class": "INVALID", "primary_cause": "stale_output"})
         with socket.socket() as reserved:
-            reserved.bind(("127.0.0.1", 0))
+            reserved.bind(("0.0.0.0", 0))
             unavailable = pickle_copy(config)
             unavailable.chat["Default"] = unavailable.chat["Default"].model_copy(update={"base_url": f"http://127.0.0.1:{reserved.getsockname()[1]}/v1", "startup_script": None})
             result, classified = run_case(out, "unavailable", virtual, WorkflowModels(unavailable, ModelActivation(), live_test=True),

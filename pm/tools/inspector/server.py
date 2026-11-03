@@ -1,6 +1,6 @@
 """The local HTTP server that shows one loaded checkpoint.
 
-Only ``127.0.0.1`` should be passed as the host, because the page shows the
+The launcher defaults to ``0.0.0.0``. The page shows the
 contents of a private memory store and has no login. The server has no
 endpoints that change anything: every request is a read.
 
