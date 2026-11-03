@@ -13,9 +13,16 @@ import threading
 import time
 import logging
 from contextlib import contextmanager
-from typing import Iterator, Mapping
+from typing import Iterator, Literal, Mapping, TypedDict
 
 from fastmcp import FastMCP
+
+
+class McpServerDescriptor(TypedDict):
+    """Outbound HTTP MCP configuration for a scoped listener."""
+
+    url: str
+    type: Literal["http"]
 
 
 class _Listener:
@@ -103,7 +110,7 @@ class ScopedMcpRegistry:
 
     def serve(
         self, servers: Mapping[str, FastMCP], *, timeout: float = 10.0
-    ) -> dict[str, dict]:
+    ) -> dict[str, McpServerDescriptor]:
         """Start each named server on a held port and return HTTP descriptors."""
         if not servers:
             return {}
@@ -154,7 +161,7 @@ def _ignore_aborted_socket(loop: object, context: dict) -> None:
 @contextmanager
 def serve_services(
     servers: Mapping[str, FastMCP], *, timeout: float = 10.0
-) -> Iterator[dict[str, dict]]:
+) -> Iterator[dict[str, McpServerDescriptor]]:
     """Start scoped services for a run and guarantee their cleanup."""
     with ScopedMcpRegistry() as registry:
         yield registry.serve(servers, timeout=timeout)

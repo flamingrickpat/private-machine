@@ -10,6 +10,7 @@ The runtime retains raw causal history and restores its accepted view by default
 Parent: [local Kanban board](../../workflows/kanban.md).
 Design discussion: [causal memory and recovery](causal-memory.md).
 Actor correction and generated samples: [historical voice and immersion](actor-immersion.md).
+Dependency failure and repair: [MCP transport recovery](mcp-recovery.md).
 Source report: [contributor A/B test](../../ab_test_2026-10-23.md).
 Process: [work-item development](../process.md).
 

@@ -25,6 +25,18 @@ Earlier evidence: [A15 verification](../work_items/verification/a15-codelets.md)
 
 ## Where codelets run in the cycle
 
+Agent codelets use scoped memory and mind MCP services.
+The `pm-coder` session owns their client connections and transcript.
+When transport fails, it reopens the agent context and retains completed tool results.
+Unanswered tool calls keep their IDs and an explicit interrupted-outcome receipt.
+The model can retry a read; an uncertain write requires reconciliation against actual state.
+This recovery does not rerun the whole cognitive cycle or a completed codelet.
+
+A transport-only cleanup error remains in the session's `agent-connection.jsonl`.
+It does not replace an already completed model answer.
+Cancellation and programming errors still propagate.
+The runtime retains the same memory grant through reconnection.
+
 The `codelets` phase runs after `retrieve` and before `structures` and `attention`.
 
 ```mermaid
