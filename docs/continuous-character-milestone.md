@@ -1,9 +1,15 @@
-# Milestone: Continuous, Situated Character Cognition
+# Beta: Continuous, Situated Character Cognition
 
 **Project:** private-machine  
 **Specification date:** 2026-10-27  
-**Status:** consolidated architecture target for owner review and local work-item design  
-**Suggested repository location:** `docs/work_items/continuous-character/milestone.md`
+**Status:** owner-authorized beta target; implementation and acceptance remain incremental  
+**Milestone name:** beta, selected by the owner on 2026-11-09
+
+Beta includes this specification and directly related implementation work.
+The name identifies the development scope. It does not assert that the target is complete.
+The preserved pre-beta baseline is Git tag `alpha-baseline-20261109` at commit `2b17cf8`.
+The implementation plan is `dev/work_items/beta.md` in the repository.
+Later work can use the milestone name gamma after its scope is defined.
 
 **Owner clarification, 2026-11-05:** Critical triage can require blocking full reconsideration before dialogue resumes.
 Ordinary dialogue selection uses situational understanding and character motives, without a separate conversational permission layer.

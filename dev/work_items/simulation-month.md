@@ -133,3 +133,12 @@ source and OpenRouter with completion replay disabled.
 The two temporary verification servers on ports 8095 and 8096 drained and exited.
 The month is running, not completed or quality-approved. It retains the ordinary
 runtime schedule; no cognition, private thought, or quiet interval was bypassed.
+
+## November 9 inspection
+
+The dashboard and participant are no longer running. The saved running status
+is stale. The run reached four of 90 scenes, 16 Jesse messages, and 115 Spamuel
+messages. Its virtual clock reached June 1 at 10:20:30. The final runtime log
+entry is November 6 at 00:22:41 UTC. The shutdown cause remains unknown.
+No completed-month report or final analysis exists. Preserve the run as partial
+baseline evidence. The next development milestone is recorded in `beta.md`.

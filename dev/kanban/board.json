@@ -1,5 +1,5 @@
 {
-  "next_id": 7,
+  "next_id": 8,
   "cards": [
     {
       "id": 1,
@@ -36,6 +36,12 @@
       "title": "Centralize operating-system and process operations",
       "description": "Owner selected one typed OperatingSystem utility class, including production runtime, historical development gates, standalone test helpers, and runnable test-data tools. Implemented in pm/utils/operating_system.py; native operations and platform switches share that boundary. An architecture guard enforces it across the repository code. Real process, job cleanup, lock, file-sharing, and PowerShell checks passed (21); persistence and CLI-plan checks passed (26). Scoped and configured strict checks passed. All modified modules compiled/imported. Manual build and API navigation passed. The existing CLI restart failure also reproduces at baseline 99c6b66; optional RSS needs psutil on Windows. Linux/macOS lifetime behavior and full live gates were not tested. Model launcher scripts remain unchanged. Proposal and receipts: docs/work_items/refactor/operating-system-boundary.md; .runtime/kanban/k002-audit-20261029/owner-shutdown/. No push.",
       "status": "done"
+    },
+    {
+      "id": 7,
+      "title": "Beta: continuous character cognition",
+      "description": "Owner authorized planning and GPT-6.1 implementation on 2026-11-09. Scope: docs/continuous-character-milestone.md. Plan: dev/work_items/beta.md. Baseline commit 2b17cf8, tag alpha-baseline-20261109; branch beta. Start B01 early triage/publication boundary and B02 generic situational guidance, then B03 ordinary async interaction. Use OpenRouter only. Preserve interrupted month as partial baseline; no further month run is needed before these changes. Beta is not complete. Evidence: .runtime/beta-20261109/. Cleanup of 15 obsolete automatic backups was blocked by automatic policy review; no files removed.",
+      "status": "doing"
     }
   ]
 }

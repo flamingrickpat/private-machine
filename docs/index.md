@@ -2,6 +2,9 @@
 
 ## Summary
 
+The current development target is [beta: continuous character cognition](continuous-character-milestone.md).
+The specification describes required future capabilities. It does not assert that beta is complete.
+
 private-machine connects cognitive workflows through an in-memory bus.
 The memory store owns accepted memory and checkpoints.
 The operator console controls isolated instances and records their execution evidence.

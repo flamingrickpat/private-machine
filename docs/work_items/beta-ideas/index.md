@@ -2,6 +2,10 @@
 
 ## Summary
 
+These historical ideas are not the accepted beta scope.
+On 2026-11-09, the owner named [continuous character cognition](../../continuous-character-milestone.md) as beta.
+The notes below remain candidates for later work unless that specification includes them.
+
 These pages hold directions for the beta after the alpha revises.
 They are rough notes, not plans and not work items.
 A note records what the user and the agent discussed.

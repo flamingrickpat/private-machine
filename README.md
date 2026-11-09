@@ -2,6 +2,10 @@
 
 private-machine (pm) is a cognitive runtime for **a persistent character**.
 
+The current development milestone is [beta: continuous character cognition](docs/continuous-character-milestone.md).
+Beta is under development. Its specification describes the target, not completed capabilities.
+The [implementation plan](dev/work_items/beta.md) separates delivered work from remaining acceptance gates.
+
 Each instance runs one persona. Each persona must run in its own process or container, with its own character home.
 
 A character in pm is not a system prompt and a chat log. It is inspectable internal state: a persistent mental-state
