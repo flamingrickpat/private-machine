@@ -40,6 +40,7 @@ from simulation.evidence import capture_participant
 from simulation.personas import fork_home
 from simulation.plans import ScenarioPlan, facts_for_scene
 from simulation.source import freeze_source
+from simulation.analysis import AnalysisSettings, analyze_run
 
 
 class RunEngine:
@@ -109,6 +110,7 @@ class RunEngine:
             prepared.append({"id": item["id"], "source_home": item["home"], "home": str(home.root.resolve()),
                              "first_record_id": data.current_knoxel_id + 1, "cursor": cursor})
         atomic_json(root / "plan.json", plan.model_dump(mode="json"))
+        atomic_json(root / "analysis-settings.json", AnalysisSettings().model_dump(mode="json"))
         initial_state: dict[str, JsonValue] = {
             "id": root.name, "title": plan.title, "status": "ready",
             "created_at": datetime.now(timezone.utc).isoformat(), "config": str(Path(config).resolve()),
@@ -373,7 +375,7 @@ class RunEngine:
                     at=evidence.timestamp.isoformat(), text=evidence.content))
         context = ActorContext(profile=profile, at=step.at, scene=step.instruction, intent=step.actor_intent,
             current_facts=facts_for_scene(self.plan, step),
-            conversation=conversation)
+            conversation=conversation, guidance=self.plan.director.actor_guidance)
         pending = self.state["pending_input"]
         if pending is None:
             actor = agents.actor(context, [fact for fact in self.plan.facts if fact.at is not None and fact.at > step.at])
@@ -420,7 +422,10 @@ class RunEngine:
                 if at is not None and datetime.fromisoformat(message["timestamp"]) != at:
                     raise ValueError("The director's fact evidence does not retain its required time.")
             self.state["facts"][fact_id] = {"delivery_id": evidence[0], "delivery_ids": evidence, "reason": judgment.reason}
-        if judgment.step_complete and set(step.fact_ids).issubset(self.state["facts"]):
+        scene_prefix = f"{self.root.name}:stage:{step.id}:turn:"
+        scene_turns = sum(1 for row in self.state["timeline"]
+                          if row.get("kind") == "actor" and row["delivery_id"].startswith(scene_prefix))
+        if judgment.step_complete and set(step.fact_ids).issubset(self.state["facts"]) and scene_turns >= step.minimum_turns:
             self.state["step_index"] += 1
         self.state["turn"] += 1
         self.state["pending_input"] = None
@@ -480,6 +485,16 @@ class RunEngine:
                 self.state["requested_status"] = None
                 self.save()
                 self._report(attempt)
+            settings_path = self.root / "analysis-settings.json"
+            if self.state["status"] == "completed" and settings_path.exists():
+                settings = AnalysisSettings.model_validate_json(settings_path.read_text(encoding="utf-8"))
+                if settings.automatic:
+                    try:
+                        analyze_run(self.root, source["config"])
+                    except Exception as error:
+                        # Rating failure stays visible and never reruns completed companion work.
+                        atomic_json(self.root / "analysis-failure.json", {
+                            "error": repr(error), "traceback": traceback.format_exc()})
 
     def _checkpoint(self, attempt: Path) -> None:
         """Freeze every participant and the transit ledger at one clock barrier.

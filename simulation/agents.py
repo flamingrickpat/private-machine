@@ -24,7 +24,7 @@ from typing import TypeVar
 from pydantic import BaseModel, Field, JsonValue, ValidationError
 
 from pm.llm.activation import ModelActivation
-from pm.llm.config import load_config, resolve_connection
+from pm.llm.config import LlmPreset, load_config, resolve_connection
 from pm.llm.stage_model import LazyStageModel
 from pm.host.durable_files import atomic_json
 from simulation.plans import ScenarioPlan, ExtractedFacts, ActorTurn, ActorDraftReview, Fact, Step, StageJudgment
@@ -43,6 +43,7 @@ class ActorContext(BaseModel):
     intent: str
     current_facts: list[Fact]
     conversation: list[ConversationTurn]
+    guidance: str = ""
 
 
 class RejectedDraft(BaseModel):
@@ -107,8 +108,9 @@ class Agents:
     run through the existing model cancellation path. Logic failures propagate.
     """
 
-    def __init__(self, config: str, evidence: Path, cancel: threading.Event | None = None) -> None:
-        self.model: LazyStageModel = LazyStageModel(resolve_connection(load_config(config)), ModelActivation())
+    def __init__(self, config: str, evidence: Path, cancel: threading.Event | None = None,
+                 *, preset: LlmPreset = LlmPreset.Default) -> None:
+        self.model: LazyStageModel = LazyStageModel(resolve_connection(load_config(config), preset=preset), ModelActivation())
         self.evidence: Path = evidence
         self.cancel: threading.Event | None = cancel
 
@@ -196,6 +198,8 @@ class Agents:
                 "Respond to the latest companion reply when present. This is an ordinary conversation, not a "
                 "report to a system or experimenter. Never call the companion PM unless that is their actual name. "
                 "Convey facts naturally over multiple turns when appropriate. No checklist, formal pledge, "
+                "Once a fact is established, continue the conversation rather than announcing it again. "
+                "Use context.guidance for the user's motives and style, while keeping the current scene grounded. "
                 "exact-time announcement, or repeated 'not up for debate' is required. Maintain the scenario's "
                 "choices through disagreement while remaining emotionally responsive. "
                 "The clock is metadata. Do not invent events outside the current scene or speak for the companion. "

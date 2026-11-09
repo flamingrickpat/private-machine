@@ -41,6 +41,9 @@ Set the embedding `context_window` from the provider's embedding catalog when ch
 For other endpoints, omit `--openrouter-only` and select their configuration explicitly.
 
 Open `http://127.0.0.1:8095/`.
+The dashboard uses light mode and shares its palette with the memory debugger.
+Select **Memory debugger** inside a run to inspect captured attempts on the same website.
+The standalone debugger remains available.
 The server binds to `0.0.0.0`. Remote browsers can use the machine address or a forwarded local port.
 The default homes directory is `~/.pm/private-machine`.
 The default evidence directory is `.runtime/simulation/`.
@@ -61,6 +64,79 @@ The backend accepts a graph of participants; the browser currently selects two.
 Minecraft and its managed workflows remain disabled for simulation participants.
 
 ## Scenario execution
+
+### Templates and longer scenarios
+
+The browser imports and exports `pm.simulation-template.v1` JSON files.
+A template contains participants, directed connections, the scenario brief, director settings, and rating settings.
+An optional exact plan supplies the scenes without model-based planning.
+Run creation forks each source home and saves the resolved template as `template.json`.
+The source home stays unchanged.
+
+Set the duration, conversations per day, and minimum user messages per conversation.
+Add a daily rhythm, story threads, scheduled events, director guidance, and actor guidance.
+The planner creates one day at a time and combines the results into an editable plan.
+Expand a scene to edit its time, circumstances, private motive, recipient, and completion condition.
+The JSON editor retains access to all plan fields.
+The director cannot finish a scene before its minimum message count and required facts are satisfied.
+
+The included adult Jesse/Spamuel scenario covers 30 days and 90 conversations.
+It requires at least 360 user messages, plus actual companion responses and autonomous activity.
+Its themes include a foster cat, work, a shared project, attraction, conflict, repair, and joy.
+Companion agreement, romantic consent, and emotional outcomes remain the companion's choices.
+
+Validate or create a run without the browser:
+
+```powershell
+uv run --locked python -m simulation.templates validate test_data/simulation/eventful-month.json
+uv run --locked python -m simulation.templates create test_data/simulation/eventful-month.json --config config.yaml --run-id eventful-month
+```
+
+Add `--start` to create and execute the run in the same command.
+Use `python -m simulation.templates schema` to print the JSON schema.
+Relative home paths resolve against the template's directory in the CLI.
+Paths beginning with `~` resolve against the current user's home.
+The browser requires registered character homes.
+
+Virtual time still executes normal cognition and private-thought deadlines.
+A simulated month can require substantial real time and model work.
+The harness does not bypass cognition to reach later dates.
+
+### Automatic ratings
+
+The **Analysis** tab contains editable agent instructions and captured findings.
+The starter agents rate conversational sense and AI companion immersion.
+Knowing that Spamuel is an AI is part of the intended experience.
+Consensual adult romance, disagreement, refusal, and unresolved feelings can fit the character.
+An introspective report is assessed when present; its absence alone is not a defect.
+
+After a completed run, enabled agents use the configured `UnitTestEvaluator` connection.
+Each call assesses one criterion and one section of public conversation.
+Every delivery belongs to one section.
+Eight preceding deliveries and twelve historical reference lines per participant provide context.
+This sampled historical context does not establish a complete historical-memory audit.
+Exact delivery citations support numerical scores.
+The browser links each citation to its exchange.
+Section means are summaries of model judgments, not human ratings or statistical guarantees.
+
+Save changed settings and select **Analyze completed run** to run the agents again.
+Analysis never repeats companion execution.
+Each analysis has separate settings, coverage, model receipts, and results under `analysis/<id>/`.
+A failed analysis remains visible without changing completed simulation status.
+Owner feedback remains separate from automatic scores.
+
+### Optional ghost backups
+
+The model YAML configuration controls extra per-cycle ghost copies:
+
+```yaml
+ghost_backups: false
+```
+
+The default is `false`.
+Set it to `true` to retain a full ghost copy after each accepted cognition cycle.
+The current `ghost.pickle` and explicit simulation recovery snapshots remain required in both modes.
+Changing this setting does not remove existing backups.
 
 Immersion depends on believable user input as well as companion behavior.
 The harness reads the selected home's complete public dialogue and actual user and companion names.
@@ -223,6 +299,8 @@ Existing capture files under `.runtime/dev-review/` remain unchanged.
 - [`simulation.engine.RunEngine`][] owns scenario progress, routing, and attempt evidence.
 - [`simulation.actors.ActorProfile`][] preserves user voice, identity, and source continuity.
 - [`simulation.agents.Agents`][] owns harness planning, actor generation, and immersion checks.
+- [`simulation.templates.SimulationTemplate`][] owns browser and CLI run definitions.
+- [`simulation.analysis.analyze_run`][] owns automatic post-run ratings and their separate evidence.
 - [`simulation.participant.Participant`][] owns one controlled PM process.
 - [`simulation.review.catalog.register`][] registers immutable offline captures.
 - [`pm.app.control.RuntimeControl`][] supplies ordinary runtime controls.

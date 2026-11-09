@@ -38,6 +38,11 @@ from simulation.actors import load_profile, suggested_start, summarize
 from simulation.engine import RunEngine
 from simulation.personas import DEFAULT_HOMES, DEFAULT_RUNS, canon_home, fork_home, homes
 from simulation.plans import ScenarioPlan
+from simulation.templates import SimulationTemplate, TemplateParticipant, create_run, generate_plan
+from simulation.analysis import AnalysisSettings, analyze_run
+from pm.tools.timeline.api import TimelineApi
+from pm.tools.timeline.evidence import EvidenceStore
+from pm.tools.timeline.server import STATIC_ROOT as DEBUGGER_STATIC
 from simulation.review.catalog import captures, identifier, load_capture
 from pm.introspection.record_format import present_packages, record_links, visible_data
 
@@ -62,6 +67,7 @@ class Simulation:
         self.config: str = str(Path(config).resolve())
         self.engines: dict[str, RunEngine] = {}
         self._lock = threading.RLock()
+        self.debugger: TimelineApi = TimelineApi(EvidenceStore(self.runs_root / "runs"))
 
     def run_root(self, run_id: str) -> Path:
         """Resolve a registered run without allowing a path outside the run root."""
@@ -94,10 +100,17 @@ class Simulation:
 
     def home(self, value: str) -> Path:
         """Require an existing home registered under the selected persona root."""
-        selected = Path(value).resolve()
+        selected = Path(value).expanduser().resolve()
         if str(selected) not in {item["id"] for item in self.all_homes()}:
             raise ValueError("Choose a registered character home.")
         return selected
+
+    def template(self, body: dict[str, JsonValue]) -> SimulationTemplate:
+        """Validate and resolve template homes at the browser boundary."""
+        template = SimulationTemplate.model_validate(body)
+        template.participants = [TemplateParticipant(id=item.id, home=str(self.home(item.home)))
+                                 for item in template.participants]
+        return template
 
     def checkpoint(self, home: Path, name: str) -> Path:
         """Resolve a home backup or named runtime snapshot without leaving its owner."""
@@ -121,7 +134,16 @@ class Simulation:
         atomic_json(root / "state.json", {"status": "running", "kind": kind})
         def work() -> None:
             try:
-                if kind == "plan":
+                if kind == "template-plan":
+                    template = self.template(body)
+                    profile = load_profile(Path(template.participants[0].home))
+                    plan = generate_plan(template, Agents(self.config, root), profile)
+                    result = {"plan": plan.model_dump(mode="json")}
+                elif kind == "analysis":
+                    engine = self.engine(str(body["run_id"]))
+                    report = analyze_run(engine.root, self.config)
+                    result = {"report": report.relative_to(engine.root).as_posix()}
+                elif kind == "plan":
                     request = BrowserPlanRequest.model_validate(body)
                     profile = load_profile(self.home(request.home))
                     start_time = request.start_time or suggested_start(profile)
@@ -180,7 +202,7 @@ def handler(application: Simulation) -> type[BaseHTTPRequestHandler]:
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "no-store")
             self.send_header("X-Content-Type-Options", "nosniff")
-            self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'")
+            self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'self'")
             self.end_headers()
             self.wfile.write(body)
 
@@ -199,11 +221,25 @@ def handler(application: Simulation) -> type[BaseHTTPRequestHandler]:
 
         def get(self) -> None:
             path = urlparse(self.path)
+            if path.path.startswith("/debugger/api/"):
+                status, payload = application.debugger.get(path.path[len("/debugger/api"):], parse_qs(path.query))
+                return self.respond(status, json.dumps(payload).encode("utf-8"), "application/json; charset=utf-8")
+            if path.path.startswith("/debugger/") or path.path == "/workspace-theme.css":
+                assets = {"/debugger/": "index.html", "/debugger/index.html": "index.html",
+                          "/debugger/app.js": "app.js", "/debugger/style.css": "style.css",
+                          "/debugger/workspace-theme.css": "theme.css", "/workspace-theme.css": "theme.css"}
+                if path.path not in assets:
+                    return self.output({"error": "Unknown debugger asset."}, 404)
+                asset = DEBUGGER_STATIC / assets[path.path]
+                mime = {".html": "text/html", ".css": "text/css", ".js": "text/javascript"}[asset.suffix]
+                return self.respond(200, asset.read_bytes(), mime + "; charset=utf-8")
             if path.path == "/favicon.ico":
                 return self.respond(204, b"", "image/x-icon")
             query = {key: values[0] for key, values in parse_qs(path.query).items()}
             if path.path == "/api/catalog":
                 return self.output(application.catalog())
+            if path.path == "/api/template-schema":
+                return self.output(SimulationTemplate.model_json_schema())
             if path.path == "/api/actor-profile":
                 profile = load_profile(application.home(query["home"]))
                 return self.output(summarize(profile).model_dump(mode="json"))
@@ -225,12 +261,39 @@ def handler(application: Simulation) -> type[BaseHTTPRequestHandler]:
                 job_id = path.path.rsplit("/", 1)[1]
                 if not re.fullmatch(r"[a-f0-9]+", job_id):
                     raise ValueError("Invalid job ID.")
-                return self.output(json.loads((application.runs_root / "jobs" / job_id / "state.json").read_text(encoding="utf-8")))
+                root = application.runs_root / "jobs" / job_id
+                value = json.loads((root / "state.json").read_text(encoding="utf-8"))
+                progress = root / "planning-progress.json"
+                if progress.exists():
+                    saved = json.loads(progress.read_text(encoding="utf-8"))
+                    value["progress"] = {"completed_days": saved["completed_days"], "total_days": saved["total_days"]}
+                return self.output(value)
             if path.path.startswith("/api/runs/"):
                 parts = path.path.strip("/").split("/")
                 engine = application.engine(parts[2])
                 if len(parts) == 3:
                     return self.output({"state": engine.view(), "plan": engine.plan.model_dump(mode="json")})
+                if parts[3] == "template":
+                    saved = engine.root / "template.json"
+                    if saved.exists():
+                        return self.output(json.loads(saved.read_text(encoding="utf-8")))
+                    value = engine.view()
+                    template = SimulationTemplate.model_validate({"title": engine.plan.title, "brief": engine.plan.brief,
+                        "start_time": engine.plan.start_time, "director": engine.plan.director,
+                        "participants": [{"id": item["id"], "home": item["source_home"]} for item in value["participants"]],
+                        "edges": value["edges"], "plan": engine.plan})
+                    return self.output(template.model_dump(mode="json"))
+                if parts[3] == "analysis":
+                    settings = engine.root / "analysis-settings.json"
+                    latest = engine.root / "analysis-latest.json"
+                    report = None
+                    if latest.exists():
+                        reference = json.loads(latest.read_text(encoding="utf-8"))
+                        report = json.loads((engine.root / reference["path"]).read_text(encoding="utf-8"))
+                    failure = engine.root / "analysis-failure.json"
+                    return self.output({"settings": json.loads(settings.read_text(encoding="utf-8")) if settings.exists()
+                        else AnalysisSettings().model_dump(mode="json"), "report": report,
+                        "failure": json.loads(failure.read_text(encoding="utf-8")) if failure.exists() else None})
                 if parts[3] == "artifact":
                     relative = unquote(query["path"])
                     artifact = (engine.root / relative).resolve()
@@ -252,7 +315,9 @@ def handler(application: Simulation) -> type[BaseHTTPRequestHandler]:
                 if parts[3] == "feedback":
                     source = engine.root / "feedback.json"
                     return self.output(json.loads(source.read_text(encoding="utf-8")) if source.exists() else {})
-            names = {"/": ("index.html", "text/html"), "/app.js": ("app.js", "text/javascript"), "/style.css": ("style.css", "text/css")}
+            names = {"/": ("index.html", "text/html"), "/app.js": ("app.js", "text/javascript"),
+                     "/workspace.js": ("workspace.js", "text/javascript"), "/workspace.css": ("workspace.css", "text/css"),
+                     "/style.css": ("style.css", "text/css")}
             if path.path not in names:
                 return self.output({"error": "Unknown path."}, 404)
             filename, mime = names[path.path]
@@ -275,6 +340,8 @@ def handler(application: Simulation) -> type[BaseHTTPRequestHandler]:
                 self.output({"error": repr(error)}, 500)
 
         def post(self, path: str, body: dict[str, JsonValue]) -> None:
+            if path == "/api/templates/validate":
+                return self.output(application.template(body).model_dump(mode="json"))
             if path == "/api/present":
                 return self.output(present_packages({"packages": [body["package"]]}))
             if path == "/api/record-links":
@@ -290,7 +357,17 @@ def handler(application: Simulation) -> type[BaseHTTPRequestHandler]:
             if path in {"/api/plans", "/api/homes/canon", "/api/homes/fork"}:
                 kind = "plan" if path == "/api/plans" else path.rsplit("/", 1)[1]
                 return self.output({"job_id": application.job(kind, body)}, 202)
+            if path == "/api/template-plans":
+                return self.output({"job_id": application.job("template-plan", body)}, 202)
             if path == "/api/runs":
+                if "template" in body:
+                    template = application.template(body["template"])
+                    if template.plan is None:
+                        raise ValueError("Generate or supply a plan before creating a browser run.")
+                    run_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-") + uuid4().hex[:8]
+                    engine = create_run(template, application.run_root(run_id), application.config)
+                    application.engines[run_id] = engine
+                    return self.output({"run_id": run_id}, 201)
                 plan = ScenarioPlan.model_validate(body["plan"])
                 participants = [{**item, "home": str(application.home(item["home"]))} for item in body["participants"]]
                 run_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-") + uuid4().hex[:8]
@@ -309,6 +386,13 @@ def handler(application: Simulation) -> type[BaseHTTPRequestHandler]:
                     engine.restore(int(body["attempt"]))
                 elif operation == "feedback":
                     application.feedback(engine.root / "feedback.json", body)
+                elif operation == "analysis-settings":
+                    settings = AnalysisSettings.model_validate(body)
+                    atomic_json(engine.root / "analysis-settings.json", settings.model_dump(mode="json"))
+                elif operation == "analyze":
+                    if engine.view()["status"] != "completed":
+                        raise ValueError("Finish the simulation before analyzing its conversation.")
+                    return self.output({"job_id": application.job("analysis", {"run_id": parts[2]})}, 202)
                 else:
                     raise ValueError("Unknown run operation.")
                 return self.output(engine.view(), 202)

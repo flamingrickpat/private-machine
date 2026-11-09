@@ -1,4 +1,6 @@
 # Local chat and embeddings. Application defaults remain in config.example.yaml.
+ghost_backups: false
+
 chat:
   Default:
     base_url: http://127.0.0.1:8080/v1

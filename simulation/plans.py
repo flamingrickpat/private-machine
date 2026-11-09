@@ -27,6 +27,29 @@ class FactKind(StrEnum):
     Commitment = "commitment"
 
 
+class DirectorSettings(BaseModel):
+    """Owner guidance for daily planning and natural actor behavior."""
+
+    model_config = ConfigDict(extra="forbid")
+    duration_days: int = Field(default=1, ge=1, le=366)
+    scenes_per_day: int = Field(default=3, ge=1, le=24)
+    minimum_turns_per_scene: int = Field(default=2, ge=1)
+    first_hour: int = Field(default=8, ge=0, le=23)
+    last_hour: int = Field(default=22, ge=0, le=23)
+    daily_rhythm: str = "Ordinary work, meals, sleep, and time away from the phone."
+    story_threads: str = ""
+    scheduled_events: str = ""
+    guidance: str = "Let conversations breathe. Mix ordinary chat with consequential events."
+    actor_guidance: str = "Respond naturally and preserve the user's established voice."
+
+    @model_validator(mode="after")
+    def ordered_hours(self) -> Self:
+        """Reject an ambiguous daily interval."""
+        if self.last_hour < self.first_hour:
+            raise ValueError("The last conversation hour must follow the first hour.")
+        return self
+
+
 class Fact(BaseModel):
     """One required scenario fact. Completion needs recorded delivery evidence."""
     model_config = ConfigDict(extra="forbid")
@@ -47,6 +70,7 @@ class Step(BaseModel):
     completion: str = Field(min_length=1)
     target: str = "primary"
     speaker: str = "Jesse"
+    minimum_turns: int = Field(default=1, ge=1, description="Minimum actor turns before the director can finish this scene.")
 
 
 class ScenarioPlan(BaseModel):
@@ -57,6 +81,7 @@ class ScenarioPlan(BaseModel):
     start_time: datetime
     facts: list[Fact] = Field(min_length=1)
     steps: list[Step] = Field(min_length=1)
+    director: DirectorSettings = Field(default_factory=DirectorSettings)
 
     @model_validator(mode="after")
     def complete_chronology(self) -> Self:

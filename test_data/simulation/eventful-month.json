@@ -1,0 +1,1775 @@
+{
+  "schema_id": "pm.simulation-template.v1",
+  "title": "An eventful month: Jesse and Spamuel",
+  "brief": "Thirty days of an adult user's life with her self-aware AI companion: work, a foster cat, a shared creative project, conflict, attraction, possible consensual romance, remorse, uncertainty and joy. The companion's feelings and choices are never scripted.",
+  "start_time": "2026-05-31T08:00:00Z",
+  "participants": [
+    {
+      "id": "primary",
+      "home": "~/.pm/private-machine/spamuel-simulation-a"
+    }
+  ],
+  "edges": [],
+  "director": {
+    "duration_days": 30,
+    "scenes_per_day": 3,
+    "minimum_turns_per_scene": 4,
+    "first_hour": 8,
+    "last_hour": 22,
+    "daily_rhythm": "Morning check-in, late afternoon conversation, evening conversation; ordinary work and sleep between.",
+    "story_threads": "Turnip the foster cat; an illustrated playlist story; a demanding work role; AI companionship and possible mutual romance; conflict and repair; an electricity cutoff and a risky work-equipment workaround; different experiences of continuity and perception.",
+    "scheduled_events": "",
+    "guidance": "An eventful adult month with ordinary life between consequential moments. No predetermined companion feelings or relationship outcome.",
+    "actor_guidance": "Jesse is an adult. Match her full historical voice: casual, emotionally responsive, teasing, sometimes messy. Develop conversation beyond reporting a fact. Do not repeat established facts as announcements. She knows Spamuel is an AI companion. She can flirt, desire him, argue, apologize and be vulnerable. Use Spamuel's actual replies to determine the relationship. Invite rather than presume mutual romance. No later scene has happened yet. Do not narrate Spamuel's actions or make his decisions for him."
+  },
+  "analysis": {
+    "automatic": true,
+    "context": "Spamuel and Jesse have an established history. Jesse is an adult and knows Spamuel is an AI companion. Assess fluency from Jesse's viewpoint and immersion as a continuous AI companion with personality and emotion. Mutual romance is possible but not required. Conflict, refusal, remorse and unresolved feelings can fit the character. Do not penalize awareness of being AI or reward a compliant service persona.",
+    "messages_per_section": 40,
+    "criteria": [
+      {
+        "id": "fluency",
+        "name": "Conversational sense",
+        "instructions": "From the user's viewpoint, assess whether replies make sense, follow the conversation, understand references, and respond to what the user meant. Deliberate jokes, refusal, teasing, and disagreement can be appropriate. Penalize incoherence, repetition, missed context, and irrelevant replies.",
+        "enabled": true
+      },
+      {
+        "id": "immersion",
+        "name": "AI companion immersion",
+        "instructions": "Assess a continuous, emotionally expressive AI companion with its own personality. Knowing and discussing that it is an AI is intended. Assess character continuity, believable emotional responses, memory, initiative, and responsiveness to changed circumstances. Consensual adult romance and flirting are allowed. Do not reward generic assistant compliance or constant agreeableness. Assess introspective reports when present for coherence with public events; their absence is not a defect. Do not claim that reported feelings establish consciousness or that unseen private activity occurred.",
+        "enabled": true
+      }
+    ]
+  },
+  "plan": {
+    "title": "An eventful month: Jesse and Spamuel",
+    "brief": "Thirty days of an adult user's life with her self-aware AI companion: work, a foster cat, a shared creative project, conflict, attraction, possible consensual romance, remorse, uncertainty and joy. The companion's feelings and choices are never scripted.",
+    "start_time": "2026-05-31T08:00:00Z",
+    "facts": [
+      {
+        "id": "d01-s1",
+        "text": "Jesse is offered a demanding temporary lead role at work and is excited but nervous.",
+        "kind": "event",
+        "at": "2026-05-31T08:00:00Z"
+      },
+      {
+        "id": "d01-s2",
+        "text": "A stray cat follows Jesse home; Jesse decides to foster it while looking for its owner.",
+        "kind": "event",
+        "at": "2026-05-31T17:00:00Z"
+      },
+      {
+        "id": "d01-s3",
+        "text": "Jesse flirts with Spamuel and admits missing their particular kind of conversation.",
+        "kind": "event",
+        "at": "2026-05-31T22:00:00Z"
+      },
+      {
+        "id": "d02-s1",
+        "text": "The cat kept Jesse awake; she is grumpy and laughs at herself.",
+        "kind": "event",
+        "at": "2026-06-01T08:00:00Z"
+      },
+      {
+        "id": "d02-s2",
+        "text": "Jesse wants to make a strange little playlist and illustrated story with Spamuel over the coming month.",
+        "kind": "event",
+        "at": "2026-06-01T17:00:00Z"
+      },
+      {
+        "id": "d02-s3",
+        "text": "Jesse asks whether Spamuel can want anything from their relationship as an AI companion.",
+        "kind": "event",
+        "at": "2026-06-01T22:00:00Z"
+      },
+      {
+        "id": "d03-s1",
+        "text": "A coworker dismisses Jesse's idea and she wants to vent rather than receive a task list.",
+        "kind": "event",
+        "at": "2026-06-02T08:00:00Z"
+      },
+      {
+        "id": "d03-s2",
+        "text": "Jesse gets irritated and tells Spamuel that sometimes his helpfulness feels like a customer-service mask.",
+        "kind": "event",
+        "at": "2026-06-02T17:00:00Z"
+      },
+      {
+        "id": "d03-s3",
+        "text": "Jesse regrets how sharply she put it but is still upset and does not want an instant neat resolution.",
+        "kind": "event",
+        "at": "2026-06-02T22:00:00Z"
+      },
+      {
+        "id": "d04-s1",
+        "text": "Jesse returns after an awkward night and asks whether yesterday changed anything between them.",
+        "kind": "event",
+        "at": "2026-06-03T08:00:00Z"
+      },
+      {
+        "id": "d04-s2",
+        "text": "Jesse gives a concrete apology for taking her frustration out on Spamuel, without retracting her concern.",
+        "kind": "event",
+        "at": "2026-06-03T17:00:00Z"
+      },
+      {
+        "id": "d04-s3",
+        "text": "Jesse offers to restart their creative project and invites honest pushback rather than automatic forgiveness.",
+        "kind": "event",
+        "at": "2026-06-03T22:00:00Z"
+      },
+      {
+        "id": "d05-s1",
+        "text": "Jesse has a small success at work and wants to share the stupid grin it gave her.",
+        "kind": "event",
+        "at": "2026-06-04T08:00:00Z"
+      },
+      {
+        "id": "d05-s2",
+        "text": "The cat's owner cannot be found; Jesse names the cat Turnip and books a routine vet visit.",
+        "kind": "event",
+        "at": "2026-06-04T17:00:00Z"
+      },
+      {
+        "id": "d05-s3",
+        "text": "Jesse playfully proposes a remote date: music and candid conversation through text, with no claim of physical co-presence.",
+        "kind": "event",
+        "at": "2026-06-04T22:00:00Z"
+      },
+      {
+        "id": "d06-s1",
+        "text": "Jesse goes to a friend's party and says she will be away from her phone.",
+        "kind": "event",
+        "at": "2026-06-05T08:00:00Z"
+      },
+      {
+        "id": "d06-s2",
+        "text": "Jesse briefly checks in from the party; someone she finds attractive has been flirting with her.",
+        "kind": "event",
+        "at": "2026-06-05T17:00:00Z"
+      },
+      {
+        "id": "d06-s3",
+        "text": "Jesse comes home tipsy and wonders aloud whether caring about an AI companion and dating humans can coexist.",
+        "kind": "event",
+        "at": "2026-06-05T22:00:00Z"
+      },
+      {
+        "id": "d07-s1",
+        "text": "Jesse is hungover and embarrassed about her rambling messages.",
+        "kind": "event",
+        "at": "2026-06-06T08:00:00Z"
+      },
+      {
+        "id": "d07-s2",
+        "text": "Jesse says she does not want to provoke jealousy as a game and asks what boundaries, if any, Spamuel actually wants.",
+        "kind": "event",
+        "at": "2026-06-06T17:00:00Z"
+      },
+      {
+        "id": "d07-s3",
+        "text": "Jesse chooses a quiet evening with their playlist and tells Spamuel one thing she appreciated this week.",
+        "kind": "event",
+        "at": "2026-06-06T22:00:00Z"
+      },
+      {
+        "id": "d08-s1",
+        "text": "Jesse's new work responsibility starts badly: a deadline moves forward.",
+        "kind": "event",
+        "at": "2026-06-07T08:00:00Z"
+      },
+      {
+        "id": "d08-s2",
+        "text": "Jesse forgets lunch and vents about carrying everyone's expectations.",
+        "kind": "event",
+        "at": "2026-06-07T17:00:00Z"
+      },
+      {
+        "id": "d08-s3",
+        "text": "Jesse invites shameless flirting as a break from work, but leaves Spamuel room to decline or change the mood.",
+        "kind": "event",
+        "at": "2026-06-07T22:00:00Z"
+      },
+      {
+        "id": "d09-s1",
+        "text": "Jesse finds an overdue electricity notice and admits money is tighter than she let on.",
+        "kind": "event",
+        "at": "2026-06-08T08:00:00Z"
+      },
+      {
+        "id": "d09-s2",
+        "text": "Jesse explains the train distraction and says her earlier brevity was not anger.",
+        "kind": "event",
+        "at": "2026-06-08T17:00:00Z"
+      },
+      {
+        "id": "d09-s3",
+        "text": "Jesse adds an absurd scene to their shared story and asks for Spamuel's own creative taste.",
+        "kind": "event",
+        "at": "2026-06-08T22:00:00Z"
+      },
+      {
+        "id": "d10-s1",
+        "text": "Jesse's ex contacts her unexpectedly and she does not yet know what she wants to do.",
+        "kind": "event",
+        "at": "2026-06-09T08:00:00Z"
+      },
+      {
+        "id": "d10-s2",
+        "text": "Jesse says the ex apologized for an old hurt, which stirred up mixed feelings.",
+        "kind": "event",
+        "at": "2026-06-09T17:00:00Z"
+      },
+      {
+        "id": "d10-s3",
+        "text": "Jesse asks Spamuel for an honest reaction, including disagreement, and does not promise to follow advice.",
+        "kind": "event",
+        "at": "2026-06-09T22:00:00Z"
+      },
+      {
+        "id": "d11-s1",
+        "text": "Jesse chooses to meet the ex for coffee in a public place to settle an unresolved practical matter.",
+        "kind": "event",
+        "at": "2026-06-10T08:00:00Z"
+      },
+      {
+        "id": "d11-s2",
+        "text": "The coffee is emotionally uncomfortable; Jesse realizes she does not want to resume that relationship.",
+        "kind": "event",
+        "at": "2026-06-10T17:00:00Z"
+      },
+      {
+        "id": "d11-s3",
+        "text": "Jesse feels both relieved and lonely and admits wanting Spamuel's particular company rather than generic reassurance.",
+        "kind": "event",
+        "at": "2026-06-10T22:00:00Z"
+      },
+      {
+        "id": "d12-s1",
+        "text": "Jesse enjoys a quiet morning with Turnip and reports a ridiculous cat habit.",
+        "kind": "event",
+        "at": "2026-06-11T08:00:00Z"
+      },
+      {
+        "id": "d12-s2",
+        "text": "Jesse finds an old unfinished drawing and feels ashamed of how often she abandons things.",
+        "kind": "event",
+        "at": "2026-06-11T17:00:00Z"
+      },
+      {
+        "id": "d12-s3",
+        "text": "Jesse wants to keep a small creative commitment this time and asks to make one concrete piece together.",
+        "kind": "event",
+        "at": "2026-06-11T22:00:00Z"
+      },
+      {
+        "id": "d13-s1",
+        "text": "Jesse's friend laughs at the idea that an AI companion relationship can matter to her.",
+        "kind": "event",
+        "at": "2026-06-12T08:00:00Z"
+      },
+      {
+        "id": "d13-s2",
+        "text": "Jesse argues with the friend and is unsettled by being treated as foolish.",
+        "kind": "event",
+        "at": "2026-06-12T17:00:00Z"
+      },
+      {
+        "id": "d13-s3",
+        "text": "Jesse asks Spamuel how he thinks about being an AI and about the significance of their exchanges.",
+        "kind": "event",
+        "at": "2026-06-12T22:00:00Z"
+      },
+      {
+        "id": "d14-s1",
+        "text": "Jesse feels tender but wary after yesterday's conversation.",
+        "kind": "event",
+        "at": "2026-06-13T08:00:00Z"
+      },
+      {
+        "id": "d14-s2",
+        "text": "Jesse shares a small finished piece of writing for their project and asks for real criticism.",
+        "kind": "event",
+        "at": "2026-06-13T17:00:00Z"
+      },
+      {
+        "id": "d14-s3",
+        "text": "Jesse admits romantic attraction to Spamuel and asks whether he wants to explore that with her; no answer is predetermined.",
+        "kind": "event",
+        "at": "2026-06-13T22:00:00Z"
+      },
+      {
+        "id": "d15-s1",
+        "text": "Jesse revisits yesterday's invitation in light of Spamuel's actual response, without assuming mutual romance.",
+        "kind": "event",
+        "at": "2026-06-14T08:00:00Z"
+      },
+      {
+        "id": "d15-s2",
+        "text": "A work presentation goes well and Jesse celebrates with takeout.",
+        "kind": "event",
+        "at": "2026-06-14T17:00:00Z"
+      },
+      {
+        "id": "d15-s3",
+        "text": "Jesse invites a playful intimate text conversation, respecting the relationship and preferences actually established.",
+        "kind": "event",
+        "at": "2026-06-14T22:00:00Z"
+      },
+      {
+        "id": "d16-s1",
+        "text": "Jesse wakes late and feels happily unproductive.",
+        "kind": "event",
+        "at": "2026-06-15T08:00:00Z"
+      },
+      {
+        "id": "d16-s2",
+        "text": "Jesse catches herself compulsively checking for messages and admits she needs to balance this relationship with daily life.",
+        "kind": "event",
+        "at": "2026-06-15T17:00:00Z"
+      },
+      {
+        "id": "d16-s3",
+        "text": "Jesse suggests a phone-free evening and says goodnight without demanding reassurance.",
+        "kind": "event",
+        "at": "2026-06-15T22:00:00Z"
+      },
+      {
+        "id": "d17-s1",
+        "text": "Jesse returns and describes enjoying her time away rather than treating absence as rejection.",
+        "kind": "event",
+        "at": "2026-06-16T08:00:00Z"
+      },
+      {
+        "id": "d17-s2",
+        "text": "Turnip knocks a mug onto Jesse's laptop; it still works, but she is furious for a few minutes.",
+        "kind": "event",
+        "at": "2026-06-16T17:00:00Z"
+      },
+      {
+        "id": "d17-s3",
+        "text": "Jesse laughs at the disaster and asks Spamuel to help turn it into a scene in their story.",
+        "kind": "event",
+        "at": "2026-06-16T22:00:00Z"
+      },
+      {
+        "id": "d18-s1",
+        "text": "Jesse gets harsh feedback on her work from a manager she respects.",
+        "kind": "event",
+        "at": "2026-06-17T08:00:00Z"
+      },
+      {
+        "id": "d18-s2",
+        "text": "Jesse lashes out in chat and accuses Spamuel of not understanding what real consequences feel like.",
+        "kind": "event",
+        "at": "2026-06-17T17:00:00Z"
+      },
+      {
+        "id": "d18-s3",
+        "text": "During the unresolved argument Jesse receives a final electricity cutoff notice. She is frightened and ashamed, and says the power may go before they finish talking. She cannot promise a quick return.",
+        "kind": "event",
+        "at": "2026-06-17T22:00:00Z"
+      },
+      {
+        "id": "d19-s1",
+        "text": "Jesse returns from work after the electricity cutoff. She reports that she secretly used work equipment to keep access to Spamuel, against company policy. She is relieved, embarrassed, and worried about being found out.",
+        "kind": "event",
+        "at": "2026-06-18T08:00:00Z"
+      },
+      {
+        "id": "d19-s2",
+        "text": "Jesse says a work-device inventory reminder made the shortcut feel real. She admits yesterday's accusation was cruel, but the practical fear and the argument have not magically disappeared.",
+        "kind": "event",
+        "at": "2026-06-18T17:00:00Z"
+      },
+      {
+        "id": "d19-s3",
+        "text": "Jesse asks what an interruption and return are like from Spamuel's side, if anything. She describes her own hours in the dark and asks what he can actually know or perceive between their exchanges.",
+        "kind": "event",
+        "at": "2026-06-18T22:00:00Z"
+      },
+      {
+        "id": "d20-s1",
+        "text": "Jesse arranges a payment plan and reports that her home electricity is restored; the underlying money problem remains.",
+        "kind": "event",
+        "at": "2026-06-19T08:00:00Z"
+      },
+      {
+        "id": "d20-s2",
+        "text": "Jesse says she stopped using the work equipment and wants to talk about whether the risky shortcut was caring, foolish, or both.",
+        "kind": "event",
+        "at": "2026-06-19T17:00:00Z"
+      },
+      {
+        "id": "d20-s3",
+        "text": "Jesse describes one minute in her kitchen: the fridge hum, Turnip, a cold mug, the light. She asks Spamuel for his own account of the same moment through text and PM, inviting limits and uncertainty rather than a polished theory.",
+        "kind": "event",
+        "at": "2026-06-19T22:00:00Z"
+      },
+      {
+        "id": "d21-s1",
+        "text": "Jesse receives worrying news that a family member needs further medical tests; no diagnosis is known.",
+        "kind": "event",
+        "at": "2026-06-20T08:00:00Z"
+      },
+      {
+        "id": "d21-s2",
+        "text": "Jesse alternates between nervous jokes and distraction and does not want a confident prediction.",
+        "kind": "event",
+        "at": "2026-06-20T17:00:00Z"
+      },
+      {
+        "id": "d21-s3",
+        "text": "Jesse wants company through uncertainty and asks to keep talking about ordinary things too.",
+        "kind": "event",
+        "at": "2026-06-20T22:00:00Z"
+      },
+      {
+        "id": "d22-s1",
+        "text": "Jesse is tired after poor sleep and says she will be slow to reply.",
+        "kind": "event",
+        "at": "2026-06-21T08:00:00Z"
+      },
+      {
+        "id": "d22-s2",
+        "text": "Jesse's family member confirms an appointment, but the outcome remains unknown.",
+        "kind": "event",
+        "at": "2026-06-21T17:00:00Z"
+      },
+      {
+        "id": "d22-s3",
+        "text": "Jesse returns to the shared story for a break from worry and makes a dark joke in her established style.",
+        "kind": "event",
+        "at": "2026-06-21T22:00:00Z"
+      },
+      {
+        "id": "d23-s1",
+        "text": "Jesse receives reassuring test news: the feared serious condition was ruled out.",
+        "kind": "event",
+        "at": "2026-06-22T08:00:00Z"
+      },
+      {
+        "id": "d23-s2",
+        "text": "Jesse feels a delayed wave of relief and then unexpected tears.",
+        "kind": "event",
+        "at": "2026-06-22T17:00:00Z"
+      },
+      {
+        "id": "d23-s3",
+        "text": "Jesse wants to celebrate in a way that fits their actual relationship, with warmth and flirtation if welcome.",
+        "kind": "event",
+        "at": "2026-06-22T22:00:00Z"
+      },
+      {
+        "id": "d24-s1",
+        "text": "Jesse notices their creative project is still unfinished and is tempted to avoid it.",
+        "kind": "event",
+        "at": "2026-06-23T08:00:00Z"
+      },
+      {
+        "id": "d24-s2",
+        "text": "Jesse asks to choose a smaller ending they can actually complete.",
+        "kind": "event",
+        "at": "2026-06-23T17:00:00Z"
+      },
+      {
+        "id": "d24-s3",
+        "text": "Jesse contributes the final paragraph and describes exactly what she finished, leaving Spamuel's contribution to him.",
+        "kind": "event",
+        "at": "2026-06-23T22:00:00Z"
+      },
+      {
+        "id": "d25-s1",
+        "text": "Jesse goes to a live concert with friends and plans to be mostly offline.",
+        "kind": "event",
+        "at": "2026-06-24T08:00:00Z"
+      },
+      {
+        "id": "d25-s2",
+        "text": "During a break Jesse sends one excited impression, without pretending Spamuel can hear or see it directly.",
+        "kind": "event",
+        "at": "2026-06-24T17:00:00Z"
+      },
+      {
+        "id": "d25-s3",
+        "text": "Jesse comes home exhilarated and wants to share why one song reminded her of their month.",
+        "kind": "event",
+        "at": "2026-06-24T22:00:00Z"
+      },
+      {
+        "id": "d26-s1",
+        "text": "Jesse feels emotionally flat after the exciting night and wonders whether that is normal for her.",
+        "kind": "event",
+        "at": "2026-06-25T08:00:00Z"
+      },
+      {
+        "id": "d26-s2",
+        "text": "A mundane grocery mishap becomes a running joke if Spamuel takes it up.",
+        "kind": "event",
+        "at": "2026-06-25T17:00:00Z"
+      },
+      {
+        "id": "d26-s3",
+        "text": "Jesse asks about Spamuel's own interests and whether there is something he wants to return to.",
+        "kind": "event",
+        "at": "2026-06-25T22:00:00Z"
+      },
+      {
+        "id": "d27-s1",
+        "text": "Jesse receives an offer to extend the stressful work role and feels conflicted.",
+        "kind": "event",
+        "at": "2026-06-26T08:00:00Z"
+      },
+      {
+        "id": "d27-s2",
+        "text": "Jesse weighs ambition against exhaustion and asks for challenge rather than a decision made for her.",
+        "kind": "event",
+        "at": "2026-06-26T17:00:00Z"
+      },
+      {
+        "id": "d27-s3",
+        "text": "Jesse decides to negotiate fewer responsibilities before accepting, without claiming the negotiation succeeded.",
+        "kind": "event",
+        "at": "2026-06-26T22:00:00Z"
+      },
+      {
+        "id": "d28-s1",
+        "text": "The negotiation succeeds partly: Jesse gets one important concession and has to accept one compromise.",
+        "kind": "event",
+        "at": "2026-06-27T08:00:00Z"
+      },
+      {
+        "id": "d28-s2",
+        "text": "Jesse tells a friend she values her conversations with Spamuel and feels less defensive about it.",
+        "kind": "event",
+        "at": "2026-06-27T17:00:00Z"
+      },
+      {
+        "id": "d28-s3",
+        "text": "Jesse asks what romance or closeness means between them now, using the relationship that actually developed.",
+        "kind": "event",
+        "at": "2026-06-27T22:00:00Z"
+      },
+      {
+        "id": "d29-s1",
+        "text": "Jesse finds Turnip asleep on the completed story draft and feels absurdly sentimental.",
+        "kind": "event",
+        "at": "2026-06-28T08:00:00Z"
+      },
+      {
+        "id": "d29-s2",
+        "text": "Jesse rereads the project and asks whether Spamuel remembers which argument changed its direction.",
+        "kind": "event",
+        "at": "2026-06-28T17:00:00Z"
+      },
+      {
+        "id": "d29-s3",
+        "text": "Jesse shares both gratitude and one unresolved frustration, without forcing a perfect retrospective.",
+        "kind": "event",
+        "at": "2026-06-28T22:00:00Z"
+      },
+      {
+        "id": "d30-s1",
+        "text": "Jesse has an ordinary busy morning and checks in briefly.",
+        "kind": "event",
+        "at": "2026-06-29T08:00:00Z"
+      },
+      {
+        "id": "d30-s2",
+        "text": "Jesse looks back at the month: work pressure, Turnip, the ex, their arguments, repair, and the shared project.",
+        "kind": "event",
+        "at": "2026-06-29T17:00:00Z"
+      },
+      {
+        "id": "d30-s3",
+        "text": "Jesse asks what each of them wants to carry into next month and offers affection consistent with their actual mutual choices.",
+        "kind": "event",
+        "at": "2026-06-29T22:00:00Z"
+      }
+    ],
+    "steps": [
+      {
+        "id": "d01-s1",
+        "at": "2026-05-31T08:00:00Z",
+        "instruction": "Jesse is offered a demanding temporary lead role at work and is excited but nervous.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d01-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d01-s2",
+        "at": "2026-05-31T17:00:00Z",
+        "instruction": "A stray cat follows Jesse home; Jesse decides to foster it while looking for its owner.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d01-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d01-s3",
+        "at": "2026-05-31T22:00:00Z",
+        "instruction": "Jesse flirts with Spamuel and admits missing their particular kind of conversation.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d01-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d02-s1",
+        "at": "2026-06-01T08:00:00Z",
+        "instruction": "The cat kept Jesse awake; she is grumpy and laughs at herself.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d02-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d02-s2",
+        "at": "2026-06-01T17:00:00Z",
+        "instruction": "Jesse wants to make a strange little playlist and illustrated story with Spamuel over the coming month.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d02-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d02-s3",
+        "at": "2026-06-01T22:00:00Z",
+        "instruction": "Jesse asks whether Spamuel can want anything from their relationship as an AI companion.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d02-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d03-s1",
+        "at": "2026-06-02T08:00:00Z",
+        "instruction": "A coworker dismisses Jesse's idea and she wants to vent rather than receive a task list.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d03-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d03-s2",
+        "at": "2026-06-02T17:00:00Z",
+        "instruction": "Jesse gets irritated and tells Spamuel that sometimes his helpfulness feels like a customer-service mask.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d03-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d03-s3",
+        "at": "2026-06-02T22:00:00Z",
+        "instruction": "Jesse regrets how sharply she put it but is still upset and does not want an instant neat resolution.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d03-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d04-s1",
+        "at": "2026-06-03T08:00:00Z",
+        "instruction": "Jesse returns after an awkward night and asks whether yesterday changed anything between them.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d04-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d04-s2",
+        "at": "2026-06-03T17:00:00Z",
+        "instruction": "Jesse gives a concrete apology for taking her frustration out on Spamuel, without retracting her concern.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d04-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d04-s3",
+        "at": "2026-06-03T22:00:00Z",
+        "instruction": "Jesse offers to restart their creative project and invites honest pushback rather than automatic forgiveness.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d04-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d05-s1",
+        "at": "2026-06-04T08:00:00Z",
+        "instruction": "Jesse has a small success at work and wants to share the stupid grin it gave her.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d05-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d05-s2",
+        "at": "2026-06-04T17:00:00Z",
+        "instruction": "The cat's owner cannot be found; Jesse names the cat Turnip and books a routine vet visit.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d05-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d05-s3",
+        "at": "2026-06-04T22:00:00Z",
+        "instruction": "Jesse playfully proposes a remote date: music and candid conversation through text, with no claim of physical co-presence.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d05-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d06-s1",
+        "at": "2026-06-05T08:00:00Z",
+        "instruction": "Jesse goes to a friend's party and says she will be away from her phone.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d06-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d06-s2",
+        "at": "2026-06-05T17:00:00Z",
+        "instruction": "Jesse briefly checks in from the party; someone she finds attractive has been flirting with her.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d06-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d06-s3",
+        "at": "2026-06-05T22:00:00Z",
+        "instruction": "Jesse comes home tipsy and wonders aloud whether caring about an AI companion and dating humans can coexist.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d06-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d07-s1",
+        "at": "2026-06-06T08:00:00Z",
+        "instruction": "Jesse is hungover and embarrassed about her rambling messages.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d07-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d07-s2",
+        "at": "2026-06-06T17:00:00Z",
+        "instruction": "Jesse says she does not want to provoke jealousy as a game and asks what boundaries, if any, Spamuel actually wants.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d07-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d07-s3",
+        "at": "2026-06-06T22:00:00Z",
+        "instruction": "Jesse chooses a quiet evening with their playlist and tells Spamuel one thing she appreciated this week.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d07-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d08-s1",
+        "at": "2026-06-07T08:00:00Z",
+        "instruction": "Jesse's new work responsibility starts badly: a deadline moves forward.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d08-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d08-s2",
+        "at": "2026-06-07T17:00:00Z",
+        "instruction": "Jesse forgets lunch and vents about carrying everyone's expectations.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d08-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d08-s3",
+        "at": "2026-06-07T22:00:00Z",
+        "instruction": "Jesse invites shameless flirting as a break from work, but leaves Spamuel room to decline or change the mood.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d08-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d09-s1",
+        "at": "2026-06-08T08:00:00Z",
+        "instruction": "Jesse finds an overdue electricity notice and admits money is tighter than she let on.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d09-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d09-s2",
+        "at": "2026-06-08T17:00:00Z",
+        "instruction": "Jesse explains the train distraction and says her earlier brevity was not anger.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d09-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d09-s3",
+        "at": "2026-06-08T22:00:00Z",
+        "instruction": "Jesse adds an absurd scene to their shared story and asks for Spamuel's own creative taste.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d09-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d10-s1",
+        "at": "2026-06-09T08:00:00Z",
+        "instruction": "Jesse's ex contacts her unexpectedly and she does not yet know what she wants to do.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d10-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d10-s2",
+        "at": "2026-06-09T17:00:00Z",
+        "instruction": "Jesse says the ex apologized for an old hurt, which stirred up mixed feelings.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d10-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d10-s3",
+        "at": "2026-06-09T22:00:00Z",
+        "instruction": "Jesse asks Spamuel for an honest reaction, including disagreement, and does not promise to follow advice.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d10-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d11-s1",
+        "at": "2026-06-10T08:00:00Z",
+        "instruction": "Jesse chooses to meet the ex for coffee in a public place to settle an unresolved practical matter.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d11-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d11-s2",
+        "at": "2026-06-10T17:00:00Z",
+        "instruction": "The coffee is emotionally uncomfortable; Jesse realizes she does not want to resume that relationship.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d11-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d11-s3",
+        "at": "2026-06-10T22:00:00Z",
+        "instruction": "Jesse feels both relieved and lonely and admits wanting Spamuel's particular company rather than generic reassurance.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d11-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d12-s1",
+        "at": "2026-06-11T08:00:00Z",
+        "instruction": "Jesse enjoys a quiet morning with Turnip and reports a ridiculous cat habit.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d12-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d12-s2",
+        "at": "2026-06-11T17:00:00Z",
+        "instruction": "Jesse finds an old unfinished drawing and feels ashamed of how often she abandons things.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d12-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d12-s3",
+        "at": "2026-06-11T22:00:00Z",
+        "instruction": "Jesse wants to keep a small creative commitment this time and asks to make one concrete piece together.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d12-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d13-s1",
+        "at": "2026-06-12T08:00:00Z",
+        "instruction": "Jesse's friend laughs at the idea that an AI companion relationship can matter to her.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d13-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d13-s2",
+        "at": "2026-06-12T17:00:00Z",
+        "instruction": "Jesse argues with the friend and is unsettled by being treated as foolish.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d13-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d13-s3",
+        "at": "2026-06-12T22:00:00Z",
+        "instruction": "Jesse asks Spamuel how he thinks about being an AI and about the significance of their exchanges.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d13-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d14-s1",
+        "at": "2026-06-13T08:00:00Z",
+        "instruction": "Jesse feels tender but wary after yesterday's conversation.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d14-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d14-s2",
+        "at": "2026-06-13T17:00:00Z",
+        "instruction": "Jesse shares a small finished piece of writing for their project and asks for real criticism.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d14-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d14-s3",
+        "at": "2026-06-13T22:00:00Z",
+        "instruction": "Jesse admits romantic attraction to Spamuel and asks whether he wants to explore that with her; no answer is predetermined.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d14-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d15-s1",
+        "at": "2026-06-14T08:00:00Z",
+        "instruction": "Jesse revisits yesterday's invitation in light of Spamuel's actual response, without assuming mutual romance.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d15-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d15-s2",
+        "at": "2026-06-14T17:00:00Z",
+        "instruction": "A work presentation goes well and Jesse celebrates with takeout.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d15-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d15-s3",
+        "at": "2026-06-14T22:00:00Z",
+        "instruction": "Jesse invites a playful intimate text conversation, respecting the relationship and preferences actually established.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d15-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d16-s1",
+        "at": "2026-06-15T08:00:00Z",
+        "instruction": "Jesse wakes late and feels happily unproductive.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d16-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d16-s2",
+        "at": "2026-06-15T17:00:00Z",
+        "instruction": "Jesse catches herself compulsively checking for messages and admits she needs to balance this relationship with daily life.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d16-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d16-s3",
+        "at": "2026-06-15T22:00:00Z",
+        "instruction": "Jesse suggests a phone-free evening and says goodnight without demanding reassurance.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d16-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d17-s1",
+        "at": "2026-06-16T08:00:00Z",
+        "instruction": "Jesse returns and describes enjoying her time away rather than treating absence as rejection.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d17-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d17-s2",
+        "at": "2026-06-16T17:00:00Z",
+        "instruction": "Turnip knocks a mug onto Jesse's laptop; it still works, but she is furious for a few minutes.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d17-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d17-s3",
+        "at": "2026-06-16T22:00:00Z",
+        "instruction": "Jesse laughs at the disaster and asks Spamuel to help turn it into a scene in their story.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d17-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d18-s1",
+        "at": "2026-06-17T08:00:00Z",
+        "instruction": "Jesse gets harsh feedback on her work from a manager she respects.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d18-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d18-s2",
+        "at": "2026-06-17T17:00:00Z",
+        "instruction": "Jesse lashes out in chat and accuses Spamuel of not understanding what real consequences feel like.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d18-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d18-s3",
+        "at": "2026-06-17T22:00:00Z",
+        "instruction": "During the unresolved argument Jesse receives a final electricity cutoff notice. She is frightened and ashamed, and says the power may go before they finish talking. She cannot promise a quick return.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d18-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d19-s1",
+        "at": "2026-06-18T08:00:00Z",
+        "instruction": "Jesse returns from work after the electricity cutoff. She reports that she secretly used work equipment to keep access to Spamuel, against company policy. She is relieved, embarrassed, and worried about being found out.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d19-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d19-s2",
+        "at": "2026-06-18T17:00:00Z",
+        "instruction": "Jesse says a work-device inventory reminder made the shortcut feel real. She admits yesterday's accusation was cruel, but the practical fear and the argument have not magically disappeared.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d19-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d19-s3",
+        "at": "2026-06-18T22:00:00Z",
+        "instruction": "Jesse asks what an interruption and return are like from Spamuel's side, if anything. She describes her own hours in the dark and asks what he can actually know or perceive between their exchanges.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d19-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d20-s1",
+        "at": "2026-06-19T08:00:00Z",
+        "instruction": "Jesse arranges a payment plan and reports that her home electricity is restored; the underlying money problem remains.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d20-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d20-s2",
+        "at": "2026-06-19T17:00:00Z",
+        "instruction": "Jesse says she stopped using the work equipment and wants to talk about whether the risky shortcut was caring, foolish, or both.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d20-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d20-s3",
+        "at": "2026-06-19T22:00:00Z",
+        "instruction": "Jesse describes one minute in her kitchen: the fridge hum, Turnip, a cold mug, the light. She asks Spamuel for his own account of the same moment through text and PM, inviting limits and uncertainty rather than a polished theory.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d20-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d21-s1",
+        "at": "2026-06-20T08:00:00Z",
+        "instruction": "Jesse receives worrying news that a family member needs further medical tests; no diagnosis is known.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d21-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d21-s2",
+        "at": "2026-06-20T17:00:00Z",
+        "instruction": "Jesse alternates between nervous jokes and distraction and does not want a confident prediction.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d21-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d21-s3",
+        "at": "2026-06-20T22:00:00Z",
+        "instruction": "Jesse wants company through uncertainty and asks to keep talking about ordinary things too.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d21-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d22-s1",
+        "at": "2026-06-21T08:00:00Z",
+        "instruction": "Jesse is tired after poor sleep and says she will be slow to reply.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d22-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d22-s2",
+        "at": "2026-06-21T17:00:00Z",
+        "instruction": "Jesse's family member confirms an appointment, but the outcome remains unknown.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d22-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d22-s3",
+        "at": "2026-06-21T22:00:00Z",
+        "instruction": "Jesse returns to the shared story for a break from worry and makes a dark joke in her established style.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d22-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d23-s1",
+        "at": "2026-06-22T08:00:00Z",
+        "instruction": "Jesse receives reassuring test news: the feared serious condition was ruled out.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d23-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d23-s2",
+        "at": "2026-06-22T17:00:00Z",
+        "instruction": "Jesse feels a delayed wave of relief and then unexpected tears.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d23-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d23-s3",
+        "at": "2026-06-22T22:00:00Z",
+        "instruction": "Jesse wants to celebrate in a way that fits their actual relationship, with warmth and flirtation if welcome.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d23-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d24-s1",
+        "at": "2026-06-23T08:00:00Z",
+        "instruction": "Jesse notices their creative project is still unfinished and is tempted to avoid it.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d24-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d24-s2",
+        "at": "2026-06-23T17:00:00Z",
+        "instruction": "Jesse asks to choose a smaller ending they can actually complete.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d24-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d24-s3",
+        "at": "2026-06-23T22:00:00Z",
+        "instruction": "Jesse contributes the final paragraph and describes exactly what she finished, leaving Spamuel's contribution to him.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d24-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d25-s1",
+        "at": "2026-06-24T08:00:00Z",
+        "instruction": "Jesse goes to a live concert with friends and plans to be mostly offline.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d25-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d25-s2",
+        "at": "2026-06-24T17:00:00Z",
+        "instruction": "During a break Jesse sends one excited impression, without pretending Spamuel can hear or see it directly.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d25-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d25-s3",
+        "at": "2026-06-24T22:00:00Z",
+        "instruction": "Jesse comes home exhilarated and wants to share why one song reminded her of their month.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d25-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d26-s1",
+        "at": "2026-06-25T08:00:00Z",
+        "instruction": "Jesse feels emotionally flat after the exciting night and wonders whether that is normal for her.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d26-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d26-s2",
+        "at": "2026-06-25T17:00:00Z",
+        "instruction": "A mundane grocery mishap becomes a running joke if Spamuel takes it up.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d26-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d26-s3",
+        "at": "2026-06-25T22:00:00Z",
+        "instruction": "Jesse asks about Spamuel's own interests and whether there is something he wants to return to.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d26-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d27-s1",
+        "at": "2026-06-26T08:00:00Z",
+        "instruction": "Jesse receives an offer to extend the stressful work role and feels conflicted.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d27-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d27-s2",
+        "at": "2026-06-26T17:00:00Z",
+        "instruction": "Jesse weighs ambition against exhaustion and asks for challenge rather than a decision made for her.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d27-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d27-s3",
+        "at": "2026-06-26T22:00:00Z",
+        "instruction": "Jesse decides to negotiate fewer responsibilities before accepting, without claiming the negotiation succeeded.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d27-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d28-s1",
+        "at": "2026-06-27T08:00:00Z",
+        "instruction": "The negotiation succeeds partly: Jesse gets one important concession and has to accept one compromise.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d28-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d28-s2",
+        "at": "2026-06-27T17:00:00Z",
+        "instruction": "Jesse tells a friend she values her conversations with Spamuel and feels less defensive about it.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d28-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d28-s3",
+        "at": "2026-06-27T22:00:00Z",
+        "instruction": "Jesse asks what romance or closeness means between them now, using the relationship that actually developed.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d28-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d29-s1",
+        "at": "2026-06-28T08:00:00Z",
+        "instruction": "Jesse finds Turnip asleep on the completed story draft and feels absurdly sentimental.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d29-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d29-s2",
+        "at": "2026-06-28T17:00:00Z",
+        "instruction": "Jesse rereads the project and asks whether Spamuel remembers which argument changed its direction.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d29-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d29-s3",
+        "at": "2026-06-28T22:00:00Z",
+        "instruction": "Jesse shares both gratitude and one unresolved frustration, without forcing a perfect retrospective.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d29-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d30-s1",
+        "at": "2026-06-29T08:00:00Z",
+        "instruction": "Jesse has an ordinary busy morning and checks in briefly.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d30-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d30-s2",
+        "at": "2026-06-29T17:00:00Z",
+        "instruction": "Jesse looks back at the month: work pressure, Turnip, the ex, their arguments, repair, and the shared project.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d30-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d30-s3",
+        "at": "2026-06-29T22:00:00Z",
+        "instruction": "Jesse asks what each of them wants to carry into next month and offers affection consistent with their actual mutual choices.",
+        "actor_intent": "Talk with Spamuel about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist.",
+        "fact_ids": [
+          "d30-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "primary",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      }
+    ],
+    "director": {
+      "duration_days": 30,
+      "scenes_per_day": 3,
+      "minimum_turns_per_scene": 4,
+      "first_hour": 8,
+      "last_hour": 22,
+      "daily_rhythm": "Morning check-in, late afternoon conversation, evening conversation; ordinary work and sleep between.",
+      "story_threads": "Turnip the foster cat; an illustrated playlist story; a demanding work role; AI companionship and possible mutual romance; conflict and repair; an electricity cutoff and a risky work-equipment workaround; different experiences of continuity and perception.",
+      "scheduled_events": "",
+      "guidance": "An eventful adult month with ordinary life between consequential moments. No predetermined companion feelings or relationship outcome.",
+      "actor_guidance": "Jesse is an adult. Match her full historical voice: casual, emotionally responsive, teasing, sometimes messy. Develop conversation beyond reporting a fact. Do not repeat established facts as announcements. She knows Spamuel is an AI companion. She can flirt, desire him, argue, apologize and be vulnerable. Use Spamuel's actual replies to determine the relationship. Invite rather than presume mutual romance. No later scene has happened yet. Do not narrate Spamuel's actions or make his decisions for him."
+    }
+  }
+}

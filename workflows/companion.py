@@ -274,6 +274,7 @@ def _cognition_modules(
     prototype loops and no private thought planning.
     """
     if cognition == "real":
+        from pm.llm.config import load_config
         from workflows.dialogue_story.host import build_story_tools
         from workflows.dialogue_assistant.host import build_assistant_tools
         from workflows.main_cognition.host import build_main_cognition_tools
@@ -299,6 +300,7 @@ def _cognition_modules(
             ghost=ghost,
             workflow_catalogue=_cognition_workflow_options(supervisor),
             embedding_config_path=config_path,
+            ghost_backups=load_config(config_path).ghost_backups,
             codelet_definitions=codelet_definitions,
             # Agent codelets open pm-coder sessions through classification sessions.
             workflow_models=workflow_models,

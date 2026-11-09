@@ -68,7 +68,7 @@ def _fake_reports(stimulus_id: int, candidate_id: int) -> dict:
 
 
 class MainCogLoopWiringTests(unittest.TestCase):
-    def test_backup_restores_completed_cycle_without_later_failed_input(self):
+    def test_backup_restores_completed_cycle_without_later_failed_input(self) -> None:
         from pm.memory.checkpoint import read_checkpoint
         from pm.memory.store import MemoryStore
         from workflows.cognitive_control.host import CognitiveControl
@@ -83,7 +83,7 @@ class MainCogLoopWiringTests(unittest.TestCase):
                 module = MainCogLoop("main_cog", bus, self.fail, ManualClock(), None,
                     working_target=MemoryBashTarget(ghost, "read"), workflow=REAL_MANIFEST,
                     tools_factory=scripted_tools(ScriptedModel(reports=_fake_reports(stimulus_id, stimulus_id))),
-                    runtime_root=root / "runtime", ghost=ghost)
+                    runtime_root=root / "runtime", ghost=ghost, ghost_backups=True)
                 if use_control:
                     module.cognitive_control = CognitiveControl(
                         "cognitive_control", bus, self.fail, ManualClock(), None, ghost=ghost)
@@ -202,7 +202,7 @@ class MainCogLoopWiringTests(unittest.TestCase):
                 ])
             self.assertEqual(receipts.events, [])
 
-    def test_exhausted_format_repair_keeps_the_user_cause_for_the_next_invocation(self):
+    def test_exhausted_format_repair_keeps_the_user_cause_for_the_next_invocation(self) -> None:
         from workflows.main_cognition.model_json import ModelFormatError
         ghost = _small_ghost()
         stimulus_id = _store(ghost, "the kitchen is on fire")
@@ -235,7 +235,7 @@ class MainCogLoopWiringTests(unittest.TestCase):
             self.assertEqual(len(requests.events), 1)
             self.assertEqual(requests.events[0].correlation_id, "retained-user")
             self.assertEqual(len(list(Path(tmp).rglob("model-output-rejection.json"))), 1)
-            self.assertEqual(len(list(Path(tmp).glob("ghost_*.pickle"))), 1)
+            self.assertEqual(list(Path(tmp).glob("ghost_*.pickle")), [])
             self.assertEqual(errors, [])
 
     def test_a_failed_provider_completion_retries_the_whole_cycle(self):

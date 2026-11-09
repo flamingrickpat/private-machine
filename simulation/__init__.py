@@ -24,6 +24,12 @@ Durable run artifacts (``state.json``, ``plan.json``, ``attempts/<n>/``,
 fixed across attempts. Browser views are detached copies.
 Owner feedback is stored beside captured evidence, never inside it.
 
+``templates`` owns the versioned browser and CLI input. Daily planning turns
+director guidance into an editable exact plan. ``analysis`` rates completed
+public conversation through independent evaluator calls and retains citations.
+Rating failure does not rerun or invalidate completed companion execution.
+The server mounts the reusable ``pm.tools.timeline`` debugger on the same origin.
+
 Shared invariants: input and routing receipts are durable before delivery; a
 restart resumes from the last coordinated checkpoint; a run that ends without
 delivery evidence is a failure, not a completed scenario.
@@ -31,4 +37,6 @@ delivery evidence is a failure, not a completed scenario.
 Reading map: ``engine.RunEngine`` is the run controller,
 ``participant`` hosts one companion, ``pm.introspection.record_format`` presents
 captured records, and ``review.catalog`` freezes a capture for human review.
+``templates.SimulationTemplate`` is the portable input contract;
+``analysis.AnalysisSettings`` owns editable automatic rating criteria.
 """

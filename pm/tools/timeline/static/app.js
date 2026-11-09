@@ -5,7 +5,9 @@
    The page reads only evidence that a completed simulation attempt wrote. */
 "use strict";
 
-const THEME_KEY = "pm-timeline-theme";
+const THEME_KEY = "pm-workspace-theme";
+const EMBEDDED = new URLSearchParams(location.search).get("embedded") === "1";
+const API_ROOT = location.pathname.startsWith("/debugger/") ? "/debugger/api" : "/api";
 const $ = (selector) => document.querySelector(selector);
 const cache = new Map();
 let renderToken = 0;
@@ -82,7 +84,7 @@ function notice(message) {
 
 async function api(path) {
   if (cache.has(path)) return cache.get(path);
-  const response = await fetch("/api" + path);
+  const response = await fetch(API_ROOT + path);
   let data;
   try {
     data = await response.json();
@@ -125,8 +127,22 @@ function openRun(runId, attempt) {
 
 function setTheme(theme) {
   document.documentElement.dataset.theme = theme;
-  localStorage.setItem(THEME_KEY, theme);
   $("#theme").textContent = theme === "dark" ? "light" : "dark";
+  try {
+    window.localStorage.setItem(THEME_KEY, theme);
+  } catch (error) {
+    if (error instanceof DOMException && ["SecurityError", "QuotaExceededError"].includes(error.name)) return;
+    throw error;
+  }
+}
+
+function savedTheme() {
+  try {
+    return window.localStorage.getItem(THEME_KEY);
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "SecurityError") return null;
+    throw error;
+  }
 }
 
 /* ---------------------------------------------------------------- render */
@@ -668,12 +684,13 @@ async function detailAgent(panel, path) {
 /* ------------------------------------------------------------------ boot */
 
 function boot() {
-  const stored = localStorage.getItem(THEME_KEY);
-  setTheme(stored === "dark" ? "dark" : "light");
+  const stored = savedTheme();
+  setTheme(!EMBEDDED && stored === "dark" ? "dark" : "light");
+  if (EMBEDDED) document.documentElement.dataset.embedded = "true";
   $("#theme").onclick = () => setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
-  $("#reload").onclick = () => { cache.clear(); state.selectedEvent = null; render(); };
+  $("#reload").onclick = async () => { cache.clear(); state.selectedEvent = null; await api("/refresh"); render(); };
   window.addEventListener("hashchange", render);
-  render();
+  api("/refresh").then(render).catch(error => notice(error.message));
 }
 
 boot();

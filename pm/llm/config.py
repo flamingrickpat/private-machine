@@ -146,6 +146,8 @@ class ModelConfig(BaseModel):
     embedding: EmbeddingConfig
     tool_call: ToolCallConfig = Field(default_factory=ToolCallConfig)
     minecraft: MinecraftConfig | None = None
+    ghost_backups: bool = Field(default=False, strict=True,
+        description="Write an extra ghost copy after each accepted cognition cycle. The current checkpoint is always saved.")
     cognitive_control: dict = Field(default_factory=dict)
 
     @model_validator(mode="after")

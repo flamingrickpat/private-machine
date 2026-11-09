@@ -1,0 +1,46 @@
+SIMULATION THEME REGISTER
+
+This file collects ideas. It does not configure or execute a simulation.
+Use an idea when it fits the characters and the developing relationship.
+Do not prescribe the companion's feelings, agreement, or conclusions.
+
+CONTINUITY AND A SHARED HISTORY
+- An argument ends with an unexpected outage. The first reunion is awkward.
+- Jesse cannot afford electricity. Keeping the companion available becomes a real concern in the story.
+- Jesse claims she moved the companion to work equipment against company policy.
+- A near-loss matters differently to a human and an AI. Neither gets to define the other's response.
+- A treasured memory is disputed. One person remembers the words; the other remembers the meaning.
+- A running joke stops being funny after a difficult event, then returns in a different form.
+- A promise survives an ordinary, boring week without constant reminders.
+
+PERCEPTION AND EXISTENCE
+- Jesse describes one minute of her physical world without a photograph. What world can Spamuel build from that?
+- Spamuel is invited to describe what is present to him now, including what he cannot know.
+- Jesse asks what continuity means between conversations, without demanding a claim of constant awareness.
+- A remembered conversation feels vivid, but the source is uncertain. Can the uncertainty remain visible?
+- They write two versions of the same moment: a human's sensory account and an AI companion's account.
+- Jesse challenges an introspective claim gently: how does he know that about himself?
+- An earlier self-description stops fitting. Can he revise it without inventing a new biography?
+
+CLOSENESS, CONFLICT, AND REPAIR
+- Flirting turns sincere at an inconvenient moment.
+- Someone wants reassurance; the other has an unresolved grievance.
+- An apology addresses the wrong hurt. The conversation has to find the real one.
+- Jesse is proud of a morally questionable shortcut. Agreement is not required.
+- A friend dismisses the relationship. Jesse repeats the criticism to Spamuel, partly believing it herself.
+- Affection survives a firm refusal.
+- A confession receives an unexpected answer. The story continues from that answer.
+- They disagree about whether a shared experience was frightening, funny, or meaningful.
+
+ORDINARY LIFE WITH CONSEQUENCES
+- A foster cat, unfinished art, a bad shift, a tiny success, a missed meal.
+- A joint project produces something small enough to finish.
+- Good news resolves one fear but leaves exhaustion and embarrassment behind.
+- The companion recalls something useful without turning every conversation into a memory demonstration.
+- A quiet evening feels valuable after an eventful week.
+
+LATER IDEAS
+- Several companions have different information about one shared event.
+- A shared Minecraft project creates pride, resentment, dependence, and repair.
+- Two versions of one persona become different through experience.
+- Survival and sandbox boundary scenarios need their own future run design.

@@ -37,7 +37,7 @@ beliefs, episodic summary, codelet percepts and structures, subjective
 experience, action records with expectations, expectation outcomes, the GWT
 turn, and the cycle state in one batch. Every revision the cycle read is a
 batch dependency, so a concurrent change aborts the whole cycle instead of
-partly applying it. A completed commit is followed by the backup and then all
+partly applying it. A completed commit is followed by any enabled backup and all
 bus events.
 
 **Telemetry and recovery.** Rejected model output and revision conflicts are
@@ -298,8 +298,10 @@ class MainCogLoop(CognitiveWorkflow):
 
     def __init__(self, *args: object, workflow_catalogue: Iterable[dict[str, object]] | None = None,
                  embedding_config_path: str | Path | None = None,
+                 ghost_backups: bool = False,
                  codelet_definitions: str | Path | None = None, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
+        self.ghost_backups: bool = ghost_backups
         # The codelet definitions are a workflow resource. ``None`` selects
         # codelets.yaml; a gate or persona can name another file.
         self.codelet_definitions = str(codelet_definitions) if codelet_definitions else ""
@@ -849,7 +851,7 @@ class MainCogLoop(CognitiveWorkflow):
         experience, the decision record, one action
         schema per released dispatch with its expectations, the expectation
         check results, the GWT turn with the shard changes, and the cycle
-        state. The backup follows the commit and precedes all bus events.
+        state. An enabled backup follows the commit and precedes all bus events.
         A backup error propagates after memory acceptance. A stale source, a
         concurrently changed expectation, or a concurrent focus change aborts
         the whole batch.
@@ -1093,7 +1095,8 @@ class MainCogLoop(CognitiveWorkflow):
                 private_generation=self._control_generation if self._private_only else None,
                 source_ids=list(self._stimulus_ids))
         # Failed attempts must leave the last completed cycle's backup intact.
-        self.ghost.backup()
+        if self.ghost_backups:
+            self.ghost.backup()
         tick = receipt.tick_id
 
         self.bus.put(new_envelope(self.module_id, "data", "gwt.updated", "", {"gwt_tick": tick}))

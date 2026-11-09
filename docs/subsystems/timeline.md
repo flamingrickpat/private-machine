@@ -3,6 +3,9 @@
 ## Summary
 
 The execution timeline is a read-only review surface for one simulation attempt.
+The simulation dashboard mounts this same reader under `/debugger/`.
+Select **Memory debugger** in a run to inspect its captured attempt without another server.
+The standalone launcher remains available for independent review.
 It joins the public conversation, model calls, workflow phases, global-workspace
 cycles, and captured records by time and recorded identity.
 The owner uses it to trace why a companion said or did something after a run.
@@ -54,7 +57,7 @@ flowchart LR
   F --> V
   V --> T[Timeline events]
   V --> D[Detail API]
-  T --> B[Loopback browser]
+  T --> B[Browser]
   D --> B
 ```
 

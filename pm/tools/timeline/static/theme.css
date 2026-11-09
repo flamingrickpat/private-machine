@@ -1,0 +1,18 @@
+/* Shared workspace palette for the simulation and standalone evidence reader. */
+:root {
+  color-scheme: light;
+  --bg: #f5f7f9; --bg-2: #fff; --bg-3: #e9edf2;
+  --panel: #fff; --line: #d0d7df; --ink: #17202b; --fg: #17202b;
+  --muted: #667383; --fg-dim: #667383; --accent: #1f6f9c;
+  --good: #2c7a44; --warn: #9a6714; --bad: #b03434;
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #10141a; --bg-2: #171d25; --bg-3: #202833;
+  --panel: #171d25; --line: #2c3643; --ink: #d9e1eb; --fg: #d9e1eb;
+  --muted: #8a98a9; --fg-dim: #8a98a9; --accent: #83c9ef;
+}
+html[data-embedded="true"] header .title,
+html[data-embedded="true"] header .controls label:first-child,
+html[data-embedded="true"] #theme { display: none; }
+html[data-embedded="true"] body > main { min-height: calc(100vh - 45px); }

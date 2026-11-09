@@ -20,7 +20,8 @@ from urllib.parse import parse_qs, urlparse
 from pm.tools.timeline.api import TimelineApi
 
 STATIC_ROOT = Path(__file__).resolve().parent / "static"
-STATIC_FILES = {"/": "index.html", "/index.html": "index.html", "/app.js": "app.js", "/style.css": "style.css"}
+STATIC_FILES = {"/": "index.html", "/index.html": "index.html", "/app.js": "app.js", "/style.css": "style.css",
+                "/workspace-theme.css": "theme.css"}
 CONTENT_TYPES = {".html": "text/html; charset=utf-8", ".js": "application/javascript; charset=utf-8",
                  ".css": "text/css; charset=utf-8"}
 CSP = "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:;"

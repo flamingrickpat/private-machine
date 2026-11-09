@@ -1,0 +1,30 @@
+/* Layout uses the same light palette as the modular memory debugger. */
+body { font: 14px/1.5 system-ui, "Segoe UI", sans-serif; }
+body > aside { background: var(--bg-2); }
+#runs .run-link { display: block; padding: 9px 10px; margin: 5px 0; border: 1px solid transparent; border-radius: 5px; color: var(--ink); text-decoration: none; }
+#runs .run-link:hover { background: var(--panel); border-color: var(--line); }
+#runs .run-link small { display: block; color: var(--muted); font-size: 11px; }
+main { max-width: none; padding: 28px 30px 70px; min-width: 0; }
+input, select, textarea, pre { background: var(--bg-2); color: var(--ink); border-color: var(--line); }
+button { color: #fff; }
+button.secondary, .tabs button { background: var(--bg-3); border-color: var(--line); color: var(--ink); }
+button.quiet { color: var(--muted); }
+#notice { background: #fff3e4; color: #743f08; border-color: #e5c59b; }
+.settings-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap: 14px; }
+.settings-grid label { margin-bottom: 4px; }
+.check-label { display: flex; gap: 10px; align-items: center; }
+.check-label input { width: auto; margin: 0; }
+.tabs, .toolbar, .actions { flex-wrap: wrap; }
+.scene-editor { margin-top: 15px; }
+.scene-editor summary { color: var(--ink); }
+.scene-editor textarea { min-height: 80px; }
+.scene-day { margin-top: 20px; }
+.template-tools { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; align-items: center; }
+.template-tools input[type=file] { width: auto; }
+#debugger-frame { width: 100%; height: calc(100vh - 220px); min-height: 650px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg-2); }
+#debugger .muted { margin-bottom: 10px; }
+.rating-summary { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
+.rating-score { padding: 12px 18px; border: 1px solid var(--line); border-radius: 5px; }
+.rating-finding { margin-top: 12px; }
+.message:target { background: #e7f1fa; outline: 2px solid var(--accent); }
+@media(max-width:850px) { main { padding: 20px 15px; } }

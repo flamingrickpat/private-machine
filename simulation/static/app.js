@@ -14,6 +14,28 @@ let recordCheckpoint = "";
 let recordFeedback = {};
 let actorSummary = null;
 let profileHome = null;
+let factsRenderKey = "";
+const renderedConversations = new WeakMap();
+const RUN_TABS = ["conversation", "facts", "evidence", "script", "analysis", "debugger"];
+
+function savedView() {
+  try {
+    return window.sessionStorage.getItem("pm-simulation-view");
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "SecurityError") return null;
+    throw error;
+  }
+}
+function rememberView(route) {
+  try {
+    const storage = window.sessionStorage;
+    if (route === null) storage.removeItem("pm-simulation-view");
+    else storage.setItem("pm-simulation-view", route);
+  } catch (error) {
+    if (error instanceof DOMException && ["SecurityError", "QuotaExceededError"].includes(error.name)) return;
+    throw error;
+  }
+}
 
 function node(tag, text, className) {
   const result = document.createElement(tag);
@@ -55,8 +77,21 @@ function message(row) {
   return article;
 }
 function renderChat(target, rows) {
-  target.replaceChildren(...rows.map(message));
+  const signatures = rows.map(row => JSON.stringify(row));
+  const previous = renderedConversations.get(target);
+  let unchanged = 0;
+  if (previous) {
+    while (unchanged < previous.length && unchanged < signatures.length && previous[unchanged] === signatures[unchanged]) unchanged++;
+    if (unchanged === previous.length && unchanged === signatures.length) return;
+  }
+  while (target.children.length > unchanged) target.lastElementChild.remove();
+  for (let index = unchanged; index < rows.length; index++) {
+    const article = message(rows[index]);
+    if (target.id === "conversation") article.id = `delivery-${index}`;
+    target.append(article);
+  }
   if (!rows.length) target.append(node("div", "No messages yet.", "empty"));
+  renderedConversations.set(target, signatures);
 }
 async function refreshCatalog() {
   catalog = await api("/api/catalog");
@@ -76,9 +111,9 @@ async function refreshCatalog() {
   }
   $("runs").replaceChildren();
   for (const run of catalog.runs) {
-    const button = node("button", run.title);
+    const button = node("a", run.title, "run-link");
+    button.href = `#run/${encodeURIComponent(run.id)}/conversation`;
     button.append(node("small", `${run.status} · attempt ${run.attempt}`));
-    button.addEventListener("click", () => openRun(run.id).catch(notice));
     $("runs").append(button);
   }
   for (const id of ["primary", "secondary"]) {
@@ -115,25 +150,29 @@ async function job(kind, body) {
     const result = await api(`/api/jobs/${started.job_id}`);
     if (result.status === "failed") throw new Error(result.error);
     if (result.status === "completed") return result;
-    $("job-status").textContent = "Working with the configured default model…";
+    $("job-status").textContent = result.progress ? `Planned ${result.progress.completed_days} / ${result.progress.total_days} days…` : "Working with the configured model…";
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
 }
 function previewPlan() {
   const plan = JSON.parse($("plan-json").value);
   $("plan-preview").replaceChildren(node("h2", plan.title));
-  for (const fact of plan.facts) $("plan-preview").append(node("p", `${fact.id} · ${fact.text}`, "muted"));
-  for (const step of plan.steps) {
-    const stage = node("div", undefined, "stage");
-    stage.append(node("time", step.at), node("p", step.instruction), node("p", `Private intent: ${step.actor_intent}`, "muted"), node("p", `Complete when: ${step.completion}`, "muted"));
-    $("plan-preview").append(stage);
-  }
+  const required = node("details");
+  required.append(node("summary", `${plan.facts.length} required scenario facts`));
+  for (const fact of plan.facts) required.append(node("p", `${fact.id} · ${fact.text}`, "muted"));
+  $("plan-preview").append(required);
+  renderSceneEditor(plan);
 }
 async function openHome(home) {
   selectedRun = null;
+  selectedCapture = null;
   selectedHome = home;
+  const route = `home/${encodeURIComponent(home.id)}`;
+  if (location.hash !== `#${route}`) location.hash = route;
+  rememberView(route);
   show("history", home.folder);
   const response = await api(`/api/history?home=${encodeURIComponent(home.id)}`);
+  if (selectedHome !== home || selectedRun !== null) return;
   $("snapshot").replaceChildren(...response.snapshots.map(name => new Option(name, name)));
   $("snapshot").value = "ghost.pickle";
   historyRows = response.messages;
@@ -144,18 +183,22 @@ function showHistory() {
   renderChat($("history-chat"), historyRows.slice(-shownHistory));
   $("earlier").hidden = shownHistory >= historyRows.length;
 }
-async function openRun(id) {
+async function openRun(id, tab = "conversation") {
   selectedRun = id;
   selectedHome = null;
+  selectedCapture = null;
   reportKey = "";
+  factsRenderKey = "";
   $("record-reader").hidden = true;
-  history.replaceState(null, "", `#run/${id}`);
   show("run", "Loading run…");
+  selectRunTab(tab);
   const feedback = await api(`/api/runs/${id}/feedback`);
+  if (selectedRun !== id) return;
   recordFeedback = feedback.review?.records || {};
   $("review-notes").value = feedback.review?.notes || "";
   $("review-rating").value = feedback.review?.rating ?? "";
   await updateRun();
+  await loadWorkspaceRun(id);
 }
 async function updateRun() {
   if (!selectedRun) return;
@@ -163,16 +206,23 @@ async function updateRun() {
   const value = await api(`/api/runs/${id}`);
   if (id !== selectedRun) return;
   runState = value.state;
-  $("title").textContent = runState.title;
-  $("status").textContent = runState.requested_status ? `${runState.requested_status} requested · draining` : runState.status;
-  $("run-progress").textContent = `Stage ${Math.min(runState.step_index + 1, value.plan.steps.length)} / ${value.plan.steps.length} · ${runState.clock}`;
+  const labels = {title: runState.title,
+    status: runState.requested_status ? `${runState.requested_status} requested · draining` : runState.status,
+    "run-progress": `Stage ${Math.min(runState.step_index + 1, value.plan.steps.length)} / ${value.plan.steps.length} · ${runState.clock}`};
+  for (const [name, text] of Object.entries(labels)) if ($(name).textContent !== text) $(name).textContent = text;
   renderChat($("conversation"), runState.timeline);
-  $("facts").replaceChildren(node("h2", "Required facts"));
-  for (const fact of value.plan.facts) {
-    const line = node("div", undefined, "fact");
-    line.append(node("span", runState.facts[fact.id] ? "✓" : "○", "check"), node("span", fact.text));
-    if (runState.facts[fact.id]) line.append(node("p", runState.facts[fact.id].reason, "muted"));
-    $("facts").append(line);
+  await updateAnalysis(id);
+  if (id !== selectedRun) return;
+  const factsKey = JSON.stringify([id, value.plan.facts, runState.facts]);
+  if (factsKey !== factsRenderKey) {
+    factsRenderKey = factsKey;
+    $("facts").replaceChildren(node("h2", "Required facts"));
+    for (const fact of value.plan.facts) {
+      const line = node("div", undefined, "fact");
+      line.append(node("span", runState.facts[fact.id] ? "✓" : "○", "check"), node("span", fact.text));
+      if (runState.facts[fact.id]) line.append(node("p", runState.facts[fact.id].reason, "muted"));
+      $("facts").append(line);
+    }
   }
   const key = JSON.stringify([id, runState.status, runState.reports, runState.failures.length]);
   if (key !== reportKey) {
@@ -297,10 +347,10 @@ function renderRecords() {
     $("records").append(card);
   }
 }
-action("new", async () => { selectedRun = null; selectedHome = null; show("setup", "New simulation"); if (profileHome !== $("primary").value) await refreshActorProfile(); });
+action("new", async () => { selectedRun = null; selectedHome = null; selectedCapture = null; rememberView(null); history.replaceState(null, "", location.pathname); show("setup", "New simulation"); if (profileHome !== $("primary").value) await refreshActorProfile(); });
 action("reload", refreshCatalog);
 action("load-canon", async () => { const name = prompt("New home folder name", "spamuel-new"); if (name) { await job("/api/homes/canon", {name}); await refreshCatalog(); } });
-action("generate", async () => { const result = await job("/api/plans", {home: $("primary").value, brief: $("brief").value, start_time: $("start-time").value || null}); $("plan-json").value = JSON.stringify(result.plan, null, 2); $("plan-card").hidden = false; $("job-status").textContent = "Plan ready for review."; previewPlan(); });
+action("generate", async () => { const template = readTemplate(false); const result = await job("/api/template-plans", template); $("plan-json").value = JSON.stringify(result.plan, null, 2); $("plan-card").hidden = false; $("job-status").textContent = "Plan ready for review."; previewPlan(); });
 action("preview", async () => previewPlan());
 action("create-run", async () => {
   const primary = $("primary").value;
@@ -311,30 +361,61 @@ action("create-run", async () => {
     participants.push({id: "other", home: $("secondary").value});
     edges.push({source: "primary", target: "other", name: "Other Spamuel"}, {source: "other", target: "primary", name: "Other Spamuel"});
   }
-  const result = await api("/api/runs", {plan: JSON.parse($("plan-json").value), participants, edges});
+  const result = await api("/api/runs", {template: readTemplate(true)});
   await refreshCatalog(); await openRun(result.run_id);
 });
 action("fork", async () => { const name = prompt("New home folder name", selectedHome.folder + "-fork"); if (name) { await job("/api/homes/fork", {source: selectedHome.id, snapshot: $("snapshot").value, name}); await refreshCatalog(); } });
 action("earlier", async () => { shownHistory += 100; showHistory(); });
 $("snapshot").addEventListener("change", async () => { try { const result = await api(`/api/history?home=${encodeURIComponent(selectedHome.id)}&snapshot=${encodeURIComponent($("snapshot").value)}`); historyRows = result.messages; shownHistory = 100; showHistory(); } catch (error) { notice(error); } });
 for (const button of document.querySelectorAll("[data-command]")) button.addEventListener("click", async () => { try { await api(`/api/runs/${selectedRun}/${button.dataset.command}`, {}); await updateRun(); } catch (error) { notice(error); } });
-for (const button of document.querySelectorAll("[data-tab]")) button.addEventListener("click", () => { for (const id of ["conversation", "facts", "evidence"]) $(id).hidden = id !== button.dataset.tab; for (const tab of document.querySelectorAll("[data-tab]")) tab.classList.toggle("selected", tab === button); });
+for (const button of document.querySelectorAll("[data-tab]")) button.addEventListener("click", () => selectRunTab(button.dataset.tab));
 $("record-filter").addEventListener("input", renderRecords);
 action("save-review", async () => { const rating = $("review-rating").value; await api(`/api/runs/${selectedRun}/feedback`, {notes: $("review-notes").value, rating: rating ? Number(rating) : null}); $("review-saved").textContent = "Saved separately from captured evidence."; });
 setInterval(async () => { if (!selectedRun || polling) return; polling = true; try { await updateRun(); } catch (error) { notice(error); } finally { polling = false; } }, 2000);
-refreshCatalog().then(async () => {
-  await refreshActorProfile();
-  const match = location.hash.match(/^#run\/([A-Za-z0-9_-]+)/);
-  if (match) return openRun(match[1]);
-  const capture = location.hash.match(/^#capture\/([A-Za-z0-9_-]+)/);
-  if (capture) return openCapture(capture[1]);
+async function openRoute() {
+  const run = location.hash.match(/^#run\/([A-Za-z0-9_-]+)(?:\/([a-z]+))?$/);
+  if (run) {
+    const tab = run[2] || "conversation";
+    if (!RUN_TABS.includes(tab)) throw new Error(`Unknown run tab: ${tab}`);
+    if (run[1] !== selectedRun) return openRun(run[1], tab);
+    return selectRunTab(tab);
+  }
+  const capture = location.hash.match(/^#capture\/([A-Za-z0-9_-]+)$/);
+  if (capture) {
+    if (capture[1] !== selectedCapture) return openCapture(capture[1]);
+    return;
+  }
+  const home = location.hash.match(/^#home\/(.+)$/);
+  if (home) {
+    const id = decodeURIComponent(home[1]);
+    const selected = catalog.homes.find(item => item.id === id);
+    if (!selected) throw new Error("This character home is not registered.");
+    if (selectedHome?.id !== id) return openHome(selected);
+    return;
+  }
+  if (location.hash) throw new Error("Unknown simulation view.");
+  selectedRun = null; selectedHome = null; selectedCapture = null;
+  rememberView(null);
+  show("setup", "New simulation");
+  if (profileHome !== $("primary").value) await refreshActorProfile();
+}
+refreshCatalog().then(() => {
+  if (!location.hash) {
+    const saved = savedView();
+    if (saved) location.hash = saved;
+  }
+  return openRoute();
 }).catch(notice);
+window.addEventListener("hashchange", () => openRoute().catch(notice));
 
 async function openCapture(id) {
   selectedRun = null;
+  selectedHome = null;
   selectedCapture = id;
   const capture = await api(`/api/captures/${id}`);
+  if (selectedCapture !== id) return;
   show("capture", capture.title || id, "Captured evidence");
+  rememberView(`capture/${id}`);
   location.hash = `capture/${id}`;
   const panel = $("capture-items");
   panel.replaceChildren();

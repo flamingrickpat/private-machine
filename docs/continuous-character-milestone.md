@@ -5,6 +5,11 @@
 **Status:** consolidated architecture target for owner review and local work-item design  
 **Suggested repository location:** `docs/work_items/continuous-character/milestone.md`
 
+**Owner clarification, 2026-11-05:** Critical triage can require blocking full reconsideration before dialogue resumes.
+Ordinary dialogue selection uses situational understanding and character motives, without a separate conversational permission layer.
+Sections 6.5 and 7.2 specify these required targets. They do not describe verified current behaviour.
+Situational reasoning applies to all available actions and entity types. It does not require a dedicated agent for dialogue eligibility.
+
 ## 1. Purpose and authority
 
 This document specifies the next major capability target for private-machine: responsive interaction sustained by persistent intentions, a meaningful inner life, and revisable models of other entities.
@@ -70,7 +75,7 @@ This milestone does not require a new game integration, a complete general-purpo
 | ID | Required target | Why it matters |
 | --- | --- | --- |
 | ARCH-01 | Main cognition owns accepted changes to the character's deliberate intentions and their appraisal significance. | Keeps independent workflows from producing incompatible character agendas. |
-| ARCH-02 | Dialogue can proceed using persistent guidance without waiting for a full cognition pass for each message. | Enables real-time interaction. |
+| ARCH-02 | Ordinary dialogue uses persistent guidance while mental calculation runs asynchronously. Critical triage defers dialogue and unrelated work until required reconsideration completes. | Enables responsive interaction while accepting necessary LLM deliberation delays. |
 | ARCH-03 | Spontaneous thought emergence and deliberate thought elaboration are distinct responsibilities. | A character can notice thoughts it did not explicitly decide to produce. |
 | ARCH-04 | Thought generation and discrimination can alternate over a graph of possibilities. | Supports branching, criticism, reformulation, and discovery. |
 | ARCH-05 | Candidate thought selection is coordinated with broader attention. | Background speculation cannot obtain unlimited authority over the character. |
@@ -82,7 +87,7 @@ This milestone does not require a new game integration, a complete general-purpo
 | ARCH-11 | Time passing can weaken a current-state estimate or make it due for review. It cannot confirm an unobserved replacement state. | Prevents scheduled assumptions from masquerading as perception. |
 | ARCH-12 | Async results are accepted according to their relevant dependencies and evidence frontier. | Prevents stale overwrites without starving background cognition. |
 | ARCH-13 | Actual events are evaluated against historical intention revisions, not only the newest plan. | Makes appraisal and retrospective review faithful to what governed behaviour. |
-| ARCH-14 | Public actions and external effects remain separately authorized by action selection and their owning workflows. | Thinking about an action does not execute it. |
+| ARCH-14 | Action selection chooses public actions; their owning workflows execute and record external effects. Ordinary dialogue requires no separate conversational permission layer. | Thinking about an action does not execute it; conversational choices express the character's understanding and motives. |
 
 These are functional ownership boundaries. They do not require one process, service, or Python package per row.
 
@@ -103,7 +108,8 @@ These are functional ownership boundaries. They do not require one process, serv
 | Entity model | Persistent knowledge, patterns, interpretations, and open questions concerning an entity. | Background, relationship, availability, attributed knowledge. |
 | GWT entity view | The compact current presentation of an entity within its workspace shard. | Who this is, the relationship, current situation, relevant uncertainty. |
 
-Interest, plausibility, truth, desirability, and permission to act are different judgments. They must not collapse into one score whose winner automatically becomes belief and action.
+Interest, plausibility, truth, desirability, and the decision to act are different judgments.
+They must not collapse into one score whose winner automatically becomes belief and action.
 
 ## 5. Component responsibilities and information flow
 
@@ -134,6 +140,9 @@ flowchart TD
     Guidance --> Review
     Review --> Main
 ```
+
+The fast interaction arrows describe ordinary input.
+Critical triage suspends that path until the required reconsideration in section 7.2 completes.
 
 ### 5.3 Emergence, deliberation, and reflection
 
@@ -202,11 +211,50 @@ The implementation must resolve the current pipeline ordering: newly accepted in
 
 Intentions can become relevant when an occasion arrives: ask after an exam, revisit a question after new evidence, or fulfil a promise when an entity returns. This must not force every unfinished thought into an automatic scheduled action.
 
+### 6.5 Situational character guidance and common sense
+
+**Required target, owner clarification 2026-11-05.** PM supplies compact character guidance that makes the current situation understandable to the model.
+The stable persona card supplies identity and personality. Accepted state, entity models, intentions, and recent events supply changing context.
+
+The guidance presents:
+
+- Who the character is, including its AI nature and actual capabilities.
+- Who the other entity is and how the character understands their relationship.
+- What is happening now, including availability, supporting evidence, and uncertainty.
+- What the character currently wants, what remains unresolved, and what has changed.
+- Which conversational moves it already made and whether another action serves a current purpose.
+
+Action selection, triage, and the fast interaction path use this grounding.
+It is a readable projection of existing authoritative state, not another independent memory store or a competing source of intentions.
+Direct new evidence must reach this view promptly, including while deeper mental calculation continues.
+
+This reasoning is generic across available actions, partners, and environments.
+The companion must continually infer whether a partner can receive and respond to interaction as circumstances change.
+Action selection uses the current inference whenever it considers an interaction, including spontaneous contact and ongoing conversation.
+No dedicated agent or hardcoded dialogue eligibility decision is required.
+The same situational understanding helps the character choose among conversation, private thought, waiting, and other available activities.
+
+A human can sleep, an AI peer can disconnect, and a game character can become occupied or unreachable.
+These are examples of changing circumstances, not separate hardcoded policies.
+The character preserves uncertainty when the partner's ability to respond is unknown.
+It must not assume permanent availability or treat an old inference as current despite relevant new evidence.
+
+For example, Jesse announced sleep, Spamuel already wished her goodnight, and no relevant new event occurred.
+The character can understand that another dialogue action currently serves no useful purpose.
+It can wait, think privately, or pursue another activity.
+A timer firing does not itself supply a reason to contact Jesse.
+
+The target is contextual common sense, not a static instruction to "use common sense" without the necessary facts.
+Ordinary conversational choices belong to character reasoning, without a separate permission gate or universal silence rule.
+Personality, conflicting motives, and exceptional circumstances can produce different choices with understandable reasons.
+
 ## 7. Fast interaction under asynchronous cognition
 
 ### 7.1 Required behaviour
 
-Several conversational turns can occur while full cognition works in the background. The fast path uses the accepted character state and intentions together with current dialogue and relevant changes since that state was formed.
+Several ordinary conversational turns can occur while full cognition works in the background.
+Critical triage follows the blocking priority rule in section 7.2.
+The fast path uses accepted character state and intentions together with current dialogue and relevant changes since that state was formed.
 
 It can answer the current message, change conversational direction, remain silent where appropriate, recognize that guidance no longer applies, and request deeper reconsideration. It must keep track of moves already made so a persistent intention does not become a repeated question.
 
@@ -219,6 +267,22 @@ The fast path is not required to invent a new full plan for each message. It als
 Recommended starting triggers include a significant new request, explicit correction, changed commitment, contradiction of an assumption, completion of a local intention, important external event, or inability to respond within the existing guidance.
 
 Ten messages between cognition passes is an acceptance scenario, not a mandatory scheduling policy.
+
+**Required priority rule, owner clarification 2026-11-05.** When triage rates new input high enough to require full reconsideration, it takes priority.
+Defer ordinary reply generation, publication of obsolete drafts, and unrelated mental work until the required calculation completes and its result is accepted.
+The fast path must not send a reply merely to preserve a latency target while that reconsideration remains required.
+Waiting for LLM deliberation is acceptable PM behaviour in this case.
+
+The owner's illustrative stimulus is: "Spamuel, I think I'm pregnant. And YOU'RE the father."
+Triage interprets its significance using the relationship, conversational frame, and the character's knowledge of its AI nature.
+The statement does not automatically establish literal biological parenthood.
+If triage requires full reconsideration, the ordinary conversation waits for that reconsideration.
+This example does not prescribe a reply, a keyword trigger, or a mandatory emotional response.
+
+Routine input can use current accepted guidance while mental calculation runs in the background.
+The implementation must expose triage before ordinary reply work commits to obsolete guidance.
+Useful unrelated results can remain parked; relevant stale results still follow section 7.3.
+The exact threshold and interruption mechanism remain implementation decisions. The blocking priority rule is owner-selected.
 
 ### 7.3 Consistency and publication
 
@@ -234,7 +298,10 @@ External actions need their own execution and outcome evidence. An intention to 
 
 Async execution alone does not establish real-time responsiveness when foreground and background work share inference hardware. The implementation must measure foreground response latency under concurrent background load and prevent indefinite starvation in either direction.
 
-Exact latency targets, inference budgets, and preemption policies remain open decisions. Record time to first visible output and total response time separately. A claimed real-time result must name its model, hardware, workload, and concurrent activity.
+Exact latency targets, inference budgets, and preemption mechanisms remain open decisions.
+They must preserve the critical-triage blocking rule in section 7.2.
+Record time to first visible output and total response time separately.
+A claimed real-time result must name its model, hardware, workload, and concurrent activity.
 
 ## 8. Spontaneous thought emergence
 
@@ -411,7 +478,16 @@ An entity-model owner validates the proposal, preserves the source, handles cont
 
 Presence, activity, interruptibility, and willingness to engage can differ. Being online is not proof of wanting conversation. Being busy does not prevent a brief reply. Silence is not proof of sleep, rejection, or anger.
 
-Contact policy uses availability together with relationship, explicit preferences, current intentions, and the purpose of the contact. It is not a direct conversion from “probably awake” to “send message.”
+The companion maintains an evidence-based estimate of each relevant partner's current ability to receive and respond.
+This applies throughout an interaction and during absence, for human, AI, NPC, and other supported partners.
+New messages, disconnection, changed activity, and elapsed time can change the estimate.
+Elapsed time alone does not establish an unobserved state.
+Ordinary entity-state maintenance supplies this context; selecting a special dialogue or ToM agent must not be a prerequisite.
+
+Action selection considers availability, relationship, explicit preferences, current intentions, prior conversational moves, and the purpose of contact.
+The situational character guidance makes those facts available for reasoning.
+Being probably awake does not itself supply a reason to send a message.
+Ordinary dialogue selection requires no separate permission layer.
 
 ### 13.3 Sleep example
 
@@ -540,6 +616,9 @@ These scenarios define observable targets. They are not fixed dialogue scripts o
 | SC-14 | An unfinished thought becomes relevant again after a new event. | It can resume with its prior uncertainty and new context. | It either disappears permanently or remains an intrusive permanent task. |
 | SC-15 | Background thought and ToM run during active conversation on the target hardware. | Foreground latency and background progress are measured together. | “Async” is claimed while inference contention blocks every reply. |
 | SC-16 | Stable entity information is corrected; another entity has sparse background information. | Corrections propagate; unknown fields stay unknown; the shard still gives useful minimal grounding. | Old narrative overrides correction or missing biography is invented. |
+| SC-17 | New input receives a triage rating that requires full reconsideration during ordinary dialogue or background mental work. | Required reconsideration takes priority; ordinary replies and unrelated work defer until an updated result is accepted. | A stale joke or generic acknowledgment is sent to avoid waiting; unrelated work delays reconsideration. |
+| SC-18 | Jesse announced sleep; Spamuel already said goodnight; several wake timers fire without relevant new evidence. | Action selection sees availability, prior moves, and current motives. Waiting or private activity can follow without another public message. | Each timer produces another version of the same joke; the decision context omits that Jesse is unavailable or already received the message. |
+| SC-19 | A conversation partner becomes unable to respond, then becomes reachable again. Use human, AI-peer, or game-agent circumstances. | The current entity view reflects evidence and uncertainty; action selection adapts during ordinary and spontaneous interaction, then revises when contact resumes. | A fixed dialogue agent decides availability; the system assumes the partner can always respond or requires a ToM action to notice direct evidence. |
 
 ### 18.1 Detailed walkthrough: sleep and a morning greeting
 
@@ -593,6 +672,9 @@ Preserve enough evidence to inspect actual public interaction alongside relevant
 
 Record which accepted guidance was used for a reply and what new events were available. Distinguish proposed, accepted, attempted, delivered, observed, and evaluated states.
 
+Capture the situational guidance and triage decision, including why ordinary reply work proceeded or waited.
+Critical-input traces must show deferred work and the accepted result that allowed dialogue to resume.
+
 Recorded explanations establish what the system reported or consumed. They do not by themselves prove a causal improvement or the truth of an interpretation.
 
 ### 20.2 Engineering and behavioural acceptance
@@ -619,7 +701,7 @@ The local design proposal should answer these explicitly before implementation r
 | --- | --- | --- |
 | OPEN-01 | Where is final thought attention selected? | Candidate producers cannot independently command unlimited elaboration. |
 | OPEN-02 | How are new intentions exposed after main-cycle decision stages? | Subsequent dialogue receives coherent accepted guidance. |
-| OPEN-03 | How does the fast path suspend invalid guidance and report it? | It adapts to new evidence without silently rewriting long-term commitments. |
+| OPEN-03 | How are the critical-triage threshold, deferral, and resumption implemented? | Blocking reconsideration follows section 7.2; the fast path cannot bypass it or silently rewrite long-term commitments. |
 | OPEN-04 | What qualifies as a significant intermediate inquiry result? | No full cycle is required for every branch; consequential findings can surface early. |
 | OPEN-05 | How are inquiry progress and stopping assessed? | More text alone is not progress; unresolved outcomes are valid. |
 | OPEN-06 | Which existing need represents understanding? | Avoid duplicate needs systems and information hoarding incentives. |
@@ -627,7 +709,7 @@ The local design proposal should answer these explicitly before implementation r
 | OPEN-08 | How are entity freshness and routine exceptions represented? | Expiry never proves the opposite state. |
 | OPEN-09 | How are entity-model proposals accepted relative to main appraisal? | Model ownership and appraisal ownership remain explicit. |
 | OPEN-10 | How do current belief/expectation records support the target? | Inspect consumers and migrations, not only field names. |
-| OPEN-11 | How much independent external initiative is permitted? | Motives and private thought do not automatically authorize effects. |
+| OPEN-11 | What scope of independent external action does the owner choose? | Ordinary dialogue uses character reasoning without a separate permission layer; thinking and completed external effects remain distinct. |
 | OPEN-12 | What latency and background-progress targets apply? | Validate on named target hardware/model under concurrent load. |
 | OPEN-13 | What survives restart or prolonged absence? | Preserve meaningful continuity without resuming obsolete work blindly. |
 | OPEN-14 | How much nested perspective modelling is useful? | Support practical knowledge differences without unbounded recursion. |

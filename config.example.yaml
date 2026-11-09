@@ -1,5 +1,7 @@
 # Copy to config.local.yaml for machine-specific paths or literal credentials.
 # The existing Qwen launcher loops forever. Do not put that script here directly.
+ghost_backups: false
+
 chat:
   Default:
     base_url: http://127.0.0.1:8080/v1

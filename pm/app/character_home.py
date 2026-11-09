@@ -6,7 +6,7 @@ A home folder has this layout::
       character.yaml    # PersonaConfig fields without personality_profile
       personality.json  # {"<PersonalityProfile field>": 0..1, ...}
       ghost.pickle      # complete accepted state, including embeddings
-      ghost_*.pickle    # complete backup after each successful main cognition commit
+      ghost_*.pickle    # optional per-cycle copies when ghost_backups is true
       logs/             # process and thread diagnostics
       runtime/          # runtime root of the app
       import/           # copies of imported CSV files and import receipts

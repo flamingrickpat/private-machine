@@ -95,6 +95,11 @@ class TimelineApi:
         if not parts:
             return 400, {"error": "no endpoint given"}
         name, rest = parts[0], parts[1:]
+        if name == "refresh" and not rest:
+            with self._lock:
+                self._views.clear()
+                self.store.refresh()
+            return 200, {"status": "refreshed"}
         if name == "runs" and not rest:
             return 200, [row.model_dump(mode="json") for row in self.store.list_runs()]
         if name == "run" and len(rest) == 1:

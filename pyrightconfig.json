@@ -1,5 +1,8 @@
 {
   "include": [
+    "simulation/analysis.py",
+    "simulation/templates.py",
+    "simulation/plans.py",
     "pm/context_render/budget.py",
     "pm/context_render/records.py",
     "pm/llm/contracts.py",

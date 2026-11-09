@@ -243,6 +243,12 @@ class EvidenceStore:
         self._runs: dict[str, RunBundle] = {}
         self._attempts: dict[tuple[str, int], AttemptBundle] = {}
 
+    def refresh(self) -> None:
+        """Discard parsed views after a new attempt captures evidence."""
+        with self._lock:
+            self._runs.clear()
+            self._attempts.clear()
+
     def run_root(self, run_id: str) -> Path:
         """Return the checked run folder for ``run_id``."""
         safe_id = require_identity(run_id, RUN_ID, "Run id")
