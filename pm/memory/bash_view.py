@@ -189,13 +189,16 @@ class MemoryBashTarget(WorkingTarget):
     """Opens a fresh read-only MemoryStore Bash environment per invocation."""
 
     def __init__(self, ghost: MemoryStore, mode: str = "read",
-                 visible_ids: Iterable[int] | None = None) -> None:
+                 visible_ids: Iterable[int] | None = None, *, recovery_only: bool = False) -> None:
+        """Select live memory or the accepted recovery view for each invocation."""
         self.ghost = ghost
         self.mode = mode
         self.visible_ids = visible_ids
+        self.recovery_only: bool = recovery_only
 
     def open(self, invocation_id: str) -> MemoryBashEnvironment:
-        view = self.ghost.snapshot(self.visible_ids)
+        view = (self.ghost.recovery_snapshot(self.visible_ids) if self.recovery_only
+                else self.ghost.snapshot(self.visible_ids))
         environment = MemoryBashEnvironment(view.all_knoxels, view._gwt, self.mode, ghost_view=view)
         return environment
 

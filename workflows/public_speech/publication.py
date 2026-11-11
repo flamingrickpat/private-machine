@@ -18,6 +18,7 @@ from pm.records.memory_records import Feature
 from pm.records.base import Provenance, RecordBase
 from pm.records.enums import FeatureType, InterlocusType, SourceKind
 from workflows.main_cognition.experience import utterance_metadata
+from workflows.public_speech.publication_control import PublicationControl
 
 if TYPE_CHECKING:
     from pm.memory.store import MemoryStore
@@ -37,6 +38,8 @@ def commit_public_reply(ghost: MemoryStore, text: str, correlation: str, *, comm
                         action_id: int | None = None, context: PublicContext | None = None,
                         recovery: str = "", review_reason: str = "", review_judgment: str = "",
                         addressee_entity_id: int | None = None,
+                        cognitive_control: PublicationControl | None = None,
+                        action_guidance_tick: int | None = None,
                         cancel: Event | None = None) -> int | None:
     """Commit speech and exchange resolution together, or reject stale input.
 
@@ -47,6 +50,10 @@ def commit_public_reply(ghost: MemoryStore, text: str, correlation: str, *, comm
     later feelings do not cancel earlier speech.
     """
     with ghost.lock:
+        if cognitive_control is not None:
+            cognitive_control.validate_publication(
+                context.reconsideration_epoch if context is not None else None,
+                action_guidance_tick if action_guidance_tick is not None else context.state_tick if context else None)
         exchange = exchange_record(ghost, correlation) if correlation else None
         action = ghost.snapshot({action_id}).get(action_id) if action_id is not None else None
         if action is not None and action.metadata.get("public_reply_id") is not None:

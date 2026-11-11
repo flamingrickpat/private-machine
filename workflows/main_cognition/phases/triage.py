@@ -17,7 +17,7 @@ from pm.context_render.turns import Turn, format_content
 
 from workflows.main_cognition.cycle_work import CycleWork
 from workflows.main_cognition.model_json import PhasePrompts
-from workflows.main_cognition.phases.intake import group_key
+from workflows.main_cognition.phases.intake import group_key, group_stimuli
 from workflows.main_cognition.phases.model import complete, phase_prompts
 from workflows.main_cognition.schemas import TRIAGE_CATEGORIES, TriageResult
 from workflows.main_cognition.story_prefix import StoryPrefix
@@ -65,9 +65,25 @@ def rate_groups(work: CycleWork) -> None:
 
 
 def run(context: RoleContext, work: CycleWork) -> CycleWork:
-    prefix = StoryPrefix(work)
-    result = complete(context, work, build_messages(work, phase_prompts("triage"), prefix), TriageResult,
-                      grounded=True, emotion=True, grounding_at=len(prefix.turns))
+    """Reuse accepted input triage and classify only the remaining stimuli."""
+    early = work.request.early_triage
+    classified_ids = {item.knoxel_id for item in early.items} if early is not None else set()
+    remaining = [item for item in work.request.stimuli if item.knoxel_id not in classified_ids]
+    if remaining:
+        pending = work.model_copy(deep=True)
+        pending.request.stimuli = remaining
+        pending.state.stimulus_groups = group_stimuli(pending.request)
+        prefix = StoryPrefix(pending)
+        result = complete(context, pending, build_messages(pending, phase_prompts("triage"), prefix), TriageResult,
+            grounded=True, emotion=True, grounding_at=len(prefix.turns),
+            validation_context={"stimulus_ids": [item.knoxel_id for item in remaining]})
+        if early is not None:
+            result = TriageResult(items=[*early.items, *result.items],
+                                  codelet_budget=max(early.codelet_budget, result.codelet_budget))
+    else:
+        if early is None:
+            raise ValueError("Triage requires stimuli or an accepted early assessment.")
+        result = early
     work.triage = result
     rate_groups(work)
     work.receipt("triage", f"triaged {len(result.items)} stimuli")

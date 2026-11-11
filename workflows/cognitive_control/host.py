@@ -11,16 +11,23 @@ from pm import vclock
 
 from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
+from threading import Event
 from typing import TYPE_CHECKING, Any
 
 from pm.bus.envelopes import Envelope, new_envelope, new_id
 from pm.host.application import BusModule
-from pm.memory.snapshot import GhostCancelled
+from pm.memory.snapshot import GhostCancelled, GhostConflict
 from pm.memory.write_batch import WriteBatch
+from pm.memory.read_scope import ReadScope
 from pm.records.enums import FeatureType, InterlocusType, SourceKind
+from pm.records.base import Provenance
 from pm.records.memory_records import Feature, new_feature
 from pm.records.lineage import RecordLineage
 from workflows.cognitive_control.schemas import ControlConfig, WaitRequest
+from workflows.public_speech.publication_control import PublicationControl, ReplySuperseded
+from workflows.input_triage.schemas import EarlyTriageAssessment
+from workflows.main_cognition.schemas import TriageResult
+from workflows.public_speech.public_context import source_fingerprint
 
 if TYPE_CHECKING:
     from pm.memory.store import MemoryStore
@@ -55,6 +62,193 @@ class CognitiveControl(BusModule):
         # Evidence that arrived during a wait and was held for the next cycle.
         # This list is in memory only, like the poller that produced it.
         self._deferred: list[Envelope] = []
+        self.input_triage_enabled: bool = False
+        self._assessments: dict[int, EarlyTriageAssessment] = {}
+        self._pending_triage: set[int] = set()
+        self._critical_sources: set[int] = set()
+        self._reconsideration_epoch: int = 0
+        self._critical_accepted_tick: int = 0
+        self.cancel_critical_private: Callable[[], None] = lambda: None
+        self.prioritize_critical: Callable[[set[int]], None] = lambda source_ids: None
+        self.cancel_public_drafts: Callable[[int], None] = lambda epoch: None
+
+    def enable_input_triage(self) -> None:
+        """Reconstruct unresolved classification and reconsideration from memory.
+
+        Historical input already claimed by accepted cognition needs no new
+        classification. Durable Critical assessments remain required until an
+        accepted cycle actually claims their sources.
+        """
+        with self.ghost.lock:
+            self.input_triage_enabled = True
+            claimed = {source_id: state.tick_id for state in self.ghost.states
+                       for source_id in state.claimed_ids()}
+            for record in self.ghost.all_features:
+                if record.metadata.get("control_kind") != "input_triage":
+                    continue
+                assessment = EarlyTriageAssessment.model_validate(record.metadata["assessment"])
+                self._reconsideration_epoch = max(self._reconsideration_epoch, assessment.reconsideration_epoch)
+                for source_id in assessment.source_ids:
+                    self._assessments[source_id] = assessment
+                for item in assessment.result.items:
+                    if item.category == "Critical":
+                        if item.knoxel_id in claimed:
+                            self._critical_accepted_tick = max(self._critical_accepted_tick, claimed[item.knoxel_id])
+                        else:
+                            self._critical_sources.add(item.knoxel_id)
+            for record in self.ghost.all_features:
+                if (record.metadata.get("exchange_correlation") and record.metadata.get("exchange_status") == "pending"
+                        and record.id not in claimed and record.id not in self._assessments):
+                    self._pending_triage.add(record.id)
+
+    def register_input(self, source_id: int) -> None:
+        """Fence a committed input under the same store lock as publication."""
+        if not self.input_triage_enabled:
+            return
+        with self.ghost.lock:
+            self.ghost.snapshot({source_id}).get(source_id)
+            if source_id not in self._assessments:
+                self._pending_triage.add(source_id)
+
+    def has_assessment(self, source_id: int) -> bool:
+        """Return whether this source already has an accepted early assessment."""
+        with self.ghost.lock:
+            return source_id in self._assessments
+
+    def accept_triage(self, assessment: EarlyTriageAssessment) -> EarlyTriageAssessment:
+        """Commit classification before releasing its unknown-input barrier."""
+        critical = {item.knoxel_id for item in assessment.result.items if item.category == "Critical"}
+        with self.ghost.lock, ReadScope() as acceptance_reads:
+            # A control receipt preserves its exact supplied evidence, not
+            # speculative branches captured by the surrounding workflow view.
+            acceptance_reads.collecting = False
+            source_ids = set(assessment.source_ids)
+            if (len(assessment.source_ids) != len(source_ids)
+                    or not source_ids.issubset(assessment.evidence.record_fingerprints)
+                    or set(assessment.source_fingerprints) != source_ids
+                    or {item.knoxel_id for item in assessment.result.items} != source_ids
+                    or len(assessment.result.items) != len(source_ids)):
+                raise ValueError("Early triage must classify exactly its supplied source IDs.")
+            for source_id in source_ids:
+                if source_fingerprint(self.ghost.snapshot({source_id}).get(source_id)) != assessment.source_fingerprints[source_id]:
+                    raise GhostConflict(f"Triage source {source_id} changed during classification.")
+                if source_id in self._assessments:
+                    raise ValueError(f"Source {source_id} already has an accepted assessment.")
+            evidence_view = self.ghost.recovery_snapshot(capture=False)
+            required_heads = set(assessment.evidence.current_head_ids) | source_ids
+            for source_id, fingerprint in assessment.evidence.record_fingerprints.items():
+                if source_id in required_heads and source_id not in evidence_view.all_knoxels:
+                    raise GhostConflict(f"Triage evidence {source_id} acquired an accepted successor.")
+                if source_fingerprint(evidence_view.get(source_id)) != fingerprint:
+                    raise GhostConflict(f"Triage evidence {source_id} changed during classification.")
+            epoch = self._reconsideration_epoch + int(bool(critical))
+            accepted = assessment.model_copy(update={"reconsideration_epoch": epoch})
+            batch = self.ghost.begin_batch("input-triage-" + new_id(), embed=False)
+            batch.depend_on(assessment.evidence.record_fingerprints,
+                            manifest={"kind": "input_triage", "evidence": assessment.evidence.model_dump(mode="json")})
+            batch.depend_on_commits(assessment.evidence.commit_ids)
+            batch.preserve_on_recovery()
+            batch.create(Feature(
+                content="; ".join(f"{item.category}: {item.reasoning}" for item in assessment.result.items),
+                feature_type=FeatureType.StateUpdate, interlocus=InterlocusType.PrivateInternal,
+                provenance=Provenance(source_kind=SourceKind.System, source_ref="input_triage"),
+                metadata={"control_kind": "input_triage", "assessment": accepted.model_dump(mode="json")},
+                lineage=RecordLineage(episode_id=batch.commit_id, operation="input_triage",
+                                     source_event_ids=assessment.source_ids)))
+            self.ghost.commit(batch)
+            self._reconsideration_epoch = epoch
+            self._critical_sources.update(critical)
+            self._pending_triage.difference_update(source_ids)
+            for source_id in source_ids:
+                self._assessments[source_id] = accepted
+            if critical:
+                # Mark the old main invocation interrupted before another
+                # writer can observe the required sources at its commit fence.
+                self.prioritize_critical(critical)
+                self.cancel_public_drafts(epoch)
+        if critical:
+            self.cancel_critical_private()
+        return accepted
+
+    def publication_control(self) -> PublicationControl:
+        """Expose typed scheduling callbacks without a speech-to-behavior import."""
+        return PublicationControl(
+            wait_for_reconsideration=self.wait_for_reconsideration,
+            wait_for_classification=self.wait_for_classification,
+            publication_epoch=self.publication_epoch,
+            validate_publication=self.validate_publication,
+        )
+
+    def validate_cognition(self, source_ids: Sequence[int]) -> None:
+        """Reject an older calculation before any state or action commits."""
+        with self.ghost.lock:
+            if self._critical_sources.difference(source_ids):
+                raise GhostCancelled("New Critical input requires a fresh cycle including its evidence.")
+
+    def wait_for_triage(self, source_ids: Sequence[int], cancel: Event) -> bool:
+        """Wait for early classification without holding a store or model slot."""
+        while not cancel.is_set():
+            with self.ghost.lock:
+                if not self.input_triage_enabled or all(key in self._assessments for key in source_ids):
+                    return True
+            cancel.wait(0.05)
+        return False
+
+    def triage_result(self, source_ids: Sequence[int]) -> TriageResult | None:
+        """Return accepted classifications for the given user sources."""
+        with self.ghost.lock:
+            if not self.input_triage_enabled or not source_ids:
+                return None
+            assessments = [self._assessments[key] for key in source_ids]
+            items = [next(item for item in assessment.result.items if item.knoxel_id == key)
+                     for key, assessment in zip(source_ids, assessments, strict=True)]
+            return TriageResult(items=items, codelet_budget=max(item.result.codelet_budget for item in assessments))
+
+    def reconsideration_required(self) -> bool:
+        """Return whether unknown or Critical input currently holds ordinary work."""
+        with self.ghost.lock:
+            return bool(self._pending_triage or self._critical_sources)
+
+    def wait_for_reconsideration(self, cancel: Event) -> bool:
+        """Defer ordinary work until required cognition is accepted or stopped."""
+        while not cancel.is_set():
+            if not self.reconsideration_required():
+                return True
+            cancel.wait(0.05)
+        return False
+
+    def wait_for_classification(self, cancel: Event) -> bool:
+        """Resolve unknown input before deciding whether to supersede a draft."""
+        while not cancel.is_set():
+            with self.ghost.lock:
+                if not self._pending_triage:
+                    return True
+            cancel.wait(0.05)
+        return False
+
+    def publication_epoch(self) -> int:
+        """Capture the Critical assessment epoch while freezing public context."""
+        with self.ghost.lock:
+            if self.reconsideration_required():
+                raise ReplySuperseded("Input requires classification or accepted reconsideration.")
+            return self._reconsideration_epoch
+
+    def validate_publication(self, epoch: int | None, guidance_tick: int | None) -> None:
+        """Atomically reject drafts composed before required reconsideration.
+
+        Call while holding ``ghost.lock`` through the durable utterance commit.
+        Delivered utterances are already events and never pass this guard again.
+        """
+        if not self.input_triage_enabled:
+            return
+        if epoch is None:
+            raise ReplySuperseded("Public draft has no early-triage publication stamp.")
+        if self.reconsideration_required():
+            raise ReplySuperseded("New input requires accepted reconsideration before speech.")
+        if epoch != self._reconsideration_epoch:
+            raise ReplySuperseded("A Critical input superseded this draft's composition context.")
+        if guidance_tick is not None and guidance_tick < self._critical_accepted_tick:
+            raise ReplySuperseded("Selected action predates the latest accepted Critical reconsideration.")
 
     #: Events that end a deliberate wait at once. Outside input and work that
     #: needs a decision cannot wait for a quiet window to expire.
@@ -171,6 +365,7 @@ class CognitiveControl(BusModule):
         with self.ghost.lock:
             if batch.commit_id in self.ghost.applied_commits:
                 return self.ghost.commit(batch)
+            self.validate_cognition(source_ids)
             if private_generation is not None and (self.waiting() or private_generation != self.generation):
                 raise GhostCancelled("New outside input superseded private cognition.")
             for key in wake_ids:
@@ -210,6 +405,10 @@ class CognitiveControl(BusModule):
                     lineage=RecordLineage(episode_id=batch.commit_id, operation="inference_wait",
                                           parent_record_ids=list(source_ids), source_event_ids=sorted(paused_sources)))
             receipt = self.ghost.commit(batch)
+            accepted_critical = self._critical_sources.intersection(source_ids)
+            if accepted_critical:
+                self._critical_sources.difference_update(accepted_critical)
+                self._critical_accepted_tick = max(self._critical_accepted_tick, batch.tick_id)
             self._pending_inputs.difference_update(handled)
             if armed:
                 # A wait also invalidates output from a private run that has
@@ -226,7 +425,7 @@ class CognitiveControl(BusModule):
         cancellation is cooperative, so this fence also rejects a late result.
         """
         with self.ghost.lock:
-            if self.waiting() or generation != self.generation:
+            if self.waiting() or self.reconsideration_required() or generation != self.generation:
                 raise GhostCancelled("Private work was superseded by a wait or new stimulus.")
             return self.ghost.commit(batch)
 

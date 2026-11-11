@@ -27,6 +27,8 @@ story_template: |
   {character_card}
   ### END CHARACTER
 
+  {situational_guidance}
+
   {shards}
 
   How {companion_name} feels right now:

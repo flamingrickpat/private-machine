@@ -34,6 +34,7 @@ from workflows.main_cognition.csm_view import render_story
 from workflows.main_cognition.cycle_work import CycleRequest, CycleWork
 from workflows.main_cognition.model_json import PhasePrompts
 from workflows.main_cognition.phases.model import phase_prompts
+from workflows.public_speech.situational_guidance import render_situational_guidance
 
 
 def shard_label(key: ShardKey, request: CycleRequest) -> str:
@@ -162,10 +163,17 @@ class StoryPrefix:
         new_ids = [record_id for item in groups for record_id in item.stimulus_ids] if group is not None else [
             item.knoxel_id for item in request.stimuli]
         system = self.fill(self.prompts.system_prompt).strip()
+        target_id = int(group.ref) if group is not None and group.kind == "entity" else request.user_entity_id
+        situations = request.situational_guidance
+        if group is not None:
+            situations = [situation for situation in situations
+                          if situation.partner is not None and situation.partner.entity_id == target_id]
         story = format_content(self.fill(self.prompts.story_template),
             character_card=request.character_card.strip() or "(no character card)",
             shards="\n\n".join(blocks),
             feeling=work.affect.felt or work.state_summary or "(no feeling recorded)",
+            situational_guidance="\n\n".join(render_situational_guidance(situation) for situation in situations)
+                                 or f"Runtime world time: {request.cycle_time.isoformat()} UTC. Partner receptivity is unknown without evidence.",
             new=render_story(work.records, new_ids, with_id=False) or "(nothing new happens)",
         ).text.strip()
         self.turns = [Turn(Role.System, system), Turn(Role.User, story),

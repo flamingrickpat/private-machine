@@ -31,6 +31,10 @@ user_template: |
   not pick the polite, balanced, or helpful option because it is polite. Silence, waiting, a refusal, a jab, a joke,
   a confession, or a change of subject are all real choices.
 
+  Use the current situational grounding and new events. Infer whether the other entity can receive and respond,
+  preserve uncertainty, and consider the purpose of another interaction together with what you already did.
+  Direct new evidence can correct an older interpretation. A timer alone supplies no new partner observation.
+
   Write the choice as a recommendation to the character, like a director's note to an actor: address {companion_name}
   as "you", in one to three sentences. Make it concrete enough to act on: what to do or say, and in which attitude.
   For example: "He has dodged choosing four times. Call him a coward for it, then admit that you like the story

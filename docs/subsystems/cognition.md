@@ -47,7 +47,9 @@ The instruction of the call comes last.
 Each instruction names its mechanism, for example "act as the triage mechanism" or "act as the choice mechanism".
 The calls before attention read the shards of the previous cycle with the new tails. The experience, goals, decide, and route calls read the shards after attention changed them.
 The prompts hold no assistant or therapy words and no softeners.
-Capability limits and workflow rules appear only in the route call. The private grounding turn of the other calls has no capability section.
+The shared [situational guidance](situational-guidance.md) supplies actual capabilities, partner evidence, intentions, and previous moves.
+Workflow names and routing rules remain in the route call.
+The private grounding turn of other calls has no separate capability section.
 
 ## Subjective experience
 

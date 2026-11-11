@@ -1,5 +1,8 @@
 {
   "include": [
+    "workflows/input_triage",
+    "workflows/public_speech/publication_control.py",
+    "workflows/public_speech/situational_guidance.py",
     "simulation/analysis.py",
     "simulation/templates.py",
     "simulation/plans.py",

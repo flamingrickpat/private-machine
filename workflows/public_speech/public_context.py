@@ -13,12 +13,15 @@ from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from pm.records.base import Provenance, RecordScope
+from pm.records.base import Provenance, RecordBase, RecordScope
 from pm.records.cognitive_records import OntologyBindingRecord
 from pm.context_render import ContextKind, render_context
 from pm.context_render.turns import Content
 from pathlib import Path
 from workflows.main_cognition.cycle_commits import active_goal_texts
+from workflows.public_speech.situational_guidance import (
+    SituationalGuidance, build_situational_guidance, render_situational_guidance,
+)
 
 if TYPE_CHECKING:
     # main_cognition.schemas imports Presentation from this module.
@@ -122,6 +125,8 @@ class PublicContext(BaseModel):
     stimulus_user_ids: list[int] = Field(default_factory=list)
     task_receipt: dict = Field(default_factory=dict)
     state_tick: int | None = None
+    situational_guidance: SituationalGuidance | None = None
+    reconsideration_epoch: int | None = None
     # The context plan trace (lanes, budgets, semantic status) when planned.
     plan: dict = Field(default_factory=dict)
 
@@ -163,6 +168,8 @@ def render_public_context(context: PublicContext, kinds: ContextKind = ContextKi
         capabilities = {key: value for key, value in context.capabilities.items() if key != "emotion_state"}
         selected.update(capabilities=capabilities, goals=context.goals, temporal_context=context.temporal_context,
                         task_receipt=context.task_receipt)
+        if context.situational_guidance is not None:
+            selected["situational_guidance"] = render_situational_guidance(context.situational_guidance)
     if kinds & ContextKind.Memories:
         selected["evidence"] = [item.model_dump(mode="json") for item in context.evidence]
         if not context.evidence:
@@ -305,6 +312,14 @@ def build_public_context(ghost: MemoryStore, request: ActionRequest | None = Non
     rendered_ids = {item.knoxel_id for item in originals}
     domain_capabilities["evidence_limit"] = {"records": 48, "record_characters": 1200,
         "omitted_ids": sorted(ids - rendered_ids - {action_id})}
+    from pm import vclock
+    guidance = build_situational_guidance(view, as_of_utc=vclock.utcnow(),
+        companion_name=ghost.get_companion_name(), user_name=ghost.get_user_name(),
+        partner_entity_id=request.partner_entity_id,
+        supported_capabilities=config.supported_capabilities,
+        scopes=tuple(view.get(key).scope for key in stimulus_ids if key in view.revisions)
+               or (action.scope if action is not None else RecordScope(),))
+    ids.update(guidance.source_revisions())
     return PublicContext(
         companion_name=ghost.get_companion_name(), user_name=ghost.get_user_name(),
         partner_name=request.partner_name or ghost.get_user_name(),
@@ -325,6 +340,7 @@ def build_public_context(ghost: MemoryStore, request: ActionRequest | None = Non
         user_frontier=max(users, default=None), task_receipt=dict(request.task_receipt),
         stimulus_user_ids=[key for key in stimulus_ids if key in users],
         state_tick=state.tick_id if state is not None else None,
+        situational_guidance=guidance,
         plan=dict(planned.trace) if planned is not None else {},
     )
 

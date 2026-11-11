@@ -84,7 +84,7 @@ from pm.llm.prompt_encoding import TurnInput, normalize_turns
 from pm.memory.snapshot import GhostCancelled, Snapshot
 from pm.memory.store import MemoryStore
 from pm.memory.write_batch import WriteBatch
-from pm.records.base import Provenance, RecordBase
+from pm.records.base import Provenance, RecordBase, RecordScope
 from pm.records.codelet_records import AffectMeta, CodeletPercept, Structure
 from pm.records.cognitive_records import ExpectationRecord
 from pm.records.cycle_records import ActionDispatchRef, BroadcastRef
@@ -128,11 +128,13 @@ from workflows.main_cognition.cycle_commits import (
 )
 from workflows.inner_thought.expectations import pending_expectations
 from workflows.public_speech.public_context import build_public_context
+from workflows.public_speech.situational_guidance import build_situational_guidance
 
 if TYPE_CHECKING:
     # The embedding service loads model configuration on first use. Import it
     # only for annotations, so module import stays free of that work.
     from pm.memory.embeddings import EmbeddingService
+    from workflows.cognitive_control.host import CognitiveControl
 
 
 def build_main_cognition_tools(
@@ -316,7 +318,7 @@ class MainCogLoop(CognitiveWorkflow):
         self._embeddings = None
         self._cancelled_invocation_id: str | None = None
         self.invocation_id: str | None = None
-        self.cognitive_control = None
+        self.cognitive_control: CognitiveControl | None = None
         self.release_private_results: Callable | None = None
         self.capability_provider: Callable | None = None
         self.retrieval_query_provider: Callable | None = None
@@ -331,6 +333,25 @@ class MainCogLoop(CognitiveWorkflow):
         self._memory_view = None
         self._control_generation = 0
         self._private_only = False
+        self._critical_interrupted = threading.Event()
+        self._active_batch: list[Envelope] = []
+        self._active_batch_committed: bool = False
+
+    def prioritize_critical(self, source_ids: set[int]) -> None:
+        """Interrupt older full cognition and retain its unaccepted causes.
+
+        The independent classifier calls this after its assessment is durable.
+        A source already in the active batch does not cancel its own cycle.
+        """
+        with self.ghost.lock:
+            if not self._active_batch or self._active_batch_committed:
+                return
+            current_sources = {KnoxelPayload.model_validate(item.payload).knoxel_id
+                               for item in self._active_batch if item.topic == "user.input"}
+            if source_ids.issubset(current_sources):
+                return
+            self._critical_interrupted.set()
+            self.run_stop.set()
 
     def cancel_run(self) -> None:
         """Cancel this invocation and prevent a format retry for the same request."""
@@ -352,18 +373,44 @@ class MainCogLoop(CognitiveWorkflow):
 
     def handle_batch(self, batch: list[Envelope]) -> None:
         """Hold foreground priority through the cycle and its reply dispatch."""
+        # Requeued causes join newer input. Chronological user stimuli keep
+        # group correlation and action attribution on the latest message.
+        batch = list(batch)
+        user_positions = [index for index, item in enumerate(batch) if item.topic == "user.input"]
+        user_envelopes = sorted((batch[index] for index in user_positions),
+                                key=lambda item: KnoxelPayload.model_validate(item.payload).knoxel_id)
+        for index, envelope in zip(user_positions, user_envelopes, strict=True):
+            batch[index] = envelope
+        with self.ghost.lock:
+            self._critical_interrupted.clear()
+            self._active_batch = batch
+            self._active_batch_committed = False
         try:
             self._handle_priority_batch(batch)
         finally:
+            with self.ghost.lock:
+                replay = self._critical_interrupted.is_set() and not self.stop_event.is_set()
+                self._active_batch = []
             if self.inference_admission is not None:
                 for envelope in batch:
                     self.inference_admission.release(envelope.id)
+            if replay:
+                for envelope in batch:
+                    # Identity keeps one pending-input cause and reservation.
+                    self.deliver(envelope)
+                self.bus.put(new_envelope(self.module_id, "telemetry", "cycle.preempted", "",
+                    {"source_ids": [item.payload["knoxel_id"] for item in batch if item.topic == "user.input"],
+                     "reason": "Critical input requires a fresh combined cycle."}))
 
     def _handle_priority_batch(self, batch: list[Envelope]) -> None:
         """Honor a wait and reject obsolete private stimuli before inference."""
         control = self.cognitive_control
         original = batch
         if control is not None:
+            user_source_ids = [KnoxelPayload.model_validate(item.payload).knoxel_id
+                               for item in batch if item.topic == "user.input"]
+            if not control.wait_for_triage(user_source_ids, self.stop_event):
+                return
             batch, self._control_generation = control.admit(batch)
             if not batch:
                 control.release_wakes(original)
@@ -374,13 +421,14 @@ class MainCogLoop(CognitiveWorkflow):
         try:
             self._handle_awake_batch(batch)
         except GhostCancelled:
-            if not (control is not None and self._private_only
+            if not (self._critical_interrupted.is_set() or
+                    control is not None and self._private_only
                     and self._control_generation != control.generation):
                 raise
         finally:
-            if control is not None:
+            if control is not None and not self._critical_interrupted.is_set():
                 control.release_wakes(original)
-            if self.release_private_results is not None:
+            if self.release_private_results is not None and not self._critical_interrupted.is_set():
                 self.release_private_results(original)
 
     def _handle_awake_batch(self, batch: list[Envelope]) -> None:
@@ -404,6 +452,8 @@ class MainCogLoop(CognitiveWorkflow):
         delay = CYCLE_RETRY_DELAY_SECONDS
         while not self.stop_event.is_set():
             try:
+                if self._critical_interrupted.is_set():
+                    return
                 super().handle_batch(batch)
                 return
             except (ModelFormatError, ModelError) as error:
@@ -484,6 +534,9 @@ class MainCogLoop(CognitiveWorkflow):
         ``_stimulus_from``). The method records the revisions that the cycle
         read, so the commit can reject the cycle when one of them changed.
         """
+        if self._critical_interrupted.is_set():
+            self.run_stop.set()
+            raise GhostCancelled("Critical input superseded this invocation before preparation.")
         # The working target owns the frozen permitted view. Materialized host
         # events remain stimuli, but cannot expose concurrent future memory.
         memory_view = self.last_environment.ghost_view
@@ -590,6 +643,14 @@ class MainCogLoop(CognitiveWorkflow):
         group_entities = sorted({int(key.ref) for key in keys if key.kind == "entity"})
         entity_names = {entity_id: self.ghost.get_entity_name(entity_id) or f"entity {entity_id}"
                         for entity_id in group_entities}
+        cycle_time = vclock.utcnow()
+        guidance_partners = list(dict.fromkeys([*group_entities, *([user_entity_id] if user_entity_id is not None else [])]))
+        situational_guidance = [build_situational_guidance(memory_view, as_of_utc=cycle_time,
+            companion_name=self.ghost.get_companion_name(), user_name=self.ghost.get_user_name(),
+            partner_entity_id=entity_id, supported_capabilities=self.ghost.ghost_config.supported_capabilities,
+            scopes=tuple(source.scope for stimulus, source in zip(stimuli, sources, strict=True)
+                         if stimulus.entity_id == entity_id) or (RecordScope(),))
+            for entity_id in guidance_partners]
         open_expectations = self._open_expectations(memory_view)
         narrative_ids = self._narrative_ids(memory_view, [*([self_entity_id] if self_entity_id else []),
                                                           *group_entities])
@@ -615,11 +676,13 @@ class MainCogLoop(CognitiveWorkflow):
             entity_names=entity_names,
             state_summary=_state_summary(self.ghost),
             previous_state=previous,
-            cycle_time=vclock.utcnow(),
+            cycle_time=cycle_time,
             state_history=history,
             personality=PersonalityProfile.init_from_vector(self.ghost.ghost_config.personality_profile),
             active_goals=active_goal_texts(self.ghost)[:8],
             stimuli=stimuli,
+            early_triage=control.triage_result([item.knoxel_id for item in stimuli if item.source == "user_input"])
+                         if control is not None else None,
             memory_candidates=matches,
             memory_trace=trace,
             active_focus=focus,
@@ -632,6 +695,7 @@ class MainCogLoop(CognitiveWorkflow):
             available_workflows=(self.workflow_catalogue_provider() if self.workflow_catalogue_provider is not None
                                  else self.workflow_catalogue),
             public_context=public,
+            situational_guidance=situational_guidance,
             managed_runs=[ManagedRunView.model_validate(run)
                           for run in list(self.ghost.read_run_receipts().values())[-16:]],
             stimulus_revisions=dict(self._stimulus_revisions),
@@ -876,6 +940,12 @@ class MainCogLoop(CognitiveWorkflow):
             changes.expect_revision(source_id, revision)
         for source_id, revision in self._focus_source_revisions.items():
             changes.expect_revision(source_id, revision)
+        # Guidance presents current interpretations and purposes. A historical
+        # predecessor still exists after a correction, but must not govern a
+        # newly accepted choice once its authoritative head has changed.
+        for guidance in request.situational_guidance:
+            for source_id, revision in guidance.source_revisions().items():
+                changes.expect_head(source_id, revision)
         for outcome in work.expectations:
             changes.expect_revision(outcome.record_id, outcome.revision)
         for memory in work.selected_memories:
@@ -1084,42 +1154,45 @@ class MainCogLoop(CognitiveWorkflow):
             ),
             state,
         )
-        control = self.cognitive_control
-        if control is None:
-            receipt = self.ghost.commit(changes)
-        else:
-            receipt = control.commit(changes, work.wait_request, self._control_generation,
-                envelope_ids={item.id for item in batch},
-                wake_ids=[KnoxelPayload.model_validate(item.payload).knoxel_id
-                          for item in batch if item.topic == "cognition.wake"],
-                private_generation=self._control_generation if self._private_only else None,
-                source_ids=list(self._stimulus_ids))
-        # Failed attempts must leave the last completed cycle's backup intact.
-        if self.ghost_backups:
-            self.ghost.backup()
-        tick = receipt.tick_id
+        # Serialize acceptance and outbox enqueue with Critical assessment.
+        with self.ghost.lock:
+            control = self.cognitive_control
+            if control is None:
+                receipt = self.ghost.commit(changes)
+            else:
+                receipt = control.commit(changes, work.wait_request, self._control_generation,
+                    envelope_ids={item.id for item in batch},
+                    wake_ids=[KnoxelPayload.model_validate(item.payload).knoxel_id
+                              for item in batch if item.topic == "cognition.wake"],
+                    private_generation=self._control_generation if self._private_only else None,
+                    source_ids=list(self._stimulus_ids))
+            self._active_batch_committed = True
+            # Failed attempts must leave the last completed cycle's backup intact.
+            if self.ghost_backups:
+                self.ghost.backup()
+            tick = receipt.tick_id
 
-        self.bus.put(new_envelope(self.module_id, "data", "gwt.updated", "", {"gwt_tick": tick}))
-        for dispatch, created_id, action_request in published:
-            # A repeated commit returns the original receipt and does not apply
-            # the new batch. Resolve the accepted action by durable identity and
-            # tick so the published id is always committed.
-            committed_id = self._committed_action_id(dispatch, tick) or created_id
-            self.bus.put(new_envelope(
-                self.module_id, "data", "action.request", dispatch.correlation_id,
-                action_request.model_copy(update={"knoxel_id": committed_id, "gwt_tick": tick}).payload(),
-                target=dispatch.workflow_name,
-                causation_id=cause,
-            ))
-        for dispatch in queued:
-            self._publish_receipt(dispatch.correlation_id, dispatch, "queued", cause)
-        for dispatch in rejected:
-            self._publish_receipt(dispatch.correlation_id, dispatch, "rejected", cause)
-        for dispatch, existing_id in duplicates:
-            self._publish_receipt(
-                dispatch.correlation_id, dispatch, "duplicate", cause,
-                detail=f"active action {existing_id} has identity {dispatch.action_id}",
-            )
+            self.bus.put(new_envelope(self.module_id, "data", "gwt.updated", "", {"gwt_tick": tick}))
+            for dispatch, created_id, action_request in published:
+                # A repeated commit returns the original receipt and does not apply
+                # the new batch. Resolve the accepted action by durable identity and
+                # tick so the published id is always committed.
+                committed_id = self._committed_action_id(dispatch, tick) or created_id
+                self.bus.put(new_envelope(
+                    self.module_id, "data", "action.request", dispatch.correlation_id,
+                    action_request.model_copy(update={"knoxel_id": committed_id, "gwt_tick": tick}).payload(),
+                    target=dispatch.workflow_name,
+                    causation_id=cause,
+                ))
+            for dispatch in queued:
+                self._publish_receipt(dispatch.correlation_id, dispatch, "queued", cause)
+            for dispatch in rejected:
+                self._publish_receipt(dispatch.correlation_id, dispatch, "rejected", cause)
+            for dispatch, existing_id in duplicates:
+                self._publish_receipt(
+                    dispatch.correlation_id, dispatch, "duplicate", cause,
+                    detail=f"active action {existing_id} has identity {dispatch.action_id}",
+                )
 
     def _accepted_state(self, work: CycleWork, tick: int, summary: str, published: list[tuple],
                         experience_id: int) -> CycleState:

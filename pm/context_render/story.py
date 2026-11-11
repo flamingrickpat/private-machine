@@ -30,7 +30,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from pm.context_render.tokens import text_tokens
 from pm.context_render.turns import format_content
-from pm.records.base import persisted_type_name
+from pm.records.base import RecordBase, persisted_type_name
+from pm.records.codelet_records import CodeletPercept
+from pm.records.cognitive_records import BeliefRecord, ExpectationRecord, Intention
+from pm.records.memory_records import DeclarativeFactRecord, Feature, Narrative, SemanticRecord, Stimulus
 from pm.records.enums import FeatureType
 from pm.records.workspace import SELF_SHARD, GlobalWorkspace, ShardKey, WorkspaceShard
 
@@ -103,27 +106,27 @@ class ShardLabels(BaseModel):
     workflow_focus: str = ""
 
 
-def _entity_facts(record, record_class: str) -> tuple[list[int], str]:
+def _entity_facts(record: RecordBase, record_class: str) -> tuple[list[int], str]:
     """Return the entity ids that a record is about and its category label.
 
     The record classes name their entity in different fields. A class that
     names no entity returns an empty list. Entity id 0 means "unknown" in
     every class, so it never counts.
     """
-    if record_class == "Narrative":
+    if isinstance(record, Narrative):
         return [record.entity_id] if record.entity_id else [], record.narrative_type.value
-    if record_class in {"SemanticRecord", "DeclarativeFactRecord"}:
+    if isinstance(record, (SemanticRecord, DeclarativeFactRecord)):
         return [record.subject_entity_id] if record.subject_entity_id else [], record.record_type.value
-    if record_class == "BeliefRecord":
+    if isinstance(record, BeliefRecord):
         return list(record.about_entity_ids), record.belief_kind
-    if record_class in {"Feature", "Stimulus", "Intention"}:
+    if isinstance(record, (Feature, Stimulus, Intention)):
         return [record.entity_id] if record.entity_id else [], ""
-    if record_class == "ExpectationRecord":
+    if isinstance(record, ExpectationRecord):
         return list(record.about_entity_ids), record.status
     return [], ""
 
 
-def record_view(record) -> RecordView:
+def record_view(record: RecordBase) -> RecordView:
     """Return the view of one memory store record. The host and the agent tool call it.
 
     A dialogue turn names its speaker. Another feature names its source and
@@ -143,13 +146,13 @@ def record_view(record) -> RecordView:
     source = ""
     feature_type = ""
     addressee = 0
-    if record_class == "Feature":
+    if isinstance(record, Feature):
         feature_type = record.feature_type.value
         addressee = record.addressee_entity_id
         source = record.source if record.feature_type == FeatureType.Dialogue else f"{record.source} ({feature_type})"
-    elif record_class == "CodeletPercept":
+    elif isinstance(record, CodeletPercept):
         source = record.codelet_name
-    elif record_class == "Narrative":
+    elif isinstance(record, Narrative):
         source = f"narrative ({category}) about {record.target_name}"
     elif record_class == "ExpectationRecord":
         source = f"expectation ({category})"

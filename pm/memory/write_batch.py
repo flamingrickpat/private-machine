@@ -44,6 +44,7 @@ class WriteBatch:
         self._input_commits: set[str] = set()
         self._authority: int | None = None
         self._manifest: dict[str, Any] = {}
+        self._recovery_root: bool = False
         self._expected: dict[int, int] = {}
         self._heads: set[int] = set()
         self._metadata_guards: list[tuple[str, object, dict[int, int]]] = []
@@ -169,6 +170,15 @@ class WriteBatch:
     def depend_on_commits(self, commit_ids: Iterable[str]) -> None:
         """Retain receipt and collection-view dependencies without a knoxel."""
         self._input_commits.update(commit_ids)
+
+    def preserve_on_recovery(self) -> None:
+        """Retain this append-only receipt without requiring a main cognition cycle.
+
+        Commit rejects speculative dependencies and any workspace or state
+        mutation. This opt-in does not give dependent drafts acceptance.
+        """
+        self.check_cancelled()
+        self._recovery_root = True
 
     def delete(self, record_id: int) -> RecordBase:
         """Append a tombstone. An excluded deletion cannot hide accepted data."""

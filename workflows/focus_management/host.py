@@ -9,10 +9,11 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any
+from threading import Event
 
 from pm.bus.envelopes import Envelope, new_envelope
 from pm.memory.agent_tools import MemoryReadSession, MemoryToolConfig, MemoryView
-from pm.memory.snapshot import GhostConflict
+from pm.memory.snapshot import GhostCancelled, GhostConflict
 from pm.records.enums import FeatureType, InterlocusType, SourceKind
 from pm.records.lineage import RecordLineage
 from pm.records.memory_records import new_feature
@@ -25,6 +26,7 @@ from workflows.public_speech.shard_context import shard_story
 if TYPE_CHECKING:
     from pm.memory.bash_view import MemoryBashEnvironment
     from pm.memory.embeddings import EmbeddingService
+    from workflows.cognitive_control.host import CognitiveControl
 
 
 class FocusManagement(CognitiveWorkflow):
@@ -43,6 +45,13 @@ class FocusManagement(CognitiveWorkflow):
         super().__init__(*args, tools_factory=self._tools, **kwargs)
         self.embeddings = embeddings
         self._published_results = set()
+        self.cognitive_control: CognitiveControl | None = None
+        self._critical_interrupted = Event()
+
+    def defer_for_critical(self) -> None:
+        """Cancel read-only mental calculation while preserving its selected action."""
+        self._critical_interrupted.set()
+        self.cancel_run()
 
     def handle_batch(self, batch: list[Envelope]) -> None:
         """Run new actions once. Timer ticks replay unappraised durable results."""
@@ -54,7 +63,18 @@ class FocusManagement(CognitiveWorkflow):
             if action.metadata.get("mental_result_id") is not None:
                 self.resume()
                 continue
-            super().handle_batch([envelope])
+            while not self.stop_event.is_set():
+                if self.cognitive_control is not None:
+                    if not self.cognitive_control.wait_for_reconsideration(self.stop_event):
+                        return
+                self._critical_interrupted.clear()
+                try:
+                    super().handle_batch([envelope])
+                except GhostCancelled:
+                    if not self._critical_interrupted.is_set():
+                        raise
+                if not self._critical_interrupted.is_set():
+                    break
 
     def resume(self) -> None:
         """Replay results after interruption without rerunning an accepted agent.
@@ -91,6 +111,10 @@ class FocusManagement(CognitiveWorkflow):
         the shard story of the choosing cycle, so the agent knows what was on
         the companion's mind.
         """
+        if self.cognitive_control is not None and self.cognitive_control.reconsideration_required():
+            self._critical_interrupted.set()
+            self.run_stop.set()
+            raise GhostCancelled("Required reconsideration defers unrelated mental work.")
         request = ActionRequest.model_validate(batch[0].payload)
         self._action_id = request.knoxel_id
         self._correlation = batch[0].correlation_id
@@ -168,7 +192,12 @@ class FocusManagement(CognitiveWorkflow):
         changes.set_lifecycle(action.id, dispatch_status="admitted", mental_result_id=proposal.id,
                               mental_status="proposed", execution_status="completed")
         try:
-            self.ghost.commit(changes)
+            with self.ghost.lock:
+                if self.cognitive_control is not None and self.cognitive_control.reconsideration_required():
+                    self._critical_interrupted.set()
+                    self.run_stop.set()
+                    raise GhostCancelled("Required reconsideration superseded this mental proposal.")
+                self.ghost.commit(changes)
         except GhostConflict as error:
             self.bus.put(new_envelope(self.module_id, "telemetry", "mental.rejected", self._correlation,
                                       {"reason": str(error)}))

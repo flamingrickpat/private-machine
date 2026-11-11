@@ -58,6 +58,7 @@ from workflows.public_speech.public_context import (
     ability_lines, memory_lines, memory_sections, plain_memory_text, task_lines, time_lines,
 )
 from workflows.public_speech.public_context import Presentation, PublicContext
+from workflows.public_speech.situational_guidance import render_situational_guidance
 from workflows.public_speech.story_rendering import (
     ArtifactLine, DialogueLine, dialogue_lines, render_interleaved_story,
 )
@@ -185,6 +186,8 @@ def build_context_message(request: StoryRequest, prompts: StoryPrompts, *, avoid
         _section(prompts["abilities_title"].format(**names), abilities),
         _section(prompts["ontology_title"].format(**names), ontology_terms),
         _section(prompts["time_title"], time_lines(request.now, request.prior_dialogue, prompts, names)),
+        render_situational_guidance(context.situational_guidance)
+            if context is not None and context.situational_guidance is not None else "",
         _section(prompts["shards_title"].format(**names),
                  [prompts["shards_note"].format(**names).strip(), shard_story]) if shard_story else "",
         *memory_blocks,
@@ -253,6 +256,8 @@ def build_directive_text(request: StoryRequest, prompts: StoryPrompts, *, avoid:
                               [prompts["shards_note"].format(**names).strip(), shard_story]))
     if context is not None:
         tasks = task_lines(context)
+        if context.situational_guidance is not None:
+            parts.append(render_situational_guidance(context.situational_guidance))
     else:
         tasks = []
     parts.append(_section(prompts["goals_title"].format(**names), [f"- {goal}" for goal in request.goals]))

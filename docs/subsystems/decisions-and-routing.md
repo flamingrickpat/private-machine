@@ -71,7 +71,9 @@ The answer is a [`DecisionAnswer`][workflows.main_cognition.schemas.DecisionAnsw
 An empty list means that the character does nothing about this group.
 Silence and waiting can also be decisions. The route maps them to quiet actions.
 
-The decision prompt holds no capability list, no workflow list, and no routing rule.
+The shared [situational guidance](situational-guidance.md) supplies configured capabilities and relevant partner evidence.
+It also distinguishes selected purposes from actual delivery.
+The decision instruction holds no workflow list or routing rule.
 Validation rejects a text that names a configured workflow or a system word (`ToolCall`, `workflow`, `action_type`).
 It also rejects a text that opens like a planner ticket, for example "Generate", "Validate", or "Respond to".
 The repair turn asks for the choice in the words of the story.

@@ -34,6 +34,7 @@ class UserInputProxy(BusModule):
         self.emit_reply = emit_reply
         self._intake_lock = threading.RLock()
         self._accepting = True
+        self.register_triage_input: Callable[[int], None] | None = None
 
     def close_intake(self) -> None:
         """Reject new stimuli after all current submissions finish."""
@@ -91,6 +92,7 @@ class UserInputProxy(BusModule):
         # can prepare its vector after this durable acknowledgment.
         with self.ghost.lock:
             batch = self.ghost.begin_batch(new_id(), embed=False)
+            batch.preserve_on_recovery()
             batch.depend_on([], manifest={"kind": "stimulus_delivery", "embedding_policy": "deferred"})
             if not entity_ref and (speaker is None or speaker == self.ghost.get_user_name()):
                 feature = new_feature(
@@ -118,6 +120,8 @@ class UserInputProxy(BusModule):
                 )
             self.ghost.commit(batch)
             knoxel_id = feature.id
+            if self.register_triage_input is not None:
+                self.register_triage_input(knoxel_id)
         self.bus.put(new_envelope(
             self.module_id, "data", "user.input",
             correlation_id, {"knoxel_id": knoxel_id},

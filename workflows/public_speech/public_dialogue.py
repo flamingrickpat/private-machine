@@ -1,7 +1,9 @@
 """``PublicDialogue``: the shared bus module of Story and Assistant replies.
 
 It validates evidence and commits each utterance before publication. Story
-and Assistant subclass it. Each draft receives one review. Story revises rejected
+and Assistant subclass it. Completed drafts receive a review. Critical
+reconsideration cancels obsolete calculation; its epoch still fences publication
+when completion races cancellation. Story revises rejected
 drafts. Declared model-output exhaustion leaves the exchange pending. Other errors reach the
 application. Host failure strings never become companion speech.
 """
@@ -22,6 +24,7 @@ from workflows.public_speech.speech_text import SpeechOutputError
 from workflows.public_speech.publication import commit_public_reply, publish_reply
 from pm.bus.envelopes import new_envelope
 from pm.runs.workflow_module import CognitiveWorkflow
+from workflows.public_speech.publication_control import PublicationControl, ReplySuperseded
 
 if TYPE_CHECKING:
     from pydantic import JsonValue
@@ -50,6 +53,23 @@ class PublicDialogue(CognitiveWorkflow):
     # Input token budget from the model's serving context * context_input_fraction.
     # The assembly sets it once at startup. Without it, the plan YAML value is used.
     context_budget: int | None = None
+    cognitive_control: PublicationControl | None = None
+    _composing_reply: bool = False
+    _reply_committed: bool = False
+    _interrupted_epoch: int | None = None
+
+    def defer_for_critical(self, epoch: int) -> None:
+        """Stop obsolete generation/review while retaining accepted utterances.
+
+        The state owner calls this after accepting a Critical assessment.
+        Explicit owner cancellation never sets the reconsideration marker.
+        The durable publication guard still rejects a late model completion.
+        """
+        with self.ghost.lock:
+            if not self._composing_reply or self._reply_committed:
+                return
+            self._interrupted_epoch = epoch
+            self.run_stop.set()
 
     def partner_stimuli(self, request: ActionRequest) -> list[Stimulus]:
         """Return the spoken lines of the request's stimuli, with their accepted text.
@@ -89,6 +109,8 @@ class PublicDialogue(CognitiveWorkflow):
         with self.ghost.lock:
             self._public_context = build_public_context(self.ghost, request, capabilities=capabilities,
                                                         planned=planned, late_ids=list(late_ids))
+            if self.cognitive_control is not None:
+                self._public_context.reconsideration_epoch = self.cognitive_control.publication_epoch()
         return self._public_context
 
     def reply_context(self, request: ActionRequest, late_ids: list[int] = ()) -> PlannedContext:
@@ -283,9 +305,34 @@ class PublicDialogue(CognitiveWorkflow):
             # receipt must never become the recovery evidence for this action.
             self._public_context = None
             try:
+                control = self.cognitive_control
+                if control is not None:
+                    if not control.wait_for_reconsideration(self.stop_event):
+                        return
+                with self.ghost.lock:
+                    if control is not None:
+                        control.validate_publication(control.publication_epoch(), request.gwt_tick)
+                    self._composing_reply = True
+                    self._reply_committed = False
+                    self._interrupted_epoch = None
                 super().handle_batch([envelope])
+                if self._interrupted_epoch is not None:
+                    self.supersede_reply(envelope,
+                        f"Critical assessment {self._interrupted_epoch} interrupted obsolete public calculation.")
+            except ReplySuperseded as error:
+                self.supersede_reply(envelope, str(error))
             except (EmptyCompletionError, ProviderCompletionError, SpeechOutputError, ModelFormatError) as error:
                 self.defer_reply(envelope, error)
+            finally:
+                with self.ghost.lock:
+                    self._composing_reply = False
+
+    def supersede_reply(self, envelope: Envelope, reason: str) -> None:
+        """Retain obsolete draft evidence without speech or application failure."""
+        self.bus.put(new_envelope(self.module_id, "telemetry", "action.receipt", envelope.correlation_id,
+            {"status": "superseded", "workflow_name": self.WORKFLOW_NAME,
+             "rejection_reason": reason, "recovery_outcome": "not_published",
+             "invocation_id": self.invocation_id}, causation_id=envelope.id))
 
     def defer_reply(self, envelope: Envelope,
                     error: EmptyCompletionError | ProviderCompletionError | SpeechOutputError | ModelFormatError) -> None:
@@ -332,6 +379,9 @@ class PublicDialogue(CognitiveWorkflow):
         from pm.memory.snapshot import GhostConflict
         envelope = batch[0]
         request = ActionRequest.model_validate(envelope.payload)
+        if self.cognitive_control is not None:
+            if not self.cognitive_control.wait_for_classification(self.stop_event):
+                return
         try:
             if self.capability_provider is not None:
                 current = self.capability_provider().get("minecraft", {})
@@ -349,13 +399,19 @@ class PublicDialogue(CognitiveWorkflow):
                 if not current_task.get("task_verified"):
                     self._public_context.task_receipt = current_task
                     raise GhostConflict("Verified task bytes changed during public generation.")
-            reply_id = commit_public_reply(
-                self.ghost, text, envelope.correlation_id, commit_id=self.invocation_id or new_id(),
-                action_id=None if recovery_outcome else request.knoxel_id, context=self._public_context,
-                addressee_entity_id=request.partner_entity_id,
-                recovery=recovery_outcome, review_reason=review_reason, review_judgment=review_judgment,
-                cancel=self.stop_event,
-            )
+            with self.ghost.lock:
+                reply_id = commit_public_reply(
+                    self.ghost, text, envelope.correlation_id, commit_id=self.invocation_id or new_id(),
+                    action_id=None if recovery_outcome else request.knoxel_id, context=self._public_context,
+                    addressee_entity_id=request.partner_entity_id,
+                    recovery=recovery_outcome, review_reason=review_reason, review_judgment=review_judgment,
+                    cognitive_control=self.cognitive_control,
+                    action_guidance_tick=request.gwt_tick,
+                    cancel=self.run_stop,
+                )
+                # A committed utterance remains an event if Critical arrives
+                # before its outbox publication or this invocation's exit.
+                self._reply_committed = True
         except GhostConflict as error:
             self.reject_reply(batch, str(error), status="stale")
             return

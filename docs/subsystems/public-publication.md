@@ -18,6 +18,14 @@ The Feature retains `exchange_correlation`, `exchange_status=pending`, and the c
 These fields live in the existing Ghost checkpoint.
 There is no separate state authority or broker.
 
+Incoming delivery opts into an explicit recovery root through
+[`pm.memory.write_batch.WriteBatch.preserve_on_recovery`][].
+This keeps durable inbox evidence visible after default clean recovery, before main cognition claims it.
+An early classification uses the same mechanism for its control receipt.
+Neither receipt creates a GWT turn or an accepted character decision.
+Recovery roots can depend only on already recoverable evidence.
+They cannot preserve unrelated unfinished cognitive branches through their dependencies.
+
 [`workflows.public_speech.publication.commit_public_reply`][] creates the companion utterance and resolves the corresponding user record in one Ghost batch.
 The user record retains `public_reply_id` and any recovery outcome.
 The companion record retains `reply_correlation`, `publication_status=pending`, and `factual_promotion=false`.
@@ -27,10 +35,29 @@ A failed commit cannot alter their live metadata.
 ## Asynchronous generation and publication
 
 The public context freezes the evidence available to one speaking action.
-New user messages and later cognitive states do not invalidate that draft.
+Ordinary classified input and later feelings do not automatically invalidate that draft.
+Unclassified incoming input holds publication until early triage completes.
+Critical input requires accepted reconsideration and invalidates older draft epochs.
 Delivery order remains the order shown in chat.
 Causal metadata records the earlier context separately.
 See [asynchronous conversation review](async-conversation-review.md).
+
+[`workflows.input_triage.host.InputTriage`][] classifies incoming partner input independently of the full cycle.
+[`workflows.cognitive_control.host.CognitiveControl`][] retains pending classification and critical source IDs.
+A successful main cycle clears only critical sources that it actually includes.
+Another critical input can therefore keep the barrier active during reconsideration.
+
+Public speech receives typed scheduling callbacks through
+[`workflows.public_speech.publication_control.PublicationControl`][].
+The speech library does not import the cognitive-control host.
+The memory-store lock covers the final barrier check and utterance commit.
+Cooperative cancellation alone cannot authorize a late model response.
+
+An obsolete draft produces a superseded-action receipt and leaves its exchange pending.
+It does not become companion speech or an application failure.
+Already committed utterances remain actual events and follow the existing delivery-replay contract.
+The first early classifier covers `user.input`, including attributed peers.
+Other stimulus kinds still receive triage inside the full cognitive cycle.
 
 [`workflows.public_speech.publication.validate_public_context`][] rejects changed source meaning.
 [`workflows.public_speech.public_context.source_fingerprint`][] excludes exchange, publication, and dispatch bookkeeping from that comparison.

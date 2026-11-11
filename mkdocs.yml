@@ -82,6 +82,7 @@ nav:
       - Character import and memory reconsolidation: subsystems/character-import.md
       - Images in records: subsystems/multimodal-records.md
       - Public dialogue: subsystems/public-dialogue.md
+      - Situational guidance: subsystems/situational-guidance.md
       - Public publication and recovery: subsystems/public-publication.md
       - Asynchronous conversation review: subsystems/async-conversation-review.md
       - Runtime record packages: subsystems/record-packages.md

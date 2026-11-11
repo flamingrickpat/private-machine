@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 import json
@@ -62,6 +63,15 @@ class DialogueTurn(TypedDict):
     text: str
     timestamp: str | None
     tick_id: int | None
+
+
+@dataclass(slots=True)
+class _RecoveryRecords:
+    """Accepted payloads, current heads, and workspace ticks from one ledger view."""
+
+    records: dict[int, RecordBase]
+    head_ids: set[int]
+    ticks: set[int]
 
 
 class MemoryStore(RecordIndex):
@@ -338,49 +348,51 @@ class MemoryStore(RecordIndex):
             write_checkpoint(destination, data, lambda: None)
         return destination
 
-    def _project(self, *, raw: bool = False) -> None:
-        """Install a validated recovery view while retaining the raw archive.
-
-        Replay only accepted transactions. Receipt overlays do not alter raw
-        knoxels. Counters retain their raw maxima to prevent ID reuse.
-        """
+    def _recovery_records(self, accepted: set[str]) -> _RecoveryRecords:
+        """Project ledger records without changing the live store or raw payloads."""
         history = self.causal_history
-        accepted = set(history.transactions) if raw else history.accepted()
-        self._live_transactions = accepted
         history.producers()
-        ids = set(history.baseline_ids)
-        heads = set(ids)
-        lifecycle = {}
+        records = {key: self._history[key] for key in history.baseline_ids}
+        heads = set(records)
         ticks = set(history.baseline_ticks)
-        runs = pickle_copy(history.baseline_runs)
-        consolidations = pickle_copy(history.baseline_consolidations)
+        lifecycle: dict[int, dict[str, JsonValue]] = {}
         for transaction in history.transactions.values():
             if transaction.commit_id not in accepted:
                 continue
-            if not set(transaction.input_ids).issubset(ids):
+            if not set(transaction.input_ids).issubset(records):
                 raise ValueError(f"Missing causal input in {transaction.commit_id!r}.")
-            ids.update(transaction.created_ids)
+            for record_id in transaction.created_ids:
+                records[record_id] = self._history[record_id]
             heads.difference_update(transaction.superseded_ids)
             heads.update(transaction.created_ids)
             heads.difference_update(transaction.tombstone_ids)
             for key, fields in transaction.lifecycle.items():
                 lifecycle.setdefault(key, {}).update(fields)
-            runs.update(pickle_copy(transaction.runs))
-            consolidations.update(pickle_copy(transaction.consolidations))
             if transaction.main or transaction.manifest.get("gwt"):
                 ticks.add(transaction.tick_id)
-        if not ids.issubset(self._history):
-            raise ValueError("Causal history names missing knoxels.")
-        records = {key: self._history[key] for key in ids}
         for key, fields in lifecycle.items():
             record = records[key].copy_for_edit()
             record.metadata = {**record.metadata, **pickle_copy(fields)}
-            records[key] = record
             freeze_record(record)
-        self._visible_history = records
-        self._all_knoxels = {key: records[key] for key in heads}
-        self.gwt_turns = {key: turn for key, turn in self._raw_gwt.items() if key in ticks}
-        self.states = [cycle for cycle in self._raw_cycles if cycle.tick_id in ticks]
+            records[key] = record
+        return _RecoveryRecords(records=records, head_ids=heads, ticks=ticks)
+
+    def _project(self, *, raw: bool = False) -> None:
+        """Install a recovery view while retaining raw records and maximum counters."""
+        history = self.causal_history
+        accepted = set(history.transactions) if raw else history.accepted()
+        projection = self._recovery_records(accepted)
+        self._live_transactions = accepted
+        runs = pickle_copy(history.baseline_runs)
+        consolidations = pickle_copy(history.baseline_consolidations)
+        for transaction in history.transactions.values():
+            if transaction.commit_id in accepted:
+                runs.update(pickle_copy(transaction.runs))
+                consolidations.update(pickle_copy(transaction.consolidations))
+        self._visible_history = projection.records
+        self._all_knoxels = {key: projection.records[key] for key in projection.head_ids}
+        self.gwt_turns = {key: turn for key, turn in self._raw_gwt.items() if key in projection.ticks}
+        self.states = [cycle for cycle in self._raw_cycles if cycle.tick_id in projection.ticks]
         self.managed_runs = runs
         self.consolidations = consolidations
         self.applied_commits = {key: self._raw_commits[key] for key in history.baseline_commit_ids}
@@ -390,6 +402,31 @@ class MemoryStore(RecordIndex):
                 self.applied_commits[key] = self._raw_commits[item.commit_id].model_copy(update={"commit_id": key})
         self.rebuild_knoxel_indexes()
         self.embedding_index.rebuild(self._all_knoxels.values())
+
+    def recovery_snapshot(self, visible_ids: Iterable[int] | None = None, *, capture: bool = True) -> Snapshot:
+        """Read the default clean projection without replacing live runtime state.
+
+        Explicit recovery roots remain visible. Unaccepted branches and their
+        lifecycle overlays do not enter. This view has no vector index because
+        the live index can contain speculative heads. IDs and counters remain
+        unchanged. Capture records only the projected record and commit IDs.
+        """
+        with self.lock:
+            self._ensure_history()
+            accepted = self.causal_history.accepted()
+            projection = self._recovery_records(accepted)
+            ids = projection.head_ids if visible_ids is None else visible_ids
+            records = {key: projection.records[key] for key in ids}
+            historical = ({key: record for key, record in projection.records.items() if key not in records}
+                          if visible_ids is None else {})
+            allowed = set(records) | set(historical)
+            gwt = {key: turn for key, turn in self._raw_gwt.items()
+                   if key in projection.ticks and set(turn.knoxel_ids).issubset(allowed)}
+            reads = current_reads()
+            if capture and reads is not None:
+                reads.observe(self, records, accepted)
+            return Snapshot(records, gwt, {key: self.revisions[key] for key in allowed},
+                            commit_ids=frozenset(accepted), historical_records=historical)
 
     def state(self, records: dict[int, RecordBase] | None = None, cycles: list[CycleState] | None = None) -> CycleStateModel:
         """Return typed state with shared records. This method copies no record values."""
@@ -768,6 +805,17 @@ class MemoryStore(RecordIndex):
             baseline_authority = batch._authority in self.causal_history.baseline_ids
             if batch._authority is not None and authority is None and not baseline_authority:
                 raise ValueError("An action authority must have a recorded transaction.")
+            if batch._recovery_root:
+                if (batch._gwt is not None or batch._cycle is not None or batch._superseded
+                        or batch._replacements or batch._lifecycle or batch._runs or batch._consolidations
+                        or any(record.tombstone for record in batch._new.values())):
+                    raise ValueError("A recovery root must only append input or control records.")
+                accepted_dependencies = self.causal_history.accepted()
+                unaccepted = dependencies - accepted_dependencies
+                if authority is not None and authority not in accepted_dependencies:
+                    unaccepted.add(authority)
+                if unaccepted:
+                    raise ValueError(f"Recovery root depends on unaccepted transactions: {sorted(unaccepted)}")
             transaction_id = batch.commit_id
             if transaction_id in self.causal_history.transactions:
                 transaction_id = f"{transaction_id}:branch:{uuid4().hex}"
@@ -778,7 +826,8 @@ class MemoryStore(RecordIndex):
                 tombstone_ids=tuple(key for key, record in batch._new.items() if record.tombstone),
                 lifecycle=pickle_copy(batch._lifecycle), runs=pickle_copy(batch._runs),
                 consolidations=pickle_copy(batch._consolidations), tick_id=batch.tick_id,
-                main=batch._gwt is not None and batch._gwt.slot_id == "main", authority=authority,
+                main=batch._gwt is not None and batch._gwt.slot_id == "main", recovery_root=batch._recovery_root,
+                authority=authority,
                 authority_record_id=batch._authority, baseline_authority=baseline_authority,
                 manifest={**batch._manifest, "gwt": batch._gwt is not None, "logical_commit_id": batch.commit_id})
             history = self.causal_history.model_copy(update={

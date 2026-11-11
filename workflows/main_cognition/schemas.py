@@ -275,11 +275,16 @@ class TriageResult(BaseModel):
     codelet_budget: int = Field(default=CODELET_BUDGET_DEFAULT, ge=1, le=CODELET_BUDGET_MAX)
 
     @model_validator(mode="after")
-    def _known_categories(self) -> Self:
+    def _known_categories(self, info: ValidationInfo) -> Self:
         unknown = sorted({item.category for item in self.items} - set(TRIAGE_CATEGORIES))
         if unknown:
             raise ValueError(f"Unknown categories {', '.join(map(repr, unknown))}. "
                              f"Use one of {', '.join(TRIAGE_CATEGORIES)}.")
+        if info.context is not None and "stimulus_ids" in info.context:
+            expected_ids = info.context["stimulus_ids"]
+            actual_ids = [item.knoxel_id for item in self.items]
+            if len(actual_ids) != len(set(actual_ids)) or set(actual_ids) != set(expected_ids):
+                raise ValueError(f"Classify exactly these event IDs once each: {expected_ids}.")
         return self
 
 

@@ -19,9 +19,12 @@ user_template: |
   - "Moderate": an ordinary remark, question, or event. It gets a plain reaction.
   - "Significant": it touches {companion_name}'s feelings, pride, relationships, or goals, or it is unexpected,
     repetitive enough to grate, or a conflict.
-  - "Critical": it demands an immediate reaction.
-  A quoted or hypothetical event counts as the kind of event it describes. A dramatic phrase alone does not raise the
-  category.
+  - "Critical": accepted guidance is inadequate for this event. Before acting, the character must fully reconsider
+    the situation, such as a consequential correction, changed commitment, or relationship or identity surprise.
+    Ordinary action waits for that reconsideration; urgency does not justify an unrelated quick reply.
+  Ordinary questions, warm remarks, teasing, and familiar emotional conversation can remain Moderate or Significant.
+  Interpret claims, quotations, and hypotheticals in their actual conversational frame and the character's knowledge.
+  They can matter greatly without becoming observed facts. A dramatic phrase alone does not raise the category.
 
   Also set "codelet_budget": how many mental mechanisms work on this moment, from 1 for an unimportant moment to
   {budget_max} for a critical one.

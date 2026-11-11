@@ -8,6 +8,9 @@ The Ghost commits public speech and exchange resolution together.
 Exhausted model-output repair retains its evidence and leaves the exchange pending.
 Programming and filesystem errors still reach application error handling.
 
+[Situational guidance](situational-guidance.md) adds current partner evidence, accepted intentions, and previous actions to the frozen context.
+It supplies evidence for generic reasoning about the partner's ability to receive and respond.
+
 Parent: [cognition](cognition.md).
 Related: [experienced memory](experienced-memory.md), [publication and recovery](public-publication.md), [the private ontology](private-ontology.md), and [A09 verification](../work_items/verification/a09-public-dialogue.md).
 Design: [private ontology](../work_items/alpha-plan/ontology.md).

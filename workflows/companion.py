@@ -599,7 +599,41 @@ def build_app(
             config=ControlConfig.model_validate(cognitive_control_config or {}),
         )
         control.cancel_private = inner_thought.yield_run
+        def cancel_critical_private() -> None:
+            """Prioritize reconsideration while preserving selected mental actions."""
+            inner_thought.cancel_run()
+            if focus_management is not None:
+                focus_management.defer_for_critical()
+        control.cancel_critical_private = cancel_critical_private
+        control.enable_input_triage()
+        user_input.register_triage_input = control.register_input
+        dialogue.cognitive_control = control.publication_control()
+        if assistant is not None:
+            assistant.cognitive_control = control.publication_control()
+        def cancel_public_drafts(epoch: int) -> None:
+            """Cancel obsolete speech calculation without retracting accepted speech."""
+            dialogue.defer_for_critical(epoch)
+            if assistant is not None:
+                assistant.defer_for_critical(epoch)
+        control.cancel_public_drafts = cancel_public_drafts
+        from workflows.input_triage.host import InputTriage
+        from workflows.main_cognition.host import build_main_cognition_tools
+
+        if stage_model is None:
+            raise RuntimeError("Early input triage requires the real configured stage model.")
+        input_triage = InputTriage(
+            "input_triage", bus, on_error, clock, None,
+            working_target=MemoryBashTarget(ghost, mode="read", recovery_only=True),
+            workflow=PROJECT_ROOT / "workflows" / "input_triage" / "input_triage.workflow.md",
+            tools_factory=build_main_cognition_tools(ghost, runtime_root, stage_model.complete,
+                cancel_provider=lambda: input_triage.run_stop),
+            runtime_root=runtime_root, ghost=ghost,
+        )
+        input_triage.cognitive_control = control
+        modules.insert(1, input_triage)
+        app.input_triage = input_triage
         main_cog.cognitive_control = control
+        control.prioritize_critical = main_cog.prioritize_critical
         inner_thought.cognitive_control = control
         def release_private_results(envelopes: list[Envelope]) -> None:
             """Release unpublished private results after a discarded main cycle."""

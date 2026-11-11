@@ -62,6 +62,7 @@ from workflows.main_cognition.schemas import (
     WorkflowOption,
 )
 from workflows.public_speech.public_context import PublicContext
+from workflows.public_speech.situational_guidance import SituationalGuidance
 
 #: Path of the shared phase state in the working target.
 WORK_FILE = "scratch/cycle_work.json"
@@ -113,6 +114,8 @@ class CycleRequest(BaseModel):
     capabilities: list[str] = Field(default_factory=list)
     available_workflows: list[WorkflowOption] = Field(default_factory=list)
     public_context: PublicContext | None = None
+    situational_guidance: list[SituationalGuidance] = Field(default_factory=list)
+    early_triage: TriageResult | None = None
     managed_runs: list[ManagedRunView] = Field(default_factory=list)
     # Inputs of the codelets phase. The module derives them from committed state.
     stimulus_revisions: dict[int, int] = Field(default_factory=dict)
