@@ -1,5 +1,9 @@
 {
   "include": [
+    "pm/llm/concurrency.py",
+    "pm/memory/dependencies.py",
+    "workflows/public_speech/dependencies.py",
+    "workflows/interaction",
     "workflows/input_triage",
     "workflows/public_speech/publication_control.py",
     "workflows/public_speech/situational_guidance.py",

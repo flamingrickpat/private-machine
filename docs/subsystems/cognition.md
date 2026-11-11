@@ -6,6 +6,8 @@ The main cognition workflow runs its typed phases in a fixed order.
 Every model call of the cycle is an unconscious process: an immersive character story and choice simulator.
 No call speaks as the companion to anyone, and no call has an assistant frame (decision D25).
 The module commits the accepted cycle in one write batch before it publishes typed actions.
+Ordinary conversation can also use [accepted guidance during background cognition](ordinary-interaction.md).
+That path selects local moves while main cognition retains appraisal and deliberate intention ownership.
 
 Parent: [system map](../concepts/architecture.md).
 Entry: [`workflows.main_cognition.steps.run`][].
@@ -75,6 +77,11 @@ In short: one decision for each significant group, in the character's voice. A s
 The workflow does not need its own module thread or bus subscription.
 [`workflows.main_cognition.host.MainCogLoop`][] connects the cycle to the bus and the memory store.
 Each published action carries the correlation of its stimulus group. So the groups of one batch keep separate exchanges.
+
+Ordinary main calculation releases foreground reservations between calls.
+Independent interaction uses accepted main guidance and current evidence to select local moves.
+Main cognition still appraises those inputs and suppresses duplicate conversational selection.
+Critical triage interrupts obsolete work and holds ordinary publication until accepted reconsideration.
 
 Story dialogue produces character speech.
 Assistant dialogue can call scoped tools.

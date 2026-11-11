@@ -36,7 +36,9 @@ from pm.context_render.story import record_view
 from pm.llm.http_client import ModelError
 from pm.llm.structured import ModelFormatError
 from pm.memory.bash_view import MemoryBashEnvironment
-from pm.memory.snapshot import GhostConflict
+from pm.memory.store import MemoryStore
+from pm.llm.concurrency import InferenceRole, inference_role
+from pm.memory.snapshot import GhostConflict, Snapshot
 from pm.records.enums import FeatureType
 from pm.records.copying import pickle_copy
 from pm.records.memory_records import Entity, Feature
@@ -47,7 +49,7 @@ from workflows.main_cognition.cycle_commits import active_intentions
 from workflows.main_cognition.cycle_work import CycleRequest
 from workflows.main_cognition.host import dialogue_partner
 from workflows.main_cognition.schemas import ShardStream, Stimulus
-from workflows.public_speech.public_context import source_fingerprint
+from pm.memory.dependencies import source_fingerprint
 from workflows.public_speech.situational_guidance import build_situational_guidance
 
 if TYPE_CHECKING:
@@ -77,7 +79,8 @@ class InputTriage(CognitiveWorkflow):
         delay = CYCLE_RETRY_DELAY_SECONDS
         while not self.stop_event.is_set():
             try:
-                super().handle_batch(remaining)
+                with inference_role(InferenceRole.Triage):
+                    super().handle_batch(remaining)
                 return
             except (ModelError, ModelFormatError, GhostConflict) as error:
                 diagnostic = {"error_type": type(error).__name__, "reason": str(error),
@@ -97,83 +100,8 @@ class InputTriage(CognitiveWorkflow):
         assert isinstance(self.last_environment, MemoryBashEnvironment), "Early triage requires a frozen memory environment."
         view = self.last_environment.ghost_view
         assert view is not None, "Early triage requires a frozen memory snapshot."
-        with self.ghost.lock:
-            companion = self.ghost.get_companion_name()
-            user = self.ghost.get_user_name()
-            entities = [record for record in view.all_knoxels.values() if isinstance(record, Entity)]
-            names = {name: entity.id for entity in entities for name in [entity.content, *entity.aliases]}
-            user_id = names.get(user)
-            self_id = names.get(companion)
-            previous = next((state for state in reversed(self.ghost.states)
-                             if state.tick_id in view.gwt_turns), None)
-            previous = pickle_copy(previous) if previous is not None else None
-            sources = [view.all_knoxels[InputSourcePayload.model_validate(item.payload).knoxel_id] for item in batch]
-            stimuli = [Stimulus(knoxel_id=source.id, source="user_input", text=source.content,
-                correlation_id=envelope.correlation_id,
-                entity_id=dialogue_partner(source, names, user_id, self_id)
-                          if isinstance(source, Feature) else user_id)
-                for source, envelope in zip(sources, batch, strict=True)]
-            partner_ids = {item.entity_id for item in stimuli if item.entity_id is not None}
-            source_scopes = tuple(source.scope for source in sources)
-            partner_scopes = {partner_id: tuple(source.scope for stimulus, source in zip(stimuli, sources, strict=True)
-                                                if stimulus.entity_id == partner_id)
-                              for partner_id in partner_ids}
-            keys = [SELF_SHARD, *(ShardKey(kind="entity", ref=str(key)) for key in sorted(partner_ids))]
-            streams: list[ShardStream] = []
-            records = {source.id: record_view(source) for source in sources}
-            if previous is not None:
-                for shard in previous.workspace.all_shards():
-                    scopes = partner_scopes[int(shard.key.ref)] if shard.key.kind == "entity" and int(shard.key.ref) in partner_scopes else source_scopes
-                    shard.items = [item for item in shard.items if view.get(item.record_id).scope in scopes]
-                    shard.tail_ids = [record_id for record_id in shard.tail_ids if view.get(record_id).scope in scopes]
-                for record_id in [*previous.workspace.item_ids(), *previous.workspace.tail_ids()]:
-                    records[record_id] = record_view(view.get(record_id))
-            dialogue = sorted((record for record in view.all_knoxels.values()
-                               if isinstance(record, Feature) and record.feature_type == FeatureType.Dialogue),
-                              key=lambda record: (record.timestamp_world_begin, record.id))
-            for key in keys:
-                if key.kind != "entity":
-                    continue
-                selected = [record for record in dialogue
-                            if dialogue_partner(record, names, user_id, self_id) == int(key.ref)
-                            and record.scope in partner_scopes[int(key.ref)]]
-                selected = selected[-CSM_RECENT_DIALOGUE_TURNS:]
-                streams.append(ShardStream(key=key, record_ids=[record.id for record in selected]))
-                for record in selected:
-                    records[record.id] = record_view(record)
-            for record in records.values():
-                record.embedding = []  # Triage renders text and performs no similarity calculation.
-            now = vclock.utcnow()
-            guidance_partners: list[int | None] = list(sorted(partner_ids)) if partner_ids else [user_id]
-            guidance = [build_situational_guidance(
-                view, as_of_utc=now, companion_name=companion, user_name=user,
-                partner_entity_id=partner_id,
-                supported_capabilities=self.ghost.ghost_config.supported_capabilities,
-                scopes=partner_scopes[partner_id] if partner_id in partner_scopes else source_scopes)
-                for partner_id in guidance_partners]
-            goals = [item for item in active_intentions(view) if item.scope in source_scopes][:8]
-            cycle = CycleRequest(
-                run_id=self.invocation_id or "", companion_name=companion, user_name=user,
-                user_entity_id=user_id, self_entity_id=self_id,
-                entity_names={key: view.get(key).content for key in partner_ids},
-                previous_state=previous, stimuli=stimuli, records=records, streams=streams,
-                character_card=self.ghost.ghost_config.character_card_story,
-                state_summary=previous.broadcasts[-1].summary if previous and previous.broadcasts else "",
-                active_goals=[item.content for item in goals], cycle_time=now,
-                situational_guidance=guidance,
-            )
-            evidence_ids = set(records)
-            evidence_ids.update(item.id for item in goals)
-            for item in guidance:
-                evidence_ids.update(item.source_revisions())
-            request = InputTriageRequest(cycle=cycle,
-                source_fingerprints={source.id: source_fingerprint(source) for source in sources},
-                guidance_tick=previous.tick_id if previous is not None else None,
-                evidence=TriageEvidence(record_fingerprints={key: source_fingerprint(view.get(key))
-                                                            for key in evidence_ids},
-                                        commit_ids=sorted(view.commit_ids),
-                                        current_head_ids=sorted(evidence_ids.intersection(view.all_knoxels))))
-        return request.model_dump(mode="json")
+        return build_input_request(self.ghost, view, batch,
+                                   run_id=self.invocation_id or "").model_dump(mode="json")
 
     def publish_output(self, report: dict[str, JsonValue], batch: list[Envelope]) -> None:
         """Accept the durable assessment before waking cognition and speech."""
@@ -184,3 +112,84 @@ class InputTriage(CognitiveWorkflow):
              "reconsideration_epoch": accepted.reconsideration_epoch,
              "guidance_tick": accepted.guidance_tick,
              "result": accepted.result.model_dump(mode="json")}))
+
+def build_input_request(ghost: MemoryStore, view: Snapshot, batch: list[Envelope], *,
+                        run_id: str) -> InputTriageRequest:
+    """Freeze attributed input and accepted guidance for triage or ordinary selection."""
+    with ghost.lock:
+        companion = ghost.get_companion_name()
+        user = ghost.get_user_name()
+        entities = [record for record in view.all_knoxels.values() if isinstance(record, Entity)]
+        names = {name: entity.id for entity in entities for name in [entity.content, *entity.aliases]}
+        user_id = names.get(user)
+        self_id = names.get(companion)
+        previous = next((state for state in reversed(ghost.states)
+                         if state.tick_id in view.gwt_turns and view.gwt_turns[state.tick_id].slot_id == "main"), None)
+        previous = pickle_copy(previous) if previous is not None else None
+        sources = [view.all_knoxels[InputSourcePayload.model_validate(item.payload).knoxel_id] for item in batch]
+        stimuli = [Stimulus(knoxel_id=source.id, source="user_input", text=source.content,
+            correlation_id=envelope.correlation_id,
+            entity_id=dialogue_partner(source, names, user_id, self_id)
+                      if isinstance(source, Feature) else user_id)
+            for source, envelope in zip(sources, batch, strict=True)]
+        partner_ids = {item.entity_id for item in stimuli if item.entity_id is not None}
+        source_scopes = tuple(source.scope for source in sources)
+        partner_scopes = {partner_id: tuple(source.scope for stimulus, source in zip(stimuli, sources, strict=True)
+                                            if stimulus.entity_id == partner_id)
+                          for partner_id in partner_ids}
+        keys = [SELF_SHARD, *(ShardKey(kind="entity", ref=str(key)) for key in sorted(partner_ids))]
+        streams: list[ShardStream] = []
+        records = {source.id: record_view(source) for source in sources}
+        if previous is not None:
+            for shard in previous.workspace.all_shards():
+                scopes = partner_scopes[int(shard.key.ref)] if shard.key.kind == "entity" and int(shard.key.ref) in partner_scopes else source_scopes
+                shard.items = [item for item in shard.items if view.get(item.record_id).scope in scopes]
+                shard.tail_ids = [record_id for record_id in shard.tail_ids if view.get(record_id).scope in scopes]
+            for record_id in [*previous.workspace.item_ids(), *previous.workspace.tail_ids()]:
+                records[record_id] = record_view(view.get(record_id))
+        dialogue = sorted((record for record in view.all_knoxels.values()
+                           if isinstance(record, Feature) and record.feature_type == FeatureType.Dialogue),
+                          key=lambda record: (record.timestamp_world_begin, record.id))
+        for key in keys:
+            if key.kind != "entity":
+                continue
+            selected = [record for record in dialogue
+                        if dialogue_partner(record, names, user_id, self_id) == int(key.ref)
+                        and record.scope in partner_scopes[int(key.ref)]]
+            selected = selected[-CSM_RECENT_DIALOGUE_TURNS:]
+            streams.append(ShardStream(key=key, record_ids=[record.id for record in selected]))
+            for record in selected:
+                records[record.id] = record_view(record)
+        for record in records.values():
+            record.embedding = []  # Triage renders text and performs no similarity calculation.
+        now = vclock.utcnow()
+        guidance_partners: list[int | None] = list(sorted(partner_ids)) if partner_ids else [user_id]
+        guidance = [build_situational_guidance(
+            view, as_of_utc=now, companion_name=companion, user_name=user,
+            partner_entity_id=partner_id,
+            supported_capabilities=ghost.ghost_config.supported_capabilities,
+            scopes=partner_scopes[partner_id] if partner_id in partner_scopes else source_scopes)
+            for partner_id in guidance_partners]
+        goals = [item for item in active_intentions(view) if item.scope in source_scopes][:8]
+        cycle = CycleRequest(
+            run_id=run_id, correlation_id=batch[-1].correlation_id, companion_name=companion, user_name=user,
+            user_entity_id=user_id, self_entity_id=self_id,
+            entity_names={key: view.get(key).content for key in partner_ids},
+            previous_state=previous, stimuli=stimuli, records=records, streams=streams,
+            character_card=ghost.ghost_config.character_card_story,
+            state_summary=previous.broadcasts[-1].summary if previous and previous.broadcasts else "",
+            active_goals=[item.content for item in goals], cycle_time=now,
+            situational_guidance=guidance,
+        )
+        evidence_ids = set(records)
+        evidence_ids.update(item.id for item in goals)
+        for item in guidance:
+            evidence_ids.update(item.source_revisions())
+        request = InputTriageRequest(cycle=cycle,
+            source_fingerprints={source.id: source_fingerprint(source) for source in sources},
+            guidance_tick=previous.tick_id if previous is not None else None,
+            evidence=TriageEvidence(record_fingerprints={key: source_fingerprint(view.get(key))
+                                                        for key in evidence_ids},
+                                    commit_ids=sorted(view.commit_ids),
+                                    current_head_ids=sorted(evidence_ids.intersection(view.all_knoxels))))
+    return request

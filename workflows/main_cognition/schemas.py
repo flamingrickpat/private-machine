@@ -10,10 +10,10 @@ The request and the shared phase state are in
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Self
+from typing import Literal, Self
 
 from pydantic import (
-    BaseModel, ConfigDict, Field, SerializerFunctionWrapHandler, ValidationInfo, model_serializer, model_validator,
+    BaseModel, ConfigDict, Field, JsonValue, SerializerFunctionWrapHandler, ValidationInfo, model_serializer, model_validator,
 )
 
 from pm.constants import CODELET_BUDGET_DEFAULT, CODELET_BUDGET_MAX, DECISION_VARIANTS, EXPECTATION_COUNT
@@ -24,6 +24,7 @@ from pm.context_render.story import RecordView
 from pm.records.workspace import ShardKey, WorkspaceShard
 from workflows.cognitive_control.schemas import FocusProposal, FocusState, WaitRequest
 from workflows.public_speech.public_context import Presentation
+from workflows.public_speech.dependencies import WorkDependencies
 
 
 class Stimulus(BaseModel):
@@ -197,8 +198,11 @@ class ActionRequest(BaseModel):
     regulation: str = ""
     task_receipt: dict = Field(default_factory=dict)
     recovery_outcome: str = ""
+    action_origin: Literal["main", "interaction", "task_reply"] = "main"
+    interaction_selection_id: str = ""
+    interaction_dependencies: WorkDependencies | None = None
 
-    def payload(self) -> dict:
+    def payload(self) -> dict[str, JsonValue]:
         """Return the JSON payload of the envelope."""
         return self.model_dump(mode="json")
 

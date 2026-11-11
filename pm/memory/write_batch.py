@@ -19,6 +19,7 @@ from pm.records.base import RecordBase
 from pm.records.base import get_causal_datetime, get_real_datetime
 from pm.records.lineage import RecordLineage
 from pm.memory.snapshot import GhostCancelled, Snapshot
+from pm.memory.dependencies import SourceDependency
 
 if TYPE_CHECKING:
     from pm.memory.store import MemoryStore
@@ -46,6 +47,7 @@ class WriteBatch:
         self._manifest: dict[str, Any] = {}
         self._recovery_root: bool = False
         self._expected: dict[int, int] = {}
+        self._source_dependencies: list[SourceDependency] = []
         self._heads: set[int] = set()
         self._metadata_guards: list[tuple[str, object, dict[int, int]]] = []
         self._initial_runs = dict(ghost.managed_runs)
@@ -225,6 +227,18 @@ class WriteBatch:
         if record_id not in self._snapshot.revisions:
             raise ValueError("The evidence is outside the batch view.")
         self._expected[record_id] = revision
+
+    def expect_source(self, dependency: SourceDependency) -> None:
+        """Guard captured source meaning at the atomic commit boundary.
+
+        The original fingerprint remains unchanged. Equal source meaning can
+        survive operational revision changes. An additional ``expect_revision``
+        or ``expect_head`` keeps its stricter status-dependent requirement.
+        """
+        self.check_cancelled()
+        if dependency.record_id not in self._snapshot.revisions:
+            raise ValueError("The source dependency is outside the batch view.")
+        self._source_dependencies.append(dependency)
 
     def expect_head(self, record_id: int, revision: int) -> None:
         """Require a cited version to remain current through this commit.

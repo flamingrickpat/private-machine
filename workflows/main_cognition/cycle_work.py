@@ -140,6 +140,8 @@ class CycleRequest(BaseModel):
     wait_default_seconds: float = 1800
     #: Quiet window that a spoken reply arms. Zero means the operator disabled it.
     post_reply_seconds: float = 0.0
+    #: Ordinary sources whose local action belongs to the interaction workflow.
+    interaction_source_ids: list[int] = Field(default_factory=list)
 
 
 class CycleWork(BaseModel):

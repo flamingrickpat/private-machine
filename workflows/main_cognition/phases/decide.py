@@ -122,7 +122,12 @@ def decide(context: RoleContext, work: CycleWork, prompts: PhasePrompts, prefix:
 
 def run(context: RoleContext, work: CycleWork) -> CycleWork:
     prompts = phase_prompts("decide")
-    groups = [group for group in work.state.stimulus_groups if not group.insignificant]
+    interaction_sources = set(work.request.interaction_source_ids)
+    groups: list[StimulusGroup] = []
+    for group in work.state.stimulus_groups:
+        remaining_ids = [source_id for source_id in group.stimulus_ids if source_id not in interaction_sources]
+        if not group.insignificant and remaining_ids:
+            groups.append(group.model_copy(update={"stimulus_ids": remaining_ids}))
     # Each group reads only the self shard and its own shard. The content of
     # another group must not leak into this group's decision.
     prefixes = {group.key: StoryPrefix(work, group=group.key) for group in groups}

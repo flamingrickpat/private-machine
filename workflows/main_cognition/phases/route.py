@@ -142,7 +142,7 @@ def routed_decisions(work: CycleWork, answers: list[RouteAnswer]) -> list[Routed
     routed = []
     for decision, answer in zip(work.state.decisions, answers, strict=True):
         group = group_of(work, decision)
-        routed.append(RoutedDecision(group=group.key, stimulus_ids=list(group.stimulus_ids),
+        routed.append(RoutedDecision(group=group.key, stimulus_ids=list(decision.stimulus_ids),
                                      correlation_id=group.correlation_id, decision=decision.text,
                                      route=RouteChoice.model_validate(answer.model_dump())))
     return routed
@@ -258,12 +258,8 @@ def anticipate(context: RoleContext, work: CycleWork, prompts: PhasePrompts, pre
                                    embedder=Embedder(context, work.records))
 
 
-def run(context: RoleContext, work: CycleWork) -> CycleWork:
-    """Route the decisions, check conflicts, and record the expected reactions.
-
-    No receipts of earlier actions reach the cycle yet, so every success
-    prerequisite stays queued.
-    """
+def select_routes(context: RoleContext, work: CycleWork) -> CycleWork:
+    """Route character decisions without anticipating or executing their effects."""
     prompts = phase_prompts("route")
     # The route of a decision reads the prefix of the decision's group, like the decision itself.
     prefixes = {decision.group: StoryPrefix(work, group=decision.group) for decision in work.state.decisions}
@@ -273,18 +269,31 @@ def run(context: RoleContext, work: CycleWork) -> CycleWork:
     work.routes = routed_decisions(work, answers)
     dispatches = resolve_prerequisites(resolve_same_cycle(action_dispatches(work.routes)), {})
     dispatches = resolve_conflicts(dispatches, work.state.stimulus_groups)
-    released = [item for item in dispatches if item.status == "dispatched"]
+    work.dispatches = dispatches
+    return work
+
+
+def anticipate_dispatches(context: RoleContext, work: CycleWork) -> CycleWork:
+    """Add expectations only for the dispatches this owner can release."""
+    prompts = phase_prompts("route")
+    prefixes = {decision.group: StoryPrefix(work, group=decision.group) for decision in work.state.decisions}
+    released = [item for item in work.dispatches if item.status == "dispatched"]
+    stop = context.runtime.stop_event
     drafts = ordered_parallel_map(lambda item: anticipate(context, work, prompts, prefixes[item.group], item), released,
                                   workers=DECISION_WORKERS, cancel=stop)
     for dispatch, expected in zip(released, drafts, strict=True):
         dispatch.expectations = expected
-    work.dispatches = dispatches
     work.state.dispatches = [ActionDispatchRef(group=item.group, correlation_id=item.correlation_id,
                                                workflow=item.workflow_name, action_type=item.action_type)
                              for item in released]
     work.receipt("route", f"routed {len(work.routes)} decisions; released {len(released)} of "
-                          f"{len(dispatches)} dispatches; {sum(len(item) for item in drafts)} expectations")
+                          f"{len(work.dispatches)} dispatches; {sum(len(item) for item in drafts)} expectations")
     return work
+
+
+def run(context: RoleContext, work: CycleWork) -> CycleWork:
+    """Route decisions, resolve dispatch conflicts, and anticipate released actions."""
+    return anticipate_dispatches(context, select_routes(context, work))
 
 
 __all__ = [

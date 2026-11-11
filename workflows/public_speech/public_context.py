@@ -7,18 +7,21 @@ from __future__ import annotations
 
 import re
 import json
-import hashlib
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from pm.records.base import Provenance, RecordBase, RecordScope
+from pm.memory.dependencies import source_fingerprint
+from pm.records.base import Provenance, RecordScope
+from pm.records.enums import FeatureType, InterlocusType, SourceKind
+from pm.records.memory_records import Feature
 from pm.records.cognitive_records import OntologyBindingRecord
 from pm.context_render import ContextKind, render_context
 from pm.context_render.turns import Content
 from pathlib import Path
 from workflows.main_cognition.cycle_commits import active_goal_texts
+from workflows.public_speech.dependencies import WorkDependencies, capture_dependencies, validate_dependencies
 from workflows.public_speech.situational_guidance import (
     SituationalGuidance, build_situational_guidance, render_situational_guidance,
 )
@@ -127,23 +130,11 @@ class PublicContext(BaseModel):
     state_tick: int | None = None
     situational_guidance: SituationalGuidance | None = None
     reconsideration_epoch: int | None = None
+    action_origin: Literal["main", "interaction", "task_reply"] = "main"
+    interaction_selection_id: str = ""
+    interaction_dependencies: WorkDependencies | None = None
     # The context plan trace (lanes, budgets, semantic status) when planned.
     plan: dict = Field(default_factory=dict)
-
-
-def source_fingerprint(record: RecordBase) -> str:
-    """Hash accepted content without delivery and exchange bookkeeping.
-
-    Acknowledgment changes metadata while another utterance reads the same
-    source. Those changes do not invalidate its meaning. All other fields,
-    including attribution and scope, remain part of the comparison.
-    """
-    data = record.model_dump(mode="json", exclude={"embedding", "embedding_model"})
-    metadata = data.get("metadata", {}).copy()
-    for key in ("exchange_status", "public_reply_id", "publication_status", "recovery_outcome", "dispatch_status"):
-        metadata.pop(key, None)
-    data["metadata"] = metadata
-    return hashlib.sha256(json.dumps(data, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 
 @render_context.register(PublicContext)
@@ -320,6 +311,22 @@ def build_public_context(ghost: MemoryStore, request: ActionRequest | None = Non
         scopes=tuple(view.get(key).scope for key in stimulus_ids if key in view.revisions)
                or (action.scope if action is not None else RecordScope(),))
     ids.update(guidance.source_revisions())
+    partner_inputs: list[int] = []
+    for key in stimulus_ids:
+        record = view.get(key)
+        if (isinstance(record, Feature) and record.feature_type == FeatureType.Dialogue
+                and record.interlocus == InterlocusType.Public and record.provenance is not None
+                and record.provenance.source_kind in {SourceKind.User, SourceKind.Agent}):
+            partner_inputs.append(key)
+    interaction_dependencies: WorkDependencies | None = None
+    if request.interaction_dependencies is not None:
+        prior = request.interaction_dependencies
+        validate_dependencies(ghost, prior, current_partner_input=True)
+        # The speech owner freezes current evidence, including later partner
+        # lines. It does not reuse the older selection frontier as a new draft.
+        interaction_dependencies = capture_dependencies(view, sorted(ids),
+            guidance_tick=prior.guidance_tick, critical_epoch=prior.critical_epoch,
+            partner_entity_id=request.partner_entity_id, scopes=prior.scopes)
     return PublicContext(
         companion_name=ghost.get_companion_name(), user_name=ghost.get_user_name(),
         partner_name=request.partner_name or ghost.get_user_name(),
@@ -338,9 +345,12 @@ def build_public_context(ghost: MemoryStore, request: ActionRequest | None = Non
         head_ids=sorted(ids & set(view.all_knoxels)),
         source_fingerprints={key: source_fingerprint(view.get(key)) for key in ids if key in view.revisions},
         user_frontier=max(users, default=None), task_receipt=dict(request.task_receipt),
-        stimulus_user_ids=[key for key in stimulus_ids if key in users],
+        stimulus_user_ids=partner_inputs,
         state_tick=state.tick_id if state is not None else None,
         situational_guidance=guidance,
+        action_origin=request.action_origin,
+        interaction_selection_id=request.interaction_selection_id,
+        interaction_dependencies=interaction_dependencies,
         plan=dict(planned.trace) if planned is not None else {},
     )
 

@@ -9,20 +9,31 @@ from pm import vclock
 
 from datetime import datetime, timezone
 from threading import Event
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
+
+from pydantic import BaseModel, ConfigDict
 
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope, new_id
 from pm.memory.snapshot import GhostConflict
 from pm.records.memory_records import Feature
-from pm.records.base import Provenance, RecordBase
+from pm.records.base import Provenance, RecordBase, RecordScope
 from pm.records.enums import FeatureType, InterlocusType, SourceKind
 from workflows.main_cognition.experience import utterance_metadata
 from workflows.public_speech.publication_control import PublicationControl
+from workflows.public_speech.dependencies import validate_dependencies
 
 if TYPE_CHECKING:
     from pm.memory.store import MemoryStore
     from workflows.public_speech.public_context import PublicContext
+
+
+class _ExchangeLifecycle(BaseModel):
+    """Read the persisted exchange lifecycle without probing domain shapes."""
+
+    model_config = ConfigDict(extra="ignore")
+    exchange_status: Literal["pending", "resolved"] | None = None
+    public_reply_id: int | None = None
 
 
 def exchange_record(ghost: MemoryStore, correlation: str) -> RecordBase | None:
@@ -40,17 +51,21 @@ def commit_public_reply(ghost: MemoryStore, text: str, correlation: str, *, comm
                         addressee_entity_id: int | None = None,
                         cognitive_control: PublicationControl | None = None,
                         action_guidance_tick: int | None = None,
+                        action_origin: Literal["main", "interaction", "task_reply"] = "main",
                         cancel: Event | None = None) -> int | None:
     """Commit speech and exchange resolution together, or reject stale input.
 
     ``addressee_entity_id`` is the entity that the reply answers, or None for
     the user. The reply record stores it, so the dialogue with a second
     entity stays in the shard of that entity. Completed exchanges return no
-    new utterance. Changed evidence raises GhostConflict. New messages and
-    later feelings do not cancel earlier speech.
+    new utterance. Changed evidence raises GhostConflict. Ordinary interaction
+    additionally checks its partner frontier. Terminal task replies retain
+    their explicit origin because a new outcome can warrant later speech.
     """
     with ghost.lock:
         if cognitive_control is not None:
+            if context is not None:
+                cognitive_control.validate_selection(context.interaction_selection_id)
             cognitive_control.validate_publication(
                 context.reconsideration_epoch if context is not None else None,
                 action_guidance_tick if action_guidance_tick is not None else context.state_tick if context else None)
@@ -58,8 +73,19 @@ def commit_public_reply(ghost: MemoryStore, text: str, correlation: str, *, comm
         action = ghost.snapshot({action_id}).get(action_id) if action_id is not None else None
         if action is not None and action.metadata.get("public_reply_id") is not None:
             return None
-        if action_id is None and exchange is not None and exchange.metadata.get("exchange_status") == "resolved":
-            return None
+        covered_ids = set(context.stimulus_user_ids) if context is not None else set()
+        if exchange is not None:
+            covered_ids.add(exchange.id)
+        origin = context.action_origin if context is not None else action_origin
+        if origin != "task_reply" and covered_ids:
+            unresolved = False
+            for record_id in covered_ids:
+                source = ghost.snapshot({record_id}).get(record_id)
+                lifecycle = _ExchangeLifecycle.model_validate(source.metadata)
+                if lifecycle.exchange_status != "resolved":
+                    unresolved = True
+            if not unresolved:
+                return None
         batch = ghost.begin_batch(commit_id, cancel=cancel)
         inputs = set(context.revisions) if context is not None else set()
         if context is not None:
@@ -74,8 +100,22 @@ def commit_public_reply(ghost: MemoryStore, text: str, correlation: str, *, comm
             validate_public_context(ghost, context)
             for key, revision in context.revisions.items():
                 batch.expect_revision(key, ghost.revisions[key])
+            if context.interaction_dependencies is not None:
+                for dependency in context.interaction_dependencies.sources:
+                    batch.expect_source(dependency)
+        utterance_scope = RecordScope()
+        if exchange is not None:
+            utterance_scope = exchange.scope
+        elif action is not None:
+            utterance_scope = action.scope
+        if context is not None and context.interaction_dependencies is not None:
+            scopes = context.interaction_dependencies.scopes
+            if len(scopes) != 1:
+                raise ValueError("An ordinary utterance requires exactly one interaction scope.")
+            utterance_scope = scopes[0]
         reply = batch.create(Feature(
             content=text, feature_type=FeatureType.Dialogue, interlocus=InterlocusType.Public,
+            scope=utterance_scope,
             causal=True, override_source=ghost.get_companion_name(),
             addressee_entity_id=addressee_entity_id or 0,
             provenance=Provenance(source_kind=SourceKind.Self, source_ref=str(action_id or "public_recovery")),
@@ -117,6 +157,8 @@ def validate_public_context(ghost: MemoryStore, context: PublicContext) -> None:
             if (current is None or key not in context.source_fingerprints
                     or source_fingerprint(current) != context.source_fingerprints[key]):
                 raise GhostConflict(f"Public evidence {key} changed during generation.")
+    if context.interaction_dependencies is not None:
+        validate_dependencies(ghost, context.interaction_dependencies, current_partner_input=True)
 
 
 def publish_reply(bus: BusSystem, source: str, correlation: str, reply_id: int, *,

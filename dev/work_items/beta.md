@@ -2,6 +2,23 @@
 
 Status: owner-authorized planning and incremental implementation, 2026-11-09.
 
+## Development verification budget
+
+On November 11, the owner set a $25 OpenRouter limit for remaining interim
+beta development checks. Use short targeted real scenarios between changes.
+Do not repeat month-long simulations after each subtask.
+Reuse retained evidence for inspection and deterministic comparisons; it does
+not replace required live endpoint verification of changed behavior.
+
+Track provider-reported costs from existing receipts, including pm-coder sessions.
+Report missing usage as unknown. Do not add a new budgeting subsystem merely
+for this development policy. No interim calls preceded this budget decision.
+
+The final integrated runs have a separate, uncapped owner authorization:
+Jesse–Spamuel; Jesse–Spamuel 1–Spamuel alpha; and Spamuel–Spamuel–Minecraft.
+Their scenarios and actual prerequisites still need preparation before execution.
+Do not infer completed beta acceptance from the budget authorization.
+
 ## Scope and version names
 
 The owner named the continuous-character milestone and directly related work

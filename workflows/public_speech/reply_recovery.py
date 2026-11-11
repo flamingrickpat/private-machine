@@ -26,6 +26,7 @@ from __future__ import annotations
 from pathlib import Path
 import json
 from typing import TYPE_CHECKING, Any
+from collections.abc import Callable
 
 from pm.utils import yaml_util
 
@@ -67,6 +68,7 @@ def user_reply_request(ghost: MemoryStore, *, knoxel_id: int, action_id: str,
         partner_entity_id=user_entity_id, partner_name=user_name,
         stimuli=[Stimulus(knoxel_id=exchange.id, text=str(exchange.content), source="user_input",
                           entity_id=user_entity_id)],
+        action_origin="task_reply",
         shards=request_shards(workspace_state, SELF_SHARD, partner,
                               lambda key: user_name if key.kind == "entity" else "self"),
         task_receipt=task_receipt, workspace=workspace)
@@ -133,6 +135,7 @@ class ReplyRecovery(BusModule):
         super().__init__(*args, **kwargs)
         self.ghost = ghost
         self.supervisor = supervisor
+        self.selected_source_ids: Callable[[], set[int]] = lambda: set()
 
     def handle_batch(self, batch: list[Envelope]) -> None:
         """Acknowledge run events and dispatch the replies they owe."""
@@ -252,11 +255,12 @@ class ReplyRecovery(BusModule):
         waiting = {receipt.get("parent_correlation") for receipt in receipts.values()
                    if receipt.get("arguments", {}).get("_public_reply_requested")}
         waiting.update(handled)
+        selected_sources = self.selected_source_ids()
         paused = getattr(self, "paused_source_ids", lambda: set())()
         for item in self.ghost.all_features:
             correlation = item.metadata.get("exchange_correlation")
             if (correlation and item.metadata.get("exchange_status") == "pending"
-                    and correlation not in waiting and item.id not in paused):
+                    and correlation not in waiting and item.id not in paused and item.id not in selected_sources):
                 self.bus.put(Envelope(id=new_id(), source="user_input", kind="data", topic="user.input",
                                      correlation_id=correlation, payload={"knoxel_id": item.id, "recovery_outcome": "redispatched"}))
 

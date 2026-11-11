@@ -14,6 +14,12 @@ class ReplySuperseded(RuntimeError):
     """Required reconsideration made a draft or selected action obsolete."""
 
 
+def validate_unmanaged_selection(selection_id: str) -> None:
+    """Legacy actions have no ordinary selection owner to validate."""
+    if selection_id:
+        raise RuntimeError("An ordinary selection ID requires its injected selection owner.")
+
+
 @dataclass(frozen=True, slots=True)
 class PublicationControl:
     """Wait and validate against the state owner's critical-input fence.
@@ -26,3 +32,4 @@ class PublicationControl:
     wait_for_classification: Callable[[Event], bool]
     publication_epoch: Callable[[], int]
     validate_publication: Callable[[int | None, int | None], None]
+    validate_selection: Callable[[str], None] = validate_unmanaged_selection

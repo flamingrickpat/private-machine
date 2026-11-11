@@ -32,8 +32,11 @@ renderers in ``pm.context_render``.
 
 Invariants
 ----------
-- A record ID is never reused, and a replacement increments that record's
-  revision.
+- A record ID is never reused. A replacement appends a successor with a new
+  ID; the historical payload remains available through its original ID.
+- Lifecycle receipts advance the revision of an existing record once per
+  commit. Semantic source guards tolerate explicit bookkeeping changes;
+  exact revision guards still protect operations that depend on status.
 - A rejected proposal, a revision conflict, or a failed checkpoint write
   leaves accepted memory and its causal history unchanged.
 - Cancellation is explicit (``GhostCancelled``) and never becomes a partial

@@ -30,6 +30,7 @@ from uuid import uuid4
 from pydantic import JsonValue
 
 from pm.memory.snapshot import GhostCancelled, GhostConflict, Snapshot
+from pm.memory.dependencies import source_fingerprint
 from pm.memory.write_batch import WriteBatch
 from pm.memory.record_index import RecordIndex
 from pm.memory.references import check_references
@@ -724,7 +725,20 @@ class MemoryStore(RecordIndex):
                 batch._closed = True
                 return self.applied_commits[batch.commit_id]
             batch.check_cancelled()
-            conflicts = [record_id for record_id, revision in batch._expected.items()
+            expected_revisions = dict(batch._expected)
+            source_conflicts: list[int] = []
+            for dependency in batch._source_dependencies:
+                record_id = dependency.record_id
+                current_source = self._all_knoxels.get(record_id) or self._visible_history.get(record_id)
+                if (current_source is None
+                        or dependency.current_head and record_id not in self._all_knoxels
+                        or source_fingerprint(current_source) != dependency.fingerprint):
+                    source_conflicts.append(record_id)
+                    continue
+                # Compare the captured meaning first. Never refresh an explicit
+                # raw guard: execution status can require an exact revision.
+                expected_revisions.setdefault(record_id, self.revisions[record_id])
+            conflicts = [record_id for record_id, revision in expected_revisions.items()
                          if self.revisions.get(record_id) != revision
                          or record_id in (batch._superseded | batch._heads) and record_id not in self._all_knoxels]
             family_conflicts = [key for key, value, expected in batch._metadata_guards
@@ -741,9 +755,10 @@ class MemoryStore(RecordIndex):
                 current = {key: value for key, value in self.consolidations.items() if value.get("run_id") == run_id}
                 if before != current:
                     consolidation_conflicts.append(run_id)
-            if conflicts or run_conflicts or consolidation_conflicts or family_conflicts:
+            if conflicts or source_conflicts or run_conflicts or consolidation_conflicts or family_conflicts:
                 raise GhostConflict(
-                    f"Stale memory revisions: {conflicts}. Stale run receipts: {run_conflicts}. "
+                    f"Stale memory revisions: {conflicts}. Stale source meanings: {source_conflicts}. "
+                    f"Stale run receipts: {run_conflicts}. "
                     f"Stale consolidation receipts: {consolidation_conflicts}. Stale record families: {family_conflicts}."
                 )
             allowed_ids = set(batch._snapshot.revisions) | set(batch._new)
@@ -771,10 +786,9 @@ class MemoryStore(RecordIndex):
                 records[key] = record
             cycles = self.states if batch._cycle is None else [*self.states, batch._cycle]
             revisions = dict(self.revisions)
-            # A replacement appends a successor with a new ID, and it still
-            # increments the superseded record's revision. An open batch that
-            # cited the replaced payload therefore fails instead of reviving it.
-            for record_id in (*batch._new, *batch._replacements):
+            # Successors have distinct IDs. Lifecycle overlays keep the ID but
+            # advance its revision, so exact execution guards detect new status.
+            for record_id in set(batch._new) | set(batch._replacements) | set(batch._lifecycle):
                 revisions[record_id] = revisions.get(record_id, 0) + 1
             receipt = CommitReceipt(commit_id=batch.commit_id, added_ids=tuple(batch._new),
                                     updated_ids=tuple(batch._superseded), tick_id=batch.tick_id)
@@ -784,7 +798,7 @@ class MemoryStore(RecordIndex):
             # Everything this commit read, plus every visible record it cites,
             # becomes a causal input of the transaction. A record created in
             # this same batch is an output, not an input.
-            inputs = set(batch._input_ids) | set(batch._expected) | set(batch._superseded)
+            inputs = set(batch._input_ids) | set(expected_revisions) | set(batch._superseded)
             for record in batch._new.values():
                 inputs.update(referenced_ids(record) - set(batch._new))
             if batch._gwt is not None:

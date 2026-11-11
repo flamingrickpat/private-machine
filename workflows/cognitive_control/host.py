@@ -17,6 +17,8 @@ from typing import TYPE_CHECKING, Any
 from pm.bus.envelopes import Envelope, new_envelope, new_id
 from pm.host.application import BusModule
 from pm.memory.snapshot import GhostCancelled, GhostConflict
+from pm.llm.concurrency import InferenceAdmission, InferenceRole
+from pm.memory.dependencies import source_fingerprint
 from pm.memory.write_batch import WriteBatch
 from pm.memory.read_scope import ReadScope
 from pm.records.enums import FeatureType, InterlocusType, SourceKind
@@ -24,10 +26,9 @@ from pm.records.base import Provenance
 from pm.records.memory_records import Feature, new_feature
 from pm.records.lineage import RecordLineage
 from workflows.cognitive_control.schemas import ControlConfig, WaitRequest
-from workflows.public_speech.publication_control import PublicationControl, ReplySuperseded
+from workflows.public_speech.publication_control import PublicationControl, ReplySuperseded, validate_unmanaged_selection
 from workflows.input_triage.schemas import EarlyTriageAssessment
 from workflows.main_cognition.schemas import TriageResult
-from workflows.public_speech.public_context import source_fingerprint
 
 if TYPE_CHECKING:
     from pm.memory.store import MemoryStore
@@ -55,6 +56,7 @@ class CognitiveControl(BusModule):
             *(item.control_generation for item in ghost.states),
             *(int(item.metadata.get("generation", 0)) + 1 for item in ghost.all_features
               if item.metadata.get("control_kind") == "inference_wait")])
+        self.inference_admission: InferenceAdmission | None = None
         self.cancel_private: Callable[[], None] = lambda: None
         self._pending_inputs: set[str] = set()
         self._seen_inputs: set[str] = set()
@@ -71,6 +73,7 @@ class CognitiveControl(BusModule):
         self.cancel_critical_private: Callable[[], None] = lambda: None
         self.prioritize_critical: Callable[[set[int]], None] = lambda source_ids: None
         self.cancel_public_drafts: Callable[[int], None] = lambda epoch: None
+        self.validate_selection: Callable[[str], None] = validate_unmanaged_selection
 
     def enable_input_triage(self) -> None:
         """Reconstruct unresolved classification and reconsideration from memory.
@@ -100,6 +103,9 @@ class CognitiveControl(BusModule):
                 if (record.metadata.get("exchange_correlation") and record.metadata.get("exchange_status") == "pending"
                         and record.id not in claimed and record.id not in self._assessments):
                     self._pending_triage.add(record.id)
+            if self.inference_admission is not None:
+                for source_id in self._critical_sources:
+                    self.inference_admission.reserve(f"critical:{source_id}", role=InferenceRole.Critical)
 
     def register_input(self, source_id: int) -> None:
         """Fence a committed input under the same store lock as publication."""
@@ -158,6 +164,9 @@ class CognitiveControl(BusModule):
             self.ghost.commit(batch)
             self._reconsideration_epoch = epoch
             self._critical_sources.update(critical)
+            if self.inference_admission is not None:
+                for source_id in critical:
+                    self.inference_admission.reserve(f"critical:{source_id}", role=InferenceRole.Critical)
             self._pending_triage.difference_update(source_ids)
             for source_id in source_ids:
                 self._assessments[source_id] = accepted
@@ -177,6 +186,7 @@ class CognitiveControl(BusModule):
             wait_for_classification=self.wait_for_classification,
             publication_epoch=self.publication_epoch,
             validate_publication=self.validate_publication,
+            validate_selection=lambda selection_id: self.validate_selection(selection_id),
         )
 
     def validate_cognition(self, source_ids: Sequence[int]) -> None:
@@ -408,6 +418,9 @@ class CognitiveControl(BusModule):
             accepted_critical = self._critical_sources.intersection(source_ids)
             if accepted_critical:
                 self._critical_sources.difference_update(accepted_critical)
+                if self.inference_admission is not None:
+                    for source_id in accepted_critical:
+                        self.inference_admission.release(f"critical:{source_id}")
                 self._critical_accepted_tick = max(self._critical_accepted_tick, batch.tick_id)
             self._pending_inputs.difference_update(handled)
             if armed:

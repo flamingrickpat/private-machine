@@ -78,6 +78,8 @@ from pm.constants import (
     EXPECTATION_OPEN_LIMIT, WORKSPACE_TAIL_CANDIDATES,
 )
 from pm.llm.completion import TextCompletion
+from pm.llm.concurrency import InferenceRole, inference_role
+from pm.memory.dependencies import SourceDependency, capture_source
 from pm.llm.http_client import ModelError
 from pm.llm.structured import context_measure
 from pm.llm.prompt_encoding import TurnInput, normalize_turns
@@ -295,7 +297,7 @@ class MainCogLoop(CognitiveWorkflow):
         "user.input", "thought.created", "task.telemetry", "workflow.question", "workflow.event",
         "system.lifecycle",
         "minecraft.world", "environment.event",
-        "cognition.wake",
+        "cognition.wake", "interaction.reconsider",
     })
 
     def __init__(self, *args: object, workflow_catalogue: Iterable[dict[str, object]] | None = None,
@@ -327,6 +329,7 @@ class MainCogLoop(CognitiveWorkflow):
         self._event_stimuli: dict[str, tuple[int | None, str, str]] = {}
         self._stimulus_ids: list[int] = []
         self._stimulus_revisions: dict[int, int] = {}
+        self._stimulus_dependencies: dict[int, SourceDependency] = {}
         self._focus_family_revisions: dict[int, int] = {}
         self._focus_source_revisions: dict[int, int] = {}
         self._batch_correlation = ""
@@ -336,6 +339,7 @@ class MainCogLoop(CognitiveWorkflow):
         self._critical_interrupted = threading.Event()
         self._active_batch: list[Envelope] = []
         self._active_batch_committed: bool = False
+        self.interaction_enabled: bool = False
 
     def prioritize_critical(self, source_ids: set[int]) -> None:
         """Interrupt older full cognition and retain its unaccepted causes.
@@ -365,8 +369,6 @@ class MainCogLoop(CognitiveWorkflow):
 
     def deliver(self, envelope: Envelope) -> None:
         """Record external wake causes before queueing the next cognition cycle."""
-        if self.inference_admission is not None and envelope.kind != "control":
-            self.inference_admission.reserve(envelope.id)
         if self.cognitive_control is not None:
             self.cognitive_control.observe(envelope)
         super().deliver(envelope)
@@ -419,7 +421,9 @@ class MainCogLoop(CognitiveWorkflow):
                 return
         self._private_only = bool(batch) and all(item.topic == "thought.created" for item in batch)
         try:
-            self._handle_awake_batch(batch)
+            role = InferenceRole.Critical if control is not None and control.reconsideration_required() else InferenceRole.Cognition
+            with inference_role(role):
+                self._handle_awake_batch(batch)
         except GhostCancelled:
             if not (self._critical_interrupted.is_set() or
                     control is not None and self._private_only
@@ -542,6 +546,7 @@ class MainCogLoop(CognitiveWorkflow):
         memory_view = self.last_environment.ghost_view
         stimuli: list[Stimulus] = []
         self._stimulus_revisions = {}
+        self._stimulus_dependencies = {}
         correlation = ""
         for envelope in batch:
             knoxel_id, text, kind = self._stimulus_from(envelope)
@@ -558,6 +563,8 @@ class MainCogLoop(CognitiveWorkflow):
             else:
                 with self.ghost.lock:
                     self._stimulus_revisions[knoxel_id] = self.ghost.revisions[knoxel_id]
+            source_view = memory_view if knoxel_id in memory_view.revisions else self.ghost.snapshot({knoxel_id})
+            self._stimulus_dependencies[knoxel_id] = capture_source(source_view, knoxel_id, current_head=True)
             if not correlation:
                 correlation = envelope.correlation_id
         self._stimulus_ids = [item.knoxel_id for item in stimuli]
@@ -630,7 +637,9 @@ class MainCogLoop(CognitiveWorkflow):
                     revision=memory_view.revisions[key], source_ids=[key],
                     memory_kind=memory_kind(raw), evidence_role=evidence_role(memory_view, raw),
                     reasons=["deliberate mental recall"]))
-        previous = self.ghost.read_cycles()[-1] if self.ghost.read_cycles() else None
+        previous = next((state for state in reversed(self.ghost.read_cycles())
+                         if state.tick_id in memory_view.gwt_turns
+                         and memory_view.gwt_turns[state.tick_id].slot_id == "main"), None)
         # The appraise phase computes the EMA mental state from this history.
         # It reads the live store, like ``previous``: the cycle state and the
         # features that produced it come from the same committed ticks.
@@ -666,7 +675,24 @@ class MainCogLoop(CognitiveWorkflow):
                  *(int(item.id) for item in active_intentions(memory_view)[:8]),
                  *(item.record_id for item in open_expectations)]
         records, recent_dialogue = self._record_views(memory_view, sources, matches, previous, extra)
+        interaction_sources: list[int] = []
+        accepted_main = any(turn.slot_id == "main" for turn in memory_view.gwt_turns.values())
+        if control is not None and accepted_main and self.interaction_enabled:
+            ordinary_groups: dict[ShardKey, list[int]] = {}
+            main_groups: set[ShardKey] = set()
+            grouping = CycleRequest(user_entity_id=user_entity_id)
+            for stimulus in stimuli:
+                key = group_key(stimulus, grouping)
+                assessment = control.triage_result([stimulus.knoxel_id]) if stimulus.source == "user_input" else None
+                if assessment is not None and assessment.items[0].category != "Critical":
+                    ordinary_groups.setdefault(key, []).append(stimulus.knoxel_id)
+                elif assessment is not None and assessment.items[0].category == "Critical":
+                    main_groups.add(key)
+            for key, source_ids in ordinary_groups.items():
+                if key not in main_groups:
+                    interaction_sources.extend(source_ids)
         request = CycleRequest(
+            interaction_source_ids=interaction_sources,
             run_id=self.invocation_id or "",
             correlation_id=correlation,
             companion_name=self.ghost.get_companion_name(),
@@ -724,6 +750,10 @@ class MainCogLoop(CognitiveWorkflow):
         name. The companion itself and an unknown speaker give None, so the
         intake phase groups the stimulus by its source as before.
         """
+        if stimulus.kind == "interaction.reconsider":
+            from workflows.interaction.schemas import InteractionMetadata
+            receipt = InteractionMetadata.model_validate(source.metadata).interaction_receipt
+            return receipt.dependencies.partner_entity_id
         if stimulus.kind != "user.input":
             return None
         entity_id = source.entity_id or self.ghost.get_entity_id(source.source)
@@ -887,7 +917,7 @@ class MainCogLoop(CognitiveWorkflow):
         if knoxel_id is None:
             return None, "", ""
         knoxel = self._input_knoxel(knoxel_id)
-        if envelope.topic in {"cognition.wake", "system.lifecycle"}:
+        if envelope.topic in {"cognition.wake", "system.lifecycle", "interaction.reconsider"}:
             return knoxel_id, str(knoxel.content), envelope.topic
         kind = "user.input"
         if envelope.topic == "minecraft.world":
@@ -936,8 +966,8 @@ class MainCogLoop(CognitiveWorkflow):
         tick = changes.tick_id
         view = changes.view()
         changes.expect_metadata_version("control_kind", "attention_focus", self._focus_family_revisions)
-        for source_id, revision in self._stimulus_revisions.items():
-            changes.expect_revision(source_id, revision)
+        for dependency in self._stimulus_dependencies.values():
+            changes.expect_source(dependency)
         for source_id, revision in self._focus_source_revisions.items():
             changes.expect_revision(source_id, revision)
         # Guidance presents current interpretations and purposes. A historical
@@ -945,14 +975,16 @@ class MainCogLoop(CognitiveWorkflow):
         # newly accepted choice once its authoritative head has changed.
         for guidance in request.situational_guidance:
             for source_id, revision in guidance.source_revisions().items():
-                changes.expect_head(source_id, revision)
+                changes.expect_source(capture_source(self._memory_view, source_id, current_head=True))
         for outcome in work.expectations:
             changes.expect_revision(outcome.record_id, outcome.revision)
         for memory in work.selected_memories:
-            changes.expect_revision(memory.knoxel_id, memory.revision)
+            changes.expect_source(capture_source(self._memory_view, memory.knoxel_id,
+                                                 current_head=memory.knoxel_id in self._memory_view.all_knoxels))
             for source_id in memory.source_ids:
                 if source_id in self._memory_view.revisions:
-                    changes.expect_revision(source_id, self._memory_view.revisions[source_id])
+                    changes.expect_source(capture_source(self._memory_view, source_id,
+                                                         current_head=source_id in self._memory_view.all_knoxels))
 
         # Apply the appraisal and goal proposals into this same batch before the
         # turn record. A failure here aborts the whole batch, so stale proposals never
@@ -1030,6 +1062,7 @@ class MainCogLoop(CognitiveWorkflow):
         selection = new_feature(self.ghost, decision_text or work.summary,
             FeatureType.StateUpdate, source=self.ghost.get_companion_name(), source_kind=SourceKind.Self,
             changes=changes, metadata={"operation": "action_selection",
+                                       "interaction_source_ids": list(request.interaction_source_ids),
                                        "decisions": [item.model_dump(mode="json") for item in work.state.decisions],
                                        "routes": [item.model_dump(mode="json") for item in work.routes],
                                        "reflection_versions": reflection_versions},
@@ -1054,6 +1087,10 @@ class MainCogLoop(CognitiveWorkflow):
         queued = []
         duplicates = []
         for dispatch in work.dispatches:
+            if set(dispatch.stimulus_ids).intersection(request.interaction_source_ids):
+                rejected.append(dispatch.model_copy(update={"status": "rejected",
+                    "rejection_reason": "Ordinary local selection belongs to the interaction workflow."}))
+                continue
             if dispatch.status == "queued":
                 queued.append(dispatch)
                 continue

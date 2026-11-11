@@ -70,7 +70,14 @@ These fields describe the generation context. They do not prescribe chat order o
 One action can address several pending user messages.
 The commit resolves those stimulus records together.
 Each action retains `public_reply_id`, which prevents repeated action delivery from publishing duplicate speech.
-A different action can produce a follow-up with the same correlation.
+Covered exchange IDs also prevent competing ordinary actions from answering already resolved input twice.
+An explicit terminal-task reply can follow an interim answer because the completed outcome is new evidence.
+Generic recovery text alone does not grant that exception.
+
+An [ordinary interaction](ordinary-interaction.md) draft additionally captures its partner's input frontier.
+New input from that partner supersedes the older draft without an application error.
+The refreshed selection retains still-unanswered input.
+Messages from another partner do not invalidate this exchange.
 
 Before commit, the module checks current Minecraft tools and connection state.
 It also verifies successful task bytes again.

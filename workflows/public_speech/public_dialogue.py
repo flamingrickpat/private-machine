@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 from pm.host.durable_files import atomic_json
 from pm.llm.http_client import EmptyCompletionError, ProviderCompletionError
 from pm.llm.structured import ModelFormatError
+from pm.llm.concurrency import InferenceRole, inference_role
 from pm.utils import yaml_util
 
 from pm.bus.envelopes import Envelope, new_id
@@ -25,6 +26,7 @@ from workflows.public_speech.publication import commit_public_reply, publish_rep
 from pm.bus.envelopes import new_envelope
 from pm.runs.workflow_module import CognitiveWorkflow
 from workflows.public_speech.publication_control import PublicationControl, ReplySuperseded
+from workflows.public_speech.dependencies import PartnerFrontierChanged
 
 if TYPE_CHECKING:
     from pydantic import JsonValue
@@ -272,19 +274,13 @@ class PublicDialogue(CognitiveWorkflow):
         return ""
 
     def deliver(self, envelope: Envelope) -> None:
-        """Reserve reply priority before queueing the action."""
-        if self.inference_admission is not None and envelope.kind != "control":
-            self.inference_admission.reserve(envelope.id)
+        """Queue speech without reserving the endpoint between model calls."""
         super().deliver(envelope)
 
     def handle_batch(self, batch: list[Envelope]) -> None:
-        """Release reply reservations even after rejection or cancellation."""
-        try:
+        """Prioritize individual generation and review calls as ordinary interaction."""
+        with inference_role(InferenceRole.Interaction):
             self._handle_priority_batch(batch)
-        finally:
-            if self.inference_admission is not None:
-                for envelope in batch:
-                    self.inference_admission.release(envelope.id)
 
     def _handle_priority_batch(self, batch: list[Envelope]) -> None:
         # Each public action owns one report and one exchange resolution.
@@ -307,6 +303,7 @@ class PublicDialogue(CognitiveWorkflow):
             try:
                 control = self.cognitive_control
                 if control is not None:
+                    control.validate_selection(request.interaction_selection_id)
                     if not control.wait_for_reconsideration(self.stop_event):
                         return
                 with self.ghost.lock:
@@ -320,6 +317,8 @@ class PublicDialogue(CognitiveWorkflow):
                     self.supersede_reply(envelope,
                         f"Critical assessment {self._interrupted_epoch} interrupted obsolete public calculation.")
             except ReplySuperseded as error:
+                self.supersede_reply(envelope, str(error))
+            except PartnerFrontierChanged as error:
                 self.supersede_reply(envelope, str(error))
             except (EmptyCompletionError, ProviderCompletionError, SpeechOutputError, ModelFormatError) as error:
                 self.defer_reply(envelope, error)
@@ -412,6 +411,9 @@ class PublicDialogue(CognitiveWorkflow):
                 # A committed utterance remains an event if Critical arrives
                 # before its outbox publication or this invocation's exit.
                 self._reply_committed = True
+        except PartnerFrontierChanged as error:
+            self.supersede_reply(envelope, str(error))
+            return
         except GhostConflict as error:
             self.reject_reply(batch, str(error), status="stale")
             return

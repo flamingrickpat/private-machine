@@ -598,6 +598,7 @@ def build_app(
             "cognitive_control", bus, on_error, clock, 1.0, ghost=ghost,
             config=ControlConfig.model_validate(cognitive_control_config or {}),
         )
+        control.inference_admission = main_cog.inference_admission
         control.cancel_private = inner_thought.yield_run
         def cancel_critical_private() -> None:
             """Prioritize reconsideration while preserving selected mental actions."""
@@ -632,6 +633,24 @@ def build_app(
         input_triage.cognitive_control = control
         modules.insert(1, input_triage)
         app.input_triage = input_triage
+        from workflows.interaction.host import Interaction
+        from workflows.interaction.records import interaction_receipts
+
+        interaction = Interaction(
+            "interaction", bus, on_error, clock, None,
+            working_target=MemoryBashTarget(ghost, mode="read", recovery_only=True),
+            workflow=PROJECT_ROOT / "workflows" / "interaction" / "interaction.workflow.md",
+            tools_factory=build_main_cognition_tools(ghost, runtime_root, stage_model.complete,
+                cancel_provider=lambda: interaction.run_stop, embeddings=context_embeddings),
+            runtime_root=runtime_root, ghost=ghost,
+        )
+        interaction.cognitive_control = control
+        control.validate_selection = interaction.validate_selection
+        interaction.workflow_catalogue_provider = lambda: (
+            main_cog.workflow_catalogue_provider() if main_cog.workflow_catalogue_provider is not None
+            else main_cog.workflow_catalogue)
+        main_cog.interaction_enabled = True
+        modules.insert(2, interaction)
         main_cog.cognitive_control = control
         control.prioritize_critical = main_cog.prioritize_critical
         inner_thought.cognitive_control = control
@@ -740,6 +759,7 @@ def build_app(
                 pass
         recovery = ReplyRecovery("reply_recovery", bus, on_error, clock, None, ghost=ghost, supervisor=supervisor)
         recovery.paused_source_ids = control.paused_source_ids
+        recovery.selected_source_ids = lambda: set(interaction_receipts(ghost.recovery_snapshot(capture=False)))
         modules.append(recovery)
         app.reply_recovery = recovery
     if assistant is not None:
@@ -823,6 +843,7 @@ def build_app(
                 restore()
         supervisor.recover_interrupted()
         recovery.resume()
+        interaction.resume()
         inner_thought.resume()
         if focus_management is not None:
             focus_management.resume()
