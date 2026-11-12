@@ -414,6 +414,14 @@ class InquiryState(InquiryContract):
         return value
 
 
+class InquiryResumeDecision(InquiryContract):
+    """Explicit attention admission for retained paused work, without progress."""
+
+    operation: str = Field(min_length=1, description="Delivered operation admitted for the next executed step.")
+    reason: str = Field(min_length=1, description="Why this retained question receives the private slot again.")
+    trigger_source_ids: tuple[int, ...] = Field(description="Newly supplied original outside evidence that permits admission before the parked deadline; empty after that deadline.")
+
+
 class InquiryReceipt(InquiryContract):
     """An append-only state transition with its exact current-parent identity."""
 
@@ -423,6 +431,7 @@ class InquiryReceipt(InquiryContract):
     step: InquiryStep | None
     operation_record_id: int | None
     alternative_record_ids: tuple[int, ...]
+    resume: InquiryResumeDecision | None = Field(default=None, description="Explicit parked admission; it creates no executed node or progress.")
 
 
 class LegacyEpisodeState(InquiryContract):
@@ -496,7 +505,7 @@ __all__ = [
     "ThoughtResult",
     "TriggerCandidate",
     "TriggerChoice",
-    "InquiryAlternative", "InquiryGrant", "InquiryProgress", "InquiryReceipt",
+    "InquiryAlternative", "InquiryGrant", "InquiryProgress", "InquiryReceipt", "InquiryResumeDecision",
     "InquiryState", "InquiryStep", "NominationReceipt", "ThoughtAttentionDecision",
     "ThoughtJudgments", "ThoughtNomination", "ThoughtRelation", "ThoughtAttentionReceipt",
     "LegacyEpisodeState",

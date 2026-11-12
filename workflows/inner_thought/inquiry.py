@@ -26,14 +26,14 @@ from pydantic import BaseModel, ConfigDict
 from pm.memory.snapshot import GhostConflict, Snapshot
 from pm.memory.write_batch import WriteBatch
 from pm.records.base import Provenance
-from pm.records.enums import FeatureType, InterlocusType, SourceKind
+from pm.records.enums import FeatureType, FrameEnum, InterlocusType, SourceKind
 from pm.records.lineage import RecordLineage
 from pm.records.memory_records import Feature
 from workflows.cognitive_control.schemas import ControlConfig
 from workflows.inner_thought.nominations import expect_inquiry_grant, read_nomination, source_roots
 from workflows.inner_thought.operations import validate_operation
 from workflows.inner_thought.schemas import (
-    InquiryAlternative, InquiryGrant, InquiryReceipt, InquiryState, InquiryStep, LegacyEpisodeState,
+    InquiryAlternative, InquiryGrant, InquiryReceipt, InquiryResumeDecision, InquiryState, InquiryStep, LegacyEpisodeState,
     ThoughtAttentionDecision, ThoughtAttentionReceipt,
 )
 
@@ -190,9 +190,9 @@ def inquiry_history(view: Snapshot, episode_id: str) -> tuple[InquiryRecord, ...
     if len(visited) != len(records):
         raise ValueError("An inquiry contains disconnected receipts.")
     chain.reverse()
-    for sequence, item in enumerate(chain):
+    for transition_index, item in enumerate(chain):
         state = item.receipt.state
-        if state.sequence != sequence or len(set(state.node_ids)) != len(state.node_ids):
+        if len(set(state.node_ids)) != len(state.node_ids):
             raise ValueError("Inquiry sequence and node identities must be unique and ordered.")
         if not set(state.frontier_ids).issubset(state.node_ids):
             raise ValueError("An inquiry frontier must reference accepted nodes.")
@@ -201,25 +201,31 @@ def inquiry_history(view: Snapshot, episode_id: str) -> tuple[InquiryRecord, ...
         if not set(state.inspected_root_ids).issubset(state.root_source_ids):
             raise ValueError("Inspected evidence must retain its original roots.")
         receipt = item.receipt
-        if sequence == 0:
+        if transition_index == 0:
             if (receipt.step is not None or receipt.operation_record_id is not None or receipt.alternative_record_ids
+                    or receipt.resume is not None or state.sequence != 0
                     or state.node_ids or receipt.attention is None or receipt.attention.disposition != "select"
                     or receipt.attention.nomination_id != state.origin_record_id):
                 raise ValueError("Inquiry selection cannot claim an executed operation.")
         else:
-            prior = chain[sequence - 1].receipt.state
-            if (receipt.step is None or receipt.operation_record_id is None or receipt.attention is not None
-                    or state.origin_record_id != prior.origin_record_id or state.grant.scope != prior.grant.scope
+            prior = chain[transition_index - 1].receipt.state
+            if (state.origin_record_id != prior.origin_record_id or state.grant.scope != prior.grant.scope
                     or state.grant.observer_entity_id != prior.grant.observer_entity_id
-                    or state.grant.critical_epoch != prior.grant.critical_epoch
+                    or state.grant.critical_epoch != prior.grant.critical_epoch):
+                raise ValueError("An inquiry transition contradicts its retained operation or origin.")
+            if receipt.resume is not None:
+                _validate_resume_transition(prior, receipt)
+                continue
+            if (receipt.step is None or receipt.operation_record_id is None or receipt.attention is not None
+                    or state.sequence != prior.sequence + 1
                     or state.node_ids != (*prior.node_ids, receipt.operation_record_id, *receipt.alternative_record_ids)
                     or state.active_elapsed_seconds < prior.active_elapsed_seconds):
-                raise ValueError("An inquiry transition contradicts its retained operation or origin.")
+                raise ValueError("An executed inquiry transition contradicts its retained operation.")
             operation = view.get(receipt.operation_record_id)
             if (not isinstance(operation, Feature) or operation.feature_type != FeatureType.InnerMonologue
                     or InquiryNodeMetadata.model_validate(operation.metadata).inquiry_step != receipt.step
                     or operation.content != receipt.step.thought or operation.lineage is None
-                    or operation.lineage.sequence != sequence or operation.lineage.reality != receipt.step.reality):
+                    or operation.lineage.sequence != state.sequence or operation.lineage.reality != receipt.step.reality):
                 raise ValueError("An inquiry operation contradicts its original receipt.")
             if len(receipt.alternative_record_ids) != len(receipt.step.alternatives):
                 raise ValueError("An inquiry operation lost one of its independent branches.")
@@ -237,6 +243,29 @@ def inquiry_history(view: Snapshot, episode_id: str) -> tuple[InquiryRecord, ...
                     or node.entity_id != state.grant.observer_entity_id):
                 raise ValueError("An inquiry node contradicts its retained graph.")
     return tuple(chain)
+
+
+def _retains_original_grant(prior: InquiryGrant, grant: InquiryGrant) -> None:
+    """Reject a continuation that refreshes or drops original captured meaning."""
+    dependencies = {source.record_id: source for source in grant.sources}
+    for source in prior.sources:
+        if source.record_id not in dependencies or dependencies[source.record_id] != source:
+            raise ValueError("An inquiry continuation cannot refresh its original source fingerprints.")
+
+
+def _validate_resume_transition(prior: InquiryState, receipt: InquiryReceipt) -> None:
+    """Validate explicit admission without counting it as executed progress."""
+    decision = receipt.resume
+    assert decision is not None
+    if (prior.status != "paused" or receipt.attention is not None or receipt.step is not None
+            or receipt.operation_record_id is not None or receipt.alternative_record_ids):
+        raise ValueError("A parked inquiry resume cannot claim selection or an executed operation.")
+    _retains_original_grant(prior.grant, receipt.state.grant)
+    expected = prior.model_copy(update={"grant": receipt.state.grant, "status": "active", "stop_reason": "",
+        "stalled_steps": 0, "next_operation": decision.operation, "resume_after_utc": None, "resume_source_ids": ()})
+    if receipt.state != expected:
+        raise ValueError("A resumed inquiry must retain its original graph, operation count, and active duration.")
+    validate_operation(decision.operation)
 
 
 def _guard_family(batch: WriteBatch, key: str, value: str) -> None:
@@ -331,6 +360,74 @@ def stage_attention(batch: WriteBatch, nomination_ids: Sequence[int], decision: 
     batch.revise(record)
     batch.depend_on(nomination_ids)
     return AttentionRecord(record, attention, inquiry)
+
+
+def stage_inquiry_resume(batch: WriteBatch, *, parent_receipt_id: int, decision: InquiryResumeDecision,
+                         grant: InquiryGrant, now_utc: datetime, limits: ControlConfig) -> InquiryRecord:
+    """Stage explicit parked admission without executing a thought or resetting bounds.
+
+    The caller owns shared attention, Critical and wait validation, and commit.
+    An elapsed parked deadline permits reconsideration, not automatic execution.
+    Earlier admission requires newly supplied original outside evidence.
+    A resume preserves graph identity, original source fingerprints, operation
+    count, and active duration. Only its stall counter and parking fields reset.
+    """
+    if now_utc.tzinfo is not None:
+        raise ValueError("Internal inquiry resume timestamps require naive UTC.")
+    view = batch.view()
+    parent = InquiryMetadata.model_validate(view.get(parent_receipt_id).metadata).inquiry_receipt
+    prior = parent.state
+    history = inquiry_history(view, prior.episode_id)
+    if history[-1].record.id != parent_receipt_id:
+        raise GhostConflict("A parked inquiry resume requires its exact current receipt parent.")
+    if prior.status != "paused":
+        raise ValueError("Only a paused inquiry can receive explicit resume admission.")
+    if prior.sequence >= limits.episode_steps or prior.active_elapsed_seconds >= limits.episode_seconds:
+        raise GhostConflict("A paused inquiry cannot resume beyond its original step or active time bound.")
+    if grant.critical_epoch != prior.grant.critical_epoch:
+        raise GhostConflict("A parked inquiry cannot resume under a different Critical epoch.")
+    if grant.observer_entity_id != prior.grant.observer_entity_id or grant.scope != prior.grant.scope:
+        raise ValueError("Resume admission cannot replace an inquiry's observer or reality.")
+    _retains_original_grant(prior.grant, grant)
+    validate_operation(decision.operation)
+    if len(set(decision.trigger_source_ids)) != len(decision.trigger_source_ids):
+        raise ValueError("Resume admission requires unique original trigger identities.")
+    permitted = frozenset(source.record_id for source in grant.sources)
+    already_supplied = {source.record_id for source in prior.grant.sources}
+    for source_id in decision.trigger_source_ids:
+        if source_id in already_supplied or source_id not in permitted:
+            raise ValueError("An early resume trigger must be newly supplied in the captured grant.")
+        source = view.get(source_id)
+        if (not isinstance(source, Feature) or not source.causal or source.scope.frame != FrameEnum.InWorld
+                or source.provenance is None or source.provenance.source_kind == SourceKind.Self):
+            raise ValueError("A resume trigger must be an original outside report or observed event.")
+        external_report = (source.feature_type == FeatureType.Dialogue
+            and source.interlocus == InterlocusType.Public
+            and source.provenance.source_kind in {SourceKind.User, SourceKind.Agent}
+            and source.addressee_entity_id in {0, grant.observer_entity_id})
+        observed_event = (source.feature_type == FeatureType.WorldEvent
+            and source.provenance.source_kind in {SourceKind.System, SourceKind.Workflow})
+        if (not (external_report or observed_event)
+                or source_roots(view, [source_id], scope=grant.scope, permitted_ids=permitted) != (source_id,)):
+            raise ValueError("Generated or derived content cannot become an original outside resume trigger.")
+    deadline_elapsed = prior.resume_after_utc is not None and now_utc >= prior.resume_after_utc
+    if not deadline_elapsed and not decision.trigger_source_ids:
+        raise GhostConflict("Parked work needs its original deadline or newly supplied outside evidence before admission.")
+    expect_inquiry_grant(batch, grant)
+    _guard_family(batch, INQUIRY_EPISODE_KEY, prior.episode_id)
+    _guard_family(batch, PRIVATE_SLOT_KEY, _slot(grant))
+    episode_ids = {InquiryMetadata.model_validate(record.metadata).inquiry_episode
+                   for record in view.all_knoxels.values()
+                   if record.metadata.get(PRIVATE_SLOT_KEY) == _slot(grant)}
+    for episode_id in episode_ids:
+        if episode_id != prior.episode_id and inquiry_history(view, episode_id)[-1].receipt.state.status == "active":
+            raise GhostConflict("Another inquiry already holds this observer's private slot.")
+    batch.expect_revision(parent_receipt_id, view.revisions[parent_receipt_id])
+    batch.depend_on([parent_receipt_id])
+    state = prior.model_copy(update={"grant": grant, "status": "active", "stop_reason": "", "stalled_steps": 0,
+        "next_operation": decision.operation, "resume_after_utc": None, "resume_source_ids": ()})
+    return _stage_receipt(batch, InquiryReceipt(parent_receipt_id=parent_receipt_id, state=state,
+        attention=None, step=None, operation_record_id=None, alternative_record_ids=(), resume=decision))
 
 
 def stage_inquiry_step(batch: WriteBatch, *, parent_receipt_id: int, step: InquiryStep,

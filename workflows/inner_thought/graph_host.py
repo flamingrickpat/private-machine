@@ -30,12 +30,12 @@ from pm.records.mental_state import FullMentalState
 from workflows.cognitive_control.schemas import ControlConfig
 from workflows.inner_thought.inquiry import (
     AttentionRecord, InquiryMetadata, InquiryRecord, PRIVATE_SLOT_KEY,
-    inquiry_history, stage_attention, stage_inquiry_step,
+    inquiry_history, stage_attention, stage_inquiry_resume, stage_inquiry_step,
 )
 from workflows.inner_thought.nominations import extend_inquiry_grant
 from workflows.inner_thought.nominations import NominationBatchRecord, stage_nomination_batch
 from workflows.inner_thought.schemas import (
-    InquiryGrant, InquiryStep, NominationBatch, ThoughtAttentionDecision,
+    InquiryGrant, InquiryResumeDecision, InquiryStep, NominationBatch, ThoughtAttentionDecision,
 )
 from workflows.inner_thought.graph_outcomes import (
     GraphOutcomePayload, attach_graph_outcome, read_graph_outcome, stage_graph_outcome,
@@ -120,6 +120,23 @@ class PrivateInquiryOwner:
         with self.store.lock:
             return extend_inquiry_grant(self.store.snapshot(capture=False), state.grant,
                                         [*state.node_ids, *source_ids])
+
+    def accept_resume(self, parent: InquiryRecord, decision: InquiryResumeDecision, *, grant: InquiryGrant,
+                      commit_id: str, now_utc: datetime) -> InquiryRecord:
+        """Retain explicit parked admission through the same control-owned commit.
+
+        This boundary creates no operation or GWT turn. Shared attention must
+        choose the admission before calling it; the timer does not auto-resume.
+        Original source, epoch, private-slot, and finite-budget checks remain
+        mandatory through staging and the host's commit callback.
+        """
+        with self.store.lock:
+            batch = self.store.begin_batch(commit_id, embed=False, cancel=self.cancel)
+            accepted = stage_inquiry_resume(batch, parent_receipt_id=parent.record.id, decision=decision,
+                grant=grant, now_utc=now_utc, limits=self.limits)
+            batch.preserve_on_recovery()
+            self.commit(batch)
+            return accepted
 
     def accept_step(self, parent: InquiryRecord, step: InquiryStep, *, grant: InquiryGrant,
                     commit_id: str, active_seconds: float, now_utc: datetime,

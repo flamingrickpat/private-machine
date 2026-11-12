@@ -1,6 +1,6 @@
 # B05: spontaneous nomination and bounded inquiry
 
-Status: implementation in progress, 2026-11-12. Named request consumers, nomination, attention, and private graph entry are implemented. Connected verification is in progress; coordinated control and deliberate work remain outstanding.
+Status: implementation in progress, 2026-11-13. Named requests, nomination, attention, connected graph execution, and explicit resume staging are implemented. The bounded connected gate passed; runtime resumption, coordinated control, and deliberate work remain outstanding.
 Source baseline: `d72fd3b`, after B03 implementation `a9e78e8`.
 B04 committed as `e7a7ce8`. This continuation starts from that commit.
 
@@ -693,3 +693,44 @@ Next: explicit parked resumption and deliberate origin admission, followed by co
 Do not remove one global cancellation check without migrating its remaining consumers.
 FocusManagement, reflection integration, and sustained final scenarios remain later work.
 B05 and beta remain incomplete; the beta Kanban card stays doing.
+
+### Explicit parked admission boundary
+
+The next increment after `9598717` adds deterministic resume staging without enabling automatic runtime resumption.
+Earlier `InquiryReceipt` chains assumed every transition after selection executed another operation.
+That assumption prevented separate attention admission without inventing an executed thought.
+
+Add a named `InquiryResumeDecision` and an optional resume payload on the existing receipt.
+A resume uses the exact paused parent, one observer slot, the same reality, and the original Critical epoch.
+It retains node IDs, branch/frontier state, source fingerprints, original start time, and cumulative computation duration.
+Operation sequence counts executed operations; a separate admission must not increment that count.
+Exhausted global step or computation bounds cannot reset through resumption.
+
+Early admission requires newly supplied original external evidence.
+Generated nodes, internal state receipts, and new self-origin intentions do not count as outside corroboration.
+After the original park deadline, attention can admit the retained question without claiming new evidence.
+The attention decision selects a delivered next operation and records its reason.
+The existing private owner and control callback still own durable acceptance.
+Runtime selection, Critical displacement, and coordinated ordinary-input cancellation remain later work.
+
+Implemented APIs: `InquiryResumeDecision`, `InquiryReceipt.resume`, `stage_inquiry_resume`, and `PrivateInquiryOwner.accept_resume`.
+History now distinguishes transition count from executed-operation sequence.
+Selection, pause, resume, and another operation retain sequences `(0, 1, 1, 2)`.
+The new admission receipt creates no thought, inner turn, finding, or claimed progress.
+Its graph, original grant, cumulative duration, and finite global budgets survive clean checkpoint recovery.
+
+Ten new actual-store/checkpoint checks cover original deadlines, early outside evidence,
+generated-evidence spoofing, Critical changes, source changes, competing parents and private slots, and unchanged global bounds.
+The combined affected command passed **125 checks in 6.493 seconds**: `finish/affected-resume.log`.
+Configured strict checking and the new resume-test scan report zero errors and warnings: `types-resume.log` and `types-resume-test.log`.
+The successful live graph also loads unchanged with the new receipt reader: `resume-live-readback.json`.
+That is a saved-receipt compatibility check, not a replacement for live workflow acceptance.
+
+No new inference runs for this storage boundary.
+The timer does not select a paused inquiry yet; that integration and its real model gate remain outstanding.
+The prior seven-request connected gate remains evidence for commit `9598717`, with its exact execution hashes retained.
+The graph coordinator's module overview also now describes its actual kernel orchestration responsibility.
+Final strict MkDocs passed in **196.81 seconds**, with unchanged hashes for all 32 affected sources.
+Eight inspected pages contain **8,009 valid local targets** and zero missing targets.
+Chromium confirms the new admission APIs, three rendered diagrams, and zero JavaScript/request errors.
+Receipts: `.runtime/beta-b05/finish/docs-resume-*` and `resume-verification.json`.

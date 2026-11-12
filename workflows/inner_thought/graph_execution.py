@@ -1,8 +1,11 @@
-"""Named model input for connected inquiry operations.
+"""Coordinate connected private operations through the existing child kernels.
 
 See :mod:`workflows.inner_thought.host` for scheduling and acceptance. This
-projection supplies accepted graph identities to the existing thought child.
-It performs no inference, commit, or conversion of legacy episode history.
+projection supplies accepted graph identities and their original branch
+payloads to the existing thought child. The coordinator invokes nomination,
+shared attention, actual scoped recall when requested, thought, and boundary
+integration. PrivateInquiryOwner retains commit and GWT repair authority.
+This module does not convert legacy episode history or admit parked work.
 """
 from __future__ import annotations
 

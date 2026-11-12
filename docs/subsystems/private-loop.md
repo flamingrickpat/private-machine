@@ -70,9 +70,21 @@ Its identity depends on source guards, main guidance, and fired triggers, rather
 An empty batch retains its reason and is not an executed thought.
 An accepted attention decision also prevents repetition of that selection call for the same batch.
 
-Parked graph resumption and deliberate-action admission remain unimplemented.
+Runtime parked resumption and deliberate-action admission remain unimplemented.
 An active inquiry from an older Critical epoch stays held for fresh admission.
 The coordinator does not replace its original epoch with a newer value.
+
+### Explicit parked admission
+
+Typed resume staging is available through [`workflows.inner_thought.inquiry.stage_inquiry_resume`][] and [`workflows.inner_thought.graph_host.PrivateInquiryOwner.accept_resume`][].
+An explicit [`workflows.inner_thought.schemas.InquiryResumeDecision`][] names the admitted operation, its reason, and any new outside evidence.
+The original parked deadline or newly supplied original outside evidence permits reconsideration.
+Generated thoughts cannot serve as independent outside triggers.
+
+Staging requires the exact paused parent and preserves its nodes, source fingerprints, observer, reality, and Critical epoch.
+The original operation count and active-time budget remain unchanged.
+Admission creates no executed operation, GWT turn, or finding.
+The timer does not yet call this boundary; automatic scheduling and deliberate-entry sharing remain designed work.
 
 ## Private attention
 
@@ -309,5 +321,5 @@ An offline gap contains no invented intermediate samples.
 | Broken manifest, catalogue, or internal contract | fail through the actual error path |
 
 The B05 engineering record distinguishes connected workflow evidence from generated-content review and sustained behavior.
-Parked resumption, deliberate-entry sharing, ordinary-input continuity, and new graph felt-state emission remain incomplete.
+Runtime parked resumption, deliberate-entry sharing, ordinary-input continuity, and new graph felt-state emission remain incomplete.
 The [output recovery guide](cognitive-output-recovery.md) explains the shared error and repair boundaries.
