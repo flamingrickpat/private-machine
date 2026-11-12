@@ -35,6 +35,36 @@ class RecoveryRootTests(unittest.TestCase):
         self.store.commit(batch)
         return record
 
+    def test_import_baseline_does_not_advertise_removed_transaction_dependencies(self) -> None:
+        imported = self.store.store_knoxel(Feature(content="Imported identity context", feature_type=FeatureType.StateUpdate))
+        before = self.store.snapshot(capture=False)
+        self.assertTrue(before.commit_ids)
+        self.store.accept_import()
+        view = self.store.snapshot(capture=False)
+        history = self.store.causal_history
+        assert history is not None
+        self.assertTrue(before.commit_ids.issubset(history.baseline_commit_ids))
+        self.assertTrue(view.commit_ids.issubset(history.transactions))
+        self.assertEqual(view.commit_ids, frozenset())
+        batch = self.store.begin_batch("first-after-import", embed=False)
+        batch.depend_on([imported.id])
+        batch.depend_on_commits(view.commit_ids)
+        batch.preserve_on_recovery()
+        receipt = batch.create(Feature(content="Accepted immediate update", feature_type=FeatureType.StateUpdate))
+        self.store.commit(batch)
+        restored = MemoryStore.from_checkpoint(self.path)
+        restored_view = restored.snapshot(capture=False)
+        restored_history = restored.causal_history
+        assert restored_history is not None
+        self.assertTrue(restored_view.commit_ids.issubset(restored_history.transactions))
+        self.assertEqual(restored_view.get(imported.id).content, imported.content)
+        self.assertEqual(restored_view.get(receipt.id).content, receipt.content)
+        follow_up = restored.begin_batch("second-after-import", embed=False)
+        follow_up.depend_on_commits(restored_view.commit_ids)
+        follow_up.preserve_on_recovery()
+        restored.commit(follow_up)
+        self.assertIn("second-after-import", MemoryStore.from_checkpoint(self.path).snapshot(capture=False).commit_ids)
+
     def test_default_restart_retains_roots_without_promoting_unrelated_branches(self) -> None:
         source = self.root("external-input", "A durable external input")
         speculative = self.store.begin_batch("speculation", embed=False)

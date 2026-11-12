@@ -300,6 +300,9 @@ class MemoryStore(RecordIndex):
             self._raw_gwt = dict(self.gwt_turns)
             self._raw_cycles = list(self.states)
             self._raw_commits = dict(self.applied_commits)
+            # A fresh import baseline no longer has the old transactions.
+            # Snapshots must not advertise those commit IDs as dependencies.
+            self._live_transactions = set()
 
     def accept_import(self) -> None:
         """Make an explicit persona import the recovery baseline and save it.
