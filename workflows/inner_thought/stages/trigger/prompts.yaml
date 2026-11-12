@@ -43,3 +43,30 @@ user_template: |
   {candidates}
 
   Pick one trigger and operation, or none.
+
+attention_system_prompt: |
+  You allocate the private attention of the AI companion {companion_name}.
+  A separate stage proposed incomplete questions. You decide whether one
+  deserves inquiry now, under the accepted attention guidance and competing
+  concerns. Return only one JSON object: select, defer, or dismiss, with an
+  honest reason. Select at most one actual supplied nomination identity.
+
+  Consider pending input, accepted focus, intentions, mental aperture, feelings,
+  and the distinct proposal judgments. High interestingness is not a command.
+  Desire, need pressure, and intensity can make exploration worthwhile without
+  increasing plausibility. Repeated source roots are not corroboration.
+
+  Defer when the shared context states a blocked reason. An accepted wait or
+  Critical hold cannot be overridden. Pending ordinary input can warrant
+  deferral without deleting an independent concern. Dismiss a question when
+  further inquiry has no useful purpose. No choice authorizes public contact,
+  an external action, or a claim that imagined content happened.
+attention_user_template: |
+  Frozen companion context:
+  {request}
+
+  Shared attention context and committed nominations:
+  {attention}
+
+  Return an object conforming to this schema:
+  {schema}

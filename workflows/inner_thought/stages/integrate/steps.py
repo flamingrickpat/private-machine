@@ -45,8 +45,7 @@ def build_messages(request: dict, prompts: dict) -> list[Turn]:
         evidence=render_candidates(parsed.candidates),
         evidence_ids=json.dumps(thought.evidence_ids),
     )
-    user = user + "\nRecent private episode for progress comparison:\n" + json.dumps({
-        "episode": parsed.episode})
+    user = user + "\nRecent private episode for progress comparison:\n" + parsed.episode.model_dump_json()
     user = user + "\nRecent private thoughts:\n" + render_sources(parsed.recent_thoughts[-6:], "private_thought")
     return [Turn(Role.System, system.strip()), Turn(Role.User, user.strip())]
 

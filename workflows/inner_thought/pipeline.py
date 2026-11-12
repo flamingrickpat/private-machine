@@ -18,8 +18,9 @@ from collections.abc import Callable
 from typing import Any
 
 from workflows.reflection.schemas import ReflectionSource
+from workflows.public_speech.public_context import EvidenceItem
 
-from workflows.inner_thought.operations import OPERATIONS, validate_operation
+from workflows.inner_thought.operations import validate_operation
 from workflows.inner_thought.schemas import (
     InnerReport,
     InnerRequest,
@@ -55,11 +56,11 @@ def citable_ids(request: InnerRequest) -> set[int]:
     """Return every id the model may cite, all read with a revision."""
     known: set[int] = set()
     known.update(int(item.knoxel_id) for item in request.candidates)
-    known.update(int(item["knoxel_id"]) for item in request.active_goal_records)
-    known.update(int(item["knoxel_id"]) for item in request.pending_expectations)
-    known.update(int(item["knoxel_id"]) for item in request.recent_thoughts)
-    if request.main_frame.get("frame_id") is not None:
-        known.add(int(request.main_frame["frame_id"]))
+    known.update(item.knoxel_id for item in request.active_goal_records)
+    known.update(item.knoxel_id for item in request.pending_expectations)
+    known.update(item.knoxel_id for item in request.recent_thoughts)
+    if request.main_frame.frame_id is not None:
+        known.add(request.main_frame.frame_id)
     return known
 
 
@@ -87,24 +88,24 @@ def run_cycle(
             summary="the trigger stage chose no operation",
         )
     operation = validate_operation(trigger.operation)
-    retrieved = []
+    retrieved: list[EvidenceItem] = []
     if trigger.retrieval_query.strip():
         if retrieve_memory is None:
             raise ModelProposalError("Private recall requested an unavailable retrieval tool.")
         from workflows.inner_thought.schemas import ThoughtCandidate
         recall = retrieve_memory(trigger.retrieval_query)
-        retrieved = recall["matches"]
+        retrieved = [EvidenceItem.model_validate(item) for item in recall["matches"]]
         existing = {item.knoxel_id for item in request.candidates}
         for item in retrieved:
-            if int(item["knoxel_id"]) not in existing:
-                request.candidates.append(ThoughtCandidate(knoxel_id=item["knoxel_id"],
-                    text=item["text"], revision=item["revision"], kind="recalled_memory",
+            if item.knoxel_id not in existing:
+                request.candidates.append(ThoughtCandidate(knoxel_id=item.knoxel_id,
+                    text=item.text, revision=item.revision, kind="recalled_memory",
                     reason="deliberate private recall"))
-                existing.add(int(item["knoxel_id"]))
+                existing.add(item.knoxel_id)
         known = citable_ids(request)
         if request.reflection.records or request.reflection.episodes or request.reflection.experiments:
             source_ids = {item.knoxel_id for item in request.reflection.records}
-            for item in recall.get("reflection_sources", retrieved):
+            for item in recall.get("reflection_sources", [memory.model_dump(mode="json") for memory in retrieved]):
                 if item["knoxel_id"] not in source_ids:
                     request.reflection.records.append(ReflectionSource.model_validate(item))
                     source_ids.add(item["knoxel_id"])
@@ -192,21 +193,21 @@ def concrete_progress(integration: IntegrationResult, thought: ThoughtResult,
     reason = integration.progress_reason
     if kind == "none":
         return "none", reason
-    episode = request.episode or {}
+    episode = request.episode.state
     if kind == "new_evidence":
-        seen = {int(item) for item in episode.get("evidence_ids", [])}
+        seen = set(episode.evidence_ids) if episode is not None else set[int]()
         if any(int(item) not in seen for item in thought.evidence_ids):
             return kind, reason
     elif kind == "new_option":
-        seen = set(episode.get("alternatives", []))
-        if any(item.text and item.text not in seen for item in thought.alternatives):
+        seen_options = set(episode.alternatives) if episode is not None else set[str]()
+        if any(item.text and item.text not in seen_options for item in thought.alternatives):
             return kind, reason
     elif kind == "decision":
         if integration.goal_changes:
             return kind, reason
     elif kind == "artifact":
-        seen = set(episode.get("thoughts", []))
-        if thought.thought.strip() and thought.thought not in seen:
+        seen_thoughts = set(episode.thoughts) if episode is not None else set[str]()
+        if thought.thought.strip() and thought.thought not in seen_thoughts:
             return kind, reason
     return "none", (reason + " (no concrete difference from earlier episode work)").strip()
 
@@ -220,7 +221,7 @@ def validate_integration(integration: IntegrationResult, known: set[int], reques
         if not (update.anticipation.strip() or update.expected_outcome.strip()):
             raise IntegrationError("an open expectation needs an anticipation or an expected outcome")
     elif update.action == "resolve":
-        pending = {int(item["knoxel_id"]) for item in request.pending_expectations}
+        pending = {item.knoxel_id for item in request.pending_expectations}
         if update.expectation_id is None or int(update.expectation_id) not in pending:
             raise IntegrationError("a resolution must name a pending expectation from the frozen view")
         invalid = [int(item) for item in update.observation_ids if int(item) not in known]

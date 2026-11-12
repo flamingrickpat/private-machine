@@ -6,9 +6,9 @@ and never call a model. The host derives the request, the stages produce the
 reports, and the parent report tells the host what to commit.
 
 See :mod:`workflows.inner_thought.host` for the subsystem overview. The
-InquiryContract models describe the graph storage boundary in inquiry and
-nominations. Existing linear stage requests remain separate until their
-execution path migrates.
+InquiryContract models describe graph staging and the host's connected
+inquiry path. Named linear episode views retain explicit legacy provenance
+until those episodes finish. They never invent absent graph judgments.
 """
 from __future__ import annotations
 
@@ -20,7 +20,13 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from pm.memory.dependencies import SourceDependency
 from pm.records.base import RecordScope
 from pm.records.mental_state import FullMentalState
+from pm.records.qualia_records import QualeChannelState
+from workflows.cognitive_control.schemas import FocusState
+from workflows.inner_thought.request_views import (
+    ExpectationView, GoalView, MainFrameView, OperationSuggestion, PrivateInspection, RecentThoughtView,
+)
 from workflows.main_cognition.schemas import GoalChange
+from workflows.public_speech.public_context import EvidenceItem
 from workflows.reflection.schemas import ReflectionDecision, ReflectionContext
 
 #: Reality labels a private thought may carry. They mirror the main loop's
@@ -51,7 +57,7 @@ class TriggerCandidate(BaseModel):
     name: str
     cause: str
     urgency: float = 0.0
-    operations: list[str] = Field(default_factory=list)
+    operations: list[str] = Field(default_factory=list[str])
     reason: str = ""
 
 
@@ -61,7 +67,7 @@ class TriggerChoice(BaseModel):
     trigger: str = ""
     operation: str = "none"
     temporal_focus: str = "present"
-    candidate_ids: list[int] = Field(default_factory=list)
+    candidate_ids: list[int] = Field(default_factory=list[int])
     urgency: float = 0.0
     reason: str = ""
     retrieval_query: str = ""
@@ -79,16 +85,16 @@ class ThoughtResult(BaseModel):
     """The performed thought operation and its separation of fact and reading."""
 
     thought: str = ""
-    evidence_ids: list[int] = Field(default_factory=list)
+    evidence_ids: list[int] = Field(default_factory=list[int])
     evidence_summary: str = ""
     interpretation: str = ""
     uncertainty: float = 0.5
     reality: str = "internal"
-    alternatives: list[ThoughtAlternative] = Field(default_factory=list)
+    alternatives: list[ThoughtAlternative] = Field(default_factory=list[ThoughtAlternative])
     continuation: str = "summarize"
     continuation_reason: str = ""
     next_operation: str = ""
-    topic_hints: list[str] = Field(default_factory=list)
+    topic_hints: list[str] = Field(default_factory=list[str])
 
 
 class ExpectationUpdate(BaseModel):
@@ -105,9 +111,9 @@ class ExpectationUpdate(BaseModel):
     expected_outcome: str = ""
     expected_valence: float = 0.0
     uncertainty: float = 0.5
-    goal_ids: list[int] = Field(default_factory=list)
+    goal_ids: list[int] = Field(default_factory=list[int])
     status: str = "pending"
-    observation_ids: list[int] = Field(default_factory=list)
+    observation_ids: list[int] = Field(default_factory=list[int])
     reason: str = ""
 
 
@@ -128,7 +134,7 @@ class DisclosureChoice(BaseModel):
 class IntegrationResult(BaseModel):
     """The consequences the integrate stage proposes for accepted state."""
 
-    goal_changes: list[GoalChange] = Field(default_factory=list)
+    goal_changes: list[GoalChange] = Field(default_factory=list[GoalChange])
     expectation: ExpectationUpdate = Field(default_factory=ExpectationUpdate)
     noticing: str = ""
     disclosure: DisclosureChoice = Field(default_factory=DisclosureChoice)
@@ -147,6 +153,8 @@ class InnerRequest(BaseModel):
 
     run_id: str = ""
     companion_name: str = ""
+    character: str = Field(default="", description="The configured companion's character context for private interpretation and attention.")
+    context_limits: tuple[str, ...] = Field(default=(), description="Explicit limits on ancillary context supplied to this private operation.")
     user_name: str = ""
     state_summary: str = ""
     #: The accepted mental state of the last cycle, or None before the first cycle.
@@ -157,20 +165,20 @@ class InnerRequest(BaseModel):
     #: The newest main turn: tick, summary, surprise, and ``frame_id``. Since
     #: A19F step 10, ``frame_id`` is the subjective experience of that turn.
     #: A19G gives the inner loop typed fields for this.
-    main_frame: dict = Field(default_factory=dict)
+    main_frame: MainFrameView = Field(default_factory=MainFrameView)
     main_frame_age_ticks: int = 0
-    active_goal_records: list[dict] = Field(default_factory=list)
-    pending_expectations: list[dict] = Field(default_factory=list)
-    recent_thoughts: list[dict] = Field(default_factory=list)
-    candidates: list[ThoughtCandidate] = Field(default_factory=list)
-    trigger_candidates: list[TriggerCandidate] = Field(default_factory=list)
-    channels: dict = Field(default_factory=dict)
-    operations: list[dict] = Field(default_factory=list)
+    active_goal_records: list[GoalView] = Field(default_factory=list[GoalView])
+    pending_expectations: list[ExpectationView] = Field(default_factory=list[ExpectationView])
+    recent_thoughts: list[RecentThoughtView] = Field(default_factory=list[RecentThoughtView])
+    candidates: list[ThoughtCandidate] = Field(default_factory=list[ThoughtCandidate])
+    trigger_candidates: list[TriggerCandidate] = Field(default_factory=list[TriggerCandidate])
+    channels: dict[str, QualeChannelState] = Field(default_factory=dict[str, QualeChannelState])
+    operations: list[OperationSuggestion] = Field(default_factory=list[OperationSuggestion])
     #: Selected implementation evidence for a capability or episode inspection.
     #: The host builds it from the real source grant and the real records, so
     #: the model reads a bounded view instead of scanning the repository.
-    inspection: dict = Field(default_factory=dict)
-    episode: dict = Field(default_factory=dict)
+    inspection: PrivateInspection | None = None
+    episode: LegacyEpisodeContext = Field(default_factory=lambda: LegacyEpisodeContext())
     reflection: ReflectionContext = Field(default_factory=ReflectionContext)
 
 
@@ -182,27 +190,27 @@ class InnerReport(BaseModel):
     trigger: str = ""
     trigger_reason: str = ""
     temporal_focus: str = "present"
-    candidate_ids: list[int] = Field(default_factory=list)
+    candidate_ids: list[int] = Field(default_factory=list[int])
     thought: str = ""
-    evidence_ids: list[int] = Field(default_factory=list)
+    evidence_ids: list[int] = Field(default_factory=list[int])
     evidence_summary: str = ""
     interpretation: str = ""
     uncertainty: float = 0.5
     reality: str = "internal"
-    alternatives: list[ThoughtAlternative] = Field(default_factory=list)
+    alternatives: list[ThoughtAlternative] = Field(default_factory=list[ThoughtAlternative])
     continuation: str = "summarize"
     continuation_reason: str = ""
-    goal_changes: list[GoalChange] = Field(default_factory=list)
+    goal_changes: list[GoalChange] = Field(default_factory=list[GoalChange])
     expectation: ExpectationUpdate = Field(default_factory=ExpectationUpdate)
     noticing: str = ""
     disclosure: DisclosureChoice = Field(default_factory=DisclosureChoice)
-    channels: dict = Field(default_factory=dict)
+    channels: dict[str, QualeChannelState] = Field(default_factory=dict[str, QualeChannelState])
     summary: str = ""
     next_operation: str = ""
-    topic_hints: list[str] = Field(default_factory=list)
+    topic_hints: list[str] = Field(default_factory=list[str])
     progress: str = "none"
     progress_reason: str = ""
-    retrieved_memories: list[dict] = Field(default_factory=list)
+    retrieved_memories: list[EvidenceItem] = Field(default_factory=list[EvidenceItem])
     reflection: ReflectionDecision = Field(default_factory=ReflectionDecision)
 
 
@@ -258,6 +266,41 @@ class NominationReceipt(InquiryContract):
     nomination: ThoughtNomination
     grant: InquiryGrant
     root_source_ids: tuple[int, ...] = Field(description="Deduplicated original roots; repeated thought never adds corroboration.")
+
+
+class NominationBatch(InquiryContract):
+    """One bounded semantic proposal, including an explained empty result."""
+
+    nominations: tuple[ThoughtNomination, ...] = Field(max_length=3)
+    reason: str = Field(min_length=1)
+
+
+class NominationBatchReceipt(InquiryContract):
+    """The retained nomination-stage outcome, even when it generated no ideas."""
+
+    batch_id: str = Field(min_length=1)
+    grant: InquiryGrant
+    nomination_ids: tuple[int, ...] = Field(max_length=3)
+    reason: str = Field(min_length=1)
+
+
+class AttentionCandidate(InquiryContract):
+    """An actual retained nomination offered to shared private attention."""
+
+    nomination_id: int = Field(gt=0)
+    nomination: ThoughtNomination
+    root_source_ids: tuple[int, ...]
+
+
+class PrivateAttentionContext(InquiryContract):
+    """The separate selection owner's current nominations and competing work."""
+
+    candidates: tuple[AttentionCandidate, ...] = Field(max_length=3)
+    pending_input_ids: tuple[int, ...]
+    accepted_focus: FocusState | None
+    active_intention_ids: tuple[int, ...]
+    attention_summary: str
+    blocked_reason: str = ""
 
 
 class ThoughtAttentionDecision(InquiryContract):
@@ -406,6 +449,39 @@ class LegacyEpisodeState(InquiryContract):
     parked_until: datetime | None
     parked_sources: tuple[int, ...]
     parent_thought_id: int | None
+
+
+class LegacyEpisodeContext(InquiryContract):
+    """A retained linear episode and the host's current admission readout.
+
+    An absent state means no retained linear episode. Its elapsed duration
+    remains world-clock history; this view never converts it into graph work.
+    """
+
+    provenance: Literal["none", "legacy_linear"] = "none"
+    state: LegacyEpisodeState | None = None
+    suppressed_source_ids: tuple[int, ...] = ()
+    awaiting_acknowledgment: bool = False
+    steps_remaining: int | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def explicit_provenance(self) -> Self:
+        """Prevent a retained episode from appearing as newly measured graph state."""
+        if (self.state is None) != (self.provenance == "none"):
+            raise ValueError("A retained linear episode requires explicit legacy provenance.")
+        return self
+
+
+class LegacyThoughtMetadata(BaseModel):
+    """Read existing thought metadata once at its heterogeneous storage boundary."""
+
+    model_config = ConfigDict(extra="ignore")
+    episode: LegacyEpisodeState | None = None
+    operation: str = ""
+    trigger: str = ""
+    continuation: str = ""
+    evidence_ids: tuple[int, ...] = ()
+    control_generation: int | None = None
 
 
 __all__ = [

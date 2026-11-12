@@ -24,10 +24,13 @@ from pm.records.memory_records import (
     CauseEffectRecord, DeclarativeFactRecord, Entity, Feature, MemoryClusterRecord, Narrative, SemanticRecord,
 )
 from workflows.inner_thought.operations import validate_operation
-from workflows.inner_thought.schemas import InquiryGrant, NominationReceipt, ThoughtNomination
+from workflows.inner_thought.schemas import (
+    InquiryGrant, NominationBatch, NominationBatchReceipt, NominationReceipt, ThoughtNomination,
+)
 
 
 NOMINATION_KEY = "thought_nomination"
+NOMINATION_BATCH_KEY = "private_nomination_batch"
 
 
 class NominationMetadata(BaseModel):
@@ -37,12 +40,29 @@ class NominationMetadata(BaseModel):
     thought_nomination: NominationReceipt
 
 
+class NominationBatchMetadata(BaseModel):
+    """Read a retained stage outcome, including a valid empty proposal batch."""
+
+    model_config = ConfigDict(extra="ignore")
+    private_nomination_batch: str
+    nomination_batch_receipt: NominationBatchReceipt
+
+
 @dataclass(frozen=True, slots=True)
 class NominationRecord:
     """A staged or accepted nomination with its actual memory identity."""
 
     record: Feature
     receipt: NominationReceipt
+
+
+@dataclass(frozen=True, slots=True)
+class NominationBatchRecord:
+    """The actual stage receipt and its zero to three private nominations."""
+
+    record: Feature
+    receipt: NominationBatchReceipt
+    nominations: tuple[NominationRecord, ...]
 
 
 def _source_parents(record: RecordBase) -> tuple[int, ...] | None:
@@ -69,7 +89,7 @@ def _source_parents(record: RecordBase) -> tuple[int, ...] | None:
         return None
     derived_thought = record.feature_type in {FeatureType.Thought, FeatureType.InnerMonologue}
     derived_receipt = (record.feature_type == FeatureType.StateUpdate and record.lineage is not None
-                       and record.lineage.operation in {"inquiry_transition", "private_attention"})
+                       and record.lineage.operation in {"inquiry_transition", "private_attention", "nomination_batch"})
     if not (derived_thought or derived_receipt):
         return None
     if record.lineage is None:
@@ -231,3 +251,56 @@ def stage_nominations(batch: WriteBatch, nominations: Sequence[ThoughtNomination
             metadata={NOMINATION_KEY: receipt.model_dump(mode="json")}))
         staged.append(NominationRecord(record, receipt))
     return tuple(staged)
+
+
+def read_nomination_batch(view: Snapshot, batch_id: str) -> NominationBatchRecord | None:
+    """Read one retained stage result without regenerating empty or deferred work."""
+    records = [record for record in view.all_knoxels.values()
+               if record.metadata.get(NOMINATION_BATCH_KEY) == batch_id]
+    if not records:
+        return None
+    if len(records) != 1:
+        raise ValueError("A nomination invocation must have exactly one retained stage receipt.")
+    record = records[0]
+    metadata = NominationBatchMetadata.model_validate(record.metadata)
+    receipt = metadata.nomination_batch_receipt
+    if (not isinstance(record, Feature) or record.feature_type != FeatureType.StateUpdate
+            or record.provenance is None or record.provenance.source_kind != SourceKind.Self
+            or record.interlocus != InterlocusType.PrivateInternal or receipt.batch_id != batch_id
+            or record.scope != receipt.grant.scope or record.entity_id != receipt.grant.observer_entity_id
+            or record.lineage is None or record.lineage.operation != "nomination_batch"
+            or record.lineage.episode_id != batch_id):
+        raise ValueError("A nomination stage receipt contradicts its invocation identity or grant.")
+    if len(set(receipt.nomination_ids)) != len(receipt.nomination_ids):
+        raise ValueError("A nomination stage receipt repeats a proposal identity.")
+    nominations = tuple(read_nomination(view, record_id) for record_id in receipt.nomination_ids)
+    for nomination in nominations:
+        if (nomination.receipt.grant != receipt.grant or nomination.record.lineage is None
+                or nomination.record.lineage.episode_id != batch_id):
+            raise ValueError("A nomination stage receipt references another invocation's proposal.")
+    return NominationBatchRecord(record, receipt, nominations)
+
+
+def stage_nomination_batch(batch: WriteBatch, result: NominationBatch, *, grant: InquiryGrant,
+                           batch_id: str) -> NominationBatchRecord:
+    """Retain generated proposals and their stage outcome atomically, even when empty.
+
+    The caller owns Critical and wait admission, commit, and later attention.
+    A captured batch identity cannot silently acquire a second stage outcome.
+    """
+    view = batch.view()
+    existing = [record for record in view.all_knoxels.values()
+                if record.metadata.get(NOMINATION_BATCH_KEY) == batch_id]
+    if existing:
+        raise ValueError("A completed nomination invocation must be read instead of regenerated.")
+    batch.expect_metadata_version(NOMINATION_BATCH_KEY, batch_id, {})
+    nominations = stage_nominations(batch, result.nominations, grant=grant, batch_id=batch_id)
+    receipt = NominationBatchReceipt(batch_id=batch_id, grant=grant,
+        nomination_ids=tuple(nomination.record.id for nomination in nominations), reason=result.reason)
+    source_ids = sorted({source_id for nomination in result.nominations for source_id in nomination.evidence_ids})
+    record = batch.create(Feature(content=result.reason, feature_type=FeatureType.StateUpdate,
+        entity_id=grant.observer_entity_id, scope=grant.scope,
+        provenance=Provenance(source_kind=SourceKind.Self), interlocus=InterlocusType.PrivateInternal,
+        lineage=RecordLineage(episode_id=batch_id, operation="nomination_batch", source_event_ids=source_ids),
+        metadata={NOMINATION_BATCH_KEY: batch_id, "nomination_batch_receipt": receipt.model_dump(mode="json")}))
+    return NominationBatchRecord(record, receipt, nominations)

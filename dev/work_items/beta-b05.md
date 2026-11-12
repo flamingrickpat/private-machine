@@ -1,6 +1,6 @@
 # B05: spontaneous nomination and bounded inquiry
 
-Status: implementation in progress, 2026-11-12. The typed persistence slice is implemented; execution integration remains outstanding.
+Status: implementation in progress, 2026-11-12. Named request consumers, nomination, attention, and private graph entry are implemented. Connected verification is in progress; coordinated control and deliberate work remain outstanding.
 Source baseline: `d72fd3b`, after B03 implementation `a9e78e8`.
 B04 committed as `e7a7ce8`. This continuation starts from that commit.
 
@@ -565,3 +565,131 @@ The gate's endpoint is not being replaced by the persistence tests.
 No paid inference, full main cycles, long simulation, or Minecraft run occurred in this slice.
 There is no new provider usage to add. The known prior spend and its unknown B03 remainder remain unchanged.
 B05 and the beta milestone remain incomplete.
+
+## Named requests and graph entry slice
+
+The continuation starts from persistence commit `84538ac`.
+The owner authorizes the next handoff items, with the handoff file kept uncommitted.
+
+The live request and episode consumers now use named types in `request_views.py` and `schemas.py`.
+Legacy episodes retain an explicit `legacy_linear` provenance and their original world duration.
+An open retained episode finishes through its existing pipeline before a new graph can enter.
+No absent judgments, branch relations, or active computation duration are invented.
+The previous 27 strict schema diagnostics are resolved rather than excluded.
+
+The actual assembly injects `run_private_inquiry` into the existing parent kernel.
+The new nomination child proposes up to three questions and can return an empty result.
+The host retains the empty-stage receipt as well as nonempty nomination records.
+Opportunity identities derive from captured sources and guidance, rather than fresh timer invocation IDs.
+The existing trigger child now supports a separate shared-attention request.
+Its accepted focus comes from the frozen view; selection validates the original focus head and expiry under the final store lock.
+
+`graph_execution.py` coordinates those child kernels and one connected thought operation per invocation.
+The existing thought child receives actual branch assumptions, judgments, dispositions, source roots, and accepted node identities.
+Its structured-output correction boundary rejects unknown citations, invalid relations, and conclusions before discrimination.
+Explicit outcome boundaries invoke the existing integration child.
+Graph outcome metadata retains proposed goals, disclosure, expectation effects, and their original source guards.
+Main cognition still owns accepted goals and mental-state changes.
+Public context can consume a graph finding's actual candid disclosure.
+
+### Recovery refinement
+
+The first adapter check exposed a conflict with the existing recovery-root invariant.
+An append-only recovery root cannot contain a GWT turn, cycle mutation, or expectation replacement.
+The core invariant remains unchanged.
+
+The graph operation, independent branches, outcome proposal, and episode receipt commit atomically as recovery roots.
+A separate derived commit projects the accepted operation into the inner GWT and applies retained expectation effects.
+`ensure_inner_turn` reconstructs a missing projection without inference or mutation of the accepted graph.
+Runtime replay repairs those projections before finding delivery; event ticks identify the actual inner turn.
+Projection failures remain visible and preserve the accepted graph.
+This refines the implementation sequence while preserving the approved atomic graph/state boundary.
+
+### Current limits
+
+Ordinary-input cancellation and global generation fences are still unchanged.
+This slice does not establish independent private continuity during conversation.
+An active inquiry from an older Critical epoch is held for fresh admission; its epoch is never silently replaced.
+Explicit parked resumption, admission after displacement, and the deliberate FocusManagement adapter remain outstanding.
+Legacy experiment and inspection summaries are excluded from graph input with an explicit context-limit field.
+Their source scope is not yet captured by the graph adapter.
+Graph execution does not yet reproduce legacy reflection experiments or per-channel quale emission.
+Those paths require explicit integration before B05 can be complete.
+
+### Local evidence
+
+The actual application prepared named requests from persisted legacy records using the OpenRouter configuration, without inference or service startup.
+Evidence: `.runtime/beta-b05/request-preparation/` and `request-assembly-connected.log`.
+The first combined host check passed 61 actual-store, checkpoint, deterministic-boundary, and architecture checks in 5.450 seconds.
+The next focused graph check passed eleven checks, including original branch payloads and semantic model validation.
+Configured strict coverage now includes the new schemas, request views, graph modules, and nomination/attention children.
+Receipts: `host-wiring-checks.log`, `host-wiring-types.log`, and the focused nomination/outcome logs under `.runtime/beta-b05/`.
+These checks do not substitute for the real kernel/model gate.
+
+The first retained B04 fixture could not admit private work: its accepted Critical assessments still await main appraisal.
+The gate did not disable triage or fabricate acknowledgment.
+That prerequisite result remains in `.runtime/beta-b05/live-prerequisites-20261112.json`; it incurred no paid usage.
+The bounded gate instead copies the retained B03 checkpoint with three actual accepted main cycles.
+Its original checkpoint remains unchanged, and the gate must create no additional main cycle.
+
+### Connected verification and delivery, 2026-11-13
+
+The final affected command runs the six new boundary modules, deterministic triggers and operations,
+expectation and disclosure boundaries, both inspection rendering classes, public context/publication/dependencies, and architecture checks.
+Exact command and results are retained in `.runtime/beta-b05/finish/verification.json`.
+Result: **115 passed in 9.012 seconds**; `affected-final.log`.
+Configured strict checking and the scoped new-test/live-gate check report zero errors and warnings.
+Legacy mocked workflow tests are not used as integration evidence.
+
+The real command is `.venv/Scripts/python.exe -u -m unittest tests.live.test_private_inquiry -v`.
+It passed in **59.291 seconds**, with seven actual OpenRouter requests and two private parent invocations.
+Model: `deepseek/deepseek-v4.1-flash-1017`; endpoint: `https://openrouter.ai/api/v1`.
+Evidence: `.runtime/beta-b05/live/20261112T230740Z-af28b3da/`.
+Selection receipt 185 precedes generation 186 and its branches 187/188; comparison 190 names accepted graph nodes.
+Receipt 191 retains the final outcome. Original source roots 171 and 180 remain distinct from generated nodes.
+Generation publishes no finding. The final comparison and integration produce one accepted private outcome event.
+The fixture retains three original main cycles and creates zero new main cycles.
+Clean reload preserves the exact graph, node IDs, source guards, and pending outcome.
+The retained B03 source checkpoint remains unchanged.
+
+This is a short engineering gate with explicit synthetic story notes on a retained accepted Spamuel checkpoint.
+It does not establish full-history recall, sustained character quality, ordinary-input continuity, or deliberate-action execution.
+The source fixture ages its concern through eight actual synthetic input commits, rather than fabricated main cycles.
+The opportunity policy uses tick age; a world-clock timestamp alone did not activate the intended concern.
+
+The first interrupted run omitted the full thought output schema and retained repeated schema repair samples.
+The next cancelled run exposed ambiguous relation instructions: source IDs are not accepted graph node IDs.
+The child now supplies the full output schema, legal relation IDs, and the operation's actual generative/discriminatory restriction.
+Both interrupted request receipts remain visible, with unknown final usage.
+Run `20261112T230421Z-c4ce500b` completed real kernel work but failed an invalid cross-store object-equality assertion.
+Exact serialized public payloads match; store-bound private owner references do not.
+The corrected assertion compares the complete serialized payload, retaining all persisted fields.
+No acceptance criterion for generation, comparison, provenance, integration, or restart was relaxed.
+
+Additional actual-store review fixed two defects before final delivery.
+GWT repair now reads `FrozenProjectionPayload` from the original accepted operation, rather than later mental state.
+A nondefault-state regression retains original joy 0.1 after a later accepted state reaches 0.9 and a clean restart occurs.
+Forced step/time/stall pauses never promote an undiscriminated continuing generation to a finding.
+Expectation resolution now returns its actual immutable successor, while the original pending payload remains historical.
+An admitted memory search uses the real scoped frozen-view retrieval path and retains matched source dependencies and its trace.
+
+Final strict MkDocs passed in **206.14 seconds**.
+Eight pages contain 7,955 valid local file/anchor targets; Chromium rendered all three diagrams without JavaScript or request errors.
+The final build retained unchanged hashes for all 32 affected source files.
+Evidence: `.runtime/beta-b05/finish/docs-final.log`, `docs-source-verification.json`, `docs-links.json`, and `docs-browser.json/png`.
+
+Owner review: `http://127.0.0.1:8095/#capture/beta-inquiry-20261113`.
+Four named collections show actual synthetic inputs, generated nominations, separate attention, and the accepted graph.
+Related captured evidence remains inspectable; no public companion reply or human rating is invented.
+The review listener binds `0.0.0.0:8095`, starts no simulation automatically, and enforces OpenRouter-only configuration.
+Packages and browser receipts are in `.runtime/beta-b05/review/`; the successful checkpoint remains unchanged.
+
+All B05 attempts report **$0.03521263988**; successful run alone reports $0.00767874820.
+Known B03+B04+B05 usage totals **$0.26293182404**, plus prior unknown B03 usage and two interrupted B05 requests.
+Receipt: `.runtime/beta-b05/finish/spend.json`. This is a provider-reported lower bound, not wallet reconciliation.
+The shared interim limit remains $25. No local LLM, month simulation, or Minecraft test ran.
+
+Next: explicit parked resumption and deliberate origin admission, followed by coordinated Critical/source/wait/replay guards.
+Do not remove one global cancellation check without migrating its remaining consumers.
+FocusManagement, reflection integration, and sustained final scenarios remain later work.
+B05 and beta remain incomplete; the beta Kanban card stays doing.

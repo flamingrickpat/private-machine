@@ -37,6 +37,20 @@ def quale(ghost, reportable):
 
 
 class DisclosureTests(unittest.TestCase):
+    def test_graph_finding_uses_its_retained_candid_disclosure(self) -> None:
+        store = small_ghost()
+        candid = new_feature(store, "I have two possible readings, and neither proves Jesse's motive.",
+            FeatureType.InnerMonologue, source=store.get_companion_name(), source_kind=SourceKind.Self,
+            metadata={"loop": "inquiry", "private_inquiry_finding": True,
+                      "disclosure": {"mode": "candid", "shareable_summary": "Both readings remain uncertain.", "reason": "Chosen disclosure."}})
+        withheld = new_feature(store, "An unfinished private comparison.", FeatureType.InnerMonologue,
+            source=store.get_companion_name(), source_kind=SourceKind.Self,
+            metadata={"loop": "inquiry", "disclosure": {"mode": "withhold", "shareable_summary": "", "reason": "Private."}})
+        context = build_public_context(store)
+        supplied_ids = {item.knoxel_id for item in context.evidence if item.lane == "private_state"}
+        self.assertIn(candid.id, supplied_ids)
+        self.assertNotIn(withheld.id, supplied_ids)
+
     def test_candid_thought_and_reportable_quale_enter_the_private_lane(self):
         ghost = small_ghost()
         candid = private_thought(ghost, "I want to invite Jesse to co-write.", "candid")

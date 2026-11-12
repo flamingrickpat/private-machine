@@ -3,8 +3,9 @@
 See :mod:`workflows.inner_thought.host` for the subsystem overview. This module
 owns validation and staging, not scheduling, inference, attention policy,
 Critical admission, GWT publication, or commit. Its callers must use the
-control boundary before committing. The existing timer path is not yet wired
-to these staging functions.
+control boundary before committing. The private host binds these functions
+through graph_host and graph_execution. Retained linear episodes use the
+separate explicit legacy reader.
 
 Each accepted transition appends a typed StateUpdate receipt. Executed
 operations use InnerMonologue; branches use private Thought features. Exact

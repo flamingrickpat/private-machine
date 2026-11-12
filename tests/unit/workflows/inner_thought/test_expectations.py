@@ -54,7 +54,9 @@ class ExpectationLifecycleTests(unittest.TestCase):
                                        observation_ids=[50, 51], reason="no reply came",
                                        revision=revision)
         ghost_.commit(batch)
-        stored = ghost_.get_knoxel_by_id(record.id)
+        stored = ghost_.get_knoxel_by_id(resolved.id)
+        self.assertNotEqual(resolved.id, record.id)
+        self.assertEqual(ghost_.get_knoxel_by_id(record.id).status, "pending")
         self.assertEqual(stored.status, "contradicted")
         self.assertEqual(stored.observation_ids, [50, 51])
         self.assertEqual(stored.resolved_tick_id, stored.tick_id)

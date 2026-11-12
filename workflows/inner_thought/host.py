@@ -1,27 +1,32 @@
 """The private thought loop host binding.
 
-The host owns the loop's commit boundary. Each timer tick it freezes a
-permitted view, derives the deterministic private candidates and triggers,
-and runs the parent workflow. A cycle with no trigger performs nothing. An
-accepted cycle commits its thought in an inner GWT turn and publishes one
-``thought.created`` self-origin event, which the main loop appraises like any
-other internal event.
+The host freezes a permitted view and derives cheap private opportunities on
+each timer tick. The parent runs nomination, separate shared attention, and
+one connected inquiry operation. Empty nomination results and attention
+decisions persist without a GWT turn. An executed operation first commits its
+graph and episode state as append-only recovery roots. A second, repairable
+commit projects that accepted operation into the inner GWT. Only an outcome
+finding publishes ``thought.created`` for main appraisal.
 
 Both loops share one MemoryStore and one companion identity. Every cross-loop
 read carries a revision, and the commit rejects a proposal whose source
 changed. The inner loop never writes the main loop's workspace and never changes
 mental state directly: only the main appraisal path does that.
 
-Reading map: schemas holds stage contracts and the new typed inquiry receipts;
-nominations stages source-bound proposals; inquiry validates and stages bounded
-graphs and reads retained linear episodes. The timer still uses the linear
-pipeline. The graph staging boundary does not yet replace that execution path.
+Reading map: schemas and request_views define named input and persisted
+contracts; nominations retains generated batches; inquiry owns graph staging;
+graph_host binds durable acceptance and derived GWT repair; graph_execution
+coordinates the existing child kernels; graph_outcomes retains integration.
+Existing linear episodes finish through the explicit legacy pipeline without
+invented graph judgments or active computation time. Ordinary-input control
+fences and deliberate mental work still await their coordinated migration.
 """
 from __future__ import annotations
 
 from pm import vclock
 
 from pm.records.copying import pickle_copy
+from pm.records.base import RecordBase
 
 from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
@@ -29,26 +34,27 @@ import json
 from pathlib import Path
 from threading import Event
 import traceback
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
+from pydantic import JsonValue
 
 from workflows.cognitive_control.schemas import ControlConfig
 
 from pm.bus.envelopes import Envelope, new_envelope, new_id
 from pm.memory.bash_view import MemoryBashEnvironment
 from pm.memory.snapshot import GhostCancelled, GhostConflict, Snapshot
-from pm.records.enums import FeatureType, InterlocusType, SourceKind
+from pm.records.enums import EntityClass, FeatureType, InterlocusType, SourceKind
 from pm.records.cognitive_records import ExpectationRecord, Intention
 from pm.records.cycle_state import CycleState
 from pm.records.global_workspace import GwtTurnRecord
 from pm.records.lineage import RecordLineage
 from pm.records.mental_state import FullMentalState
-from pm.records.memory_records import Feature, new_feature
+from pm.records.memory_records import Entity, Feature, new_feature
 from pm.records.qualia_records import QualeRecord
 from pm.runs.workflow_module import CognitiveWorkflow
 
 from workflows.main_cognition.host import seconds_since_user_input
 from workflows.main_cognition.model_json import ModelFormatError
-from pm.llm.concurrency import background_inference
+from pm.llm.concurrency import InferenceAdmission, background_inference
 from pm.llm.structured import context_measure
 from workflows.main_cognition.cycle_commits import active_intentions
 from workflows.inner_thought.expectations import open_expectation, pending_expectations, resolve_expectation
@@ -57,17 +63,50 @@ from workflows.inner_thought.felt_state import (
 )
 from workflows.inner_thought.operations import operation_lines
 from workflows.inner_thought.pipeline import ModelProposalError
-from workflows.inner_thought.schemas import InnerReport, InnerRequest, ThoughtCandidate
+from workflows.inner_thought.schemas import (
+    InnerReport, InnerRequest, LegacyEpisodeContext, LegacyEpisodeState, LegacyThoughtMetadata, ThoughtCandidate,
+)
+from workflows.inner_thought.request_views import (
+    CapabilityInspection, ExpectationView, GoalView, MainFrameView, OperationSuggestion,
+    PrivateInspection, RecentThoughtView,
+)
 from workflows.inner_thought.stage_runner import build_inner_stage_runner
 from workflows.inner_thought.triggers import evaluate_triggers
+from workflows.inner_thought.graph_execution import PrivateGraphResult, PrivateRecall, StageRunner, run_graph_opportunity
+from pm.memory.dependencies import capture_source
+from workflows.public_speech.public_context import EvidenceItem
+from workflows.inner_thought.graph_host import PrivateInquiryOwner, pending_findings
+from workflows.inner_thought.inquiry import INQUIRY_EPISODE_KEY, inquiry_history
+from workflows.inner_thought.nominations import capture_inquiry_grant
+from workflows.inner_thought.pipeline import citable_ids
+from pm.memory.read_scope import ReadScope
+from pm.memory.write_batch import WriteBatch
+from workflows.reflection.schemas import ReflectionContext
+from workflows.cognitive_control.attention import captured_private_focus
 
 if TYPE_CHECKING:
     from pm.llm.prompt_encoding import TurnInput
     from pm.memory.embeddings import EmbeddingService
     from pm.memory.store import MemoryStore
+    from pm.introspection.capabilities import CapabilityOverlay
+    from workflows.cognitive_control.host import CognitiveControl
 
 #: How many recent private thoughts feed the next cycle's context.
 RECENT_THOUGHT_LIMIT = 8
+
+
+class OpenLegacyEpisode(NamedTuple):
+    """The last retained linear state and its actual carrier record."""
+
+    state: LegacyEpisodeState | None
+    thought: Feature | None
+
+
+class ResolvedLegacyEpisode(NamedTuple):
+    """A typed legacy context and whether acknowledgment blocks continuation."""
+
+    context: LegacyEpisodeContext
+    blocked: bool
 
 
 def build_inner_thought_tools(
@@ -78,6 +117,7 @@ def build_inner_thought_tools(
     cancel_provider: Callable[[], Event | None] | None = None,
     embeddings: EmbeddingService | None = None,
     yield_provider: Callable[[], bool] | None = None,
+    inquiry_provider: Callable[[InnerRequest, StageRunner], PrivateGraphResult] | None = None,
 ) -> Callable[[MemoryBashEnvironment, object], dict[str, Callable[..., object]]]:
     """Bind private stages and bounded recall to the invocation's frozen read grant.
 
@@ -97,6 +137,7 @@ def build_inner_thought_tools(
         import asyncio
 
         view = environment.ghost_view
+        assert view is not None
         scopes = {(raw["data"]["scope"]["reality_id"], raw["data"]["scope"]["frame"])
                   for raw in view.serialize_knoxels().values()}
         cancel = cancel_provider() if cancel_provider is not None else None
@@ -130,9 +171,15 @@ def build_inner_thought_tools(
                                             if key in view.revisions]
             return result
 
-        return {"run_stage": build_inner_stage_runner(
-            ghost, complete, Path(runtime_root), read_environment=environment, cancel=cancel),
-            "retrieve_memory": retrieve_memory}
+        runner = build_inner_stage_runner(ghost, complete, Path(runtime_root), read_environment=environment, cancel=cancel)
+        tools: dict[str, Callable[..., object]] = {"run_stage": runner, "retrieve_memory": retrieve_memory}
+        if inquiry_provider is not None:
+            provider = inquiry_provider
+            def run_private_inquiry(payload: dict[str, object]) -> dict[str, object]:
+                """Run the parent's typed graph path under its existing private owner."""
+                return provider(InnerRequest.model_validate(payload), runner).model_dump(mode="json")
+            tools["run_private_inquiry"] = run_private_inquiry
+        return tools
 
     return factory
 
@@ -141,7 +188,12 @@ class PrivateThoughtLoop(CognitiveWorkflow):
     """The second conscious loop: scheduled private thought with its own shard."""
 
     WORKFLOW_NAME = "inner_thought"
-    inference_admission = None
+    ghost: MemoryStore
+    inference_admission: InferenceAdmission | None = None
+    cognitive_control: CognitiveControl | None = None
+    inspector_provider: Callable[[], CapabilityOverlay] | None = None
+    _overlay: CapabilityOverlay | None = None
+    _control_generation: int
     # The loop is timer-driven. It never reacts to bus traffic, so a main
     # cycle cannot cascade into an inner cycle into another main cycle.
     DATA_TOPICS = frozenset()
@@ -152,6 +204,83 @@ class PrivateThoughtLoop(CognitiveWorkflow):
         # Thoughts already put on the bus, so a resume never publishes twice.
         self._published_thoughts: set[int] = set()
         self.yield_requested = Event()
+        self._episode_state: LegacyEpisodeState | None = None
+        self._episode_thought_id: int | None = None
+        self._read_revisions: dict[int, int] = {}
+        self._active_goal_ids: list[int] = []
+
+    def run_inquiry(self, request: InnerRequest, run_stage: StageRunner) -> PrivateGraphResult:
+        """Bind the actual private invocation to nomination, attention, and graph staging."""
+        control = self.cognitive_control
+        with self.ghost.lock:
+            if control is not None and (control.waiting() or control.reconsideration_required()):
+                return PrivateGraphResult(summary="Private work waits for accepted input classification or reconsideration.")
+            environment = self.last_environment
+            if not isinstance(environment, MemoryBashEnvironment):
+                raise TypeError("A private inquiry requires its actual frozen memory environment.")
+            view = environment.ghost_view
+            assert view is not None
+            identities = [record for record in view.all_knoxels.values()
+                          if isinstance(record, Entity) and record.entity_class == EntityClass.Self
+                          and record.content == request.companion_name]
+            if len(identities) != 1:
+                raise ValueError("A private inquiry requires one exact companion identity anchor.")
+            observer = identities[0]
+            permitted = {record_id for record_id in citable_ids(request) if view.get(record_id).scope == observer.scope}
+            # The request and its grant describe the same observer reality.
+            # Foreign frame contents cannot remain in the model's evidence list.
+            request = request.model_copy(update={
+                "candidates": [item for item in request.candidates if item.knoxel_id in permitted],
+                "active_goal_records": [item for item in request.active_goal_records if item.knoxel_id in permitted],
+                "pending_expectations": [item for item in request.pending_expectations if item.knoxel_id in permitted],
+                "recent_thoughts": [item for item in request.recent_thoughts if item.knoxel_id in permitted],
+                "main_frame": request.main_frame if request.main_frame.frame_id in permitted else MainFrameView(),
+                "reflection": ReflectionContext(),
+                "inspection": None,
+                "context_limits": (*request.context_limits,
+                    "Legacy experiment and inspection summaries are excluded from this graph grant; their source scope is not captured here."),
+            })
+            if request.trigger_candidates:
+                request.trigger_candidates = evaluate_triggers(request)
+            focus = captured_private_focus(view, now_utc=vclock.utcnow(), maximum_strength=self._episode_limits().maximum_focus_bias)
+            governing_ids = [item.knoxel_id for item in [*request.active_goal_records, *request.pending_expectations]]
+            if focus.source_id is not None:
+                governing_ids.append(focus.source_id)
+            grant = capture_inquiry_grant(view, observer_entity_id=observer.id, scope=observer.scope,
+                source_ids=sorted(permitted), governing_ids=governing_ids,
+                critical_epoch=control.publication_epoch() if control is not None else 0)
+            generation = control.generation if control is not None else 0
+
+        def commit_private(changes: WriteBatch) -> None:
+            """Retain explicit graph dependencies instead of ambient invocation over-collection."""
+            with ReadScope() as reads:
+                reads.collecting = False
+                if control is None:
+                    self.ghost.commit(changes)
+                else:
+                    control.commit_private(changes, generation)
+
+        owner = PrivateInquiryOwner(self.ghost, commit=commit_private, cancel=self.run_stop, limits=self._episode_limits())
+        def recall_memory(query: str) -> PrivateRecall:
+            """Search the actual invocation view and retain its original source meanings."""
+            import asyncio
+            result = asyncio.run(self.ghost.retrieve_experiences(query, self.ghost.embeddings,
+                view=view, scopes={(observer.scope.reality_id, observer.scope.frame.value)},
+                limit=8, cancel=self.run_stop))
+            matches = tuple(EvidenceItem.model_validate(item) for item in result["matches"])
+            source_ids = {key for item in matches for key in [item.knoxel_id, *item.source_ids]}
+            return PrivateRecall(matches=matches, trace=result["trace"], sources=tuple(
+                capture_source(view, key, current_head=False) for key in sorted(source_ids)))
+        try:
+            return run_graph_opportunity(request, owner=owner, grant=grant, run_stage=run_stage,
+                mental_state=self._mental_state, control_generation=generation,
+                pending_input_ids=tuple(sorted(record.id for record in view.all_knoxels.values()
+                    if isinstance(record, Feature) and record.metadata.get("exchange_status") == "pending")), focus=focus,
+                recall_memory=recall_memory)
+        except GhostCancelled:
+            return PrivateGraphResult(summary="Private graph work was held or cancelled before acceptance.")
+        except GhostConflict as error:
+            return PrivateGraphResult(summary=f"Private graph direction requires fresh admission: {error}")
 
     def yield_run(self) -> None:
         """Finish active inference before yielding. Cancel queued work now.
@@ -169,21 +298,43 @@ class PrivateThoughtLoop(CognitiveWorkflow):
         Main cycle source ids acknowledge thoughts. A wait delays replay, and
         a newer control generation discards superseded work without inference.
         """
-        control = getattr(self, "cognitive_control", None)
+        control = self.cognitive_control
         with self.ghost.lock:
-            if control is not None and control.waiting():
+            if control is not None and (control.waiting() or control.reconsideration_required()):
                 return
+            generation = control.generation if control is not None else 0
+            view = self.ghost.snapshot(capture=False)
+            episodes = {str(record.metadata[INQUIRY_EPISODE_KEY]) for record in view.all_knoxels.values()
+                        if INQUIRY_EPISODE_KEY in record.metadata}
+
+            def commit_projection(changes: WriteBatch) -> None:
+                """Rebuild accepted inner views under the current scheduling hold."""
+                with ReadScope() as reads:
+                    reads.collecting = False
+                    if control is None:
+                        self.ghost.commit(changes)
+                    else:
+                        control.commit_private(changes, generation)
+
+            owner = PrivateInquiryOwner(self.ghost, commit=commit_projection, cancel=self.run_stop, limits=self._episode_limits())
+            for episode_id in sorted(episodes):
+                for accepted in inquiry_history(view, episode_id):
+                    if accepted.receipt.operation_record_id is not None:
+                        owner.ensure_inner_turn(accepted)
             appraised = {key for cycle in self.ghost.read_cycles() for key in cycle.claimed_ids()}
             pending = [item for item in self._inner_thoughts()
                        if item.id not in appraised and item.id not in self._published_thoughts
                        and (control is None or item.metadata.get("control_generation", control.generation)
                             == control.generation)]
+            graph_findings = pending_findings(self.ghost)
         for thought in pending:
             # Main can release an event during delivery. Mark it first so
             # that the release permits another attempt after a discarded cycle.
             self._published_thoughts.add(thought.id)
             self.bus.put(new_envelope(self.module_id, "data", "thought.created", "",
                                       {"knoxel_id": thought.id, "gwt_tick": thought.tick_id}))
+        for finding in graph_findings:
+            self._publish_graph_finding(finding.id)
 
     def release_results(self, envelopes: list[Envelope]) -> None:
         """Release queued thoughts after main acceptance or a discarded cycle."""
@@ -199,7 +350,7 @@ class PrivateThoughtLoop(CognitiveWorkflow):
         telemetry only. It is not an idle cycle. Other errors propagate.
         """
         self.yield_requested.clear()
-        control = getattr(self, "cognitive_control", None)
+        control = self.cognitive_control
         if control is not None:
             with self.ghost.lock:
                 if control.waiting():
@@ -216,7 +367,9 @@ class PrivateThoughtLoop(CognitiveWorkflow):
                 "error_type": type(error).__name__,
                 "reason": str(error),
             }
-            path = self.runtime_root / "kernel" / self.invocation_id / "model-proposal-rejection.json"
+            invocation_id = self.invocation_id
+            assert invocation_id is not None
+            path = self.runtime_root / "kernel" / invocation_id / "model-proposal-rejection.json"
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(json.dumps({**diagnostic, "traceback": traceback.format_exc()}, indent=2),
                             encoding="utf-8")
@@ -256,7 +409,7 @@ class PrivateThoughtLoop(CognitiveWorkflow):
         age_seconds = max(0.0, (vclock.utcnow() - previous_cycle.timestamp).total_seconds()) \
             if previous_cycle is not None else 0.0
 
-        main_frame: dict = {}
+        main_frame = MainFrameView()
         frame_age = 0
         if main_turns:
             newest = main_turns[0]
@@ -273,30 +426,27 @@ class PrivateThoughtLoop(CognitiveWorkflow):
             self_feedback = bool(claimed and all(int(key) in private_thought_ids for key in claimed))
             # The subjective experience of the newest main turn stands for
             # the main workspace. Before A19F the attention frame did.
-            main_frame = {
-                "tick": newest.tick_id, "frame_id": newest.experience_id,
-                "summary": newest.summary, "surprise": surprise,
-                "gap_seconds": startup_gap, "self_feedback": self_feedback,
-            }
+            main_frame = MainFrameView(tick=newest.tick_id, frame_id=newest.experience_id,
+                summary=newest.summary, surprise=surprise,
+                gap_seconds=startup_gap, self_feedback=self_feedback)
             frame_age = max(0, tick - newest.tick_id)
 
         goal_records = [
-            {"knoxel_id": int(goal.id), "text": str(goal.content),
-             "tick_id": int(goal.tick_id), "fulfilment": float(goal.fulfilment),
-             "affective_valence": float(goal.affective_valence),
-             "revision": int(view.revisions.get(int(goal.id), 1))}
+            GoalView(knoxel_id=goal.id, text=goal.content,
+                tick_id=goal.tick_id, fulfilment=goal.fulfilment,
+                affective_valence=goal.affective_valence, revision=view.revisions[goal.id])
             for goal in goals
         ]
         expectation_records = [
-            {"knoxel_id": int(item.id), "content": str(item.content),
-             "anticipation": item.anticipation, "expected_outcome": item.expected_outcome,
-             "tick_id": int(item.tick_id),
-             "revision": int(view.revisions.get(int(item.id), 1))}
+            ExpectationView(knoxel_id=item.id, text=item.content,
+                anticipation=item.anticipation, expected_outcome=item.expected_outcome,
+                tick_id=item.tick_id, revision=view.revisions[item.id])
             for item in expectations
         ]
         request = InnerRequest(
             run_id=self.invocation_id or "",
             companion_name=self.ghost.get_companion_name(),
+            character=self.ghost.get_simple_character_story_block(),
             user_name=self.ghost.get_user_name(),
             state_summary=self._state_summary(previous_cycle),
             mental_state=previous_cycle.mental_state if previous_cycle is not None else None,
@@ -310,7 +460,7 @@ class PrivateThoughtLoop(CognitiveWorkflow):
             recent_thoughts=thoughts,
             candidates=self._candidates(view, goals, expectations, latest_appraisal,
                                         main_frame, thoughts, latest_user),
-            operations=[{"name": line} for line in operation_lines()],
+            operations=[OperationSuggestion(name=line) for line in operation_lines()],
         )
         from workflows.reflection.experiments import context as reflection_context, source_evidence
         request.reflection = reflection_context(view)
@@ -322,16 +472,16 @@ class PrivateThoughtLoop(CognitiveWorkflow):
         # A bounded episode carries its own identity and history. A continuing
         # step waits for main appraisal of the previous thought before it reads
         # new accepted state. Step, time, and stall limits close it explicitly.
-        episode_state, blocked = self._resolve_episode(open_episode, latest_thought, latest_user, now)
+        episode_context, blocked = self._resolve_episode(open_episode, latest_thought, latest_user, now)
         # Closed episodes still own their parking interval. The next fresh
         # request must retain that interval even without an open episode.
         suppressed = sorted(self._parked_sources(now, latest_user))
-        request.episode = {**(episode_state or {}), "suppressed_source_ids": suppressed}
-        self._episode_state = episode_state
+        request.episode = episode_context.model_copy(update={"suppressed_source_ids": tuple(suppressed)})
+        self._episode_state = episode_context.state
         # Only a continuing step links to a parent thought. A fresh episode has
         # no parent, even when an older closed thought is the newest record.
         self._episode_thought_id = (int(latest_thought.id)
-                                    if episode_state is not None and latest_thought is not None else None)
+                                    if episode_context.state is not None and latest_thought is not None else None)
         if blocked:
             request.trigger_candidates = []
         else:
@@ -343,18 +493,18 @@ class PrivateThoughtLoop(CognitiveWorkflow):
         # The felt channels of the last accepted cycle give the model context.
         # The new sample is computed at commit time from this frozen view.
         channels, _ = previous_cycle_sample(states)
-        request.channels = {key: value.model_dump(mode="json") for key, value in (channels or {}).items()}
+        request.channels = dict(channels) if channels is not None else {}
         self._read_revisions = {
-            int(item["knoxel_id"]): int(item["revision"])
+            item.knoxel_id: item.revision
             for item in [*goal_records, *expectation_records, *thoughts]
         }
         for candidate in request.candidates:
             self._read_revisions[int(candidate.knoxel_id)] = int(candidate.revision)
         self._mental_state = mental_state
-        self._active_goal_ids = [int(item["knoxel_id"]) for item in goal_records]
+        self._active_goal_ids = [item.knoxel_id for item in goal_records]
         return request.model_dump(mode="json")
 
-    def publish_output(self, report: dict, batch: list[Envelope]) -> None:
+    def publish_output(self, report: dict[str, JsonValue], batch: list[Envelope]) -> None:
         """Commit accepted private work, or record an idle or rejected cycle.
 
         An idle cycle (``operation == "none"``) commits nothing: the loop does
@@ -365,11 +515,19 @@ class PrivateThoughtLoop(CognitiveWorkflow):
         """
         if self.stop_event.is_set() or self.run_stop.is_set():
             return
+        if report.get("stage_kind") == "private_inquiry_result":
+            result = PrivateGraphResult.model_validate(report)
+            if result.finding_id is not None:
+                self._publish_graph_finding(result.finding_id)
+            self.bus.put(new_envelope(self.module_id, "telemetry", "thought.graph", "",
+                                      result.model_dump(mode="json")))
+            return
         parsed = InnerReport.model_validate(report)
         if parsed.operation == "none":
             self.bus.put(new_envelope(self.module_id, "telemetry", "thought.idle", "",
                                       {"summary": parsed.summary}))
             return
+
         try:
             self._commit_cycle(parsed)
         except GhostCancelled:
@@ -380,22 +538,34 @@ class PrivateThoughtLoop(CognitiveWorkflow):
                                        "operation": parsed.operation}))
             return
 
+    def _publish_graph_finding(self, record_id: int) -> None:
+        """Deliver one accepted outcome identity; accepted internal branches stay private."""
+        if record_id in self._published_thoughts:
+            return
+        self._published_thoughts.add(record_id)
+        turns = [turn for turn in self.ghost.gwt_turns.values()
+                 if turn.slot_id == "inner" and record_id in turn.knoxel_ids]
+        if len(turns) != 1:
+            raise ValueError("An accepted private finding requires one actual inner GWT projection.")
+        self.bus.put(new_envelope(self.module_id, "data", "thought.created", "",
+                                  {"knoxel_id": record_id, "gwt_tick": turns[0].tick_id}))
+
     def _commit_cycle(self, parsed: InnerReport) -> None:
         """Commit one accepted private cycle into the inner shard."""
         ghost = self.ghost
         view = getattr(self.last_environment, "ghost_view", None) or ghost.snapshot()
         changes = ghost.begin_batch(self.invocation_id or new_id(), new_tick=True, cancel=self.run_stop)
         tick = changes.tick_id
-        for record_id, revision in (getattr(self, "_read_revisions", {}) or {}).items():
+        for record_id, revision in self._read_revisions.items():
             if record_id in view.all_knoxels:
                 changes.expect_head(record_id, revision)
             else:
                 changes.expect_revision(record_id, revision)
         for memory in parsed.retrieved_memories:
-            key = int(memory["knoxel_id"])
-            if key not in view.revisions or memory["revision"] != view.revisions[key]:
+            key = memory.knoxel_id
+            if key not in view.revisions or memory.revision != view.revisions[key]:
                 raise GhostConflict("Private recall is outside the frozen source revisions.")
-            for source_id in {key, *memory.get("source_ids", [])}:
+            for source_id in {key, *memory.source_ids}:
                 if source_id not in view.revisions:
                     raise GhostConflict("Private recall includes a source outside the invocation grant.")
                 changes.expect_revision(source_id, view.revisions[source_id])
@@ -406,7 +576,7 @@ class PrivateThoughtLoop(CognitiveWorkflow):
             payload = self._reflection_context.model_copy(deep=True)
             known = {item.knoxel_id for item in payload.records}
             for item in parsed.retrieved_memories:
-                for key in {item["knoxel_id"], *item.get("source_ids", [])} - known:
+                for key in {item.knoxel_id, *item.source_ids} - known:
                     payload.records.append(source_evidence(view, view.get(key)))
                     known.add(key)
             try:
@@ -422,18 +592,18 @@ class PrivateThoughtLoop(CognitiveWorkflow):
             source=ghost.get_companion_name(), interlocus=InterlocusType.PrivateInternal,
             changes=changes, source_kind=SourceKind.Self,
             lineage=RecordLineage(
-                episode_id=episode_metadata["episode_id"], operation=parsed.operation,
-                sequence=episode_metadata["sequence"],
-                parent_record_ids=([int(self._episode_thought_id)] if getattr(self, "_episode_thought_id", None) else []),
-                source_event_ids=list(parsed.evidence_ids), intention_ids=list(getattr(self, "_active_goal_ids", []) or []),
+                episode_id=episode_metadata.episode_id, operation=parsed.operation,
+                sequence=episode_metadata.sequence,
+                parent_record_ids=[self._episode_thought_id] if self._episode_thought_id is not None else [],
+                source_event_ids=list(parsed.evidence_ids), intention_ids=self._active_goal_ids,
                 topic_hints=list(parsed.topic_hints), reality=parsed.reality),
             metadata={
                 "loop": "inner", "operation": parsed.operation, "trigger": parsed.trigger,
                 "reflection": parsed.reflection.model_dump(mode="json"),
                 "reflection_experiment_id": experiment_record.id if experiment_record is not None else None,
-                "episode": episode_metadata,
-                **({"control_generation": getattr(self, "_control_generation", self.cognitive_control.generation)}
-                   if getattr(self, "cognitive_control", None) is not None else {}),
+                "episode": episode_metadata.model_dump(mode="json"),
+                **({"control_generation": self._control_generation}
+                   if self.cognitive_control is not None else {}),
                 "trigger_reason": parsed.trigger_reason, "temporal_focus": parsed.temporal_focus,
                 "uncertainty": parsed.uncertainty, "reality": parsed.reality,
                 "evidence_ids": list(parsed.evidence_ids),
@@ -462,12 +632,12 @@ class PrivateThoughtLoop(CognitiveWorkflow):
         # A capability inspection commits a revisable capability belief in the
         # same batch. The belief cites the inspected evidence revision, so a
         # later source change can mark it stale.
-        if parsed.operation == "capability_inspection" and getattr(self, "_overlay", None) is not None:
+        if parsed.operation == "capability_inspection" and self._overlay is not None:
             from pm.introspection.self_model import record_capability_beliefs
             record_capability_beliefs(
                 changes, self._overlay, companion_name=ghost.get_companion_name(),
-                source_revision=str(getattr(self, "_overlay", None).built_at.isoformat()),
-                stale_names=getattr(self, "_overlay", None).stale_names(),
+                source_revision=self._overlay.built_at.isoformat(),
+                stale_names=self._overlay.stale_names(),
             )
 
         if parsed.expectation.action == "open":
@@ -481,7 +651,9 @@ class PrivateThoughtLoop(CognitiveWorkflow):
                 evidence_ids=[int(item) for item in parsed.evidence_ids] or [thought.id],
             )
         elif parsed.expectation.action == "resolve":
-            record = view.get_knoxel_by_id(int(parsed.expectation.expectation_id))
+            if parsed.expectation.expectation_id is None:
+                raise ValueError("A resolving expectation requires its accepted identity.")
+            record = view.get_knoxel_by_id(parsed.expectation.expectation_id)
             if isinstance(record, ExpectationRecord):
                 resolve_expectation(
                     changes, record,
@@ -525,11 +697,11 @@ class PrivateThoughtLoop(CognitiveWorkflow):
             knoxel_ids=[thought.id, *quale_ids],
             summary=parsed.summary or parsed.thought[:120],
         ), cycle)
-        control = getattr(self, "cognitive_control", None)
+        control = self.cognitive_control
         if control is None:
             ghost.commit(changes)
         else:
-            control.commit_private(changes, getattr(self, "_control_generation", control.generation))
+            control.commit_private(changes, self._control_generation)
 
         # The self-origin event. The main loop appraises it like any internal
         # stimulus; nothing here publishes speech or commands the body.
@@ -543,46 +715,42 @@ class PrivateThoughtLoop(CognitiveWorkflow):
     # Deterministic gathering helpers. All read committed state under the
     # caller's lock.
 
-    def _build_inspection(self) -> dict[str, Any]:
-        """Freeze the selected implementation evidence for this cycle.
+    def _build_inspection(self) -> PrivateInspection | None:
+        """Freeze selected implementation evidence or the provider's explicit limit.
 
-        The provider owns the source grant and the real records. When no
-        provider is configured, the cycle carries no inspection evidence and
-        the inspector questions report an explicit limit. Filesystem access
-        failures become evidence limits. Provider logic errors stop the runtime.
+        The provider owns the real source grant. Missing configuration supplies
+        no inspection. Filesystem failures remain visible evidence limits;
+        provider logic errors propagate.
         """
         self._overlay = None
-        provider = getattr(self, "inspector_provider", None)
+        provider = self.inspector_provider
         if provider is None:
-            return {}
+            return None
         try:
             overlay = provider()
         except OSError as error:
-            return {"status": "unavailable", "reason": f"{type(error).__name__}: {error}"}
+            return PrivateInspection(status="unavailable", reason=f"{type(error).__name__}: {error}")
         self._overlay = overlay
         from workflows.introspection.snapshot import overlay_public
         from pm.introspection.episodes import EpisodeIndex, answer_questions
         index = EpisodeIndex(self.ghost)
         recent = index.recent(limit=5)
         answers = answer_questions(self.ghost, recent[0], overlay=overlay) if recent else {}
-        return {
-            "status": "ok",
-            "capability_overlay": overlay_public(overlay),
-            "episodes": [item.to_dict() for item in recent],
-            "newest_episode_answers": answers,
-            "observed_at": overlay.built_at.isoformat(),
-        }
+        return PrivateInspection(status="ok",
+            capability_overlay=CapabilityInspection.model_validate(overlay_public(overlay)),
+            episodes=[item.to_dict() for item in recent], newest_episode_answers=answers,
+            observed_at=overlay.built_at)
 
     def _capability_states(self) -> dict[str, str]:
         """Return the strongest inspected state per capability, if available."""
-        overlay = getattr(self, "_overlay", None)
+        overlay = self._overlay
         if overlay is None:
             return {}
         return {name: finding.strongest.value for name, finding in overlay.findings.items()}
 
     def _episode_limits(self) -> ControlConfig:
         """Return the operator episode limits, or the shipped defaults."""
-        control = getattr(self, "cognitive_control", None)
+        control = self.cognitive_control
         return control.config if control is not None else ControlConfig()
 
     def _inner_thoughts(self) -> list[Feature]:
@@ -592,61 +760,57 @@ class PrivateThoughtLoop(CognitiveWorkflow):
                 and knoxel.provenance and knoxel.provenance.source_kind == SourceKind.Self
                 and (knoxel.metadata or {}).get("loop") == "inner"]
 
-    def _open_episode(self) -> tuple[dict[str, Any] | None, Feature | None]:
-        """Return the newest open private episode and the thought that carries it.
-
-        The state is durable in the thought metadata, so a restart reconstructs
-        the same episode without inventing offline activity.
-        """
+    def _open_episode(self) -> OpenLegacyEpisode:
+        """Read the latest retained linear episode without inventing graph state."""
         thoughts = self._inner_thoughts()
         if not thoughts:
-            return None, None
+            return OpenLegacyEpisode(None, None)
         latest = max(thoughts, key=lambda item: item.tick_id)
-        episode = (latest.metadata or {}).get("episode")
-        if not episode or episode.get("closed"):
-            return None, latest
-        return dict(episode), latest
+        metadata = LegacyThoughtMetadata.model_validate(latest.metadata)
+        if metadata.episode is None or metadata.episode.closed:
+            return OpenLegacyEpisode(None, latest)
+        return OpenLegacyEpisode(metadata.episode, latest)
 
     def _thought_acknowledged(self, thought_id: int) -> bool:
         """Return whether an accepted main cycle appraised this thought."""
         return any(thought_id in cycle.claimed_ids() for cycle in self.ghost.read_cycles())
 
     def _parked_sources(self, now: datetime, latest_user: Feature | None) -> set[int]:
-        """Return parked source ids whose review time has not arrived.
+        """Read actual legacy parking intervals without inferring offline work.
 
-        A newer outside message is new evidence and releases the parking early.
+        Existing linear behavior releases parking on newer outside input.
+        The graph migration replaces that policy together with control guards.
         """
         parked: set[int] = set()
         for thought in self._inner_thoughts():
-            episode = (thought.metadata or {}).get("episode") or {}
-            until = episode.get("parked_until")
-            if not until or now >= datetime.fromisoformat(until):
+            metadata = LegacyThoughtMetadata.model_validate(thought.metadata)
+            episode = metadata.episode
+            if episode is None or episode.parked_until is None or now >= episode.parked_until:
                 continue
             if latest_user is not None and latest_user.tick_id > thought.tick_id:
                 continue
-            control = getattr(self, "cognitive_control", None)
-            if (control is not None and thought.metadata.get("control_generation") is not None
-                    and thought.metadata["control_generation"] != control.generation):
+            control = self.cognitive_control
+            if (control is not None and metadata.control_generation is not None
+                    and metadata.control_generation != control.generation):
                 continue
-            parked.update(int(item) for item in episode.get("parked_sources", []))
+            parked.update(episode.parked_sources)
         return parked
 
     def _end_expired_episode(self) -> None:
-        """Close expired or superseded work before the next snapshot opens.
-
-        This controller update performs no inference. The thought content and
-        lineage stay unchanged. Its episode metadata owns the terminal state.
-        """
+        """Close expired linear work while preserving its original history."""
         with self.ghost.lock:
             episode, thought = self._open_episode()
             if episode is None:
                 return
-            control = getattr(self, "cognitive_control", None)
+            if thought is None:
+                raise RuntimeError("A retained linear episode requires its carrier thought.")
+            control = self.cognitive_control
+            metadata = LegacyThoughtMetadata.model_validate(thought.metadata)
             user = self._latest_user_dialogue()
-            elapsed = max(0.0, (vclock.utcnow() - datetime.fromisoformat(episode["started_at"])).total_seconds())
-            reason = None
-            if (control is not None and thought.metadata.get("control_generation") is not None
-                    and thought.metadata["control_generation"] != control.generation):
+            elapsed = max(0.0, (vclock.utcnow() - episode.started_at).total_seconds())
+            reason: str | None = None
+            if (control is not None and metadata.control_generation is not None
+                    and metadata.control_generation != control.generation):
                 reason = "superseded generation"
             elif user is not None and user.tick_id > thought.tick_id:
                 reason = "new outside input"
@@ -655,66 +819,54 @@ class PrivateThoughtLoop(CognitiveWorkflow):
             if reason is None:
                 return
             changes = self.ghost.begin_batch(f"episode-end:{thought.id}:{reason}", cancel=self.stop_event)
-            current = changes.view().get(thought.id).copy_for_edit()
-            changes.set_lifecycle(current.id, episode={**episode, "closed": True, "closed_reason": reason,
-                                                       "elapsed_seconds": elapsed})
+            closed = episode.model_copy(update={"closed": True, "closed_reason": reason, "elapsed_seconds": elapsed})
+            changes.set_lifecycle(thought.id, episode=closed.model_dump(mode="json"))
             self.ghost.commit(changes)
 
-    def _resolve_episode(
-        self,
-        open_episode: dict[str, Any] | None,
-        latest_thought: Feature | None,
-        latest_user: Feature | None,
-        now: datetime,
-    ) -> tuple[dict[str, Any] | None, bool]:
-        """Return the episode context for this cycle and whether it must wait.
-
-        An open episode continues only after main appraisal. Superseded work, a
-        newer outside message, or an expired acknowledgment wait ends it. The
-        caller must hold the store lock.
-        """
+    def _resolve_episode(self, open_episode: LegacyEpisodeState | None,
+                         latest_thought: Feature | None, latest_user: Feature | None,
+                         now: datetime) -> ResolvedLegacyEpisode:
+        """Resolve legacy admission without reclassifying duration as graph work."""
+        empty = ResolvedLegacyEpisode(LegacyEpisodeContext(), False)
         if open_episode is None or latest_thought is None:
-            return None, False
-        started_at = datetime.fromisoformat(open_episode["started_at"])
-        elapsed = max(0.0, (now - started_at).total_seconds())
+            return empty
+        elapsed = max(0.0, (now - open_episode.started_at).total_seconds())
         limits = self._episode_limits()
-        control = getattr(self, "cognitive_control", None)
-        generation = latest_thought.metadata.get("control_generation")
+        control = self.cognitive_control
+        generation = LegacyThoughtMetadata.model_validate(latest_thought.metadata).control_generation
         if control is not None and generation is not None and generation != control.generation:
-            return None, False
+            return empty
         if latest_user is not None and latest_user.tick_id > latest_thought.tick_id:
-            return None, False
-        if not self._thought_acknowledged(int(latest_thought.id)):
-            # Main must accept the previous step before the next one reads it.
+            return empty
+        state = open_episode.model_copy(update={"elapsed_seconds": elapsed})
+        if not self._thought_acknowledged(latest_thought.id):
             if elapsed < max(limits.episode_seconds, 120.0):
-                return ({**open_episode, "awaiting_acknowledgment": True,
-                         "elapsed_seconds": elapsed}, True)
-            return None, False
-        return ({**open_episode, "awaiting_acknowledgment": False,
-                 "elapsed_seconds": elapsed,
-                 "steps_remaining": max(0, limits.episode_steps - int(open_episode.get("sequence", 0)) - 1)}, False)
+                return ResolvedLegacyEpisode(LegacyEpisodeContext(provenance="legacy_linear",
+                    state=state, awaiting_acknowledgment=True), True)
+            return empty
+        return ResolvedLegacyEpisode(LegacyEpisodeContext(provenance="legacy_linear", state=state,
+            steps_remaining=max(0, limits.episode_steps - open_episode.sequence - 1)), False)
 
-    def _next_episode(self, parsed: InnerReport) -> dict[str, Any]:
-        """Compute the durable episode state after this accepted step.
+    def _next_episode(self, parsed: InnerReport) -> LegacyEpisodeState:
+        """Build the next retained linear state from named original fields.
 
-        A non-continuing step, a step or time limit, or repeated stalled
-        progress closes the episode. A suspension or a stall parks its sources
-        for a bounded review time.
+        This behavior-preserving migration retains world-clock elapsed time,
+        legacy acknowledgment, and parking. It supplies no graph judgments.
         """
-        prior = getattr(self, "_episode_state", None) or {}
+        prior = self._episode_state
         now = vclock.utcnow()
         limits = self._episode_limits()
-        step = int(prior.get("sequence", -1)) + 1
-        started_at = prior.get("started_at") or now.isoformat()
-        elapsed = max(0.0, (now - datetime.fromisoformat(started_at)).total_seconds())
-        operations = list(prior.get("operations", [])) + [parsed.operation]
-        evidence = list(dict.fromkeys([*prior.get("evidence_ids", []), *parsed.evidence_ids]))
-        alternatives = list(dict.fromkeys([*prior.get("alternatives", []),
-                                           *(item.text for item in parsed.alternatives if item.text)]))
-        thoughts = list(dict.fromkeys([*prior.get("thoughts", []), parsed.thought]))[-8:]
-        progress = list(prior.get("progress", [])) + [parsed.progress]
-        stalled = int(prior.get("stalled", 0)) + (0 if parsed.progress != "none" else 1)
-        closed_reason = None
+        step = prior.sequence + 1 if prior is not None else 0
+        started_at = prior.started_at if prior is not None else now
+        elapsed = max(0.0, (now - started_at).total_seconds())
+        operations = (*(prior.operations if prior is not None else ()), parsed.operation)
+        evidence = tuple(dict.fromkeys([*(prior.evidence_ids if prior is not None else ()), *parsed.evidence_ids]))
+        alternatives = tuple(dict.fromkeys([*(prior.alternatives if prior is not None else ()),
+            *(item.text for item in parsed.alternatives if item.text)]))
+        thoughts = tuple(dict.fromkeys([*(prior.thoughts if prior is not None else ()), parsed.thought]))[-8:]
+        progress = (*(prior.progress if prior is not None else ()), parsed.progress)
+        stalled = (prior.stalled if prior is not None else 0) + (0 if parsed.progress != "none" else 1)
+        closed_reason: str | None = None
         if parsed.continuation != "continue":
             closed_reason = parsed.continuation
         elif step + 1 >= limits.episode_steps:
@@ -723,21 +875,15 @@ class PrivateThoughtLoop(CognitiveWorkflow):
             closed_reason = "time limit"
         elif stalled >= limits.stalled_steps:
             closed_reason = "stalled progress"
-        parked_until = None
-        if closed_reason in {"suspend", "stalled progress"}:
-            parked_until = (now + timedelta(seconds=limits.parked_seconds)).isoformat()
-        return {
-            "episode_id": prior.get("episode_id") or new_id(),
-            "sequence": step, "started_at": started_at, "elapsed_seconds": elapsed,
-            "closed": closed_reason is not None, "closed_reason": closed_reason,
-            "operations": operations, "evidence_ids": evidence,
-            "alternatives": alternatives, "thoughts": thoughts, "progress": progress,
-            "stalled": stalled, "continuation": parsed.continuation,
-            "next_operation": parsed.next_operation,
-            "parked_until": parked_until,
-            "parked_sources": sorted(evidence) if parked_until else [],
-            "parent_thought_id": getattr(self, "_episode_thought_id", None),
-        }
+        parked_until = now + timedelta(seconds=limits.parked_seconds) if closed_reason in {"suspend", "stalled progress"} else None
+        return LegacyEpisodeState(episode_id=prior.episode_id if prior is not None else new_id(),
+            sequence=step, started_at=started_at, elapsed_seconds=elapsed,
+            closed=closed_reason is not None, closed_reason=closed_reason,
+            operations=operations, evidence_ids=evidence, alternatives=alternatives,
+            thoughts=thoughts, progress=progress, stalled=stalled, continuation=parsed.continuation,
+            next_operation=parsed.next_operation, parked_until=parked_until,
+            parked_sources=tuple(sorted(evidence)) if parked_until is not None else (),
+            parent_thought_id=self._episode_thought_id)
 
     def _private_thought_ids(self) -> set[int]:
         """Return every committed private thought id, for self-feedback detection."""
@@ -745,24 +891,20 @@ class PrivateThoughtLoop(CognitiveWorkflow):
                 if knoxel.feature_type == FeatureType.InnerMonologue
                 and (knoxel.metadata or {}).get("loop") == "inner"}
 
-    def _recent_private_thoughts(self) -> list[dict[str, Any]]:
-        """Return the newest private thoughts as prompt evidence, newest first."""
-        thoughts: list[dict[str, Any]] = []
+    def _recent_private_thoughts(self) -> list[RecentThoughtView]:
+        """Return named retained thought views with their actual evidence IDs."""
+        thoughts: list[RecentThoughtView] = []
         for knoxel in self.ghost.all_features:
             if knoxel.feature_type != FeatureType.InnerMonologue:
                 continue
-            if not knoxel.provenance or knoxel.provenance.source_kind != SourceKind.Self:
+            if knoxel.provenance is None or knoxel.provenance.source_kind != SourceKind.Self:
                 continue
-            metadata = knoxel.metadata or {}
-            thoughts.append({
-                "knoxel_id": int(knoxel.id), "text": str(knoxel.content),
-                "tick_id": int(knoxel.tick_id), "operation": metadata.get("operation", ""),
-                "trigger": metadata.get("trigger", ""),
-                "continuation": metadata.get("continuation", ""),
-                "source_ids": [int(item) for item in metadata.get("evidence_ids", [])],
-                "revision": int(self.ghost.revisions.get(knoxel.id, 1)),
-            })
-        thoughts.sort(key=lambda item: item["tick_id"], reverse=True)
+            metadata = LegacyThoughtMetadata.model_validate(knoxel.metadata)
+            thoughts.append(RecentThoughtView(knoxel_id=knoxel.id, text=knoxel.content,
+                tick_id=knoxel.tick_id, operation=metadata.operation, trigger=metadata.trigger,
+                continuation=metadata.continuation, source_ids=list(metadata.evidence_ids),
+                revision=self.ghost.revisions[knoxel.id]))
+        thoughts.sort(key=lambda item: item.tick_id, reverse=True)
         return thoughts[:RECENT_THOUGHT_LIMIT]
 
     def _latest_appraisal(self) -> Feature | None:
@@ -813,8 +955,8 @@ class PrivateThoughtLoop(CognitiveWorkflow):
         goals: Sequence[Intention],
         expectations: Sequence[ExpectationRecord],
         latest_appraisal: Feature | None,
-        main_frame: dict[str, Any],
-        thoughts: Sequence[dict[str, Any]],
+        main_frame: MainFrameView,
+        thoughts: Sequence[RecentThoughtView],
         latest_user: Feature | None,
     ) -> list[ThoughtCandidate]:
         """Derive the loop's private attention deterministically.
@@ -826,7 +968,7 @@ class PrivateThoughtLoop(CognitiveWorkflow):
         candidates: list[ThoughtCandidate] = []
         revisions = view.revisions
 
-        def add(record: Feature, kind: str, urgency: float, reason: str) -> None:
+        def add(record: RecordBase, kind: str, urgency: float, reason: str) -> None:
             """Offer one record as a private candidate when the frozen view holds it."""
             # A live record that is absent from the frozen view must not enter
             # the candidate list. A concurrent append cannot widen this grant.
@@ -844,13 +986,13 @@ class PrivateThoughtLoop(CognitiveWorkflow):
             add(item, "expectation", 0.55, "a recorded anticipation awaits its outcome")
         if latest_appraisal is not None:
             add(latest_appraisal, "appraisal", 0.4, "the newest accepted internal state change")
-        frame_id = main_frame.get("frame_id")
+        frame_id = main_frame.frame_id
         if frame_id is not None:
             record = view.get_knoxel_by_id(int(frame_id))
             if record is not None:
                 add(record, "frame", 0.35, "the main loop's latest accepted workspace")
         for thought in thoughts[:3]:
-            record = view.get_knoxel_by_id(int(thought["knoxel_id"]))
+            record = view.get_knoxel_by_id(thought.knoxel_id)
             if record is not None:
                 add(record, "thought", 0.3, "a recent private thought, for continuity")
         if latest_user is not None:

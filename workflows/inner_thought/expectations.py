@@ -80,8 +80,7 @@ def resolve_expectation(batch: WriteBatch, record: ExpectationRecord, *, status:
     metadata["resolution_reason"] = reason
     metadata["resolved_by"] = "private_loop"
     updated.metadata = metadata
-    batch.replace(updated)
-    return updated
+    return batch.replace(updated)
 
 
 __all__ = ["open_expectation", "pending_expectations", "resolve_expectation"]

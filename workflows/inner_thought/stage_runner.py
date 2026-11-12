@@ -39,7 +39,7 @@ def make_environment(ghost: MemoryStore) -> MemoryBashEnvironment:
 
 
 def stage_manifest(name: str) -> Path:
-    if name not in STAGE_ORDER:
+    if name not in (*STAGE_ORDER, "nominate"):
         raise KeyError(f"unknown private thought stage: {name}")
     return STAGES_DIR / name / f"{name}.workflow.md"
 

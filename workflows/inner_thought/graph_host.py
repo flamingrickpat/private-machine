@@ -1,0 +1,186 @@
+"""Bind inquiry staging to the private host's durable acceptance boundary.
+
+The canonical overview is :mod:`workflows.inner_thought.host`. This adapter
+owns no timer, model, or second slot. The existing host supplies its control
+commit callback and its accepted mental state. Nomination and attention commits
+create no GWT turn. An executed step creates an inner turn; only an explicit
+outcome boundary becomes a finding for main appraisal.
+
+Every graph append is a recovery root; the derived GWT is a separate commit.
+Accepted graph nodes survive interrupted
+delivery, and replay uses actual main claimed IDs rather than rerunning a
+completed model call. Scheduling and Critical/wait validation remain with the
+injected host commit callback.
+"""
+from __future__ import annotations
+
+from collections.abc import Callable, Sequence
+from datetime import datetime
+from threading import Event
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from pm.memory.snapshot import Snapshot
+from pm.memory.store import MemoryStore
+from pm.memory.write_batch import WriteBatch
+from pm.records.cycle_state import CycleState
+from pm.records.global_workspace import GwtTurnRecord
+from pm.records.memory_records import Feature
+from pm.records.mental_state import FullMentalState
+from workflows.cognitive_control.schemas import ControlConfig
+from workflows.inner_thought.inquiry import (
+    AttentionRecord, InquiryMetadata, InquiryRecord, PRIVATE_SLOT_KEY,
+    inquiry_history, stage_attention, stage_inquiry_step,
+)
+from workflows.inner_thought.nominations import extend_inquiry_grant
+from workflows.inner_thought.nominations import NominationBatchRecord, stage_nomination_batch
+from workflows.inner_thought.schemas import (
+    InquiryGrant, InquiryStep, NominationBatch, ThoughtAttentionDecision,
+)
+from workflows.inner_thought.graph_outcomes import (
+    GraphOutcomePayload, attach_graph_outcome, read_graph_outcome, stage_graph_outcome,
+)
+
+
+class FrozenProjectionPayload(BaseModel):
+    """Retain the actual accepted state supplied during this private operation."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    mental_state: FullMentalState = Field(description="Original frozen mental state for this operation's inner GWT projection; repair never substitutes later state.")
+
+
+class InnerProjectionMetadata(BaseModel):
+    """Read the required original projection from heterogeneous operation metadata."""
+
+    model_config = ConfigDict(extra="ignore")
+    inquiry_projection: FrozenProjectionPayload
+
+
+def attach_inner_projection(operation: Feature, payload: FrozenProjectionPayload) -> None:
+    """Attach the exact projection before the operation's graph-root commit."""
+    operation.metadata["inquiry_projection"] = payload.model_dump(mode="json")
+
+
+def active_inquiry(view: Snapshot, *, observer_entity_id: int) -> InquiryRecord | None:
+    """Read the sole active slot without treating parked work as active."""
+    episodes = {InquiryMetadata.model_validate(record.metadata).inquiry_episode
+                for record in view.all_knoxels.values()
+                if record.metadata.get(PRIVATE_SLOT_KEY) == str(observer_entity_id)}
+    active = [inquiry_history(view, episode)[-1] for episode in sorted(episodes)
+              if inquiry_history(view, episode)[-1].receipt.state.status == "active"]
+    if len(active) > 1:
+        raise ValueError("One private observer cannot hold multiple active inquiries.")
+    return active[0] if active else None
+
+
+def pending_findings(store: MemoryStore) -> tuple[Feature, ...]:
+    """Return accepted outcome nodes not yet claimed by actual main appraisal."""
+    with store.lock:
+        appraised = {record_id for cycle in store.read_cycles() for record_id in cycle.claimed_ids()}
+        return tuple(record for record in store.all_features
+                     if record.metadata.get("private_inquiry_finding") is True and record.id not in appraised)
+
+
+class PrivateInquiryOwner:
+    """Use the host's control fence for graph allocation and executed inner turns."""
+
+    def __init__(self, store: MemoryStore, *, commit: Callable[[WriteBatch], None],
+                 cancel: Event, limits: ControlConfig) -> None:
+        self.store: MemoryStore = store
+        self.commit: Callable[[WriteBatch], None] = commit
+        self.cancel: Event = cancel
+        self.limits: ControlConfig = limits
+
+    def accept_nominations(self, result: NominationBatch, *, grant: InquiryGrant,
+                           batch_id: str) -> NominationBatchRecord:
+        """Retain a generated batch, including a genuine empty result."""
+        with self.store.lock:
+            batch = self.store.begin_batch("nomination:" + batch_id, embed=False, cancel=self.cancel)
+            accepted = stage_nomination_batch(batch, result, grant=grant, batch_id=batch_id)
+            batch.preserve_on_recovery()
+            self.commit(batch)
+            return accepted
+
+    def accept_attention(self, nomination_ids: Sequence[int], decision: ThoughtAttentionDecision, *,
+                         commit_id: str, episode_id: str, now_utc: datetime,
+                         validate_context: Callable[[], None] | None = None) -> AttentionRecord:
+        """Commit selection separately; it cannot fabricate an executed thought."""
+        with self.store.lock:
+            if validate_context is not None:
+                validate_context()
+            batch = self.store.begin_batch(commit_id, embed=False, cancel=self.cancel)
+            selected = stage_attention(batch, nomination_ids, decision, episode_id=episode_id, now_utc=now_utc)
+            batch.preserve_on_recovery()
+            self.commit(batch)
+            return selected
+
+    def execution_grant(self, parent: InquiryRecord, *, source_ids: Sequence[int] = ()) -> InquiryGrant:
+        """Capture inspected graph IDs without refreshing earlier source meaning."""
+        state = parent.receipt.state
+        with self.store.lock:
+            return extend_inquiry_grant(self.store.snapshot(capture=False), state.grant,
+                                        [*state.node_ids, *source_ids])
+
+    def accept_step(self, parent: InquiryRecord, step: InquiryStep, *, grant: InquiryGrant,
+                    commit_id: str, active_seconds: float, now_utc: datetime,
+                    mental_state: FullMentalState, control_generation: int,
+                    outcome: GraphOutcomePayload | None = None) -> InquiryRecord:
+        """Commit the graph atomically, then derive its inner GWT projection.
+
+        Generation and comparison nodes remain internal graph events. A finding
+        marker is attached only at an explicit outcome boundary. The host sends
+        that accepted identity to main after this method returns.
+        """
+        with self.store.lock:
+            batch = self.store.begin_batch(commit_id, new_tick=True, embed=False, cancel=self.cancel)
+            accepted = stage_inquiry_step(batch, parent_receipt_id=parent.record.id, step=step, grant=grant,
+                active_seconds=active_seconds, now_utc=now_utc, limits=self.limits)
+            operation_id = accepted.receipt.operation_record_id
+            assert operation_id is not None
+            operation = batch.view().get(operation_id)
+            if not isinstance(operation, Feature):
+                raise TypeError("An executed inquiry operation must be a Feature.")
+            operation.metadata.update({"loop": "inquiry", "control_generation": control_generation,
+                "private_inquiry_finding": step.outcome != "continue",
+                "inquiry_receipt_id": accepted.record.id})
+            attach_inner_projection(operation, FrozenProjectionPayload(mental_state=mental_state))
+            if outcome is not None:
+                attach_graph_outcome(operation, step, outcome)
+            batch.revise(operation)
+            batch.preserve_on_recovery()
+            self.commit(batch)
+            self.ensure_inner_turn(accepted)
+            return accepted
+
+    def ensure_inner_turn(self, accepted: InquiryRecord) -> None:
+        """Restore a missing derived inner turn from accepted graph IDs, without inference.
+
+        Recovery roots deliberately exclude workspace and cycle mutation. The
+        graph commit is authoritative; this idempotent second commit projects
+        its actual operation and original mental state into the inner workspace.
+        A missing original payload fails rather than inventing historical state.
+        Failure leaves the
+        accepted graph intact for repair and never repeats its model call.
+        """
+        with self.store.lock:
+            operation_id = accepted.receipt.operation_record_id
+            step = accepted.receipt.step
+            if operation_id is None or step is None:
+                raise ValueError("Selection alone cannot create an executed inner GWT turn.")
+            if any(turn.slot_id == "inner" and operation_id in turn.knoxel_ids
+                   for turn in self.store.gwt_turns.values()):
+                return
+            batch = self.store.begin_batch("inquiry-gwt:" + str(accepted.record.id),
+                                            new_tick=True, embed=False, cancel=self.cancel)
+            batch.depend_on([accepted.record.id, operation_id])
+            operation = batch.view().get(operation_id)
+            if not isinstance(operation, Feature):
+                raise TypeError("An executed inquiry operation must be a Feature.")
+            projection = InnerProjectionMetadata.model_validate(operation.metadata).inquiry_projection
+            outcome = read_graph_outcome(operation)
+            if outcome is not None:
+                stage_graph_outcome(batch, batch.view(), operation, step, outcome)
+            batch.set_gwt(GwtTurnRecord(tick_id=batch.tick_id, slot_id="inner",
+                knoxel_ids=[operation_id], summary=step.thought),
+                CycleState(tick_id=batch.tick_id, mental_state=projection.mental_state))
+            self.commit(batch)

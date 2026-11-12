@@ -10,9 +10,10 @@ lets the model invent an operation name.
 """
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Sequence
 
 from workflows.inner_thought.schemas import TriggerCandidate, InnerRequest
+from workflows.inner_thought.request_views import RecentThoughtView
 
 #: An active goal older than this many ticks with low fulfilment is unresolved.
 UNRESOLVED_GOAL_TICKS = 8
@@ -28,14 +29,6 @@ RUMINATION_REPEATS = 3
 STARTUP_GAP_SECONDS = 3600.0
 
 
-def _as_float(value: object, default: float = 0.0) -> float:
-    """Coerce a prompt-supplied number, or return ``default`` when it is not one."""
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return default
-
-
 def evaluate_triggers(request: InnerRequest) -> list[TriggerCandidate]:
     """Return the triggers that fire for one frozen private request.
 
@@ -48,25 +41,25 @@ def evaluate_triggers(request: InnerRequest) -> list[TriggerCandidate]:
             name="experiment_review", cause="a versioned private experiment needs its next evidence step",
             urgency=0.65, operations=["reflection_review"],
             reason="Review a committed prediction before creating another experiment."))
-    tick = int(request.tick_id or 0)
+    tick = request.tick_id
     # A parked concern stays quiet until its review time or new outside evidence.
-    suppressed = {int(item) for item in request.episode.get("suppressed_source_ids", [])}
-    episode = request.episode
-    if (episode.get("episode_id") and not episode.get("closed")
-            and not episode.get("awaiting_acknowledgment") and episode.get("next_operation")):
+    suppressed = set(request.episode.suppressed_source_ids)
+    episode = request.episode.state
+    if (episode is not None and not episode.closed
+            and not request.episode.awaiting_acknowledgment and episode.next_operation):
         candidates.append(TriggerCandidate(
-            name="episode_continuation", cause=f"main appraisal acknowledged episode {episode['episode_id']}",
-            urgency=0.45, operations=[episode["next_operation"]],
+            name="episode_continuation", cause=f"main appraisal acknowledged episode {episode.episode_id}",
+            urgency=0.45, operations=[episode.next_operation],
             reason="The previous private step requested more work after main appraisal."))
 
     for goal in request.active_goal_records:
-        if int(goal.get("knoxel_id")) in suppressed:
+        if goal.knoxel_id in suppressed:
             continue
-        age = tick - int(goal.get("tick_id", tick) or tick)
-        fulfilment = _as_float(goal.get("fulfilment"), 0.0)
+        age = tick - (goal.tick_id or tick)
+        fulfilment = goal.fulfilment
         if age >= UNRESOLVED_GOAL_TICKS and fulfilment < 0.5:
             candidates.append(TriggerCandidate(
-                name="unresolved_commitment", cause=f"goal {goal.get('knoxel_id')} is {age} ticks old and {fulfilment:.2f} fulfilled",
+                name="unresolved_commitment", cause=f"goal {goal.knoxel_id} is {age} ticks old and {fulfilment:.2f} fulfilled",
                 urgency=min(1.0, 0.4 + age / 100.0),
                 operations=["commitment_review", "plan_next_step", "feasibility_check", "reflection_review"],
                 reason="An accepted goal with no progress needs private attention.",
@@ -74,19 +67,19 @@ def evaluate_triggers(request: InnerRequest) -> list[TriggerCandidate]:
             break
 
     for expectation in request.pending_expectations:
-        if int(expectation.get("knoxel_id")) in suppressed:
+        if expectation.knoxel_id in suppressed:
             continue
-        age = tick - int(expectation.get("tick_id", tick) or tick)
+        age = tick - (expectation.tick_id or tick)
         if age >= EXPECTATION_REVIEW_TICKS:
             candidates.append(TriggerCandidate(
-                name="pending_expectation", cause=f"expectation {expectation.get('knoxel_id')} is {age} ticks old and unresolved",
+                name="pending_expectation", cause=f"expectation {expectation.knoxel_id} is {age} ticks old and unresolved",
                 urgency=min(1.0, 0.35 + age / 100.0),
                 operations=["expectation_review", "emotional_debrief", "reflection_review"],
                 reason="A recorded anticipation has not met its outcome yet.",
             ))
             break
 
-    surprise = _as_float((request.main_frame or {}).get("surprise"))
+    surprise = request.main_frame.surprise
     if abs(surprise) >= SURPRISE_THRESHOLD:
         candidates.append(TriggerCandidate(
             name="surprising_outcome", cause=f"the last main frame reports surprise {surprise:.2f}",
@@ -95,8 +88,8 @@ def evaluate_triggers(request: InnerRequest) -> list[TriggerCandidate]:
             reason="A surprising outcome deserves a private interpretation.",
         ))
 
-    if (int(request.main_frame_age_ticks or 0) == 0 and (request.main_frame or {}).get("summary")
-            and not request.main_frame.get("self_feedback")):
+    if (request.main_frame_age_ticks == 0 and request.main_frame.summary
+            and not request.main_frame.self_feedback):
         candidates.append(TriggerCandidate(
             name="fresh_main_frame", cause="the main loop published a new workspace frame",
             urgency=0.3,
@@ -125,10 +118,10 @@ def evaluate_triggers(request: InnerRequest) -> list[TriggerCandidate]:
         ))
 
     for thought in request.recent_thoughts:
-        if str(thought.get("trigger")) == "startup_gap":
+        if thought.trigger == "startup_gap":
             break
     else:
-        gap = _as_float((request.main_frame or {}).get("gap_seconds"))
+        gap = request.main_frame.gap_seconds
         if gap >= STARTUP_GAP_SECONDS:
             candidates.append(TriggerCandidate(
                 name="startup_gap", cause=f"the application was stopped for {gap:.0f} seconds",
@@ -150,13 +143,15 @@ def _capability_doubt(request: InnerRequest) -> TriggerCandidate | None:
     The trigger reads the public overlay the host already built. It never
     reads a file itself and never treats a missing plan as a live capability.
     """
-    overlay = (request.inspection or {}).get("capability_overlay") or {}
-    capabilities = overlay.get("capabilities") or []
-    stale = set(overlay.get("stale") or [])
+    if request.inspection is None:
+        return None
+    overlay = request.inspection.capability_overlay
+    capabilities = overlay.capabilities
+    stale = set(overlay.stale)
     concerns = sorted(
-        str(item.get("name")) for item in capabilities
-        if str(item.get("name")) in stale
-        or item.get("state") in {"intended", "implemented", "unavailable", "uncertain"}
+        item.name for item in capabilities
+        if item.name in stale
+        or item.state in {"intended", "implemented", "unavailable", "uncertain"}
     )
     if not concerns:
         return None
@@ -169,14 +164,13 @@ def _capability_doubt(request: InnerRequest) -> TriggerCandidate | None:
     )
 
 
-def _repeated_source(recent_thoughts: list[dict[str, Any]]) -> int | str | None:
+def _repeated_source(recent_thoughts: Sequence[RecentThoughtView]) -> int | None:
     """Return the id that appears in enough recent thoughts to count as rumination."""
-    counts: dict[str, int] = {}
+    counts: dict[int, int] = {}
     for thought in recent_thoughts:
-        for source_id in thought.get("source_ids") or []:
-            key = str(source_id)
-            counts[key] = counts.get(key, 0) + 1
-            if counts[key] >= RUMINATION_REPEATS:
+        for source_id in thought.source_ids:
+            counts[source_id] = counts.get(source_id, 0) + 1
+            if counts[source_id] >= RUMINATION_REPEATS:
                 return source_id
     return None
 

@@ -34,6 +34,7 @@ def _inspection(*, stale=False, state="implemented"):
         "status": "ok",
         "capability_overlay": {
             "available": True,
+            "stale": ["source_inspection"] if stale else [],
             "capabilities": [
                 {"name": "source_inspection", "state": state, "summary": "Read selected source.",
                  "revision": "rev1"},
@@ -42,9 +43,10 @@ def _inspection(*, stale=False, state="implemented"):
             ],
         },
         "episodes": [{"episode_id": 7, "loop": "inner", "operation": "memory_search",
-                      "outcome": "committed", "summary": "a private recollection"}],
+                      "outcome": "committed", "summary": "a private recollection", "kind": "private_cycle",
+                      "tick_id": 1, "owner": "inner_thought", "revision": 1, "inputs": [],
+                      "outputs": [], "links": {}, "metadata": {}}],
         "newest_episode_answers": {},
-        "stale": stale,
     }
 
 

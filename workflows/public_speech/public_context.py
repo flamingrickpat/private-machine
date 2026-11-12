@@ -262,7 +262,7 @@ def build_public_context(ghost: MemoryStore, request: ActionRequest | None = Non
         is_reportable_quale = raw["__type__"] == "QualeKnoxel" and bool(raw["data"].get("reportable"))
         is_candid_thought = (raw["__type__"] == "Feature"
                              and raw["data"].get("feature_type") == "InnerMonologue"
-                             and private_metadata.get("loop") == "inner"
+                             and private_metadata.get("loop") in {"inner", "inquiry"}
                              and (private_metadata.get("disclosure") or {}).get("mode") == "candid")
         if not (is_reportable_quale or is_candid_thought):
             continue

@@ -1,23 +1,25 @@
 """Accept temporary focus advice through ordinary attention processing."""
 
 from pm import vclock
-from pm.memory.snapshot import RecordView
+from pm.memory.snapshot import GhostConflict, RecordView, Snapshot
 from pm.memory.write_batch import WriteBatch
 from pm.records.lineage import RecordLineage
 from pm.records.memory_records import Feature
 
 from pm.records.copying import pickle_copy
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import datetime
 import json
 from typing import Any
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from pm.constants import Sampler
 from pm.context_render.turns import Role, Turn
 from workflows.cognitive_control.schemas import FocusRejection, FocusState
 from workflows.main_cognition.model_json import complete_json
 from workflows.main_cognition.schemas import FocusProposalRef
+from workflows.inner_thought.schemas import PrivateAttentionContext, ThoughtAttentionDecision
 
 
 class FocusDecision(BaseModel):
@@ -25,6 +27,89 @@ class FocusDecision(BaseModel):
 
     accept: bool
     reason: str
+
+
+class PrivateFocusChanged(GhostConflict):
+    """The frozen private selection no longer uses effective accepted focus."""
+
+
+class _PrivateFocusMetadata(BaseModel):
+    """Read the advice owner's required fields from heterogeneous metadata."""
+
+    model_config = ConfigDict(extra="ignore")
+    focus: FocusState
+    expires_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class CapturedPrivateFocus:
+    """Effective focus and its exact frozen source, without a live store read.
+
+    An expired latest record supplies no effective advice or future deadline.
+    Its source identity still records which family head the selector observed.
+    """
+
+    focus: FocusState | None
+    source_id: int | None
+    expires_at: datetime | None
+
+
+def captured_private_focus(view: Snapshot, now_utc: datetime, *,
+                           maximum_strength: float | None = None) -> CapturedPrivateFocus:
+    """Read private selection advice only from its original frozen snapshot.
+
+    The caller adds the returned source to its governing grant. Family identity
+    and expiry need a separate check because advice appends independent records.
+    """
+    if now_utc.tzinfo is not None:
+        raise ValueError("Private focus capture requires naive UTC world time.")
+    record = next((item for item in reversed(list(view.all_knoxels.values()))
+                   if item.metadata.get("control_kind") == "attention_focus"), None)
+    if record is None:
+        return CapturedPrivateFocus(None, None, None)
+    metadata = _PrivateFocusMetadata.model_validate(record.metadata)
+    if metadata.expires_at.tzinfo is not None:
+        raise ValueError("Accepted focus expiry requires naive UTC world time.")
+    if now_utc >= metadata.expires_at:
+        return CapturedPrivateFocus(None, record.id, None)
+    focus = metadata.focus.model_copy(deep=True, update={"fresh": False, "control_record_id": record.id})
+    if maximum_strength is not None and focus.accept:
+        focus.strength = min(focus.strength, maximum_strength)
+    return CapturedPrivateFocus(focus, record.id, metadata.expires_at)
+
+
+def validate_private_focus(view: Snapshot, captured: CapturedPrivateFocus, *, now_utc: datetime) -> None:
+    """Reject replaced or expired guidance before private attention commits.
+
+    The host holds the store lock through this check and selection acceptance.
+    Original source guards separately retain the consumed record's meaning.
+    """
+    current = captured_private_focus(view, now_utc)
+    if current.source_id != captured.source_id:
+        raise PrivateFocusChanged("Accepted private focus changed after selection context was frozen.")
+    if captured.expires_at is not None and now_utc >= captured.expires_at:
+        raise PrivateFocusChanged("Accepted private focus expired during selection.")
+
+
+def validate_private_attention(context: PrivateAttentionContext,
+                               decision: ThoughtAttentionDecision) -> ThoughtAttentionDecision:
+    """Accept one supplied nomination, or retain explicit deferral or dismissal.
+
+    Nomination scores express separate judgments and confer no selection
+    authority. The host supplies current shared attention guidance and keeps
+    Critical, wait, source, and private-slot guards through acceptance.
+    """
+    offered_ids = [candidate.nomination_id for candidate in context.candidates]
+    if len(set(offered_ids)) != len(offered_ids):
+        raise ValueError("Private attention requires unique committed nomination identities.")
+    if decision.nomination_id is not None and decision.nomination_id not in offered_ids:
+        raise ValueError("Private attention names a nomination outside the supplied batch.")
+    if decision.disposition == "select":
+        if context.blocked_reason:
+            raise ValueError(f"Private attention cannot allocate the slot: {context.blocked_reason}")
+        if not context.candidates:
+            raise ValueError("An empty nomination batch cannot allocate a private inquiry.")
+    return decision
 
 
 #: The instruction of the focus check. It comes after the shared story prefix of main cognition.

@@ -344,6 +344,7 @@ def _cognition_modules(
             tools_factory=build_inner_thought_tools(ghost, runtime_root, stage_model.complete,
                                                   cancel_provider=lambda: inner_thought.run_stop,
                                                   embeddings=embeddings,
+                                                  inquiry_provider=lambda request, runner: inner_thought.run_inquiry(request, runner),
                                                   yield_provider=lambda: inner_thought.yield_requested.is_set()),
             runtime_root=runtime_root,
             ghost=ghost,

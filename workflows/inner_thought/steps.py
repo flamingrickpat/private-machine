@@ -18,6 +18,12 @@ from workflows.main_cognition.model_json import read_request, write_report
 def run(context: RoleContext) -> dict[str, Any]:
     """Run one private cycle and write its typed parent report."""
     request = InnerRequest.model_validate(read_request(context.runtime.environment))
+    if "run_private_inquiry" in context.runtime.tools and request.episode.state is None:
+        from workflows.inner_thought.graph_execution import PrivateGraphResult
+        graph_report = PrivateGraphResult.model_validate(
+            context.runtime.tools["run_private_inquiry"](request.model_dump(mode="json")))
+        write_report(context.runtime.environment, graph_report)
+        return {"status": "done", "summary": graph_report.summary}
     report = run_cycle(request, context.runtime.tools["run_stage"],
                        context.runtime.tools.get("retrieve_memory"))
     write_report(context.runtime.environment, report)
