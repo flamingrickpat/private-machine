@@ -11,6 +11,11 @@ Both loops share one MemoryStore and one companion identity. Every cross-loop
 read carries a revision, and the commit rejects a proposal whose source
 changed. The inner loop never writes the main loop's workspace and never changes
 mental state directly: only the main appraisal path does that.
+
+Reading map: schemas holds stage contracts and the new typed inquiry receipts;
+nominations stages source-bound proposals; inquiry validates and stages bounded
+graphs and reads retained linear episodes. The timer still uses the linear
+pipeline. The graph staging boundary does not yet replace that execution path.
 """
 from __future__ import annotations
 

@@ -20,6 +20,8 @@
     "workflows/reflection/experiments.py",
     "workflows/reflection/rendering.py",
     "workflows/inner_thought/rendering.py",
+    "workflows/inner_thought/nominations.py",
+    "workflows/inner_thought/inquiry.py",
     "workflows/inner_thought/stages/reflection/steps.py",
     "workflows/main_cognition/model_json.py",
     "pm/memory/evidence.py",

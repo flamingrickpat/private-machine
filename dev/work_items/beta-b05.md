@@ -1,8 +1,8 @@
 # B05: spontaneous nomination and bounded inquiry
 
-Status: root-reviewed target, 2026-11-12. Implementation starts after the B04 commit.
+Status: implementation in progress, 2026-11-12. The typed persistence slice is implemented; execution integration remains outstanding.
 Source baseline: `d72fd3b`, after B03 implementation `a9e78e8`.
-B04 implementation is in progress. B04 must commit before B05 implementation starts.
+B04 committed as `e7a7ce8`. This continuation starts from that commit.
 
 Root review accepts the existing private host, one active episode, three nominations,
 and three alternatives within the existing episode limits.
@@ -441,3 +441,127 @@ The main risks are partial migration of generation checks, candidate promotion b
 Focused actual-store checks and retained prompt inspection address these risks before any sustained test.
 Five stage calls establish a narrow operational sample, not long-term thought diversity or character quality.
 The current-source manual changes only after implementation and its evidence exist.
+
+## Persistence slice — implementation boundary
+
+The first continuation implements the storage portion of migration steps 1 and 2.
+It does not complete those steps' host/request migration or any later execution gate.
+The timer, model-stage schemas, Critical control, ordinary-input cancellation, and selected mental-action execution remain unchanged.
+
+Implemented source:
+
+- `workflows/inner_thought/schemas.py`: frozen, named nomination, attention, judgments, grant, relation,
+  graph-step, state, and receipt contracts. Existing `InnerRequest`, `InnerReport`, `ThoughtResult`,
+  and `ThoughtAlternative` remain unchanged until their consumers migrate together.
+- `workflows/inner_thought/nominations.py`: captured source closure, fingerprint-preserving grant extension,
+  original-root resolution, and bounded private nomination staging.
+- `workflows/inner_thought/inquiry.py`: separate attention receipts, one active graph slot per observer,
+  atomic operation/branch/state staging, current-parent and family guards, bounded progress,
+  and an explicit reader for retained linear episodes.
+- `tests/unit/workflows/inner_thought/test_inquiry_records.py`: actual-store boundary checks with checkpoints.
+  Explicit proposals are inputs to storage, not substitutes for generated model output.
+
+The staging functions leave commit, Critical/wait authority, GWT turns, and finding delivery to their caller.
+They send no bus event and change no mental state.
+The new graph step uses `InquiryStep` as a persisted contract alongside the existing stage result.
+Host integration must map or extend the existing stage contracts coherently; no competing model pipeline is installed here.
+The old request's anonymous fields have not yet migrated.
+
+Original source fingerprints survive extension after an operational revision.
+Newly inspected graph nodes add dependencies without refreshing prior ones.
+Historical evidence can retain its exact ID after a successor; governing evidence requires its captured current head.
+Source-root resolution follows actual thought lineage, summary inputs, canonical semantic sources, and belief evidence.
+It ignores canonical back-pointers rather than manufacturing a causal cycle.
+A narrative or legacy summary without exact source links supplies internal context, not invented original evidence.
+
+One accepted operation produces one InnerMonologue record, up to three independent Thought branches,
+and a typed StateUpdate receipt in the same batch.
+Selection alone produces no executed thought.
+Generation cannot certify its own conclusion; later discrimination must name actual accepted nodes.
+Text inequality is not a progress criterion.
+Acquired evidence requires a newly inspected original source; internal derivations and receipts do not qualify.
+Recorded comparisons still require real model-quality inspection after integration.
+Hard finite bounds constrain the graph even when a future model overstates meaningful difference.
+
+Persistence checks use append-only recovery roots through the actual MemoryStore.
+No production checkpoint is rewritten, and no inference runs in this slice.
+The legacy reader returns a distinct `LegacyInquiry` variant with the original world-clock duration.
+It does not convert that duration into active computation time or invent absent judgments.
+
+### Persistence verification
+
+Command:
+
+```powershell
+.venv/Scripts/python.exe -m unittest tests.unit.workflows.inner_thought.test_inquiry_records tests.unit.test_architecture -v
+```
+
+Result: **34 passed in 4.795 seconds** (27 inquiry boundaries and seven architecture checks).
+Receipt: `.runtime/beta-b05/checks-final.log`.
+These checks use actual stores, atomic commits, durable files, and clean checkpoint recovery.
+They include two competing staged continuations and competing selections; only one can commit.
+They do not call a model, replace a collaborator, or certify workflow generation quality.
+
+Configured strict Pyright and the scoped check of both new modules and their tests report zero errors and warnings.
+Receipts: `types-final.log` and `types-scoped-final.log` in `.runtime/beta-b05/`.
+The checker remains `node C:/Users/rick/AppData/Local/npm-cache/_npx/110e52990071af13/node_modules/pyright/index.js`.
+Both new modules are now included in the configured strict check.
+
+A separate whole-file strict scan of `schemas.py` reports **27 existing legacy diagnostics**.
+A matched baseline scan of `e7a7ce8` reports the identical 27 rule/message diagnostics, with zero new diagnostics.
+The old anonymous request fields remain visible work for the coordinated request/host migration.
+Do not describe that file as strictly clean.
+Receipts: `types-schema-baseline.json`, `types-schema-current.json`, and `types-schema-comparison.json`.
+The baseline copy required an explicit checker configuration because the default checker excludes `.runtime`.
+The comparison requires one analyzed file on each side; an excluded file does not count as a clean baseline.
+
+Retained concrete state: `.runtime/beta-b05/records/inquiry.pickle` and `receipts.json`.
+The actual accepted graph contains three transition receipts and four nodes: one generation, two branches, and one comparison.
+Its manifest labels the inputs as synthetic storage proposals, not generated companion content.
+The retained checkpoint reloads to the same typed receipt and node identities.
+
+The first fixture used a dangling hypothetical reality ID and correctly failed the store's reference validation.
+The fixture now creates a real RealityRecord before using its identity.
+That failure remains in `records-first.log`; no production reference validation was weakened.
+Review also found that an already supplied but uncited source could appear newly acquired.
+Progress now excludes prior grant identities as well as previously inspected roots; an actual-store regression covers that case.
+
+The source header and `docs/subsystems/private-loop.md` distinguish available storage from designed execution integration.
+The data diagram describes the storage contracts. Current timer execution and telemetry diagrams remain unchanged.
+The library emits no telemetry or publication. No new owner rationale or FAQ claim was inferred.
+The final manual command passed in **186.33 seconds**:
+
+```powershell
+uv run --locked --with-requirements requirements-docs.txt mkdocs build --strict
+```
+
+Receipt: `.runtime/beta-b05/docs-final-source.log`.
+Five generated manual/API pages have 4,524 valid local file and anchor targets: `docs-links.json`.
+Chromium opened the local index, manual, and all three affected API pages without JavaScript or request errors.
+Both private-loop diagrams rendered. The new vertical storage diagram was visually inspected for legibility.
+Receipts: `docs-browser.json`, `docs-browser.png`, and `docs-diagram.png`.
+The first browser assertion inspected the normal DOM and could not see Material's closed diagram shadow roots.
+The final check reads the actual closed roots through Chromium's DOM inspection protocol; each diagram contains one SVG.
+No documentation rendering code was changed to satisfy that inspection.
+The final generated API includes the last progress guard and the updated schema overview.
+The earlier successful builds precede that final source check and are retained separately.
+
+### Next implementation boundary
+
+1. Migrate the live `InnerRequest` fields and episode consumers to named typed views.
+   Retain explicit legacy provenance rather than converting absent judgments or world duration into invented values.
+2. Add the nomination child and shared attention selection. Retain empty nomination-stage receipts in the host.
+   Wire the existing private owner to the new staging boundary, including GWT construction and finding delivery.
+3. Execute connected generation/discrimination through the existing kernel. Integrate at outcome boundaries.
+   Add explicit parked resumption and deliberate-action origin admission under the same private slot.
+4. Coordinate source guards, Critical epochs, unknown-triage holds, accepted waits, admission, replay,
+   parking, acknowledgment, and the main private-only generation checks together.
+   Ordinary-input cancellation remains unfixed in the current runtime.
+5. Adapt FocusManagement into that shared inquiry execution while preserving action receipts and delivery acknowledgment.
+6. Inspect the shared interim provider receipts, then run the bounded real OpenRouter gate and its review capture.
+
+**NOT RUN — B05 real workflow gate:** execution integration is not ready.
+The gate's endpoint is not being replaced by the persistence tests.
+No paid inference, full main cycles, long simulation, or Minecraft run occurred in this slice.
+There is no new provider usage to add. The known prior spend and its unknown B03 remainder remain unchanged.
+B05 and the beta milestone remain incomplete.

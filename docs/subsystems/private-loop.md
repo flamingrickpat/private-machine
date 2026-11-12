@@ -234,6 +234,47 @@ Main cognition records its own expectations for routed actions and checks them i
 It uses the provenance reference `main_cognition` and does not check the expectations of the private loop.
 See [decisions, routing, and expectations](decisions-and-routing.md).
 
+## Inquiry persistence boundary
+
+**Available library; execution integration remains designed.** The timer still runs the three stages above.
+The graph staging functions do not yet run from the timer or from selected mental actions.
+
+A proposed thought differs from a thought that attention selects and from an operation that the character executes.
+[`workflows.inner_thought.nominations.stage_nominations`][] stores private proposals without an inner GWT turn or a `thought.created` event.
+[`workflows.inner_thought.inquiry.stage_attention`][] stores the separate attention decision and reserves one episode slot per observer.
+It validates a supplied decision; the attention policy belongs to the caller.
+
+[`workflows.inner_thought.inquiry.stage_inquiry_step`][] stages an executed operation, its branches, and an append-only state receipt in one batch.
+Branches retain their own assumptions, judgments, evidence, and generation parents.
+A later comparison can merge or dismiss branches without deleting their original records.
+Generated branches require discrimination before a proposed conclusion.
+An unresolved information gap can also end an inquiry.
+
+```mermaid
+flowchart TB
+    S[Captured source identities and meaning] --> N[Private nomination records]
+    N --> A[Separate attention receipt]
+    A --> O[Executed operation record]
+    O --> B[Alternative records with generation parents]
+    B --> C[Later comparison with explicit relations]
+    C --> R[Append-only inquiry state receipt]
+```
+
+This diagram shows the storage contracts, not the current timer execution path.
+The staging functions perform no inference, commit, publication, or affect update.
+Their caller must enforce Critical and wait authority and commit the batch.
+GWT construction and finding delivery also remain caller responsibilities.
+
+Each transition guards its exact preceding receipt and captured source meaning.
+Repeated thoughts and memory summaries retain one original source root instead of acquiring independent corroboration.
+Separate judgments preserve the distinction between interest, desirability, plausibility, and action suitability.
+These judgments grant no external action authority.
+
+Step, branch, time, and stall bounds constrain the stored graph.
+Active duration accumulates caller-supplied monotonic measurements; world chronology and offline time cannot replace that measurement.
+The [legacy reader][workflows.inner_thought.inquiry.read_legacy_inquiry] preserves actual linear links and recorded world-clock duration.
+It does not invent branch identities, confidence, or offline activity.
+
 ## Felt-state channels
 
 `workflows.inner_thought.felt_state` projects five deterministic channels
