@@ -5,6 +5,11 @@ The host overview explains acceptance and publication ordering.
 from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
+from datetime import datetime
+
+from pm.memory.dependencies import SourceDependency
+from pm.records.base import RecordScope
+from workflows.entity_context.schemas import EntityContextKey, EntityContextProposal, EntityContextView, EntityExtractionDraft, EntityUpdateResult
 
 from workflows.main_cognition.cycle_work import CycleRequest
 from workflows.main_cognition.schemas import TriageResult
@@ -25,6 +30,39 @@ class TriageEvidence(BaseModel):
     current_head_ids: list[int]
 
 
+class EntityExtractionSource(BaseModel):
+    """Frozen source bytes and clocks used to hydrate semantic model drafts."""
+
+    dependency: SourceDependency
+    content: str
+    occurred_at_utc: datetime
+    scope: RecordScope
+
+
+class EntityExtractionFamily(BaseModel):
+    """The actual parent and compact claims supplied for one subject family."""
+
+    key: EntityContextKey
+    parent_receipt_id: int | None
+    context: EntityContextView
+
+
+class EntityExtractionInput(BaseModel):
+    """Host-owned provenance, kept outside the model's semantic answer contract."""
+
+    model_config = ConfigDict(extra="forbid")
+    source_ids: list[int]
+    sources: list[EntityExtractionSource]
+    families: list[EntityExtractionFamily]
+    input_commit_ids: list[str]
+
+
+class InputTriageAnswer(TriageResult):
+    """One model call classifies input and proposes at most four entity claims."""
+
+    entity_extraction: EntityExtractionDraft
+
+
 class InputTriageRequest(BaseModel):
     """A lightweight cycle view without retrieval, embeddings, or appraisal."""
 
@@ -33,6 +71,7 @@ class InputTriageRequest(BaseModel):
     source_fingerprints: dict[int, str]
     guidance_tick: int | None
     evidence: TriageEvidence
+    entity_extraction_input: EntityExtractionInput | None = None
 
 
 class EarlyTriageAssessment(BaseModel):
@@ -49,3 +88,5 @@ class EarlyTriageAssessment(BaseModel):
     result: TriageResult
     evidence: TriageEvidence
     reconsideration_epoch: int = Field(default=0, ge=0)
+    entity_proposals: list[EntityContextProposal] | None = None
+    entity_outcomes: list[EntityUpdateResult] | None = None

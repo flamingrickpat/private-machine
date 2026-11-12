@@ -26,9 +26,11 @@ from pm.records.base import Provenance
 from pm.records.memory_records import Feature, new_feature
 from pm.records.lineage import RecordLineage
 from workflows.cognitive_control.schemas import ControlConfig, WaitRequest
-from workflows.public_speech.publication_control import PublicationControl, ReplySuperseded, validate_unmanaged_selection
+from workflows.public_speech.publication_control import PublicationControl, ReplySuperseded, validate_unmanaged_selection, validate_unmanaged_action
 from workflows.input_triage.schemas import EarlyTriageAssessment
-from workflows.main_cognition.schemas import TriageResult
+from workflows.main_cognition.schemas import ActionRequest, TriageResult
+from workflows.entity_context.owner import EntityContextOwner
+from workflows.entity_context.schemas import EntityUpdateResult
 
 if TYPE_CHECKING:
     from pm.memory.store import MemoryStore
@@ -74,6 +76,9 @@ class CognitiveControl(BusModule):
         self.prioritize_critical: Callable[[set[int]], None] = lambda source_ids: None
         self.cancel_public_drafts: Callable[[int], None] = lambda epoch: None
         self.validate_selection: Callable[[str], None] = validate_unmanaged_selection
+        self.entity_context_owner: EntityContextOwner | None = None
+        self.refresh_selection: Callable[[str], None] = validate_unmanaged_selection
+        self.refresh_action: Callable[[ActionRequest], None] = validate_unmanaged_action
 
     def enable_input_triage(self) -> None:
         """Reconstruct unresolved classification and reconsideration from memory.
@@ -90,6 +95,11 @@ class CognitiveControl(BusModule):
                 if record.metadata.get("control_kind") != "input_triage":
                     continue
                 assessment = EarlyTriageAssessment.model_validate(record.metadata["assessment"])
+                if assessment.entity_proposals is not None:
+                    if assessment.entity_outcomes is None or len(assessment.entity_outcomes) != len(assessment.entity_proposals):
+                        raise ValueError("An entity-aware assessment requires every atomic update outcome.")
+                    if any(item.disposition == "deferred" for item in assessment.entity_outcomes):
+                        raise ValueError("A retained assessment cannot bypass a deferred immediate entity update.")
                 self._reconsideration_epoch = max(self._reconsideration_epoch, assessment.reconsideration_epoch)
                 for source_id in assessment.source_ids:
                     self._assessments[source_id] = assessment
@@ -148,12 +158,22 @@ class CognitiveControl(BusModule):
                 if source_fingerprint(evidence_view.get(source_id)) != fingerprint:
                     raise GhostConflict(f"Triage evidence {source_id} changed during classification.")
             epoch = self._reconsideration_epoch + int(bool(critical))
-            accepted = assessment.model_copy(update={"reconsideration_epoch": epoch})
             batch = self.ghost.begin_batch("input-triage-" + new_id(), embed=False)
             batch.depend_on(assessment.evidence.record_fingerprints,
                             manifest={"kind": "input_triage", "evidence": assessment.evidence.model_dump(mode="json")})
             batch.depend_on_commits(assessment.evidence.commit_ids)
             batch.preserve_on_recovery()
+            entity_outcomes: list[EntityUpdateResult] | None = None
+            if assessment.entity_proposals is not None:
+                if self.entity_context_owner is None:
+                    raise RuntimeError("Entity-aware early triage requires its injected staging owner.")
+                entity_outcomes = []
+                for proposal in assessment.entity_proposals:
+                    outcome = self.entity_context_owner.stage_update(batch, proposal)
+                    if outcome.disposition == "deferred":
+                        raise GhostConflict(f"Immediate entity update requires fresh extraction: {outcome.reason}.")
+                    entity_outcomes.append(outcome)
+            accepted = assessment.model_copy(update={"reconsideration_epoch": epoch, "entity_outcomes": entity_outcomes})
             batch.create(Feature(
                 content="; ".join(f"{item.category}: {item.reasoning}" for item in assessment.result.items),
                 feature_type=FeatureType.StateUpdate, interlocus=InterlocusType.PrivateInternal,
@@ -187,6 +207,8 @@ class CognitiveControl(BusModule):
             publication_epoch=self.publication_epoch,
             validate_publication=self.validate_publication,
             validate_selection=lambda selection_id: self.validate_selection(selection_id),
+            refresh_selection=lambda selection_id: self.refresh_selection(selection_id),
+            refresh_action=lambda request: self.refresh_action(request),
         )
 
     def validate_cognition(self, source_ids: Sequence[int]) -> None:
@@ -269,7 +291,7 @@ class CognitiveControl(BusModule):
     @staticmethod
     def is_external(envelope: Envelope) -> bool:
         """Identify evidence that ends a deliberate wait at once."""
-        if envelope.topic in {"user.input", "workflow.question"}:
+        if envelope.topic in {"user.input", "workflow.question", "entity.action_reconsider"}:
             return True
         return envelope.topic == "workflow.event" and envelope.payload.get("event") in CognitiveControl.WAKING_EVENTS
 

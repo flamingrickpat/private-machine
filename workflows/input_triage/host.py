@@ -6,6 +6,12 @@ workspace, the relevant partners' recent dialogue, character identity, and
 current situational guidance. It reuses main cognition's contextual triage
 prompt; it makes no retrieval, embedding, appraisal, or action-selection call.
 
+With its entity owner injected, the same model call also proposes bounded,
+attributed entity claims. The host hydrates original evidence and the owner
+stages accepted claims beside the classification in one recovery-preserved
+batch. A stale immediate proposal holds classification acceptance until fresh
+extraction succeeds. Entity claims remain estimates, not speech permissions.
+
 ``CognitiveControl`` accepts the assessment into the memory store. Unclassified
 input temporarily holds publication; a Critical assessment requires an accepted
 main cycle containing its sources. Main cognition consumes that assessment
@@ -31,7 +37,7 @@ from pydantic import JsonValue
 
 from pm import vclock
 from pm.bus.envelopes import Envelope, new_envelope
-from pm.constants import CSM_RECENT_DIALOGUE_TURNS, CYCLE_RETRY_DELAY_SECONDS, CYCLE_RETRY_MAX_DELAY_SECONDS
+from pm.constants import CSM_RECENT_DIALOGUE_TURNS, CYCLE_RETRY_DELAY_SECONDS, CYCLE_RETRY_MAX_DELAY_SECONDS, WORKSPACE_TAIL_TOKENS
 from pm.context_render.story import record_view
 from pm.llm.http_client import ModelError
 from pm.llm.structured import ModelFormatError
@@ -51,6 +57,9 @@ from workflows.main_cognition.host import dialogue_partner
 from workflows.main_cognition.schemas import ShardStream, Stimulus
 from pm.memory.dependencies import source_fingerprint
 from workflows.public_speech.situational_guidance import build_situational_guidance
+from workflows.entity_context.owner import EntityContextOwner
+from workflows.input_triage.entity_updates import capture_entity_extraction
+from workflows.main_cognition.entity_shards import add_entity_context_records, reserve_entity_context
 
 if TYPE_CHECKING:
     from workflows.cognitive_control.host import CognitiveControl
@@ -63,6 +72,7 @@ class InputTriage(CognitiveWorkflow):
     WORKFLOW_NAME = "input_triage"
 
     cognitive_control: CognitiveControl
+    entity_context_owner: EntityContextOwner | None = None
 
     def deliver(self, envelope: Envelope) -> None:
         """Register replayed input before queueing its classification."""
@@ -100,8 +110,17 @@ class InputTriage(CognitiveWorkflow):
         assert isinstance(self.last_environment, MemoryBashEnvironment), "Early triage requires a frozen memory environment."
         view = self.last_environment.ghost_view
         assert view is not None, "Early triage requires a frozen memory snapshot."
-        return build_input_request(self.ghost, view, batch,
-                                   run_id=self.invocation_id or "").model_dump(mode="json")
+        request = build_input_request(self.ghost, view, batch, run_id=self.invocation_id or "")
+        if self.entity_context_owner is not None:
+            observer_id = request.cycle.self_entity_id
+            if observer_id is None:
+                raise ValueError("Immediate entity maintenance requires the configured companion identity.")
+            request.entity_extraction_input = capture_entity_extraction(self.entity_context_owner, view,
+                subject_ids=[item.entity_id for item in request.cycle.stimuli if item.entity_id is not None],
+                observer_entity_id=observer_id, source_ids=[item.knoxel_id for item in request.cycle.stimuli],
+                evidence_ids=list(request.evidence.record_fingerprints), as_of_utc=request.cycle.cycle_time,
+                token_budget=WORKSPACE_TAIL_TOKENS)
+        return request.model_dump(mode="json")
 
     def publish_output(self, report: dict[str, JsonValue], batch: list[Envelope]) -> None:
         """Accept the durable assessment before waking cognition and speech."""
@@ -171,6 +190,9 @@ def build_input_request(ghost: MemoryStore, view: Snapshot, batch: list[Envelope
             scopes=partner_scopes[partner_id] if partner_id in partner_scopes else source_scopes)
             for partner_id in guidance_partners]
         goals = [item for item in active_intentions(view) if item.scope in source_scopes][:8]
+        add_entity_context_records(view, records, guidance)
+        if previous is not None:
+            reserve_entity_context(previous.workspace, records, guidance, tick=previous.tick_id)
         cycle = CycleRequest(
             run_id=run_id, correlation_id=batch[-1].correlation_id, companion_name=companion, user_name=user,
             user_entity_id=user_id, self_entity_id=self_id,

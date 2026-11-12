@@ -41,7 +41,12 @@ user_template: |
   stable "belief_key" for the topic, and reuse a given belief key for a correction. Set "correction" to true only when
   the speaker explicitly replaces an earlier claim. A one-time request is not a lasting preference. Never take
   factual beliefs from {companion_name}'s own speech, from imagined events, or from background canon.
+  Supply at most four belief updates. Entity reports use subject_entity_id from the supplied identity anchors;
+  use null when unknown. Choose entity_layer from background, relationship, pattern, situation, perspective, or open_question.
+  For a correction of a current accepted entity claim, copy its exact supplied claim ID into correction_target_ids.
+  Do not invent IDs or replace every claim about a topic. Old narrative text remains a prior, not current authority.
 
   Answer with only this JSON object and nothing else:
   {{"memories": [], "active_goals": [], "candidate_ids": [0],
-  "belief_updates": [{{"source_id": 0, "quote": "...", "belief_key": "...", "correction": false}}]}}
+  "belief_updates": [{{"source_id": 0, "quote": "...", "belief_key": "...", "correction": false,
+  "subject_entity_id": null, "entity_layer": "background", "correction_target_ids": []}}]}}

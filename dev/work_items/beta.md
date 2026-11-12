@@ -447,3 +447,25 @@ Port 8080 belongs to an existing Basalt application and was left untouched.
 B01 and B02 have the bounded engineering evidence recorded above.
 The next implementation slice is B03: ordinary interaction during asynchronous mental calculation.
 The beta milestone remains incomplete. The partial month baseline remains preserved.
+
+## B04 delivery and owner stop
+
+B03 committed as `a9e78e8`; its ordinary-overlap evidence is in [the B03 record](beta-b03.md).
+B04 now implements scoped persistent entity claims, compact projections, atomic immediate maintenance,
+partial main proposal acceptance, and current-direction guards with durable reconsideration.
+The [B04 record](beta-b04.md) retains the accepted design, failed samples, repairs, and final receipts.
+
+The four-input real OpenRouter extraction gate passed without main cycles or companion speech.
+The final affected local checks passed 77 tests; configured strict typing passed.
+Full-cycle generated action quality and sustained character quality remain final beta verification work.
+B04 provider cost was $0.0122847844 across all attempts.
+Known B03 plus B04 cost is $0.22771918416, with earlier incomplete B03 usage still unknown.
+The $25 shared interim limit remains in force.
+
+Engineering review: `http://127.0.0.1:8095/#capture/beta-entity-20261112`.
+The review server was restarted with the hidden launcher `.runtime/beta-b04/serve-review.ps1`.
+It binds `0.0.0.0:8095`, enforces OpenRouter-only configuration, and starts no simulation automatically.
+
+On November 12 the owner requested a stop after B04 and an uncommitted handoff.
+The B05 design committed as `5469865`; B05 implementation has not started.
+The beta milestone remains doing. No final month or Minecraft scenario ran during B04.

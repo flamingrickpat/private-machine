@@ -59,6 +59,11 @@ class WriteBatch:
         self._cycle: CycleState | None = None
         self._closed = False
 
+    @property
+    def store(self) -> MemoryStore:
+        """Return the owning store for typed host acceptance collaborators."""
+        return self._ghost
+
     def check_cancelled(self) -> None:
         """Raise GhostCancelled when this batch is closed or its owner stopped."""
         if self._closed or (self.cancel is not None and self.cancel.is_set()):

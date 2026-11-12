@@ -83,6 +83,7 @@ nav:
       - Images in records: subsystems/multimodal-records.md
       - Public dialogue: subsystems/public-dialogue.md
       - Situational guidance: subsystems/situational-guidance.md
+      - Entity context: subsystems/entity-context.md
       - Ordinary interaction: subsystems/ordinary-interaction.md
       - Public publication and recovery: subsystems/public-publication.md
       - Asynchronous conversation review: subsystems/async-conversation-review.md

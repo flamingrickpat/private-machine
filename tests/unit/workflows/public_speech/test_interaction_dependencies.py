@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import unittest
+from typing import Literal
 from uuid import uuid4
 
+from pm import vclock
 from pm.bus.bus import BusSystem
 from pm.memory.snapshot import GhostConflict
 from pm.memory.store import MemoryStore
@@ -13,7 +15,16 @@ from pm.records.enums import ActionType, EntityClass
 from pm.records.memory_records import ActionSchemaRecord, Entity
 from workflows.main_cognition.schemas import ActionRequest, Stimulus
 from workflows.cognitive_control.host import CognitiveControl
-from workflows.public_speech.dependencies import PartnerFrontierChanged, capture_dependencies, validate_dependencies
+from pm.memory.dependencies import capture_source
+from workflows.entity_context.owner import EntityContextOwner
+from workflows.entity_context.projection import project_entity_context
+from workflows.entity_context.schemas import (
+    EntityClaimEvidence, EntityContextClaim, EntityContextKey, EntityContextProposal,
+    EntityContextView, EntityProjectionQuery, InteractionClaim,
+)
+from workflows.public_speech.dependencies import (
+    InteractionContextChanged, PartnerFrontierChanged, capture_dependencies, validate_dependencies,
+)
 from workflows.public_speech.public_context import build_public_context
 from workflows.public_speech.publication import commit_public_reply, exchange_record, validate_public_context
 from workflows.public_speech.user_input import UserInputProxy
@@ -25,7 +36,7 @@ class InteractionDependencyTests(unittest.TestCase):
     def setUp(self) -> None:
         self.store = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"))
         self.partner_id = self.store.store_knoxel(Entity(content="Jesse", aliases=[], entity_class=EntityClass.Human)).id
-        self.store.store_knoxel(Entity(content="Spamuel", aliases=[], entity_class=EntityClass.Self))
+        self.observer_id = self.store.store_knoxel(Entity(content="Spamuel", aliases=[], entity_class=EntityClass.Self)).id
         self.store.accept_import()
         self.proxy = UserInputProxy("user_input", BusSystem(), self.fail, lambda: 0,
                                     self.store, lambda text: None)
@@ -112,6 +123,59 @@ class InteractionDependencyTests(unittest.TestCase):
         self.store.commit(batch)
         with self.assertRaises(GhostConflict):
             validate_dependencies(self.store, dependencies, current_partner_input=False)
+        with self.assertRaises(InteractionContextChanged):
+            validate_dependencies(self.store, dependencies, current_partner_input=True)
+
+    def entity_estimate(self, correlation: str, *, ability: Literal["can", "cannot", "unknown"]) -> EntityContextView:
+        """Accept an explicit boundary proposal in the actual entity owner and store."""
+        source = exchange_record(self.store, correlation)
+        assert source is not None
+        owner = EntityContextOwner(self.store)
+        key = EntityContextKey(subject_entity_id=self.partner_id, observer_entity_id=self.observer_id,
+                               scope=source.scope)
+        now = vclock.utcnow()
+        with self.store.lock:
+            view = self.store.snapshot(capture=False)
+            claim = EntityContextClaim(layer="situation", claim_key="interaction.respond",
+                statement=source.content, epistemic_kind="report", confidence=0.9,
+                observed_at_utc=source.timestamp_world_begin, applicable_from_utc=source.timestamp_world_begin,
+                interaction=InteractionClaim(dimension="respond", ability=ability),
+                evidence=[EntityClaimEvidence(source=capture_source(view, source.id, current_head=True),
+                                               exact_quote=source.content)])
+            proposal = EntityContextProposal(proposal_id=uuid4().hex, key=key,
+                parent_receipt_id=owner.current_head(view, key), producer="immediate",
+                input_commit_ids=sorted(view.commit_ids), claims=[claim])
+            batch = self.store.begin_batch("entity-" + proposal.proposal_id, embed=False)
+            self.assertEqual(owner.stage_update(batch, proposal).disposition, "staged")
+            batch.preserve_on_recovery()
+            self.store.commit(batch)
+        return project_entity_context(self.store.snapshot(capture=False),
+            query=EntityProjectionQuery(key=key, claim_keys=["interaction.respond"], token_budget=3000),
+            as_of_utc=now)
+
+    def test_changed_entity_direction_requires_reselection_but_not_historical_main_rejection(self) -> None:
+        correlation = self.proxy.submit("I cannot respond right now.")
+        captured = self.entity_estimate(correlation, ability="cannot")
+        dependencies = capture_dependencies(self.store.snapshot(), [], guidance_tick=1,
+            critical_epoch=0, partner_entity_id=self.partner_id, scopes=[RecordScope()],
+            entity_contexts=[captured])
+        returned = self.proxy.submit("I can respond now.")
+        self.entity_estimate(returned, ability="can")
+        validate_dependencies(self.store, dependencies, current_partner_input=False)
+        with self.assertRaises(InteractionContextChanged):
+            validate_dependencies(self.store, dependencies, current_partner_input=True)
+
+    def test_main_action_preserves_original_entity_direction_before_speech_refresh(self) -> None:
+        correlation = self.proxy.submit("I cannot respond right now.")
+        captured = self.entity_estimate(correlation, ability="cannot")
+        request = ActionRequest(partner_entity_id=self.partner_id, entity_contexts=[captured])
+        context = build_public_context(self.store, request)
+        returned = self.proxy.submit("I can respond now.")
+        self.entity_estimate(returned, ability="can")
+        with self.assertRaises(InteractionContextChanged):
+            build_public_context(self.store, request)
+        with self.assertRaises(InteractionContextChanged):
+            validate_public_context(self.store, context)
 
     def test_different_actions_cannot_answer_the_same_resolved_exchange_twice(self) -> None:
         correlation = self.proxy.submit("One current question.")
@@ -128,6 +192,20 @@ class InteractionDependencyTests(unittest.TestCase):
                                         commit_id="second", action_id=second, context=context)
         self.assertIsNotNone(reply_id)
         self.assertIsNone(duplicate)
+
+    def test_deferred_action_cannot_resurrect_when_its_evidence_still_matches(self) -> None:
+        correlation = self.proxy.submit("One still pending question.")
+        action_id = self.action("A move that now awaits reconsideration.")
+        context = build_public_context(self.store, ActionRequest(knoxel_id=action_id))
+        batch = self.store.begin_batch("withhold-selected-action")
+        batch.set_lifecycle(action_id, dispatch_status="deferred", execution_status="awaiting_reconsideration")
+        self.store.commit(batch)
+        with self.assertRaises(InteractionContextChanged):
+            validate_public_context(self.store, context)
+        with self.assertRaises(InteractionContextChanged):
+            commit_public_reply(self.store, "Obsolete move.", correlation, commit_id="obsolete-move",
+                                action_id=action_id, context=context)
+        self.assertFalse(any(record.content == "Obsolete move." for record in self.store.all_features))
 
     def test_terminal_task_outcome_can_follow_an_interim_answer(self) -> None:
         correlation = self.proxy.submit("Please do the task and report the result.")

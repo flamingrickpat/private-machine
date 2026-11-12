@@ -8,7 +8,7 @@ An earlier action can already satisfy the purpose of another proposed message.
 The character needs this context when it chooses any action, including private activity or waiting.
 
 Parent: [cognitive pipeline](cognition.md).
-Related: [public dialogue](public-dialogue.md) and [decisions and routing](decisions-and-routing.md).
+Related: [entity context](entity-context.md), [public dialogue](public-dialogue.md), and [decisions and routing](decisions-and-routing.md).
 
 ## One projection of accepted evidence
 
@@ -20,6 +20,8 @@ The projection does not create a second memory store or an availability flag.
 The character card supplies identity and character traits.
 Configured capabilities describe what the character can actually do.
 Partner narratives and beliefs remain interpretations.
+The persistent entity-context owner supplies accepted claims with their attribution, uncertainty, applicability, and compact projection.
+Legacy narratives remain labeled context rather than a competing authority for current entity state.
 Actual public dialogue remains attributed interaction evidence.
 An action's selected purpose remains distinct from a committed utterance and its delivery.
 Delivery does not prove that the partner read the message.
@@ -43,10 +45,12 @@ This convention does not introduce a fixed human-only interpretation of availabi
 This path reaches decision calls even though those calls do not use the separate grounding turn.
 Public dialogue freezes a fresh projection with its reply context.
 The story renderer and the shared public-context renderer use the same guidance renderer.
+Entity workspace items also present this compact accepted view instead of the full receipt history.
 
 The projection itself runs synchronously and performs no inference.
 The surrounding main-cognition and public-dialogue workflows retain their own execution and acceptance boundaries.
-This mechanism alone does not establish an independent fast interaction path.
+The [ordinary interaction](ordinary-interaction.md) workflow consumes this guidance alongside the main and speech paths.
+Entity-context runtime integration remains under verification.
 
 ## Reasoning about the partner
 
@@ -71,13 +75,17 @@ It does not impose a mandatory silence rule or a standard agreeable personality.
 The frozen cycle request and public context retain the typed projection.
 Rendered prompts show source IDs and revisions beside the original text.
 Public context includes these sources in its existing publication dependencies.
+Entity context also carries its frozen query and projected meaning fingerprint.
+Acceptance checks relevant meaning and original sources rather than treating every new receipt as a change of situation.
+Current validation also requires refresh after a captured review or applicability boundary.
 The owner can compare the supplied evidence, selected purpose, generated speech, and actual delivery.
 
-The current view selects bounded recent evidence without cutting its text.
-It reports its limits: eight dialogue lines, four context sources, eight intentions, and four recent actions.
+The recent-evidence window contains eight dialogue lines, four context sources, eight intentions, and four recent actions.
 An important earlier statement can fall outside that window.
-Persistent entity claims, freshness, corrections, and observer-relative knowledge remain separate beta work.
-This projection must not be mistaken for completion of that entity-model target.
+The separate entity projection retains accepted persistent claims within its caller-supplied token budget.
+It reports omitted claims and preserves observer, reality, and frame boundaries.
+Time can make an estimate uncertain; it cannot establish an unobserved replacement state.
+These mechanisms do not establish completed deliberate ToM or sustained character quality.
 
 ## Source map
 
@@ -86,3 +94,4 @@ This projection must not be mistaken for completion of that entity-model target.
 - [`render_situational_guidance`][workflows.public_speech.situational_guidance.render_situational_guidance] renders evidence and generic reasoning guidance.
 - [`StoryPrefix`][workflows.main_cognition.story_prefix.StoryPrefix] supplies main-cognition context.
 - [`PublicContext`][workflows.public_speech.public_context.PublicContext] carries the frozen speech context.
+- [`EntityContextView`][workflows.entity_context.schemas.EntityContextView] carries persistent entity meaning and source dependencies.

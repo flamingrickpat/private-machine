@@ -598,6 +598,10 @@ def build_app(
             "cognitive_control", bus, on_error, clock, 1.0, ghost=ghost,
             config=ControlConfig.model_validate(cognitive_control_config or {}),
         )
+        from workflows.entity_context.owner import EntityContextOwner
+
+        entity_context_owner = EntityContextOwner(ghost)
+        control.entity_context_owner = entity_context_owner
         control.inference_admission = main_cog.inference_admission
         control.cancel_private = inner_thought.yield_run
         def cancel_critical_private() -> None:
@@ -631,6 +635,7 @@ def build_app(
             runtime_root=runtime_root, ghost=ghost,
         )
         input_triage.cognitive_control = control
+        input_triage.entity_context_owner = entity_context_owner
         modules.insert(1, input_triage)
         app.input_triage = input_triage
         from workflows.interaction.host import Interaction
@@ -646,12 +651,23 @@ def build_app(
         )
         interaction.cognitive_control = control
         control.validate_selection = interaction.validate_selection
+        control.refresh_selection = interaction.refresh_selection
+        from workflows.main_cognition.schemas import ActionRequest
+
+        def refresh_public_action(request: ActionRequest) -> None:
+            """Reconsider selected direction without repeating accepted external work."""
+            if request.interaction_selection_id:
+                interaction.refresh_selection(request.interaction_selection_id)
+            elif request.knoxel_id is not None:
+                main_cog.defer_public_action(request)
+        control.refresh_action = refresh_public_action
         interaction.workflow_catalogue_provider = lambda: (
             main_cog.workflow_catalogue_provider() if main_cog.workflow_catalogue_provider is not None
             else main_cog.workflow_catalogue)
         main_cog.interaction_enabled = True
         modules.insert(2, interaction)
         main_cog.cognitive_control = control
+        main_cog.entity_context_owner = entity_context_owner
         control.prioritize_critical = main_cog.prioritize_critical
         inner_thought.cognitive_control = control
         def release_private_results(envelopes: list[Envelope]) -> None:
@@ -758,7 +774,7 @@ def build_app(
             except Exception:
                 pass
         recovery = ReplyRecovery("reply_recovery", bus, on_error, clock, None, ghost=ghost, supervisor=supervisor)
-        recovery.paused_source_ids = control.paused_source_ids
+        recovery.paused_source_ids = lambda: control.paused_source_ids() | main_cog.entity_reconsider_source_ids()
         recovery.selected_source_ids = lambda: set(interaction_receipts(ghost.recovery_snapshot(capture=False)))
         modules.append(recovery)
         app.reply_recovery = recovery
@@ -844,6 +860,7 @@ def build_app(
         supervisor.recover_interrupted()
         recovery.resume()
         interaction.resume()
+        main_cog.resume_entity_actions()
         inner_thought.resume()
         if focus_management is not None:
             focus_management.resume()

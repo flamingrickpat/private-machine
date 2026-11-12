@@ -24,6 +24,10 @@ from pm.records.cognitive_records import BeliefRecord, Intention
 from pm.records.enums import ActionSchemaStatus, EntityClass, FeatureType, FrameEnum, InterlocusType, NarrativeTypes, SourceKind
 from pm.records.memory_records import ActionSchemaRecord, Entity, Feature, Narrative
 from pm.records.workspace import ShardKey
+from pm.constants import WORKSPACE_TAIL_TOKENS
+from workflows.entity_context.schemas import EntityContextKey, EntityContextView, EntityProjectionQuery
+from workflows.entity_context.projection import project_entity_context, render_entity_context
+from workflows.entity_context.owner import active_claims
 
 
 class SituationSource(BaseModel):
@@ -55,6 +59,7 @@ class EntitySituationEvidence(BaseModel):
     entity_class: EntityClass
     context: list[SituationSource] = Field(default_factory=list[SituationSource])
     recent_dialogue: list[SituationSource] = Field(default_factory=list[SituationSource])
+    entity_contexts: list[EntityContextView] = Field(default_factory=list[EntityContextView])
 
 
 class SituationalGuidance(BaseModel):
@@ -80,6 +85,10 @@ class SituationalGuidance(BaseModel):
         revisions = {source.record_id: source.revision for source in sources}
         if self.partner is not None:
             revisions[self.partner.entity_id] = self.partner.revision
+            for context in self.partner.entity_contexts:
+                revisions[context.identity_source.record_id] = context.identity_source.revision
+                for source in context.source_dependencies:
+                    revisions[source.record_id] = source.revision
         return revisions
 
 
@@ -132,7 +141,8 @@ def _dialogue_partner(record: Feature, entities: dict[str, int], companion_id: i
 def build_situational_guidance(view: Snapshot, *, as_of_utc: datetime, companion_name: str,
                                user_name: str, partner_entity_id: int | None = None,
                                supported_capabilities: Sequence[str] = (),
-                               scopes: Sequence[RecordScope] = (RecordScope(),)) -> SituationalGuidance:
+                               scopes: Sequence[RecordScope] = (RecordScope(),),
+                               entity_context_tokens: int = WORKSPACE_TAIL_TOKENS) -> SituationalGuidance:
     """Read one partner's evidence without retrieval, inference, or mutation.
 
     Self and workflow choices use the configured user, matching the existing
@@ -183,9 +193,17 @@ def build_situational_guidance(view: Snapshot, *, as_of_utc: datetime, companion
                 context.append(narratives[category])
         context.extend(beliefs[-2:])
         dialogue.sort(key=lambda record: (record.timestamp_world_begin, record.id))
+        entity_contexts: list[EntityContextView] = []
+        if companion_id is not None:
+            for scope in dict.fromkeys(scopes):
+                key = EntityContextKey(subject_entity_id=target_id, observer_entity_id=companion_id, scope=scope)
+                claim_keys = list(dict.fromkeys(claim.claim_key for claim in active_claims(view, key=key)))
+                entity_contexts.append(project_entity_context(view,
+                    query=EntityProjectionQuery(key=key, claim_keys=claim_keys, token_budget=entity_context_tokens),
+                    as_of_utc=as_of_utc))
         partner = EntitySituationEvidence(entity_id=identity.id, revision=view.revisions[identity.id], name=identity.content,
             entity_class=identity.entity_class, context=[_source(view, record) for record in context[-4:]],
-            recent_dialogue=[_source(view, record) for record in dialogue[-8:]])
+            recent_dialogue=[_source(view, record) for record in dialogue[-8:]], entity_contexts=entity_contexts)
     intentions = [record for record in view.all_knoxels.values()
                   if isinstance(record, Intention) and record.active and record.status == "active"
                   and record.scope in scopes]
@@ -247,7 +265,9 @@ def render_situational_guidance(guidance: SituationalGuidance) -> str:
         lines.append("Partner identity and current ability to respond are unknown.")
     else:
         lines.append(f"Partner: {partner.name}, entity {partner.entity_id}, {partner.entity_class.value}.")
-        lines.append("Partner context (up to four latest accepted interpretations; direct new evidence can correct them):")
+        lines.append("Current observer-specific entity context:")
+        lines.extend(render_entity_context(context) for context in partner.entity_contexts)
+        lines.append("Legacy interpretive priors (up to four; current attributed claims and corrections take precedence):")
         lines.extend(_render_source(source) for source in partner.context)
         lines.append("Recent interaction (up to eight actual lines, oldest first; not a complete history):")
         lines.extend(_render_source(source) for source in partner.recent_dialogue)

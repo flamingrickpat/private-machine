@@ -37,6 +37,7 @@ from workflows.main_cognition.schemas import ActionRequest, RecordView
 from workflows.main_cognition.story_prefix import shard_block
 from workflows.public_speech.context_planning import PlannedContext
 from workflows.public_speech.public_context import DialogueTurn, EvidenceItem
+from workflows.entity_context.projection import render_entity_context
 
 #: Feature types of the self tail that the Story transcript shows as thoughts.
 THOUGHT_TYPES = frozenset({FeatureType.Thought, FeatureType.InnerMonologue})
@@ -70,9 +71,13 @@ def _views(view: Snapshot, request: ActionRequest, late_ids: list[int] = ()) -> 
     ``late_ids`` are partner records that arrived after the cycle committed.
     They get a view too, so the transcript can show them.
     """
-    return {record_id: record_view(view.get(record_id))
-            for item in request.shards
-            for record_id in [*item.shard.item_ids(), *item.shard.tail_ids, *late_ids]}
+    records = {record_id: record_view(view.get(record_id))
+               for item in request.shards
+               for record_id in [*item.shard.item_ids(), *item.shard.tail_ids, *late_ids]}
+    for context in request.entity_contexts:
+        if context.head_receipt_id in records:
+            records[context.head_receipt_id].content = render_entity_context(context)
+    return records
 
 
 def shard_story(view: Snapshot, request: ActionRequest, companion_name: str) -> str:
@@ -151,6 +156,8 @@ def shard_context(view: Snapshot, request: ActionRequest, companion_name: str,
             # A shard retains the exact version selected by cognition. Its
             # successor can already be the current query head.
             entry = EvidenceItem.model_validate(candidate(view, record_id, view.get(record_id)))
+            if any(context.head_receipt_id == record_id for context in request.entity_contexts):
+                entry.text = records[record_id].content
             entry.lane = f"shard:{item.name}"
             evidence.append(entry)
     trace = {"source": "shards",

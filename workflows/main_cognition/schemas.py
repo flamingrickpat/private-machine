@@ -25,6 +25,7 @@ from pm.records.workspace import ShardKey, WorkspaceShard
 from workflows.cognitive_control.schemas import FocusProposal, FocusState, WaitRequest
 from workflows.public_speech.public_context import Presentation
 from workflows.public_speech.dependencies import WorkDependencies
+from workflows.entity_context.schemas import EntityContextView, EntityClaimLayer
 
 
 class Stimulus(BaseModel):
@@ -201,6 +202,7 @@ class ActionRequest(BaseModel):
     action_origin: Literal["main", "interaction", "task_reply"] = "main"
     interaction_selection_id: str = ""
     interaction_dependencies: WorkDependencies | None = None
+    entity_contexts: list[EntityContextView] = Field(default_factory=list[EntityContextView])
 
     def payload(self) -> dict[str, JsonValue]:
         """Return the JSON payload of the envelope."""
@@ -381,6 +383,9 @@ class BeliefUpdate(BaseModel):
     quote: str = Field(min_length=1)
     belief_key: str = Field(min_length=1)
     correction: bool = False
+    subject_entity_id: int | None = Field(default=None, gt=0)
+    entity_layer: EntityClaimLayer = "background"
+    correction_target_ids: list[str] = Field(default_factory=list[str])
 
 
 class ContextResult(BaseModel):
@@ -388,7 +393,7 @@ class ContextResult(BaseModel):
     active_goals: list[str] = Field(default_factory=list)
     capabilities: list[str] = Field(default_factory=list)
     candidate_ids: list[int] = Field(default_factory=list)
-    belief_updates: list[BeliefUpdate] = Field(default_factory=list)
+    belief_updates: list[BeliefUpdate] = Field(default_factory=list[BeliefUpdate], max_length=4)
 
 
 class VariantPercept(BaseModel):

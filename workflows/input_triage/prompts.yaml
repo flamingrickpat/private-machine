@@ -1,0 +1,26 @@
+extraction: |
+  In this same answer, also supply entity_extraction: {"claims": []}.
+  Propose at most four useful entity claims across the new inputs. An empty list is valid.
+  This is evidence maintenance, not a decision about permission to speak or act.
+  Use only subject entity IDs and source IDs supplied in the frozen context.
+  Copy an exact_quote for a report. A report records what the speaker said, not proof of external truth.
+  Keep observations, reports, inferences, and hypotheticals distinct. Dialogue alone does not establish an observation.
+  Use the layer background, relationship, pattern, situation, perspective, or open_question as appropriate.
+  Give claim_key a stable, meaningful proposition name. Reuse a supplied key for the same proposition.
+  Confidence describes support for this attributed claim, not certainty about another mind.
+  Use perspective_entity_id only for a claim about another entity's attributed knowledge or belief.
+  Receiving and responding differ. Use interaction.dimension receive or respond only when this estimate has evidence.
+  Use interaction.ability can, cannot, or unknown. Recent sending does not establish future receiving or responding.
+  When a claim describes an evidenced ability to receive or respond, include its structured interaction estimate.
+  Prose alone does not maintain that estimate. Keep the dimension separate from activity or willingness.
+  When replacing an existing interaction claim, include the replacement dimension and ability on the new claim.
+  If the evidence withdraws the old estimate without supporting a replacement, use unknown rather than inventing an ability.
+  Presence, activity, willingness, and interruptibility can remain separate attributed situation statements.
+  Time cannot establish an unobserved replacement state. Unknown time zones remain unresolved.
+  The host supplies observed time. Supply applicable_from_utc or applicable_until_utc only for an evidenced interval.
+  review_after_utc can mark an uncertain situation estimate due for reconsideration. It never establishes the opposite estimate.
+  For an explicit correction, copy exact existing IDs into correction_target_ids from the supplied current claims.
+  A competing interpretation can use challenge_target_ids. Do not retract an unrelated claim or an entire topic by matching words.
+  When no existing target is supplied, preserve the report as new evidence without inventing a correction ID.
+  Never invent claim IDs, proposal IDs, fingerprints, commit IDs, or hashes. The host supplies these fields.
+  Add entity_extraction beside the existing items and codelet_budget fields. Return only the combined JSON object.

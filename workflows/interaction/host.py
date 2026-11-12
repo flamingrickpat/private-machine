@@ -50,7 +50,7 @@ from workflows.main_cognition.action_request import partner_key, request_shards
 from workflows.main_cognition.cycle_commits import active_intentions
 from workflows.main_cognition.schemas import ActionRequest, WorkflowOption
 from workflows.main_cognition.story_prefix import shard_label
-from workflows.public_speech.dependencies import capture_dependencies, validate_dependencies
+from workflows.public_speech.dependencies import InteractionContextChanged, capture_dependencies, validate_dependencies
 from workflows.public_speech.publication_control import ReplySuperseded
 
 if TYPE_CHECKING:
@@ -90,6 +90,24 @@ class Interaction(CognitiveWorkflow):
             if any(owners[key].selection_id != selection_id for key in receipt.source_ids):
                 raise ReplySuperseded("A newer ordinary choice superseded this selected reply.")
 
+    def refresh_selection(self, selection_id: str) -> None:
+        """Queue unresolved original causes when their selected direction becomes stale."""
+        if not selection_id:
+            return
+        with self.ghost.lock:
+            view = self.ghost.recovery_snapshot(capture=False)
+            receipts = interaction_receipts(view)
+            matches = [receipt for receipt in receipts.values() if receipt.selection_id == selection_id]
+            if not matches:
+                # A newer accepted selection already owns every original cause.
+                return
+            receipt = matches[0]
+            pending = [view.get(key) for key in receipt.source_ids
+                       if view.get(key).metadata.get("exchange_status") == "pending"]
+        for source in pending:
+            self.deliver(new_envelope("user_input", "data", "user.input",
+                str(source.metadata["exchange_correlation"]), {"knoxel_id": source.id}))
+
     def remaining_inputs(self, batch: list[Envelope]) -> list[Envelope]:
         """Exclude classified Critical inputs and sources already selected by an owner."""
         with self.ghost.lock:
@@ -105,7 +123,19 @@ class Interaction(CognitiveWorkflow):
                 if view.get(source_id).metadata.get("exchange_status") == "resolved":
                     continue
                 if source_id in receipts:
-                    continue
+                    receipt = receipts[source_id]
+                    if receipt.outcome != InteractionOutcome.Reply:
+                        continue
+                    stale = self.cognitive_control.reconsideration_required()
+                    if not stale:
+                        stale = receipt.dependencies.critical_epoch != self.cognitive_control.publication_epoch()
+                    if not stale:
+                        try:
+                            validate_dependencies(self.ghost, receipt.dependencies, current_partner_input=True)
+                        except InteractionContextChanged:
+                            stale = True
+                    if not stale:
+                        continue
                 assessment = self.cognitive_control.triage_result([source_id])
                 if assessment is None or assessment.items[0].category == "Critical":
                     continue
@@ -120,6 +150,12 @@ class Interaction(CognitiveWorkflow):
         source_ids = [InputSourcePayload.model_validate(item.payload).knoxel_id for item in batch]
         if not self.cognitive_control.wait_for_triage(source_ids, self.stop_event):
             return
+        if not self.cognitive_control.wait_for_reconsideration(self.stop_event):
+            return
+        unique: dict[int, Envelope] = {}
+        for envelope in batch:
+            unique[InputSourcePayload.model_validate(envelope.payload).knoxel_id] = envelope
+        batch = list(unique.values())
         while not self.stop_event.is_set():
             with self.ghost.lock:
                 view = self.ghost.recovery_snapshot(capture=False)
@@ -205,8 +241,14 @@ class Interaction(CognitiveWorkflow):
             partner = base.cycle.stimuli[0].entity_id
             dependencies = capture_dependencies(view, sorted(base.evidence.record_fingerprints),
                 guidance_tick=previous.tick_id, critical_epoch=self.cognitive_control.publication_epoch(),
-                partner_entity_id=partner, scopes=[view.get(key).scope for key in source_ids])
-            identity = json.dumps(base.source_fingerprints, sort_keys=True).encode("utf-8")
+                partner_entity_id=partner, scopes=[view.get(key).scope for key in source_ids],
+                entity_contexts=[context for guidance in base.cycle.situational_guidance
+                                 if guidance.partner is not None for context in guidance.partner.entity_contexts])
+            identity_text = json.dumps(base.source_fingerprints, sort_keys=True)
+            identity_text += str(dependencies.critical_epoch)
+            identity_text += "".join(context.projected_meaning_fingerprint for context in dependencies.entity_contexts)
+            identity_text += "".join(source.fingerprint for source in dependencies.sources)
+            identity = identity_text.encode("utf-8")
             selection_id = "interaction-" + hashlib.sha256(identity).hexdigest()[:24]
             intention_ids = [goal.id for goal in active_intentions(view) if goal.scope in dependencies.scopes][:8]
             request = InteractionRequest(selection_id=selection_id, cycle=base.cycle,
@@ -274,7 +316,7 @@ class Interaction(CognitiveWorkflow):
                     gwt_tick=receipt.dependencies.guidance_tick,
                     presentation=dispatch.presentation, workspace=request.state_summary,
                     action_origin="interaction", interaction_selection_id=receipt.selection_id,
-                    interaction_dependencies=receipt.dependencies)
+                    interaction_dependencies=receipt.dependencies, entity_contexts=list(receipt.dependencies.entity_contexts))
                 action = batch.create(ActionSchemaRecord(content=dispatch.content, action_type=ActionType.Reply,
                     scope=scope, intention_ids=list(self._request.intention_ids),
                     lineage=lineage, metadata={"action_id": dispatch.action_id, "workflow_name": dispatch.workflow_name,

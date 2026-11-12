@@ -126,7 +126,7 @@ class RuntimeDependencyTests(unittest.TestCase):
 
 
 #: Workflow libraries have no manifest; several workflows share them.
-LIBRARIES = {"public_speech", "minecraft_body"}
+LIBRARIES = {"public_speech", "minecraft_body", "entity_context"}
 #: Libraries may build on accepted cognition state.
 LIBRARY_MAY_IMPORT = LIBRARIES | {"main_cognition"}
 #: Known library -> task-workflow imports. Do not add entries.

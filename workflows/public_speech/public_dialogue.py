@@ -26,7 +26,7 @@ from workflows.public_speech.publication import commit_public_reply, publish_rep
 from pm.bus.envelopes import new_envelope
 from pm.runs.workflow_module import CognitiveWorkflow
 from workflows.public_speech.publication_control import PublicationControl, ReplySuperseded
-from workflows.public_speech.dependencies import PartnerFrontierChanged
+from workflows.public_speech.dependencies import InteractionContextChanged
 
 if TYPE_CHECKING:
     from pydantic import JsonValue
@@ -318,8 +318,12 @@ class PublicDialogue(CognitiveWorkflow):
                         f"Critical assessment {self._interrupted_epoch} interrupted obsolete public calculation.")
             except ReplySuperseded as error:
                 self.supersede_reply(envelope, str(error))
-            except PartnerFrontierChanged as error:
+                if self.cognitive_control is not None:
+                    self.cognitive_control.refresh_action(request)
+            except InteractionContextChanged as error:
                 self.supersede_reply(envelope, str(error))
+                if self.cognitive_control is not None:
+                    self.cognitive_control.refresh_action(request)
             except (EmptyCompletionError, ProviderCompletionError, SpeechOutputError, ModelFormatError) as error:
                 self.defer_reply(envelope, error)
             finally:
@@ -411,8 +415,10 @@ class PublicDialogue(CognitiveWorkflow):
                 # A committed utterance remains an event if Critical arrives
                 # before its outbox publication or this invocation's exit.
                 self._reply_committed = True
-        except PartnerFrontierChanged as error:
+        except InteractionContextChanged as error:
             self.supersede_reply(envelope, str(error))
+            if self.cognitive_control is not None:
+                self.cognitive_control.refresh_action(request)
             return
         except GhostConflict as error:
             self.reject_reply(batch, str(error), status="stale")

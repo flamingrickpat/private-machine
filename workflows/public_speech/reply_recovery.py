@@ -27,6 +27,7 @@ from pathlib import Path
 import json
 from typing import TYPE_CHECKING, Any
 from collections.abc import Callable
+from pydantic import BaseModel, ConfigDict, Field
 
 from pm.utils import yaml_util
 
@@ -43,6 +44,15 @@ if TYPE_CHECKING:
     from workflows.main_cognition.schemas import ActionRequest
 
 TERMINAL = frozenset({"completed", "failed", "cancelled", "interrupted"})
+
+
+class TaskReceiptCausality(BaseModel):
+    """The existing supervisor receipt's optional historical commit reference."""
+
+    model_config = ConfigDict(extra="ignore")
+    causal_commit_id: str | None = None
+    input_record_ids: list[int] = Field(default_factory=list[int])
+    input_commit_ids: list[str] = Field(default_factory=list[str])
 
 
 def user_reply_request(ghost: MemoryStore, *, knoxel_id: int, action_id: str,
@@ -67,7 +77,7 @@ def user_reply_request(ghost: MemoryStore, *, knoxel_id: int, action_id: str,
         knoxel_id=knoxel_id, action_id=action_id, workflow_name="dialogue_assistant",
         partner_entity_id=user_entity_id, partner_name=user_name,
         stimuli=[Stimulus(knoxel_id=exchange.id, text=str(exchange.content), source="user_input",
-                          entity_id=user_entity_id)],
+                          entity_id=user_entity_id, correlation_id=str(exchange.metadata["exchange_correlation"]))],
         action_origin="task_reply",
         shards=request_shards(workspace_state, SELF_SHARD, partner,
                               lambda key: user_name if key.kind == "entity" else "self"),
@@ -136,6 +146,7 @@ class ReplyRecovery(BusModule):
         self.ghost = ghost
         self.supervisor = supervisor
         self.selected_source_ids: Callable[[], set[int]] = lambda: set()
+        self.paused_source_ids: Callable[[], set[int]] = lambda: set()
 
     def handle_batch(self, batch: list[Envelope]) -> None:
         """Acknowledge run events and dispatch the replies they owe."""
@@ -215,13 +226,24 @@ class ReplyRecovery(BusModule):
                           if isinstance(item, ActionSchemaRecord) and item.metadata.get("action_id") == identity), None)
             if prior is None:
                 changes = self.ghost.begin_batch(identity)
+                changes.depend_on([source.id, exchange.id], authority=source.id)
+                causality = TaskReceiptCausality.model_validate(receipt)
+                changes.depend_on(causality.input_record_ids)
+                changes.depend_on_commits(causality.input_commit_ids)
+                if causality.causal_commit_id:
+                    changes.depend_on_commits([causality.causal_commit_id])
                 action = changes.create(ActionSchemaRecord(
                     action_type=ActionType.Reply,
                     content="Answer the original request using this terminal task receipt. Explain verified work, failure, or uncertainty accurately.",
-                    intention_ids=list(source.intention_ids),
+                    intention_ids=list(source.intention_ids), scope=source.scope,
                     metadata={**source.metadata, "action_id": identity, "workflow_name": "dialogue_assistant",
                               "source_action_schema_id": source.id, "task_run_id": receipt["run_id"]},
                 ))
+                request = user_reply_request(self.ghost, knoxel_id=action.id, action_id=identity,
+                    exchange=exchange, task_receipt=evidence,
+                    workspace="The selected task reached a terminal boundary. Its receipt does not imply unverified instruction execution.")
+                action.metadata = {**action.metadata, "dispatch_status": "pending", "dispatch_target": "dialogue_assistant",
+                                   "dispatch_correlation": correlation, "dispatch_payload": request.payload()}
                 accepted = self.ghost.commit(changes)
                 action_id = accepted.added_ids[0]
             else:
@@ -256,7 +278,7 @@ class ReplyRecovery(BusModule):
                    if receipt.get("arguments", {}).get("_public_reply_requested")}
         waiting.update(handled)
         selected_sources = self.selected_source_ids()
-        paused = getattr(self, "paused_source_ids", lambda: set())()
+        paused = self.paused_source_ids()
         for item in self.ghost.all_features:
             correlation = item.metadata.get("exchange_correlation")
             if (correlation and item.metadata.get("exchange_status") == "pending"

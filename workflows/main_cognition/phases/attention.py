@@ -426,6 +426,9 @@ def run(context: RoleContext, work: CycleWork) -> CycleWork:
                              focus_ids=sorted(record_id for record_id, value in bonus.items() if value > 0.0))
     result.changes = select(work, ratings, bonus)
     work.attention = result
+    from workflows.main_cognition.entity_shards import reserve_entity_context
+    reserve_entity_context(work.state.workspace, work.records, work.request.situational_guidance,
+                           tick=provisional_tick(work))
     reinforced = reinforce_entries(work, result)
     entered = sum(len(change.entered) for change in result.changes)
     left = sum(len(change.left) for change in result.changes)

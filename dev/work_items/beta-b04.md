@@ -1,6 +1,6 @@
 # B04: persistent entity context
 
-Status: root-reviewed implementation authorized within the beta scope, 2026-11-11.
+Status: implemented; targeted verification completed on 2026-11-12.
 B03 passed its targeted gate and committed as `a9e78e8` before B04 implementation.
 
 Root selected one append-only staging owner, atomic immediate updates, scoped attribution,
@@ -9,12 +9,13 @@ No new speech permission policy is accepted.
 The owner/projection folder is a shared workflow library without a separate kernel.
 Register that library in the existing architecture checks and enforce its import boundary.
 
-This proposal defines the entity-context part of [beta](beta.md).
+This record defines the entity-context part of [beta](beta.md).
 The [milestone](../../docs/continuous-character-milestone.md), sections 12–13 and ARCH-06, ARCH-07, ARCH-10, and ARCH-11, remains authoritative.
 The [capability audit](beta-capability-audit.md#b04-persistent-entity-context) supplies the earlier gap analysis.
-This document records proposed engineering work. It does not describe implemented behavior.
+This document preserves the accepted design and implementation evidence.
+The [entity-context manual](../../docs/subsystems/entity-context.md) describes the current system.
 
-## Current ownership and execution
+## Inspected ownership before implementation
 
 The following contracts and paths exist in the inspected source.
 
@@ -487,3 +488,101 @@ If the budget cannot support the gate, report `NOT RUN — budget prerequisite u
 
 No product code, checkpoint, service, or model configuration changed during this proposal.
 No inference ran during this proposal audit. The selected implementation follows the recorded root review.
+
+## Implementation review
+
+The shared entity owner and compact projection now exist under `workflows/entity_context/`.
+Immediate extraction shares the existing early-triage call and atomic assessment commit.
+Current speech retains both the selected action's original view and the newly rendered situation.
+Historical main appraisal does not require the latest entity family head.
+
+Review found two additional acceptance requirements:
+
+- A stale ordinary selection must derive a new identity from changed semantic guidance, not reuse the old receipt.
+- A stale main or terminal-task reply must retain a durable reconsideration cause and exact task evidence.
+
+The reconsideration cause is a new internal event. It does not requeue the original user input for duplicate appraisal.
+Terminal task execution must not repeat merely because its reporting context changed.
+These paths require focused store, restart, and real-kernel verification before completion.
+
+Actual-store integration checks exposed invalid snapshot commit IDs after an explicit persona import.
+The baseline retained removed transaction IDs as live dependencies.
+Commit `4cdca09` clears those IDs when establishing a fresh import baseline.
+The regression exercises import, a subsequent recovery root, clean reload, and another accepted root.
+An affected check run passed 133 tests; its log is `.runtime/beta-b04/local-checks.log`.
+Later implementation changes still require their final focused checks.
+
+The library's focused checks cover correction history, competing claims, attribution, observer/scope isolation,
+current-source authority, repeated equivalent support, compact budgeting, expiry, concurrent writers, and clean restart.
+They use actual stores and checkpoint files. They do not establish generated interpretation quality.
+
+Current-direction validation conservatively rejects a crossed captured freshness deadline,
+even if unseen equivalent evidence could extend that estimate.
+No speech permission layer, automatic silence policy, or new resident entity agent was introduced.
+That review preceded the paid verification recorded below.
+
+## Final verification
+
+The four-input OpenRouter gate passed:
+
+```powershell
+.venv/Scripts/python.exe -m unittest tests.live.test_entity_context -v
+```
+
+Evidence: `.runtime/beta-b04/live/20261112T124451Z-75061e71/`.
+The gate used the actual triage kernel, intake, staging owner, control barrier, and checkpoint loader.
+Its explicit synthetic fixture contained Spamuel's card, two identities, and a labelled legacy Berlin prior.
+It did not load or mutate the earlier B03 checkpoint.
+The four actual inputs were sources 3, 6, 9, and 13; the supported peer identity was 12.
+The model was `deepseek/deepseek-v4.1-flash-1017` through OpenRouter.
+Ten transport requests, including schema repairs, completed in 112.437 seconds.
+No main cycles or companion utterances ran in this narrow gate.
+
+Observed results:
+
+- Immediate claims and classification survived clean reload after each input, before main appraisal.
+- An explicit correction retracted the exact earlier response claim and supplied the replacement estimate.
+- Time expiry weakened response ability to unknown without asserting that Jesse returned.
+- A later report restored current response evidence and recorded Hamburg beside the retained legacy Berlin prior.
+- Sparse peer input preserved Jesse's separate family and actual speaker attribution.
+- Reports retained exact quotes. An additional inferred change in occupation remained labelled inference and contested against prior evidence.
+
+The first attempt exposed an adapter defect: valid ISO timestamps with offsets reached a strict naive-UTC internal claim.
+The semantic draft boundary now normalizes explicit offsets to UTC before hydration.
+Accepted internal claims retain their strict clock convention.
+A regression covers offset, `Z`, and offset-free UTC inputs.
+Its retained interrupted evidence is `live/20261112T123830Z-ceb2db62/`.
+
+The second attempt correctly retracted the earlier claim but omitted the replacement's structured interaction estimate.
+The extraction prompt now requires an evidenced receive/respond estimate to accompany that semantic claim.
+The fresh successful gate retained the original acceptance criterion.
+The failed sample remains at `live/20261112T124129Z-373344f0/`.
+No keyword classifier or forced response value was introduced.
+
+The final affected local run passed 77 tests in 5.373 seconds.
+It covers actual stores, atomic triage, family races, partial main acceptance, semantic reselection, publication,
+and task-result reconsideration across clean restart.
+The earlier broader affected run passed 133 checks, including the import-baseline repair.
+Configured strict Pyright reports zero errors and warnings.
+Local logs: `.runtime/beta-b04/focused-final.log`, `local-checks.log`, and `types-final.log`.
+
+All three B04 attempts report $0.0122847844 in provider cost, with no unmatched B04 start/end receipts.
+Known B03 plus B04 cost is $0.22771918416; prior incomplete B03 usage remains unknown.
+Receipt: `.runtime/beta-b04/live/cost_summary.json`.
+This is a provider-reported lower bound for interim development, not a wallet reconciliation.
+
+The gate does not establish full-cycle generated action quality, sustained character behaviour, private inquiry, or deliberate ToM.
+Those remain later beta work and final integrated verification.
+The owner requested a stop after B04 and an uncommitted handoff. B05 implementation has not started.
+
+The final strict manual build passed in 184.09 seconds: `.runtime/beta-b04/docs-delivery.log`.
+Four changed manual pages had 2,552 valid local file and anchor targets.
+The browser rendered all three entity-context diagrams without JavaScript errors.
+New entity-context tests and the live gate also passed their scoped strict type check.
+The live gate received only post-run annotation and optional-value narrowing cleanup; no extra inference ran for that cleanup.
+
+The engineering capture contains four actual incoming messages, four accepted entity receipts, and four atomic assessments.
+Its direct URL is `http://127.0.0.1:8095/#capture/beta-entity-20261112`.
+Browser inspection found all four collections and 15 record cards without JavaScript errors.
+The capture operation left the successful checkpoint hash unchanged.
+Packages and browser receipts live under `.runtime/beta-b04/review/`.

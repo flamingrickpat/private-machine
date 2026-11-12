@@ -55,8 +55,9 @@ def replay_intents(ghost: MemoryStore, bus: BusSystem, supervisor: ManagedRunSup
         handled.add(correlation)
         exchange = exchange_record(ghost, correlation)
         admitted = any(row["action_id"] == pending.action_id for row in receipts.values() if "action_id" in row)
-        if admitted or (exchange is not None
-                        and RecordMetadataView.model_validate(exchange.metadata).exchange_status == "resolved"):
+        ordinary_resolved = (pending.dispatch_payload.action_origin != "task_reply" and exchange is not None
+                             and RecordMetadataView.model_validate(exchange.metadata).exchange_status == "resolved")
+        if admitted or pending.public_reply_id is not None or ordinary_resolved:
             acknowledge_intent(ghost, item.id)
             continue
         request = pending.dispatch_payload.model_copy(update={"knoxel_id": item.id,

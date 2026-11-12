@@ -19,9 +19,10 @@ from pm.memory.snapshot import GhostConflict
 from pm.records.memory_records import Feature
 from pm.records.base import Provenance, RecordBase, RecordScope
 from pm.records.enums import FeatureType, InterlocusType, SourceKind
+from workflows.entity_context.projection import EntityContextChanged, expect_entity_context, validate_entity_context
 from workflows.main_cognition.experience import utterance_metadata
 from workflows.public_speech.publication_control import PublicationControl
-from workflows.public_speech.dependencies import validate_dependencies
+from workflows.public_speech.dependencies import InteractionContextChanged, validate_dependencies
 
 if TYPE_CHECKING:
     from pm.memory.store import MemoryStore
@@ -33,6 +34,14 @@ class _ExchangeLifecycle(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
     exchange_status: Literal["pending", "resolved"] | None = None
+    public_reply_id: int | None = None
+
+
+class _PublicActionLifecycle(BaseModel):
+    """Read explicit durable action disposition without inspecting its payload."""
+
+    model_config = ConfigDict(extra="ignore")
+    dispatch_status: str = ""
     public_reply_id: int | None = None
 
 
@@ -71,8 +80,12 @@ def commit_public_reply(ghost: MemoryStore, text: str, correlation: str, *, comm
                 action_guidance_tick if action_guidance_tick is not None else context.state_tick if context else None)
         exchange = exchange_record(ghost, correlation) if correlation else None
         action = ghost.snapshot({action_id}).get(action_id) if action_id is not None else None
-        if action is not None and action.metadata.get("public_reply_id") is not None:
-            return None
+        if action is not None:
+            lifecycle = _PublicActionLifecycle.model_validate(action.metadata)
+            if lifecycle.public_reply_id is not None:
+                return None
+            if lifecycle.dispatch_status == "deferred":
+                raise InteractionContextChanged("The selected public action already awaits reconsideration.")
         covered_ids = set(context.stimulus_user_ids) if context is not None else set()
         if exchange is not None:
             covered_ids.add(exchange.id)
@@ -98,6 +111,11 @@ def commit_public_reply(ghost: MemoryStore, text: str, correlation: str, *, comm
                         manifest={"kind": "public_reply", "context": context.model_dump(mode="json") if context is not None else None})
         if context is not None:
             validate_public_context(ghost, context)
+            for entity_context in context.entity_contexts:
+                try:
+                    expect_entity_context(batch, entity_context, as_of_utc=vclock.utcnow())
+                except EntityContextChanged as error:
+                    raise InteractionContextChanged(str(error)) from error
             for key, revision in context.revisions.items():
                 batch.expect_revision(key, ghost.revisions[key])
             if context.interaction_dependencies is not None:
@@ -148,17 +166,28 @@ def validate_public_context(ghost: MemoryStore, context: PublicContext) -> None:
     The caller holds the MemoryStore lock. Recovery must not replace old revision
     guards with a fresh snapshot after their original evidence changed.
     """
+    if context.action_schema_id is not None:
+        action = ghost.snapshot({context.action_schema_id}, capture=False).get(context.action_schema_id)
+        lifecycle = _PublicActionLifecycle.model_validate(action.metadata)
+        if lifecycle.dispatch_status == "deferred":
+            raise InteractionContextChanged("The selected public action already awaits reconsideration.")
+    if context.interaction_dependencies is not None:
+        validate_dependencies(ghost, context.interaction_dependencies, current_partner_input=True)
+    for entity_context in context.entity_contexts:
+        try:
+            validate_entity_context(ghost, entity_context, as_of_utc=vclock.utcnow())
+        except EntityContextChanged as error:
+            raise InteractionContextChanged(str(error)) from error
+    conflict_type = InteractionContextChanged if context.action_origin == "interaction" else GhostConflict
     if any(key not in ghost.all_knoxels for key in context.head_ids):
-        raise GhostConflict("Public evidence acquired a successor during generation.")
+        raise conflict_type("Public evidence acquired a successor during generation.")
     for key, revision in context.revisions.items():
         if ghost.revisions.get(key) != revision:
             from workflows.public_speech.public_context import source_fingerprint
             current = ghost.get_knoxel_by_id(key)
             if (current is None or key not in context.source_fingerprints
                     or source_fingerprint(current) != context.source_fingerprints[key]):
-                raise GhostConflict(f"Public evidence {key} changed during generation.")
-    if context.interaction_dependencies is not None:
-        validate_dependencies(ghost, context.interaction_dependencies, current_partner_input=True)
+                raise conflict_type(f"Public evidence {key} changed during generation.")
 
 
 def publish_reply(bus: BusSystem, source: str, correlation: str, reply_id: int, *,

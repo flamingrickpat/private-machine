@@ -197,6 +197,31 @@ A rename changes Python identifiers only.
 - Definition: the committed record of what entered the global workspace in one cycle.
 - Owner: `pm.records.global_workspace`. Old names: GWT turn. The tool name `ghost_gwt` stays.
 
+### entity model
+
+- Definition: the companion's attributed, revisable understanding of another entity, from one observer and within one reality and frame.
+- Relations: accepted **entity claims** retain their sources, uncertainty, corrections, and applicability. An **entity view** presents selected claims to cognition.
+- Owner: `workflows/entity_context/` owns claim acceptance and compact projections. Deliberate ToM remains separate work.
+- Boundary: an observer's interpretation does not establish another entity's private knowledge or an external fact.
+
+### entity claim
+
+- Definition: one sourced statement in an entity model, classified as observation, report, inference, or hypothetical material.
+- Relations: an accepted receipt records its evidence and correction links. Confidence in a quoted report does not establish the report's external truth.
+- Time: a review or expiry boundary can make the current estimate uncertain. It cannot establish an unobserved opposite state.
+
+### entity view
+
+- Definition: a compact projection of an entity model for a particular observer, subject, scope, and world time.
+- Relations: **situational guidance** uses the view alongside current input, accepted intentions, and previous actions.
+- Boundary: the full accepted model remains in memory outside the bounded workspace view.
+
+### situational guidance
+
+- Definition: a read-only projection of relevant partner evidence, current purposes, capabilities, and previous moves for character decisions and speech.
+- Owner: `workflows/public_speech/situational_guidance.py`.
+- Relations: it consumes authoritative records and introduces no independent memory store or conversation-permission agent.
+
 ### action intent
 
 - Definition: an in-character decision of the decide phase (`ActionDecision`). The route phase maps it to an action.

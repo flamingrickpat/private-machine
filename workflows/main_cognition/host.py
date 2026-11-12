@@ -35,10 +35,16 @@ the store, the bus, and cognitive control.
 **Commit boundary.** ``publish_output`` stages the appraisal, goal changes,
 beliefs, episodic summary, codelet percepts and structures, subjective
 experience, action records with expectations, expectation outcomes, the GWT
-turn, and the cycle state in one batch. Every revision the cycle read is a
-batch dependency, so a concurrent change aborts the whole cycle instead of
-partly applying it. A completed commit is followed by any enabled backup and all
-bus events.
+turn, and the cycle state in one batch. Original source meaning and current
+authority remain guarded; bookkeeping revisions alone can preserve meaning.
+Entity proposals use the shared staging owner at final acceptance. A stale
+entity parent produces an explicit deferred proposal while valid historical
+appraisal can commit. Current actions separately compare the entity meaning
+that governed their selection, including changes staged by this cycle.
+An obsolete action stays deferred and emits a durable reconsideration cause;
+the original partner input is not appraised again. Terminal task reports keep
+their actual receipt and cannot repeat completed execution through that cause.
+A completed commit is followed by any enabled backup and all bus events.
 
 **Telemetry and recovery.** Rejected model output and revision conflicts are
 retried under the policy of :meth:`MainCogLoop._handle_awake_batch` and are
@@ -70,10 +76,11 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, JsonValue, ValidationError
 
 from pm.bus.envelopes import Envelope, new_envelope, new_id
 from pm.constants import (
+    WORKSPACE_TAIL_TOKENS,
     CCQ_LENGTH, CSM_RECENT_DIALOGUE_TURNS, CYCLE_RETRY_DELAY_SECONDS, CYCLE_RETRY_MAX_DELAY_SECONDS,
     EXPECTATION_OPEN_LIMIT, WORKSPACE_TAIL_CANDIDATES,
 )
@@ -93,7 +100,8 @@ from pm.records.cycle_records import ActionDispatchRef, BroadcastRef
 from pm.records.cycle_state import CycleState
 from pm.records.mental_state import PersonalityProfile, features_to_history
 from pm.records.workspace import SELF_SHARD, ShardKey
-from pm.records.enums import ActionType, FeatureType, SourceKind
+from pm.records.enums import ActionType, FeatureType, InterlocusType, SourceKind
+from pm.records.lineage import RecordLineage
 from pm.records.global_workspace import CodeletRunRef, CycleTrace, GwtTurnRecord, PathwayBoostRef
 from pm.records.memory_records import ActionSchemaRecord, Feature, new_feature
 from pm.runs.workflow_module import CognitiveWorkflow
@@ -104,6 +112,11 @@ from workflows.main_cognition.codelet_agent import build_codelet_agent
 from workflows.main_cognition.csm_view import record_view
 from workflows.main_cognition.cycle_work import CycleRequest, CycleWork, provisional_tick
 from workflows.main_cognition.experience import consolidate_cycle, update_beliefs
+from workflows.main_cognition.entity_shards import add_entity_context_records, reserve_entity_context
+from workflows.main_cognition.entity_updates import EntityActionMetadata, EntityActionReconsideration, MainEntityUpdates, TerminalReconsideration, prepare_entity_beliefs
+from workflows.entity_context.owner import EntityContextOwner, active_claims
+from workflows.entity_context.projection import EntityContextChanged, project_entity_context, validate_entity_context
+from workflows.entity_context.schemas import EntityProjectionQuery, EntityUpdateResult
 from workflows.main_cognition.expectations import SOURCE_REF as EXPECTATION_SOURCE
 from workflows.main_cognition.model_json import ModelFormatError
 from workflows.main_cognition.phases.codelets import RECOMMENDATION
@@ -298,6 +311,7 @@ class MainCogLoop(CognitiveWorkflow):
         "system.lifecycle",
         "minecraft.world", "environment.event",
         "cognition.wake", "interaction.reconsider",
+        "entity.action_reconsider",
     })
 
     def __init__(self, *args: object, workflow_catalogue: Iterable[dict[str, object]] | None = None,
@@ -340,6 +354,8 @@ class MainCogLoop(CognitiveWorkflow):
         self._active_batch: list[Envelope] = []
         self._active_batch_committed: bool = False
         self.interaction_enabled: bool = False
+        self.entity_context_owner: EntityContextOwner | None = None
+        self._published_entity_reconsiderations: set[int] = set()
 
     def prioritize_critical(self, source_ids: set[int]) -> None:
         """Interrupt older full cognition and retain its unaccepted causes.
@@ -675,6 +691,10 @@ class MainCogLoop(CognitiveWorkflow):
                  *(int(item.id) for item in active_intentions(memory_view)[:8]),
                  *(item.record_id for item in open_expectations)]
         records, recent_dialogue = self._record_views(memory_view, sources, matches, previous, extra)
+        add_entity_context_records(memory_view, records, situational_guidance)
+        if previous is not None:
+            previous = pickle_copy(previous)
+            reserve_entity_context(previous.workspace, records, situational_guidance, tick=previous.tick_id)
         interaction_sources: list[int] = []
         accepted_main = any(turn.slot_id == "main" for turn in memory_view.gwt_turns.values())
         if control is not None and accepted_main and self.interaction_enabled:
@@ -754,6 +774,8 @@ class MainCogLoop(CognitiveWorkflow):
             from workflows.interaction.schemas import InteractionMetadata
             receipt = InteractionMetadata.model_validate(source.metadata).interaction_receipt
             return receipt.dependencies.partner_entity_id
+        if stimulus.kind == "entity.action_reconsider":
+            return EntityActionMetadata.model_validate(source.metadata).entity_action_reconsideration.request.partner_entity_id
         if stimulus.kind != "user.input":
             return None
         entity_id = source.entity_id or self.ghost.get_entity_id(source.source)
@@ -917,7 +939,7 @@ class MainCogLoop(CognitiveWorkflow):
         if knoxel_id is None:
             return None, "", ""
         knoxel = self._input_knoxel(knoxel_id)
-        if envelope.topic in {"cognition.wake", "system.lifecycle", "interaction.reconsider"}:
+        if envelope.topic in {"cognition.wake", "system.lifecycle", "interaction.reconsider", "entity.action_reconsider"}:
             return knoxel_id, str(knoxel.content), envelope.topic
         kind = "user.input"
         if envelope.topic == "minecraft.world":
@@ -937,7 +959,7 @@ class MainCogLoop(CognitiveWorkflow):
             raise KeyError(f"Stimulus is outside the invocation view: {knoxel_id}")
         return view.get(knoxel_id)
 
-    def publish_output(self, report: dict, batch: list[Envelope]) -> None:
+    def publish_output(self, report: dict[str, JsonValue], batch: list[Envelope]) -> None:
         """Commit one finished cycle in one write batch, then publish its events.
 
         The batch holds the appraisal, goal changes, beliefs, the episodic
@@ -1009,8 +1031,18 @@ class MainCogLoop(CognitiveWorkflow):
         ]
         goal_ids = [int(item.id) for item in active_intentions(changes.view())]
         changes.depend_on(goal_ids)
-        belief_receipt = update_beliefs(changes, work.context.belief_updates, user_name=self.ghost.get_user_name(),
+        entity_updates = MainEntityUpdates()
+        generic_beliefs = work.context.belief_updates
+        if self.entity_context_owner is not None:
+            if request.self_entity_id is None:
+                raise ValueError("Main entity maintenance requires the configured companion identity.")
+            entity_updates = prepare_entity_beliefs(self.entity_context_owner, self._memory_view,
+                work.context.belief_updates, observer_entity_id=request.self_entity_id,
+                permitted_source_ids=set(self._stimulus_ids))
+            generic_beliefs = entity_updates.generic_updates
+        belief_receipt = update_beliefs(changes, generic_beliefs, user_name=self.ghost.get_user_name(),
                                         permitted_source_ids=set(self._stimulus_ids))
+        belief_receipt["rejected"].extend(entity_updates.rejected)
         experience_ids = consolidate_cycle(changes, self._stimulus_ids, appraisal_feature, work.affect.felt)
         # Codelet percepts, recommendations, and structures become records
         # now. The CSM, the codelet state, the workspace, and the attention
@@ -1097,6 +1129,15 @@ class MainCogLoop(CognitiveWorkflow):
             if dispatch.status != "dispatched":
                 rejected.append(dispatch)
                 continue
+            terminal_context = self._terminal_reconsideration_request(dispatch)
+            if terminal_context.rejection_reason is not None:
+                rejected.append(dispatch.model_copy(update={"status": "rejected", "rejection_reason": terminal_context.rejection_reason}))
+                continue
+            if terminal_context.request is not None and terminal_context.only_terminal_cause and dispatch.action_type != "Reply":
+                rejected.append(dispatch.model_copy(update={"status": "rejected", "rejection_reason":
+                    "Terminal task reply reconsideration can revise speech or remain quiet; it cannot restart the task."}))
+                continue
+            terminal_reply = terminal_context.request if dispatch.action_type == "Reply" else None
             active_game = self._active_game_request(dispatch, dispatch.correlation_id, batch)
             if active_game is not None:
                 rejected.append(dispatch.model_copy(update={"status": "rejected", "rejection_reason":
@@ -1115,7 +1156,7 @@ class MainCogLoop(CognitiveWorkflow):
                 raise ValueError("The proposed deception lacks retained factual context.")
             partner = partner_key(dispatch.group, request.user_entity_id)
             action_request = ActionRequest(
-                action_id=dispatch.action_id, workflow_name=dispatch.workflow_name,
+                action_id=dispatch.action_id, workflow_name=dispatch.workflow_name, gwt_tick=tick,
                 content=dispatch.content, arguments=dispatch.arguments, group=dispatch.group,
                 partner_entity_id=int(partner.ref) if partner is not None else None,
                 partner_name=shard_label(partner, request) if partner is not None else request.user_name,
@@ -1124,7 +1165,12 @@ class MainCogLoop(CognitiveWorkflow):
                                       lambda key: shard_label(key, request),
                                       hidden=experience.hidden_for(dispatch.group)),
                 presentation=presentation, workspace=experience.text_for(dispatch.group),
-                affect=work.affect.felt, regulation=work.affect.regulation)
+                affect=work.affect.felt, regulation=work.affect.regulation,
+                task_receipt=terminal_reply.task_receipt if terminal_reply is not None else {},
+                action_origin="task_reply" if terminal_reply is not None else "main",
+                entity_contexts=[context for guidance in request.situational_guidance
+                    if guidance.partner is not None and guidance.partner.entity_id == (int(partner.ref) if partner is not None else request.user_entity_id)
+                    for context in guidance.partner.entity_contexts])
             action = changes.create(ActionSchemaRecord(
                 content=dispatch.content,
                 action_type=ACTION_BY_NAME[dispatch.action_type],
@@ -1156,7 +1202,6 @@ class MainCogLoop(CognitiveWorkflow):
                 },
             ))
             created_order.append(action.id)
-            created_order.extend(stage_expectations(changes, view, work, dispatch, action.id))
             published.append((dispatch, action.id, action_request))
         summary = experience.text.strip() or work.affect.felt.strip() or work.summary
         state = self._accepted_state(work, tick, summary, published, experience_feature.id)
@@ -1177,8 +1222,7 @@ class MainCogLoop(CognitiveWorkflow):
         # ``knoxel_ids`` keeps its meaning for its readers: the stimuli, the
         # created records, the selected memories, and every workspace item
         # and tail record. ``shard_changes`` is the v2 change record.
-        changes.set_gwt(
-            GwtTurnRecord(
+        turn = GwtTurnRecord(
                 tick_id=tick, stimulus_ids=list(self._stimulus_ids),
                 knoxel_ids=list(dict.fromkeys([*self._stimulus_ids, *created_order,
                                              *(item.knoxel_id for item in work.selected_memories),
@@ -1188,11 +1232,59 @@ class MainCogLoop(CognitiveWorkflow):
                 experience_id=experience_feature.id,
                 decision_id=selection.id,
                 trace=trace,
-            ),
-            state,
-        )
+            )
+        changes.set_gwt(turn, state)
         # Serialize acceptance and outbox enqueue with Critical assessment.
         with self.ghost.lock:
+            entity_outcomes: list[EntityUpdateResult] = []
+            if self.entity_context_owner is not None:
+                for proposal in entity_updates.proposals:
+                    entity_outcomes.append(self.entity_context_owner.stage_update(changes, proposal))
+            selection.metadata["entity_update_proposals"] = [proposal.model_dump(mode="json") for proposal in entity_updates.proposals]
+            selection.metadata["entity_update_outcomes"] = [outcome.model_dump(mode="json") for outcome in entity_outcomes]
+            allowed: list[tuple[ActionDispatch, int, ActionRequest]] = []
+            entity_deferred: list[ActionDispatch] = []
+            reconsiderations: list[Feature] = []
+            for dispatch, action_id, action_request in published:
+                reason = self._stale_entity_direction(changes, action_request)
+                if reason is not None:
+                    action = changes.view().get(action_id).copy_for_edit()
+                    action.metadata = {**action.metadata, "dispatch_status": "deferred", "entity_context_reason": reason}
+                    changes.revise(action)
+                    reconsiderations.append(self._stage_entity_reconsideration(changes,
+                        action_request.model_copy(update={"knoxel_id": action_id}), reason))
+                    entity_deferred.append(dispatch.model_copy(update={"status": "deferred", "rejection_reason": reason}))
+                    continue
+                allowed.append((dispatch, action_id, action_request))
+                turn.knoxel_ids.extend(stage_expectations(changes, changes.view(), work, dispatch, action_id))
+            published = allowed
+            selection.metadata["entity_deferred_actions"] = [dispatch.model_dump(mode="json") for dispatch in entity_deferred]
+            allowed_ids = {action_id for _, action_id, _ in published}
+            state.dispatches = [reference for reference in state.dispatches if reference.action_id in allowed_ids]
+            for proposal, outcome in zip(entity_updates.proposals, entity_outcomes, strict=True):
+                if outcome.disposition != "staged":
+                    continue
+                staged_view = changes.view()
+                key = proposal.key
+                query = EntityProjectionQuery(key=key,
+                    claim_keys=list(dict.fromkeys(claim.claim_key for claim in active_claims(staged_view, key=key))),
+                    token_budget=WORKSPACE_TAIL_TOKENS)
+                context = project_entity_context(staged_view, query=query, as_of_utc=vclock.utcnow())
+                situation = next((item for item in request.situational_guidance
+                                  if item.partner is not None and item.partner.entity_id == key.subject_entity_id), None)
+                if situation is not None and situation.partner is not None:
+                    updated_situation = situation.model_copy(deep=True)
+                    updated_situation.partner.entity_contexts = [context]
+                    add_entity_context_records(staged_view, work.records, [updated_situation])
+                    reserve_entity_context(state.workspace, work.records, [updated_situation], tick=tick)
+                if outcome.staged_receipt_id is not None and outcome.staged_receipt_id not in turn.knoxel_ids:
+                    turn.knoxel_ids.append(outcome.staged_receipt_id)
+            for source_id in self._stimulus_ids:
+                source = self._memory_view.get(source_id)
+                if "entity_action_reconsideration" in source.metadata:
+                    payload = EntityActionMetadata.model_validate(source.metadata).entity_action_reconsideration
+                    changes.set_lifecycle(source_id, entity_reconsideration_status="accepted", accepted_by=changes.commit_id)
+                    changes.set_lifecycle(payload.action_record_id, execution_status="reconsidered")
             control = self.cognitive_control
             if control is None:
                 receipt = self.ghost.commit(changes)
@@ -1210,6 +1302,8 @@ class MainCogLoop(CognitiveWorkflow):
             tick = receipt.tick_id
 
             self.bus.put(new_envelope(self.module_id, "data", "gwt.updated", "", {"gwt_tick": tick}))
+            for reconsideration in reconsiderations:
+                self._publish_entity_reconsideration(reconsideration)
             for dispatch, created_id, action_request in published:
                 # A repeated commit returns the original receipt and does not apply
                 # the new batch. Resolve the accepted action by durable identity and
@@ -1221,6 +1315,8 @@ class MainCogLoop(CognitiveWorkflow):
                     target=dispatch.workflow_name,
                     causation_id=cause,
                 ))
+            for dispatch in entity_deferred:
+                self._publish_receipt(dispatch.correlation_id, dispatch, "deferred", cause)
             for dispatch in queued:
                 self._publish_receipt(dispatch.correlation_id, dispatch, "queued", cause)
             for dispatch in rejected:
@@ -1230,6 +1326,109 @@ class MainCogLoop(CognitiveWorkflow):
                     dispatch.correlation_id, dispatch, "duplicate", cause,
                     detail=f"active action {existing_id} has identity {dispatch.action_id}",
                 )
+
+    def _terminal_reconsideration_request(self, dispatch: ActionDispatch) -> TerminalReconsideration:
+        """Retain terminal outcome authority when this cause only asks to revise its reply."""
+        terminal: dict[int, ActionRequest] = {}
+        fresh_input = False
+        for source_id in dispatch.stimulus_ids:
+            source = self._memory_view.get(source_id)
+            if "entity_action_reconsideration" not in source.metadata:
+                if (isinstance(source, Feature) and source.feature_type == FeatureType.Dialogue
+                        and source.provenance is not None and source.provenance.source_kind in {SourceKind.User, SourceKind.Agent}):
+                    fresh_input = True
+                continue
+            original = EntityActionMetadata.model_validate(source.metadata).entity_action_reconsideration.request
+            if original.action_origin == "task_reply":
+                if original.knoxel_id is None:
+                    raise ValueError("A terminal reply marker requires its exact selected reply identity.")
+                terminal[original.knoxel_id] = original
+        if len(terminal) > 1:
+            return TerminalReconsideration(rejection_reason="Distinct terminal task replies require separate public actions; no receipt was discarded.")
+        if not terminal:
+            return TerminalReconsideration()
+        return TerminalReconsideration(request=next(iter(terminal.values())), only_terminal_cause=not fresh_input)
+
+    def _stage_entity_reconsideration(self, changes: WriteBatch, request: ActionRequest, reason: str) -> Feature:
+        """Retain selected intent and terminal task evidence as a new causal event."""
+        if request.knoxel_id is None:
+            raise ValueError("A deferred public action requires its durable action identity.")
+        action = changes.view().get(request.knoxel_id)
+        metadata = ActionMetadata.model_validate(action.metadata)
+        payload = EntityActionReconsideration(action_record_id=request.knoxel_id, request=request, reason=reason,
+                                              correlation_id=metadata.dispatch_correlation)
+        task_evidence = ""
+        if request.task_receipt:
+            task_evidence = "\nThe task already has this terminal receipt; do not execute it again:\n" + json.dumps(request.task_receipt)
+        return changes.create(Feature(content=f"A selected public action awaits reconsideration: {reason}\n"
+            f"Original selected move: {request.content}{task_evidence}",
+            feature_type=FeatureType.StateUpdate, interlocus=InterlocusType.PrivateInternal, causal=True,
+            scope=action.scope, provenance=Provenance(source_kind=SourceKind.System, source_ref="entity.action_reconsider"),
+            metadata={"entity_action_reconsideration": payload.model_dump(mode="json")},
+            lineage=RecordLineage(episode_id=f"entity-reconsider:{request.knoxel_id}",
+                operation="entity.action_reconsider", parent_record_ids=[request.knoxel_id])))
+
+    def _publish_entity_reconsideration(self, feature: Feature) -> None:
+        """Queue one distinct failure-of-direction cause, never the original input again."""
+        if feature.id in self._published_entity_reconsiderations:
+            return
+        payload = EntityActionMetadata.model_validate(feature.metadata).entity_action_reconsideration
+        self._published_entity_reconsiderations.add(feature.id)
+        self.bus.put(new_envelope(self.module_id, "data", "entity.action_reconsider",
+            payload.correlation_id, {"knoxel_id": feature.id}))
+
+    def entity_reconsider_source_ids(self) -> set[int]:
+        """Exclude original sources from legacy redispatch after an explicit action disposition."""
+        sources: set[int] = set()
+        for feature in self.ghost.all_features:
+            if "entity_action_reconsideration" in feature.metadata:
+                payload = EntityActionMetadata.model_validate(feature.metadata).entity_action_reconsideration
+                sources.update(stimulus.knoxel_id for stimulus in payload.request.stimuli)
+        return sources
+
+    def resume_entity_actions(self) -> None:
+        """Restore only unappraised durable reconsideration causes after clean restart."""
+        claimed = {key for state in self.ghost.read_cycles() for key in state.claimed_ids()}
+        for feature in self.ghost.all_features:
+            if "entity_action_reconsideration" in feature.metadata and feature.id not in claimed:
+                self._publish_entity_reconsideration(feature)
+
+    def defer_public_action(self, request: ActionRequest) -> None:
+        """Record an actual stale main/task reply without repeating its original task."""
+        action_id = request.knoxel_id
+        if action_id is None:
+            raise ValueError("Public reconsideration requires its actual accepted action identity.")
+        with self.ghost.lock:
+            for feature in self.ghost.all_features:
+                if "entity_action_reconsideration" in feature.metadata:
+                    payload = EntityActionMetadata.model_validate(feature.metadata).entity_action_reconsideration
+                    if payload.action_record_id == action_id:
+                        self.resume_entity_actions()
+                        return
+            action = self.ghost.snapshot({action_id}).get(action_id)
+            if not isinstance(action, ActionSchemaRecord):
+                raise TypeError("Public reconsideration requires an accepted action record.")
+            if ActionMetadata.model_validate(action.metadata).action_id != request.action_id:
+                raise ValueError("Public reconsideration must retain its actual selected action identity.")
+            changes = self.ghost.begin_batch(f"entity-reconsider:{action_id}", embed=False)
+            changes.depend_on([action_id], authority=action_id)
+            changes.set_lifecycle(action_id, dispatch_status="deferred", execution_status="awaiting_reconsideration")
+            marker = self._stage_entity_reconsideration(changes, request, "The public action's relevant entity context changed.")
+            self.ghost.commit(changes)
+            self._publish_entity_reconsideration(marker)
+
+    def _stale_entity_direction(self, changes: WriteBatch, request: ActionRequest) -> str | None:
+        """Keep valid historical appraisal while withholding obsolete current action."""
+        now = vclock.utcnow()
+        for captured in request.entity_contexts:
+            try:
+                validate_entity_context(self.ghost, captured, as_of_utc=now)
+            except EntityContextChanged as error:
+                return str(error)
+            pending = project_entity_context(changes.view(), query=captured.query, as_of_utc=now)
+            if pending.projected_meaning_fingerprint != captured.projected_meaning_fingerprint:
+                return "This cycle's entity update changed the meaning that governed its selected action."
+        return None
 
     def _accepted_state(self, work: CycleWork, tick: int, summary: str, published: list[tuple],
                         experience_id: int) -> CycleState:

@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from pm import vclock
 from pm.memory.dependencies import source_fingerprint
 from pm.records.base import Provenance, RecordScope
 from pm.records.enums import FeatureType, InterlocusType, SourceKind
@@ -20,8 +21,12 @@ from pm.records.cognitive_records import OntologyBindingRecord
 from pm.context_render import ContextKind, render_context
 from pm.context_render.turns import Content
 from pathlib import Path
+from workflows.entity_context.schemas import EntityContextView
+from workflows.entity_context.projection import EntityContextChanged, validate_entity_context
 from workflows.main_cognition.cycle_commits import active_goal_texts
-from workflows.public_speech.dependencies import WorkDependencies, capture_dependencies, validate_dependencies
+from workflows.public_speech.dependencies import (
+    InteractionContextChanged, WorkDependencies, capture_dependencies, validate_dependencies,
+)
 from workflows.public_speech.situational_guidance import (
     SituationalGuidance, build_situational_guidance, render_situational_guidance,
 )
@@ -133,6 +138,8 @@ class PublicContext(BaseModel):
     action_origin: Literal["main", "interaction", "task_reply"] = "main"
     interaction_selection_id: str = ""
     interaction_dependencies: WorkDependencies | None = None
+    entity_contexts: list[EntityContextView] = Field(default_factory=list[EntityContextView],
+        description="Selected-action and rendered-situation views retained through atomic publication.")
     # The context plan trace (lanes, budgets, semantic status) when planned.
     plan: dict = Field(default_factory=dict)
 
@@ -194,9 +201,16 @@ def build_public_context(ghost: MemoryStore, request: ActionRequest | None = Non
     """
     from workflows.main_cognition.schemas import ActionMetadata, ActionRequest
     request = request or ActionRequest()
+    for entity_context in request.entity_contexts:
+        try:
+            validate_entity_context(ghost, entity_context, as_of_utc=vclock.utcnow())
+        except EntityContextChanged as error:
+            raise InteractionContextChanged(str(error)) from error
     view = ghost.snapshot()
     action = view.get(request.knoxel_id) if request.knoxel_id is not None else None
     metadata = ActionMetadata.model_validate(action.metadata) if action is not None else ActionMetadata()
+    if metadata.dispatch_status == "deferred":
+        raise InteractionContextChanged("The selected public action already awaits reconsideration.")
     action_id = action.id if action is not None else None
     records = view.serialize_knoxels()
     presentation = metadata.presentation
@@ -303,7 +317,6 @@ def build_public_context(ghost: MemoryStore, request: ActionRequest | None = Non
     rendered_ids = {item.knoxel_id for item in originals}
     domain_capabilities["evidence_limit"] = {"records": 48, "record_characters": 1200,
         "omitted_ids": sorted(ids - rendered_ids - {action_id})}
-    from pm import vclock
     guidance = build_situational_guidance(view, as_of_utc=vclock.utcnow(),
         companion_name=ghost.get_companion_name(), user_name=ghost.get_user_name(),
         partner_entity_id=request.partner_entity_id,
@@ -311,6 +324,11 @@ def build_public_context(ghost: MemoryStore, request: ActionRequest | None = Non
         scopes=tuple(view.get(key).scope for key in stimulus_ids if key in view.revisions)
                or (action.scope if action is not None else RecordScope(),))
     ids.update(guidance.source_revisions())
+    entity_contexts = list(request.entity_contexts)
+    if guidance.partner is not None:
+        for entity_context in guidance.partner.entity_contexts:
+            if entity_context not in entity_contexts:
+                entity_contexts.append(entity_context)
     partner_inputs: list[int] = []
     for key in stimulus_ids:
         record = view.get(key)
@@ -326,7 +344,8 @@ def build_public_context(ghost: MemoryStore, request: ActionRequest | None = Non
         # lines. It does not reuse the older selection frontier as a new draft.
         interaction_dependencies = capture_dependencies(view, sorted(ids),
             guidance_tick=prior.guidance_tick, critical_epoch=prior.critical_epoch,
-            partner_entity_id=request.partner_entity_id, scopes=prior.scopes)
+            partner_entity_id=request.partner_entity_id, scopes=prior.scopes,
+            entity_contexts=entity_contexts)
     return PublicContext(
         companion_name=ghost.get_companion_name(), user_name=ghost.get_user_name(),
         partner_name=request.partner_name or ghost.get_user_name(),
@@ -351,6 +370,7 @@ def build_public_context(ghost: MemoryStore, request: ActionRequest | None = Non
         action_origin=request.action_origin,
         interaction_selection_id=request.interaction_selection_id,
         interaction_dependencies=interaction_dependencies,
+        entity_contexts=entity_contexts,
         plan=dict(planned.trace) if planned is not None else {},
     )
 
