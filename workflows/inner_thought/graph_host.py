@@ -20,6 +20,7 @@ from threading import Event
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from pm import vclock
 from pm.memory.snapshot import Snapshot
 from pm.memory.store import MemoryStore
 from pm.memory.write_batch import WriteBatch
@@ -28,6 +29,7 @@ from pm.records.global_workspace import GwtTurnRecord
 from pm.records.memory_records import Feature
 from pm.records.mental_state import FullMentalState
 from workflows.cognitive_control.schemas import ControlConfig
+from workflows.cognitive_control.attention import CapturedPrivateFocus, validate_private_focus
 from workflows.inner_thought.inquiry import (
     AttentionRecord, DELIBERATE_ACTION_KEY, InquiryMetadata, InquiryRecord, PRIVATE_SLOT_KEY,
     inquiry_history, stage_attention, stage_attention_outcome, stage_deliberate_inquiry, stage_inquiry_resume,
@@ -74,19 +76,21 @@ def active_inquiry(view: Snapshot, *, observer_entity_id: int) -> InquiryRecord 
     return active[0] if active else None
 
 
-def parked_inquiry(view: Snapshot, *, observer_entity_id: int) -> InquiryRecord | None:
-    """Read retained paused work that still owns its own parked head.
+def parked_inquiries(view: Snapshot, *, observer_entity_id: int) -> tuple[InquiryRecord, ...]:
+    """Read paused heads in descending receipt allocation order.
 
-    Parked work never holds the slot, so several parked episodes can exist. The
-    newest one competes again through shared attention; older parked episodes
-    stay retained until displacement decides their fate.
+    Parked work never holds the slot, so several parked episodes can exist.
+    The caller offers the newest eligible head to shared attention. Episode
+    names can contain hashes and carry no chronology. A newer ineligible head
+    must not hide older eligible work.
     """
     episodes = {InquiryMetadata.model_validate(record.metadata).inquiry_episode
                 for record in view.all_knoxels.values()
                 if record.metadata.get(PRIVATE_SLOT_KEY) == str(observer_entity_id)}
     heads = [inquiry_history(view, episode)[-1] for episode in sorted(episodes)]
     parked = [head for head in heads if head.receipt.state.status == "paused"]
-    return parked[-1] if parked else None
+    parked.sort(key=lambda head: head.record.id, reverse=True)
+    return tuple(parked)
 
 
 def deliberate_inquiry(view: Snapshot, action_record_id: int) -> InquiryRecord | None:
@@ -149,7 +153,7 @@ class PrivateInquiryOwner:
     def admit_parked_inquiry(self, parked: InquiryRecord, decision: InquiryResumeDecision,
                             *, attention: ThoughtAttentionDecision, nomination_ids: Sequence[int],
                             offered_grant: InquiryGrant, grant: InquiryGrant, batch_id: str,
-                            now_utc: datetime) -> InquiryRecord:
+                            now_utc: datetime, focus: CapturedPrivateFocus) -> InquiryRecord:
         """Commit the attention decision that re-admits parked work in one batch.
 
         The opportunity identity and the slot change land together, so an
@@ -157,9 +161,11 @@ class PrivateInquiryOwner:
         the question nor resume it twice. ``offered_grant`` is the grant the
         offered nominations were captured under; ``grant`` is the extended grant
         that retains the parked inquiry's original fingerprints plus its fresh
-        trigger evidence.
+        trigger evidence. The captured focus head and its original expiry are
+        checked under the store lock before either record is staged.
         """
         with self.store.lock:
+            validate_private_focus(self.store.snapshot(capture=False), focus, now_utc=vclock.utcnow())
             batch = self.store.begin_batch("attention:" + batch_id, embed=False, cancel=self.cancel)
             stage_attention_outcome(batch, batch_id=batch_id, nomination_ids=tuple(nomination_ids),
                 decision=attention, grant=offered_grant)
@@ -170,13 +176,16 @@ class PrivateInquiryOwner:
             return accepted
 
     def record_attention_outcome(self, *, batch_id: str, nomination_ids: Sequence[int],
-                                 decision: ThoughtAttentionDecision, grant: InquiryGrant) -> Feature:
+                                 decision: ThoughtAttentionDecision, grant: InquiryGrant,
+                                 focus: CapturedPrivateFocus) -> Feature:
         """Commit an attention decision that leaves the private slot untouched.
 
         This retains the opportunity identity for an opportunity that offered
-        only parked work and produced a deferral or dismissal.
+        only parked work and produced a deferral or dismissal. Replaced or
+        expired focus cannot consume that opportunity.
         """
         with self.store.lock:
+            validate_private_focus(self.store.snapshot(capture=False), focus, now_utc=vclock.utcnow())
             batch = self.store.begin_batch("attention:" + batch_id, embed=False, cancel=self.cancel)
             record = stage_attention_outcome(batch, batch_id=batch_id, nomination_ids=tuple(nomination_ids),
                 decision=decision, grant=grant)

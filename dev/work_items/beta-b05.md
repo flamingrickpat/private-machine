@@ -1,6 +1,6 @@
 # B05: spontaneous nomination and bounded inquiry
 
-Status: implementation in progress, 2026-11-13. Named requests, nomination, attention, connected graph execution, and explicit resume staging are implemented. The bounded connected gate passed; runtime resumption, coordinated control, and deliberate work remain outstanding.
+Status: implementation in progress, 2026-11-13. Named requests, nomination, attention, connected graph execution, and parked re-entry are implemented. The bounded connected gate passed before the latest re-entry changes; coordinated control, deliberate work, and live re-entry acceptance remain outstanding.
 Source baseline: `d72fd3b`, after B03 implementation `a9e78e8`.
 B04 committed as `e7a7ce8`. This continuation starts from that commit.
 
@@ -841,3 +841,36 @@ reference render in `site/subsystems/private-loop.html`.
 
 **NOT RUN:** the real OpenRouter gate. This pass added no inference call and spent no budget; the
 live model gate stays scheduled for the end-of-beta acceptance run.
+
+## Review corrections: parked selection authority (2026-11-13)
+
+The owner requested a B05 completion assessment with a small remaining weekly allowance.
+This correction closes three concrete review defects. It does not complete B05.
+
+- Parked admission and parked-only deferral now require captured focus. Both validate its head and expiry under the store lock before staging any receipt.
+- `graph_host.parked_inquiries` returns paused heads in descending receipt allocation order. Episode names contain hashes and cannot determine chronology.
+- `graph_execution.parked_candidate` examines those heads until it finds eligible work. An exhausted newer inquiry cannot hide older eligible work.
+- Candidate eligibility compares the current opportunity's Critical epoch with the parked inquiry's retained epoch. Extending a retained grant preserves its old epoch, so checking only that extended grant missed later Critical reconsideration.
+
+Five new actual-store cases cover receipt ordering after clean restart, an exhausted newer head,
+the caller's newer Critical epoch, expired focus, and replaced focus during admission or deferral.
+These storage proposals use no model substitute and certify no generated attention quality.
+The affected command passed **44 checks in 5.346 seconds**, including architecture checks.
+`npx --no-install pyright --project pyrightconfig.json` reports zero errors and warnings.
+The earlier statement that no checker was configured was incorrect: `pyrightconfig.json` exists,
+and the cached checker runs through `npx` without adding a dependency.
+Receipts: `.runtime/beta-b05/review-fixes-20261113/`.
+Final strict MkDocs passed in **196.30 seconds**. Inspection confirms all **659** local links on
+the changed page, its new prose, the renamed API anchor, and `site/index.html`.
+All four recorded source hashes remained unchanged through the final build.
+
+**NOT RUN:** new OpenRouter inference or a full unit/contract suite. The owner previously deferred
+those gates until integrated beta acceptance. Existing parent contract fixtures remain known red.
+
+Remaining B05 completion work, in dependency order:
+
+1. Coordinate ordinary-input continuity across `CognitiveControl.observe`, `admit`, `commit_private`, main private-only commits, private replay, and retained linear-episode handling. Preserve unknown-triage holds, accepted waits, semantic source guards, and Critical fencing.
+2. Add an explicit durable displacement/reconsideration transition for active inquiries from older Critical epochs. The current implementation holds them; it cannot silently rebase their original grant.
+3. Wire `FocusManagement` selected actions to the shared private owner and real child kernels. Preserve one-slot arbitration, accepted action identity, atomic result receipts, replay, and main acknowledgment. The admission API alone does not provide this integration.
+4. Integrate scoped reflection/inspection evidence and graph felt-state emission. The graph currently excludes legacy inspection/reflection summaries explicitly.
+5. Repair stale parent-contract fixtures, run the required real lifecycle gates, inspect resulting record packages, and then update acceptance status. A passing deterministic suite cannot establish companion quality.

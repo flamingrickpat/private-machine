@@ -91,9 +91,13 @@ Admission creates no executed operation, GWT turn, or finding.
 
 [`workflows.inner_thought.inquiry.parked_offer`][] builds a reconsideration only when the retained deadline has elapsed or outside evidence newer than the pause exists.
 [`workflows.inner_thought.graph_execution.parked_candidate`][] reads the observer's eligible parked work each opportunity and delivers that single offer beside the nominations, because one observer holds one private slot.
+It examines parked heads from newest to oldest by receipt allocation order and offers the first eligible head.
+An exhausted newer inquiry cannot hide older eligible work. A different current Critical epoch excludes the retained inquiry.
 
 [`workflows.inner_thought.graph_execution.admit_opportunity`][] makes the one paid selection call and routes its outcome.
 Selecting a parked receipt commits the attention outcome and the resume in one store batch through [`workflows.inner_thought.graph_host.PrivateInquiryOwner.admit_parked_inquiry`][], so a restart cannot pay for the same decision twice.
+Both parked admission and parked-only deferral check the captured focus head and its original expiry under the store lock.
+Changed or expired advice leaves the opportunity unconsumed for fresh selection.
 A decision that admits nothing still leaves one durable outcome behind through [`workflows.inner_thought.graph_host.PrivateInquiryOwner.record_attention_outcome`][] and [`workflows.inner_thought.inquiry.stage_attention_outcome`][].
 Both carry the opportunity's attention batch identity, which the host reads back before spending another selection call.
 

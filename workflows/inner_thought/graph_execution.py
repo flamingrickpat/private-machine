@@ -26,7 +26,7 @@ from pm.records.mental_state import FullMentalState
 from pm.records.enums import FeatureType
 from pm.records.memory_records import Feature
 from workflows.cognitive_control.attention import CapturedPrivateFocus, validate_private_attention, validate_private_focus
-from workflows.inner_thought.graph_host import PrivateInquiryOwner, active_inquiry, parked_inquiry
+from workflows.inner_thought.graph_host import PrivateInquiryOwner, active_inquiry, parked_inquiries
 from workflows.inner_thought.inquiry import (
     InquiryAlternativeMetadata, InquiryNodeMetadata, InquiryRecord, inquiry_origin, parked_offer,
 )
@@ -209,15 +209,15 @@ def parked_candidate(owner: PrivateInquiryOwner, *, observer_entity_id: int,
     needs evidence newly supplied beside that retained grant.
     """
     view = owner.store.snapshot(capture=False)
-    parked = parked_inquiry(view, observer_entity_id=observer_entity_id)
-    if parked is None:
-        return None
     current_ids = tuple(source.record_id for source in grant.sources)
-    parked_grant = owner.execution_grant(parked, source_ids=current_ids)
-    offer = parked_offer(view, parked, grant=parked_grant, now_utc=vclock.utcnow(), limits=owner.limits)
-    if offer is None:
-        return None
-    return ParkedCandidate(parked, parked_grant, offer)
+    for parked in parked_inquiries(view, observer_entity_id=observer_entity_id):
+        if parked.receipt.state.grant.critical_epoch != grant.critical_epoch:
+            continue
+        parked_grant = owner.execution_grant(parked, source_ids=current_ids)
+        offer = parked_offer(view, parked, grant=parked_grant, now_utc=vclock.utcnow(), limits=owner.limits)
+        if offer is not None:
+            return ParkedCandidate(parked, parked_grant, offer)
+    return None
 
 
 def admit_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner, grant: InquiryGrant,
@@ -264,10 +264,11 @@ def admit_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner, gran
             InquiryResumeDecision(operation=decision.admitted_operation, reason=decision.reason,
                 trigger_source_ids=candidate.offer.available_evidence_ids),
             attention=decision, nomination_ids=nominations.receipt.nomination_ids, offered_grant=grant,
-            grant=candidate.grant, batch_id=batch_id, now_utc=vclock.utcnow())
+            grant=candidate.grant, batch_id=batch_id, now_utc=vclock.utcnow(), focus=focus)
         return OpportunityAdmission(resumed, None)
     if not nominations.nominations:
-        outcome = owner.record_attention_outcome(batch_id=batch_id, nomination_ids=(), decision=decision, grant=grant)
+        outcome = owner.record_attention_outcome(batch_id=batch_id, nomination_ids=(), decision=decision,
+            grant=grant, focus=focus)
         return OpportunityAdmission(None, PrivateGraphResult(summary=decision.reason, receipt_id=outcome.id))
 
     def validate_context() -> None:
