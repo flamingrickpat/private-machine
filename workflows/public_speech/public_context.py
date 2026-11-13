@@ -65,6 +65,21 @@ class Presentation(BaseModel):
     shareable_summary: str = ""
 
 
+class EvidenceScoreComponents(BaseModel):
+    """Why retrieval ranked one record where it did.
+
+    ``lexical`` is the normalized term-match share and ``semantic`` is the
+    embedding similarity. ``semantic`` is absent when the provider was
+    unavailable or the caller asked for lexical retrieval only, so a missing
+    value means "this leg did not contribute", never "zero similarity".
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    lexical: float = Field(default=0.0, ge=0.0, le=1.0, description="Normalized lexical term-match share.")
+    semantic: float | None = Field(default=None, description="Embedding similarity, or None when the semantic leg did not run.")
+
+
 class EvidenceItem(BaseModel):
     """One record of the public context, as ``pm.memory.retrieval.candidate`` renders it.
 
@@ -73,6 +88,8 @@ class EvidenceItem(BaseModel):
     record came from: a context-plan lane, ``shard:<name>`` for a workspace
     shard of the cycle, or ``private_state`` for a disclosed private state.
     ``lifecycle_event`` is ``startup`` for a startup event of the runtime.
+    ``score_components`` is present only when retrieval produced a ranking
+    explanation for this record.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -92,6 +109,7 @@ class EvidenceItem(BaseModel):
     evidence_role: str = ""
     lane: str = ""
     lifecycle_event: str = ""
+    score_components: EvidenceScoreComponents | None = None
 
 
 class PublicContext(BaseModel):

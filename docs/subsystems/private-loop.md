@@ -9,8 +9,9 @@ This mechanism models aspects of private cognition. It does not establish humanl
 
 **Partial implementation.**
 The application binds its timer to nomination, shared attention selection, and bounded inquiry graphs.
-Actual-store checks cover storage and recovery boundaries.
-They do not establish generated thought quality or uninterrupted operation during ordinary conversation.
+An unrelated ordinary message no longer discards a private step that is already calculating.
+Actual-store checks and recorded scenario replays cover storage, recovery, and that continuity boundary.
+They do not establish generated thought quality.
 The <a href="../../dev/work_items/beta-b05.md">B05 engineering record</a> contains current verification results and their limits.
 
 The canonical owner is [`workflows.inner_thought.host.PrivateThoughtLoop`][].
@@ -27,8 +28,8 @@ A main event therefore cannot directly cascade into another private cycle.
 
 An accepted [inference wait](inference-wait.md) prevents routine private admission.
 The host also checks classification and Critical reconsideration before inquiry entry.
-The existing ordinary-input cancellation and generation fences still apply.
-Source-bound graph storage does not yet remove those lifecycle checks.
+Those checks now describe *admission and acceptance authority*, not generic input arrival:
+see [What supersedes private work](#what-supersedes-private-work).
 
 The parent manifest remains `workflows/inner_thought/inner_thought.workflow.md`.
 Its injected `run_private_inquiry` tool calls [`workflows.inner_thought.graph_execution.run_graph_opportunity`][].
@@ -292,10 +293,28 @@ The child runner propagates requested cancellation through the existing kernel b
 Unexpected Python errors still reach the application.
 An accepted graph commit survives a failed later projection or delivery.
 
-The current implementation still uses ordinary control generation during private acceptance and legacy replay.
-It does not yet establish continuity through unrelated conversation.
-Source guards, Critical epochs, unknown-triage holds, waits, replay, parking, and main private-only checks require coordinated migration.
-A stored graph or a clean local check is not evidence that this migration is complete.
+### What supersedes private work
+
+Three different events used to be one fence. They are now separate because they mean different things.
+
+| Event | Effect on private work | Why |
+| --- | --- | --- |
+| Unrelated ordinary message arrives | keeps calculating | the message has not been classified yet and may not concern the work |
+| Input is classified Critical | cancelled, and its generation never commits again | accepted reconsideration changes what the character may do |
+| Input is still unclassified | acceptance waits for the assessment | an unknown message could still turn out to be Critical |
+| Accepted inference wait | no continuation and no late commit | the character chose silence, not more thinking |
+| Wake or wait expiry | older private generations are refused | the quiet window ended |
+| Source meaning or current parent changed | the guarded commit fails | the work reasoned from superseded evidence |
+
+Input arrival alone therefore changes no control generation.
+[`workflows.cognitive_control.host.CognitiveControl.observe`][] records the message and tracks it as pending input;
+[`workflows.cognitive_control.host.CognitiveControl.accept_triage`][] owns Critical cancellation and the generation advance;
+[`workflows.cognitive_control.host.CognitiveControl.commit_private`][] accepts independent work under the current authority and holds it, cancellably, while a classification is outstanding.
+The same rule applies to a main cycle whose only stimuli are accepted private findings: ordinary input no longer supersedes it.
+
+The retirement of the old fence was verified by recording one synthetic situation, then replaying it.
+Both samples showed the private step aborted before the change and accepted after it.
+That scenario and its limits are described in [Recorded scenario replay](../workflows/scenario-replay.md).
 
 ## Legacy linear episodes
 

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from threading import Event
+from threading import Event, Thread
 import time
 import unittest
 
@@ -17,7 +17,9 @@ from pm.memory.bash_view import MemoryBashTarget
 from pm.memory.store_tools import build_tools
 from pm.memory.snapshot import GhostCancelled
 from pm.memory.snapshot import GhostConflict
+from pm.memory.checkpoint import CommitReceipt
 from pm.memory.store import MemoryStore
+from pm.memory.write_batch import WriteBatch
 from pm.records.cycle_records import StimulusGroup
 from pm.records.cycle_state import CycleState, PersonaConfig
 from pm.records.global_workspace import GwtTurnRecord
@@ -213,3 +215,71 @@ class EarlyTriageBoundaryTests(unittest.TestCase):
         module.cancel_run()
         self.assertTrue(module.run_stop.is_set())
         self.assertIsNone(module._interrupted_epoch)
+
+    # ------------------------------------------------------------------
+    # Independent private work during ordinary conversation. These use real
+    # stores and commits with an explicitly supplied classification; they make
+    # no claim about generated private content.
+
+    def private_batch(self, name: str) -> WriteBatch:
+        """Build one real private write batch without running any model stage."""
+        batch = self.store.begin_batch(name, new_tick=True, embed=False)
+        batch.create(Feature(content="A private observation about the story.",
+                             feature_type=FeatureType.InnerMonologue,
+                             interlocus=InterlocusType.PrivateInternal))
+        return batch
+
+    def test_ordinary_input_does_not_supersede_independent_private_work(self) -> None:
+        """Arrival alone changes no generation, so a private step keeps its authority."""
+        cancellations: list[int] = []
+        self.control.cancel_private = lambda: cancellations.append(1)
+        generation = self.control.generation
+        source = self.submit("The kitchen tap is dripping again. I'll look at it tomorrow.")
+        self.assess(source, "Moderate")
+        self.assertEqual(self.control.generation, generation,
+                         "An ordinary message must not advance the private generation.")
+        self.assertEqual(cancellations, [], "An ordinary message must not cancel private work.")
+        receipt = self.control.commit_private(self.private_batch("private-after-ordinary-input"), generation)
+        self.assertIn(receipt.commit_id, self.store.applied_commits)
+
+    def test_unclassified_input_holds_private_acceptance_until_its_assessment(self) -> None:
+        """Unknown input can still be Critical, so acceptance waits for the answer."""
+        source = self.submit("Something arrived while I was thinking.")
+        batch = self.private_batch("private-during-unknown-input")
+        generation = self.control.generation
+        accepted: list[CommitReceipt] = []
+        failures: list[BaseException] = []
+
+        def accept() -> None:
+            """Commit the private batch on a worker thread, as the loop would."""
+            try:
+                accepted.append(self.control.commit_private(batch, generation))
+            except BaseException as error:  # noqa: BLE001 - reported to the test thread
+                failures.append(error)
+
+        worker = Thread(target=accept, daemon=True)
+        worker.start()
+        worker.join(0.3)
+        self.assertTrue(worker.is_alive(), "Private acceptance must wait for the classification.")
+        self.assess(source, "Moderate")
+        worker.join(5.0)
+        self.assertFalse(worker.is_alive(), "The ordinary assessment must release the hold.")
+        self.assertEqual(failures, [])
+        self.assertEqual(len(accepted), 1)
+        self.assertIn(accepted[0].commit_id, self.store.applied_commits)
+
+    def test_critical_assessment_rejects_private_work_from_the_older_generation(self) -> None:
+        """Critical input changes what the character may do, so old work cannot land."""
+        generation = self.control.generation
+        batch = self.private_batch("private-before-critical-input")
+        source = self.submit("Stop. There is a fire in the kitchen right now.")
+        self.assess(source, "Critical")
+        self.assertGreater(self.control.generation, generation)
+        with self.assertRaises(GhostCancelled):
+            self.control.commit_private(batch, generation)
+        # The barrier clears once a main cycle claims the Critical source, but
+        # work captured before that reconsideration stays refused.
+        self.accept_cycle([source])
+        self.assertFalse(self.control.reconsideration_required())
+        with self.assertRaises(GhostCancelled):
+            self.control.commit_private(batch, generation)

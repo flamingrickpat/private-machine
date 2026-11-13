@@ -114,16 +114,28 @@ def graph_thought_request(view: Snapshot, request: InnerRequest, parent: Inquiry
 def graph_thought_instruction(request: GraphThoughtRequest) -> str:
     """Explain the admitted operation and graph's epistemic acceptance rules."""
     operation = validate_operation(request.state.next_operation)
+    accepted_nodes = list(request.state.node_ids)
+    if accepted_nodes:
+        relation_rule = "Source IDs belong in evidence_ids. They are not graph relation targets."
+    else:
+        # The model otherwise relates the new thought to the source record that
+        # prompted it, which the graph rejects because a relation is an edge
+        # between executed nodes. State the empty target set as its own rule.
+        relation_rule = ("No graph node has been accepted yet, so this step has no relation target. "
+                         "Return relations=[] and progress.compared_node_ids=[]. "
+                         "The source records you cite belong in evidence_ids only.")
+    if operation.mode == "generative":
+        branch_rule = "It can create zero to three new alternative branches."
+    else:
+        branch_rule = ("It must return alternatives=[]; assess the supplied material "
+                       "without generating new branch records.")
     return (
         f"Perform {operation.name} ({operation.mode}) as {request.request.companion_name}'s private inquiry. "
         f"Purpose: {operation.description}\n"
-        f"Accepted graph node IDs available for relations and comparisons: {list(request.state.node_ids)}. "
-        "Source IDs belong in evidence_ids. They are not graph relation targets. "
-        "When the accepted graph node list is empty, relations and compared_node_ids must both be empty. "
-        f"This operation is {operation.mode}. "
-        + ("It can create zero to three new alternative branches.\n" if operation.mode == "generative" else
-           "It must return alternatives=[]; assess the supplied material without generating new branch records.\n") +
-        "Return one InquiryStep. Execute only the admitted operation. Cite only supplied source or accepted node IDs. "
+        f"Accepted graph node IDs available for relations and comparisons: {accepted_nodes}.\n"
+        + relation_rule + "\n"
+        + f"This operation is {operation.mode}. " + branch_rule + "\n"
+        + "Return one InquiryStep. Execute only the admitted operation. Cite only supplied source or accepted node IDs. "
         "A later step must relate explicitly to accepted earlier nodes. New alternatives have no committed IDs yet. "
         "Keep assumptions, evidence, plausibility, interest, desirability and action suitability separate. "
         "Neither emotional importance nor repeated thoughts supplies independent corroboration. "
@@ -161,10 +173,16 @@ def validate_graph_step(request: GraphThoughtRequest, step: InquiryStep) -> Inqu
     if not evidence.issubset(permitted):
         raise ModelProposalError("Inquiry citations must name supplied sources or accepted nodes.")
     targets = {relation.target_record_id for relation in step.relations}
-    if not targets.issubset(state.node_ids) or (state.sequence > 0 and not targets):
-        raise ModelProposalError(f"Relations must target accepted graph nodes {list(state.node_ids)}. "
-            "Original source IDs belong in evidence_ids. With no graph nodes, return relations=[]. "
-            "After the first step, retain at least one relation to an accepted graph node.")
+    if not state.node_ids:
+        if targets:
+            raise ModelProposalError(
+                "No graph node exists yet, so this step cannot relate to one. Return relations=[] and "
+                f"progress.compared_node_ids=[]. The cited source records {sorted(targets)} belong in evidence_ids.")
+    elif not targets.issubset(state.node_ids) or (state.sequence > 0 and not targets):
+        raise ModelProposalError(
+            f"Relations must target one of the accepted graph nodes {sorted(state.node_ids)}. "
+            "Original source IDs belong in evidence_ids. After the first step, retain at least one "
+            "relation to an accepted graph node.")
     if operation.mode != "generative" and step.alternatives:
         raise ModelProposalError("Only a generative operation can create alternative branches.")
     compared = set(step.progress.compared_node_ids)

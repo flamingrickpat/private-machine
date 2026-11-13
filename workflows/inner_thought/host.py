@@ -273,7 +273,11 @@ class PrivateThoughtLoop(CognitiveWorkflow):
                 limit=8, cancel=self.run_stop))
             matches = tuple(EvidenceItem.model_validate(item) for item in result["matches"])
             source_ids = {key for item in matches for key in [item.knoxel_id, *item.source_ids]}
-            return PrivateRecall(matches=matches, trace=result["trace"], sources=tuple(
+            # The retrieval trace is a receipt, so it crosses this boundary as
+            # JSON. Retrieval reports scope pairs as tuples, which the typed
+            # contract does not accept and the prompt never needs.
+            trace = json.loads(json.dumps(result["trace"]))
+            return PrivateRecall(matches=matches, trace=trace, sources=tuple(
                 capture_source(view, key, current_head=False) for key in sorted(source_ids)))
         try:
             return run_graph_opportunity(request, owner=owner, grant=grant, run_stage=run_stage,

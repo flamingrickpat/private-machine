@@ -33,21 +33,31 @@ class SourceDependency(BaseModel):
     current_head: bool = Field(description="Whether acceptance requires this exact record to remain a live head.")
 
 
+#: Record fields that describe when this process handled the record, not what
+#: the record means. ``timestamp_creation`` and ``last_accessed`` are real wall
+#: clock, so including them makes an unchanged source look changed after any
+#: touch, and makes an identical record built in another process hash
+#: differently. World timestamps stay significant: they are evidence.
+_PROCESS_BOOKKEEPING_FIELDS: frozenset[str] = frozenset({"timestamp_creation", "last_accessed"})
+
+
 def source_fingerprint(record: RecordBase) -> str:
     """Hash source meaning while excluding embeddings and operational receipts.
 
     The explicit metadata exclusion contains only exchange, publication,
     dispatch, recovery, and execution bookkeeping. Content, attribution,
-    provenance, scope, timestamps, output references, and epistemic fields
-    remain significant. This comparison does not authorize a status-dependent
-    operation; such an operation also requires an exact revision guard.
+    provenance, scope, world timestamps, output references, and epistemic
+    fields remain significant. This comparison does not authorize a
+    status-dependent operation; such an operation also requires an exact
+    revision guard.
     """
     semantic_metadata = {
         key: value for key, value in record.metadata.items()
         if key not in _LIFECYCLE_METADATA_KEYS
     }
     semantic_record = record.model_copy(update={"metadata": semantic_metadata})
-    data = semantic_record.model_dump(mode="json", exclude={"embedding", "embedding_model"})
+    data = semantic_record.model_dump(mode="json",
+        exclude={"embedding", "embedding_model", *_PROCESS_BOOKKEEPING_FIELDS})
     serialized = json.dumps(data, sort_keys=True, ensure_ascii=False)
     return hashlib.sha256(serialized.encode()).hexdigest()
 

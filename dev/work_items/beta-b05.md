@@ -874,3 +874,131 @@ Remaining B05 completion work, in dependency order:
 3. Wire `FocusManagement` selected actions to the shared private owner and real child kernels. Preserve one-slot arbitration, accepted action identity, atomic result receipts, replay, and main acknowledgment. The admission API alone does not provide this integration.
 4. Integrate scoped reflection/inspection evidence and graph felt-state emission. The graph currently excludes legacy inspection/reflection summaries explicitly.
 5. Repair stale parent-contract fixtures, run the required real lifecycle gates, inspect resulting record packages, and then update acceptance status. A passing deterministic suite cannot establish companion quality.
+
+## Pass: ordinary input leaves independent private work alone (2026-11-14)
+
+The owner asked for a cheaper way to check architecture changes than a full live
+run. This pass adds that harness and uses it to retire the first unfinished B05
+integration item.
+
+### Recorded scenario replay harness
+
+`tests/replay/` records one real situation once and replays it for free.
+A recording holds every model request and answer in call order, the starting
+memory checkpoint, a manifest, and a typed outcome.
+A replay serves those answers over a copy of the checkpoint while the real
+classes, store, kernels, control fences, and child workflows run unchanged.
+
+Determinism required three explicit decisions:
+
+- `tests.replay.determinism.deterministic_identities` replaces the process
+  identity source with a seeded counter. Invocation and commit ids reach prompts.
+- `tests.replay.script.normalize_timing` replaces accumulated wall-clock
+  seconds with a placeholder; the value is a receipt of how long the run took.
+- The harness reruns itself under `PYTHONHASHSEED=0`, because a set of names
+  otherwise prints in a different order in each process and that text reaches a
+  validation message inside a prompt.
+
+`ReplayDivergence` stops at the first changed request and writes both full
+prompts beside the sample, so a change that alters a prompt is a loud result.
+A scenario whose injection cancelled an invocation marks the sample
+`NotReplayable`, because a cancelled run is a partial trace and its call
+boundary races the model call.
+
+Two checks cover the harness utilities: `tests/unit/test_replay_harness.py`
+(13 checks). They prove the recording format, request identity, and divergence
+report, not any scenario.
+
+### The continuity defect and its correction
+
+Recorded twice, two samples each, over one synthetic story concern:
+`.runtime/replay/private-continuity-20261113T211349Z` (before) and
+`.runtime/replay/private-continuity-20261113T211905Z` (after).
+An unrelated ordinary message was delivered through the real input proxy and
+classified by the real triage module while the second private invocation was
+inside its model call.
+
+| Sample | Before | After |
+| --- | --- | --- |
+| 1 | cycle 2 cancelled before any result | cycle 2 produced an accepted step |
+| 2 | cycle 2 cancelled before any result | cycle 2 produced an accepted step (stalled progress) |
+
+Both post-change samples replay exactly, in order, with no unasked calls.
+
+Source changes:
+
+- `CognitiveControl.observe` no longer advances the control generation or calls
+  `cancel_private` on arrival. Arrival is not a classification.
+- `CognitiveControl.accept_triage` advances the generation when the assessment
+  is Critical, so a grant captured before that reconsideration can never commit,
+  even after the required sources are appraised and the barrier clears.
+- `CognitiveControl.commit_private` accepts independent private work under the
+  current authority. An unclassified message holds acceptance cooperatively and
+  cancellably instead of destroying the result. An accepted wait, a wake, a
+  newer Critical epoch, or a changed source still rejects the work.
+
+Three new actual-store boundary checks cover the new rules in
+`tests/unit/workflows/cognitive_control/test_early_triage.py`: ordinary input
+changes no generation and cancels nothing, unclassified input holds acceptance
+until its assessment and then releases it, and a Critical assessment refuses
+work from the older generation both before and after the barrier clears.
+
+### Verification
+
+Affected deterministic checks:
+
+- `tests/unit/workflows/cognitive_control/test_early_triage.py`: **14 passed**
+  (11 pre-existing plus the three new rules).
+- `tests/unit/workflows/inner_thought` discovery: **162 passed**.
+- `tests/unit/workflows/interaction` discovery: **7 passed**.
+- `tests/unit/test_replay_harness.py`: **13 passed**.
+- `tests.unit.workflows.interaction.test_boundaries`,
+  `tests.unit.workflows.entity_context.test_owner_projection`,
+  `tests.unit.workflows.entity_context.test_immediate_updates`, and
+  `tests.unit.test_architecture`: **41 ran**, one pre-existing architecture
+  failure from the harness's own `subprocess` use, fixed by moving that call to
+  the `OperatingSystem` boundary; the final run reports `OK`.
+
+Type checking: configured strict Pyright reports **0 errors, 0 warnings**.
+A scoped strict scan of `tests/replay`, the new unit check, and the changed
+control module reports **11 remaining diagnostics, all pre-existing**:
+five in unchanged `workflows/cognitive_control/host.py` lines (`admit` and
+`release_wakes`) and six `reportPrivateUsage` entries in unchanged early-triage
+test lines.
+
+Strict MkDocs passed in **212.98 seconds**, including the new
+`docs/workflows/scenario-replay.md` page and the renamed
+"What supersedes private work" section in `docs/subsystems/private-loop.md`.
+
+### Not run and remaining limits
+
+**NOT RUN:** any new paid inference beyond the four scenario recordings, the
+full unit/contract suite, the integrated live gates, and the final Jesse–Spamuel,
+Jesse–Spamuel1–Spamuel alpha, and Spamuel–Spamuel–Minecraft scenarios.
+
+**NOT RUN — full cognitive_control discovery:** it contains
+`tests.unit.workflows.cognitive_control.test_wait`, which retries remote
+embeddings until an endpoint answers; the same module also retries at HEAD
+`60ea26f`, so it cannot run offline. The affected modules were run individually.
+
+Pre-existing red, reproduced at HEAD `60ea26f` in a separate worktree and
+unchanged by this pass:
+
+- `tests/unit/workflows/cognitive_control/test_focus.py`: three errors, its
+  `_Runtime` fixture has no `stop_event`.
+- `tests/unit/workflows/main_cognition` discovery: **46 errors**, all from test
+  fixtures whose `llm_complete` tool provides no context measurement. The same
+  46 errors appear at HEAD.
+- `tests/unit/workflows/public_speech` discovery: one error and one failure
+  (`test_attribution`, `test_speech_review`), identical at HEAD.
+- `tests.contract.inner_thought.test_inner_parent_contract` remains red.
+
+Still unfinished in B05, in dependency order:
+
+1. An explicit durable displacement/reconsideration transition for an active
+   inquiry from an older Critical epoch. It is currently held for admission.
+2. Wire `FocusManagement` selected actions to the shared private owner and the
+   real child kernels, preserving one-slot arbitration, action receipts, replay,
+   and main acknowledgment.
+3. Integrate scoped reflection/inspection evidence and graph felt-state emission.
+4. Repair the stale parent-contract fixtures and run the integrated live gates.

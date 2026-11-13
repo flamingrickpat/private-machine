@@ -191,6 +191,11 @@ class CognitiveControl(BusModule):
             for source_id in source_ids:
                 self._assessments[source_id] = accepted
             if critical:
+                # A Critical assessment changes what the character may do, so it
+                # advances the generation that fences every private grant. Work
+                # captured before it can never commit afterwards, even once the
+                # required sources have been appraised and the barrier clears.
+                self.generation += 1
                 # Mark the old main invocation interrupted before another
                 # writer can observe the required sources at its commit fence.
                 self.prioritize_critical(critical)
@@ -333,10 +338,18 @@ class CognitiveControl(BusModule):
                     for key in record.metadata.get("source_event_ids", [])}
 
     def observe(self, envelope: Envelope) -> None:
-        """Wake before queueing outside input, and fence older private work.
+        """Wake before queueing outside input without judging it yet.
 
         Pending input also prevents a wait between mailbox drain and run start.
         Main cognition clears it only after its result commits successfully.
+
+        Arrival alone does not supersede independent private work. Input is not
+        classified yet, so this method cannot know whether it is Critical, and
+        an unrelated ordinary message must not discard a bounded private step
+        that is already calculating. :meth:`accept_triage` owns the Critical
+        cancellation, and :meth:`commit_private` holds acceptance until the
+        classification exists. Only a Critical epoch change, an accepted wait,
+        or a wake advances the generation that fences private work.
         """
         if not self.is_external(envelope):
             return
@@ -346,12 +359,10 @@ class CognitiveControl(BusModule):
                 return
             self._seen_inputs.add(envelope.id)
             self._pending_inputs.add(envelope.id)
-            self.generation += 1
             record = self._record()
             if record is not None and record.metadata["status"] == "waiting":
                 self._wake(record, envelope.topic, timeout=False, now=self.now())
                 woke = True
-        self.cancel_private()
         if woke:
             self._flush_deferred()
 
@@ -454,15 +465,29 @@ class CognitiveControl(BusModule):
         return receipt
 
     def commit_private(self, batch: WriteBatch, generation: int) -> Any:
-        """Reject private work after outside input or an accepted wait.
+        """Accept independent private work under the current scheduling authority.
 
-        The store lock covers the generation check and durable commit. Native
-        cancellation is cooperative, so this fence also rejects a late result.
+        An accepted wait, a wake, or a newer Critical epoch rejects the work
+        outright: those change what the character may do, not merely what it
+        has just been told. Unclassified input instead holds acceptance until
+        its assessment exists, because the message might still turn out to be
+        Critical. The hold is cooperative and cancellable, and it never
+        replaces the sources the work captured.
+
+        The store lock covers the authority check and the durable commit.
         """
-        with self.ghost.lock:
-            if self.waiting() or self.reconsideration_required() or generation != self.generation:
-                raise GhostCancelled("Private work was superseded by a wait or new stimulus.")
-            return self.ghost.commit(batch)
+        while True:
+            with self.ghost.lock:
+                if self.waiting() or generation != self.generation:
+                    raise GhostCancelled("Private work was superseded by a wait or Critical reconsideration.")
+                if not self.reconsideration_required():
+                    return self.ghost.commit(batch)
+                unclassified = bool(self._pending_triage)
+            if not unclassified:
+                raise GhostCancelled("Private work predates accepted Critical reconsideration.")
+            batch.check_cancelled()
+            if self.stop_event.wait(0.05):
+                raise GhostCancelled("Private work stopped while its input awaited classification.")
 
     def _wake(self, record: Feature, reason: str, *, timeout: bool, now: datetime) -> None:
         batch = self.ghost.begin_batch("wake-" + new_id(), cancel=self.stop_event)

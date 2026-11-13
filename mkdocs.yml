@@ -47,6 +47,7 @@ nav:
       - Minecraft run: workflows/minecraft.md
       - Minecraft evidence and cleanup: workflows/minecraft-evidence.md
       - MCP tools for one goal: workflows/tool-call.md
+      - Recorded scenario replay: workflows/scenario-replay.md
   - Concepts:
       - System map: concepts/architecture.md
       - Evidence and quality: concepts/evidence.md
