@@ -4,13 +4,15 @@ See :mod:`workflows.inner_thought.host` for scheduling and acceptance. This
 projection supplies accepted graph identities and their original branch
 payloads to the existing thought child. The coordinator invokes nomination,
 shared attention, actual scoped recall when requested, thought, and boundary
-integration. PrivateInquiryOwner retains commit and GWT repair authority.
-This module does not convert legacy episode history or admit parked work.
+integration, and the parked re-admission that shares that same attention decision.
+PrivateInquiryOwner retains commit and GWT repair authority. This module does not
+convert legacy episode history.
 """
 from __future__ import annotations
 
 from typing import Literal
 from collections.abc import Callable
+from dataclasses import dataclass
 from time import monotonic
 import hashlib
 
@@ -24,16 +26,18 @@ from pm.records.mental_state import FullMentalState
 from pm.records.enums import FeatureType
 from pm.records.memory_records import Feature
 from workflows.cognitive_control.attention import CapturedPrivateFocus, validate_private_attention, validate_private_focus
-from workflows.inner_thought.graph_host import PrivateInquiryOwner, active_inquiry
-from workflows.inner_thought.inquiry import InquiryAlternativeMetadata, InquiryNodeMetadata, InquiryRecord
-from workflows.inner_thought.nominations import read_nomination, read_nomination_batch
+from workflows.inner_thought.graph_host import PrivateInquiryOwner, active_inquiry, parked_inquiry
+from workflows.inner_thought.inquiry import (
+    InquiryAlternativeMetadata, InquiryNodeMetadata, InquiryRecord, inquiry_origin, parked_offer,
+)
+from workflows.inner_thought.nominations import NominationBatchRecord, read_nomination_batch
 from workflows.inner_thought.operations import operation_lines, validate_operation
 from workflows.inner_thought.graph_outcomes import capture_graph_outcome
 from workflows.inner_thought.pipeline import ModelProposalError, citable_ids, validate_integration
 from workflows.inner_thought.schemas import (
-    AttentionCandidate, InnerRequest, InquiryAlternative, InquiryGrant, InquiryState, InquiryStep, NominationBatch,
-    IntegrationResult, PrivateAttentionContext, ThoughtAlternative, ThoughtAttentionDecision,
-    ThoughtCandidate, ThoughtNomination, ThoughtResult, TriggerChoice,
+    AttentionCandidate, InquiryAlternative, InquiryGrant, InquiryOrigin, InquiryResumeDecision, InquiryState,
+    InquiryStep, InnerRequest, IntegrationResult, NominationBatch, ParkedInquiryOffer, PrivateAttentionContext,
+    ThoughtAlternative, ThoughtAttentionDecision, ThoughtCandidate, ThoughtResult, TriggerChoice,
 )
 
 StageRunner = Callable[[str, dict[str, JsonValue]], dict[str, JsonValue]]
@@ -79,7 +83,7 @@ class GraphThoughtRequest(BaseModel):
     request: InnerRequest
     state: InquiryState
     grant: InquiryGrant
-    origin: ThoughtNomination
+    origin: InquiryOrigin
     nodes: tuple[InquiryNodeView, ...]
     recall: PrivateRecall | None = None
 
@@ -88,7 +92,7 @@ def graph_thought_request(view: Snapshot, request: InnerRequest, parent: Inquiry
                           grant: InquiryGrant) -> GraphThoughtRequest:
     """Supply actual accepted nodes; never invent IDs for new alternatives."""
     state = parent.receipt.state
-    origin = read_nomination(view, state.origin_record_id).receipt.nomination
+    origin = inquiry_origin(view, state)
     nodes: list[InquiryNodeView] = []
     for node_id in state.node_ids:
         node = view.get(node_id)
@@ -179,6 +183,105 @@ def validate_graph_step(request: GraphThoughtRequest, step: InquiryStep) -> Inqu
     return step
 
 
+@dataclass(frozen=True, slots=True)
+class OpportunityAdmission:
+    """The inquiry one attention opportunity admitted, or why it admitted none."""
+
+    inquiry: InquiryRecord | None
+    result: PrivateGraphResult | None
+
+
+@dataclass(frozen=True, slots=True)
+class ParkedCandidate:
+    """Retained parked work, the grant that can re-admit it, and its offer."""
+
+    inquiry: InquiryRecord
+    grant: InquiryGrant
+    offer: ParkedInquiryOffer
+
+
+def parked_candidate(owner: PrivateInquiryOwner, *, observer_entity_id: int,
+                     grant: InquiryGrant) -> ParkedCandidate | None:
+    """Read the parked work that this opportunity may offer to shared attention.
+
+    The offer must be judged with the parked inquiry's own retained sources plus
+    everything the current opportunity can cite, because an early re-admission
+    needs evidence newly supplied beside that retained grant.
+    """
+    view = owner.store.snapshot(capture=False)
+    parked = parked_inquiry(view, observer_entity_id=observer_entity_id)
+    if parked is None:
+        return None
+    current_ids = tuple(source.record_id for source in grant.sources)
+    parked_grant = owner.execution_grant(parked, source_ids=current_ids)
+    offer = parked_offer(view, parked, grant=parked_grant, now_utc=vclock.utcnow(), limits=owner.limits)
+    if offer is None:
+        return None
+    return ParkedCandidate(parked, parked_grant, offer)
+
+
+def admit_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner, grant: InquiryGrant,
+                      run_stage: StageRunner, nominations: NominationBatchRecord, batch_id: str,
+                      pending_input_ids: tuple[int, ...], focus: CapturedPrivateFocus,
+                      mental_state: FullMentalState) -> OpportunityAdmission:
+    """Offer one nomination batch and any eligible parked work to shared attention.
+
+    One model call admits at most one inquiry for the private slot. Parked work
+    competes in that same decision, and only on an elapsed parked deadline or
+    original outside evidence newly supplied beside its retained grant, so
+    elapsed parking alone never resumes it. Every outcome stays durable: a
+    nomination selection through ``stage_attention``, a parked re-admission
+    through its resume receipt beside the opportunity's attention outcome, and
+    any other decision through that attention outcome alone. A completed
+    opportunity is never paid for twice.
+    """
+    from workflows.inner_thought.stages.trigger.steps import AttentionStageRequest
+    candidate = parked_candidate(owner, observer_entity_id=grant.observer_entity_id, grant=grant)
+    if not nominations.nominations and candidate is None:
+        return OpportunityAdmission(None, PrivateGraphResult(summary=nominations.receipt.reason,
+            receipt_id=nominations.record.id))
+    # A retained attention outcome is a completed selection call. A later
+    # opportunity receives a different captured-context identity.
+    view = owner.store.snapshot(capture=False)
+    if any(record.metadata.get("thought_attention_batch") == batch_id
+           for record in view.all_knoxels.values()):
+        return OpportunityAdmission(None, PrivateGraphResult(
+            summary="This nomination opportunity already has an attention outcome.",
+            receipt_id=nominations.record.id))
+    attention = PrivateAttentionContext(
+        candidates=tuple(AttentionCandidate(nomination_id=item.record.id, nomination=item.receipt.nomination,
+            root_source_ids=item.receipt.root_source_ids) for item in nominations.nominations),
+        parked=() if candidate is None else (candidate.offer,),
+        pending_input_ids=pending_input_ids, accepted_focus=focus.focus,
+        active_intention_ids=tuple(goal.knoxel_id for goal in request.active_goal_records),
+        attention_summary=mental_state.state_cognition.model_dump_json())
+    payload = AttentionStageRequest(request=request, attention=attention)
+    decision = ThoughtAttentionDecision.model_validate(run_stage("trigger", payload.model_dump(mode="json")))
+    validate_private_attention(attention, decision)
+    if decision.parked_receipt_id is not None:
+        assert candidate is not None  # Only an offered parked receipt can be named.
+        resumed = owner.admit_parked_inquiry(candidate.inquiry,
+            InquiryResumeDecision(operation=decision.admitted_operation, reason=decision.reason,
+                trigger_source_ids=candidate.offer.available_evidence_ids),
+            attention=decision, nomination_ids=nominations.receipt.nomination_ids, offered_grant=grant,
+            grant=candidate.grant, batch_id=batch_id, now_utc=vclock.utcnow())
+        return OpportunityAdmission(resumed, None)
+    if not nominations.nominations:
+        outcome = owner.record_attention_outcome(batch_id=batch_id, nomination_ids=(), decision=decision, grant=grant)
+        return OpportunityAdmission(None, PrivateGraphResult(summary=decision.reason, receipt_id=outcome.id))
+
+    def validate_context() -> None:
+        """Keep the supplied focus head and original expiry through selection acceptance."""
+        validate_private_focus(owner.store.snapshot(capture=False), focus, now_utc=vclock.utcnow())
+
+    selected = owner.accept_attention(nominations.receipt.nomination_ids, decision,
+        commit_id="attention:" + batch_id, episode_id="inquiry:" + batch_id, now_utc=vclock.utcnow(),
+        validate_context=validate_context)
+    if selected.inquiry is None:
+        return OpportunityAdmission(None, PrivateGraphResult(summary=decision.reason, receipt_id=selected.record.id))
+    return OpportunityAdmission(selected.inquiry, None)
+
+
 def run_graph_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner,
                           grant: InquiryGrant, run_stage: StageRunner,
                           mental_state: FullMentalState, control_generation: int,
@@ -187,9 +290,11 @@ def run_graph_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner,
     """Retain nomination, selection, and one executed step as separate boundaries.
 
     Continuation uses the accepted graph rather than main acknowledgment of
-    every internal node. The host retains control authority through its commit
-    callback. Parked resumption and deliberate origins are separate admission
-    work; this entry does not invent either from legacy episode metadata.
+    every internal node, whether the episode began from a private nomination or
+    from an accepted deliberate action. The host retains control authority
+    through its commit callback. Parked work re-enters only through the shared
+    attention decision in :func:`admit_opportunity`; this entry never resumes it
+    from elapsed parking or legacy episode metadata.
     """
     view = owner.store.snapshot(capture=False)
     parent = active_inquiry(view, observer_entity_id=grant.observer_entity_id)
@@ -207,38 +312,19 @@ def run_graph_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner,
         material = grant.model_dump_json() + str(request.main_frame.tick)
         material += "".join(trigger.model_dump_json() for trigger in request.trigger_candidates)
         batch_id = hashlib.sha256(material.encode()).hexdigest()
+        # The same qualifying opportunity also gates reconsideration of parked
+        # work, so a parked question never causes an extra model call by itself.
         nominations = read_nomination_batch(view, batch_id)
         if nominations is None:
             result = NominationBatch.model_validate(run_stage("nominate", request.model_dump(mode="json")))
             nominations = owner.accept_nominations(result, grant=grant, batch_id=batch_id)
-        if not nominations.nominations:
-            return PrivateGraphResult(summary=nominations.receipt.reason, receipt_id=nominations.record.id)
-        # A retained attention outcome is a completed selection call. A later
-        # opportunity receives a different captured-context identity.
-        view = owner.store.snapshot(capture=False)
-        if any(record.metadata.get("thought_attention_batch") == batch_id
-               for record in view.all_knoxels.values()):
-            return PrivateGraphResult(summary="This nomination opportunity already has an attention outcome.",
-                                      receipt_id=nominations.record.id)
-        from workflows.inner_thought.stages.trigger.steps import AttentionStageRequest
-        attention = PrivateAttentionContext(
-            candidates=tuple(AttentionCandidate(nomination_id=item.record.id, nomination=item.receipt.nomination,
-                root_source_ids=item.receipt.root_source_ids) for item in nominations.nominations),
-            pending_input_ids=pending_input_ids, accepted_focus=focus.focus,
-            active_intention_ids=tuple(goal.knoxel_id for goal in request.active_goal_records),
-            attention_summary=mental_state.state_cognition.model_dump_json())
-        payload = AttentionStageRequest(request=request, attention=attention)
-        decision = ThoughtAttentionDecision.model_validate(run_stage("trigger", payload.model_dump(mode="json")))
-        validate_private_attention(attention, decision)
-        def validate_context() -> None:
-            """Keep the supplied focus head and original expiry through selection acceptance."""
-            validate_private_focus(owner.store.snapshot(capture=False), focus, now_utc=vclock.utcnow())
-        selected = owner.accept_attention(nominations.receipt.nomination_ids, decision,
-            commit_id="attention:" + batch_id, episode_id="inquiry:" + batch_id, now_utc=vclock.utcnow(),
-            validate_context=validate_context)
-        parent = selected.inquiry
-        if parent is None:
-            return PrivateGraphResult(summary=decision.reason, receipt_id=selected.record.id)
+        admission = admit_opportunity(request, owner=owner, grant=grant, run_stage=run_stage,
+            nominations=nominations, batch_id=batch_id, pending_input_ids=pending_input_ids,
+            focus=focus, mental_state=mental_state)
+        if admission.inquiry is None:
+            assert admission.result is not None  # Every non-admission names its own outcome.
+            return admission.result
+        parent = admission.inquiry
     node_grant = owner.execution_grant(parent)
     dependencies = {source.record_id: source for source in grant.sources}
     dependencies.update({source.record_id: source for source in node_grant.sources})

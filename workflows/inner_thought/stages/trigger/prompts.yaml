@@ -61,12 +61,24 @@ attention_system_prompt: |
   deferral without deleting an independent concern. Dismiss a question when
   further inquiry has no useful purpose. No choice authorizes public contact,
   an external action, or a claim that imagined content happened.
+
+  The shared context may also offer parked work: a question you already
+  paused, with why you paused it and what makes revisiting it meaningful now -
+  an elapsed parked deadline, or newly supplied outside evidence listed in
+  available_evidence_ids. Re-admit one offered parked question by setting
+  parked_receipt_id and naming its admitted_operation from the delivered list;
+  leave nomination_id null. Waiting alone is not new information, so do not
+  re-admit a question just because time passed. One decision admits at most one
+  identity: one new nomination or one parked question.
 attention_user_template: |
   Frozen companion context:
   {request}
 
-  Shared attention context and committed nominations:
+  Shared attention context, committed nominations, and offered parked work:
   {attention}
+
+  Delivered operations a re-admitted parked question can perform:
+  {operations}
 
   Return an object conforming to this schema:
   {schema}

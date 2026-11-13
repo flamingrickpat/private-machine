@@ -93,8 +93,10 @@ def build_messages(request: dict[str, object], prompts: TriggerPrompts) -> list[
 def build_attention_messages(request: AttentionStageRequest, prompts: TriggerPrompts) -> list[Turn]:
     """Compare actual committed proposals under accepted shared guidance."""
     system = prompts.attention_system_prompt.format(companion_name=request.request.companion_name)
+    delivered = "\n".join(f"- {operation.name}: {operation.description}" for operation in OPERATIONS.values())
     user = prompts.attention_user_template.format(
         request=request.request.model_dump_json(), attention=request.attention.model_dump_json(),
+        operations=delivered,
         schema=json.dumps(ThoughtAttentionDecision.model_json_schema(), ensure_ascii=False))
     return [Turn(Role.System, system.strip()), Turn(Role.User, user.strip())]
 

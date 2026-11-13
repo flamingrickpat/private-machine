@@ -734,3 +734,59 @@ Final strict MkDocs passed in **196.81 seconds**, with unchanged hashes for all 
 Eight inspected pages contain **8,009 valid local targets** and zero missing targets.
 Chromium confirms the new admission APIs, three rendered diagrams, and zero JavaScript/request errors.
 Receipts: `.runtime/beta-b05/finish/docs-resume-*` and `resume-verification.json`.
+
+### Parked re-entry through shared attention
+
+Previous slice staged resume receipts but no runtime path could select them.
+Elapsed parking must never resume a question by itself. One observer holds one private slot, so
+parked work must lose to fresher work whenever the same selection owner says so.
+
+`workflows.inner_thought.inquiry.parked_offer` builds a reconsideration only when the retained park
+deadline elapsed or original outside evidence arrived after the pause. Generated nodes, self-origin
+intentions, and internal state receipts stay excluded.
+`workflows.inner_thought.graph_execution.parked_candidate` reads the observer's eligible parked work
+each opportunity and delivers at most one `ParkedInquiryOffer` beside the nominations, because the
+slot admits one episode.
+`workflows.inner_thought.schemas.PrivateAttentionContext.parked` carries that offer, and
+`workflows.inner_thought.schemas.ThoughtAttentionDecision` now admits either one nomination or one
+parked receipt plus its `admitted_operation`. A selection that names both, or neither, is refused at
+the schema boundary. `workflows.cognitive_control.attention.validate_private_attention` rejects a
+parked name outside the delivered catalogue and an operation outside the delivered set.
+Non-select dispositions may now name the nomination they refused, so deferred questions keep a record
+instead of being offered again blind. The old empty-batch guard became unreachable once every
+selection had to name an offered identity, so it was removed rather than kept as dead code.
+
+`workflows.inner_thought.graph_execution.admit_opportunity` owns one paid selection call per
+opportunity and routes its outcome.
+`workflows.inner_thought.graph_host.PrivateInquiryOwner.admit_parked_inquiry` commits the attention
+outcome and the resume receipt in one store batch, so a restart cannot pay for the same decision
+twice. A decision that admits nothing still leaves a durable outcome through
+`workflows.inner_thought.graph_host.PrivateInquiryOwner.record_attention_outcome` and
+`workflows.inner_thought.inquiry.stage_attention_outcome`, both keyed by the opportunity's
+`attention:<batch>` identity that `thought_attention_batch` records. The host reads that identity
+back before spending another call. Resume keeps the parked graph identity, source fingerprints,
+Critical epoch, operation count, and cumulative active duration; it creates no thought, GWT turn,
+finding, or claimed progress.
+
+Verification: 94 affected actual-store and architecture checks passed in **5.924 seconds**
+(`.runtime/beta-b05/finish/affected-readmission.log`), including five new parked-reconsideration
+checks, five new deliberate-entry checks, and two new shared-attention checks.
+Configured strict checking reports zero errors (`types-readmission.log`). A scoped strict scan of
+changed files outside the configured include, plus the new and changed tests, reports zero new errors
+(`types-readmission-scoped.json`); the four remaining diagnostics live in
+`workflows/cognitive_control/attention.py` at lines 192 and 220 and reproduce unchanged at HEAD
+`5f5e6cb` as lines 183 and 211 (`types-head-attention.json`).
+
+`docs/subsystems/private-loop.md` gained the parked re-entry path and a deliberate-entry section.
+Strict MkDocs passed (`docs-readmission.log`) and all **579** local link targets on that page resolve.
+
+Pre-existing failures, unrelated to this slice and reproduced at HEAD `5f5e6cb` in a separate
+worktree: `tests.unit.workflows.inner_thought.test_pipeline` (3 errors: stale `episode` field on
+`InnerRequest`) and `tests.unit.workflows.inner_thought.test_private_host` (11 errors plus 1 failure:
+role `work` requests the `run_private_inquiry` tool its run manifest does not grant).
+Receipt: `.runtime/beta-b05/finish/preexisting-failures-readmission.log`. These need their own triage.
+
+**NOT RUN:** the real OpenRouter gate for parked re-entry and deliberate entry. No inference ran in
+this increment and no budget was spent. The owner scheduled the live model gate plus the full suite
+for the end of the beta work items, so runtime re-entry is verified only against actual stores and
+checkpoints so far.

@@ -29,13 +29,14 @@ from pm.records.memory_records import Feature
 from pm.records.mental_state import FullMentalState
 from workflows.cognitive_control.schemas import ControlConfig
 from workflows.inner_thought.inquiry import (
-    AttentionRecord, InquiryMetadata, InquiryRecord, PRIVATE_SLOT_KEY,
-    inquiry_history, stage_attention, stage_inquiry_resume, stage_inquiry_step,
+    AttentionRecord, DELIBERATE_ACTION_KEY, InquiryMetadata, InquiryRecord, PRIVATE_SLOT_KEY,
+    inquiry_history, stage_attention, stage_attention_outcome, stage_deliberate_inquiry, stage_inquiry_resume,
+    stage_inquiry_step,
 )
 from workflows.inner_thought.nominations import extend_inquiry_grant
 from workflows.inner_thought.nominations import NominationBatchRecord, stage_nomination_batch
 from workflows.inner_thought.schemas import (
-    InquiryGrant, InquiryResumeDecision, InquiryStep, NominationBatch, ThoughtAttentionDecision,
+    DeliberateAdmission, InquiryGrant, InquiryResumeDecision, InquiryStep, NominationBatch, ThoughtAttentionDecision,
 )
 from workflows.inner_thought.graph_outcomes import (
     GraphOutcomePayload, attach_graph_outcome, read_graph_outcome, stage_graph_outcome,
@@ -71,6 +72,37 @@ def active_inquiry(view: Snapshot, *, observer_entity_id: int) -> InquiryRecord 
     if len(active) > 1:
         raise ValueError("One private observer cannot hold multiple active inquiries.")
     return active[0] if active else None
+
+
+def parked_inquiry(view: Snapshot, *, observer_entity_id: int) -> InquiryRecord | None:
+    """Read retained paused work that still owns its own parked head.
+
+    Parked work never holds the slot, so several parked episodes can exist. The
+    newest one competes again through shared attention; older parked episodes
+    stay retained until displacement decides their fate.
+    """
+    episodes = {InquiryMetadata.model_validate(record.metadata).inquiry_episode
+                for record in view.all_knoxels.values()
+                if record.metadata.get(PRIVATE_SLOT_KEY) == str(observer_entity_id)}
+    heads = [inquiry_history(view, episode)[-1] for episode in sorted(episodes)]
+    parked = [head for head in heads if head.receipt.state.status == "paused"]
+    return parked[-1] if parked else None
+
+
+def deliberate_inquiry(view: Snapshot, action_record_id: int) -> InquiryRecord | None:
+    """Read the episode one accepted deliberate action already owns, if any.
+
+    A restart or replayed dispatch must reuse an accepted inquiry instead of
+    paying for the same deliberate work twice.
+    """
+    episodes = {InquiryMetadata.model_validate(record.metadata).inquiry_episode
+                for record in view.all_knoxels.values()
+                if record.metadata.get(DELIBERATE_ACTION_KEY) == str(action_record_id)}
+    if not episodes:
+        return None
+    if len(episodes) != 1:
+        raise ValueError("One deliberate action cannot own multiple private inquiries.")
+    return inquiry_history(view, next(iter(episodes)))[-1]
 
 
 def pending_findings(store: MemoryStore) -> tuple[Feature, ...]:
@@ -114,6 +146,44 @@ class PrivateInquiryOwner:
             self.commit(batch)
             return selected
 
+    def admit_parked_inquiry(self, parked: InquiryRecord, decision: InquiryResumeDecision,
+                            *, attention: ThoughtAttentionDecision, nomination_ids: Sequence[int],
+                            offered_grant: InquiryGrant, grant: InquiryGrant, batch_id: str,
+                            now_utc: datetime) -> InquiryRecord:
+        """Commit the attention decision that re-admits parked work in one batch.
+
+        The opportunity identity and the slot change land together, so an
+        interrupted admission can neither spend the opportunity without resuming
+        the question nor resume it twice. ``offered_grant`` is the grant the
+        offered nominations were captured under; ``grant`` is the extended grant
+        that retains the parked inquiry's original fingerprints plus its fresh
+        trigger evidence.
+        """
+        with self.store.lock:
+            batch = self.store.begin_batch("attention:" + batch_id, embed=False, cancel=self.cancel)
+            stage_attention_outcome(batch, batch_id=batch_id, nomination_ids=tuple(nomination_ids),
+                decision=attention, grant=offered_grant)
+            accepted = stage_inquiry_resume(batch, parent_receipt_id=parked.record.id, decision=decision,
+                attention=attention, grant=grant, now_utc=now_utc, limits=self.limits)
+            batch.preserve_on_recovery()
+            self.commit(batch)
+            return accepted
+
+    def record_attention_outcome(self, *, batch_id: str, nomination_ids: Sequence[int],
+                                 decision: ThoughtAttentionDecision, grant: InquiryGrant) -> Feature:
+        """Commit an attention decision that leaves the private slot untouched.
+
+        This retains the opportunity identity for an opportunity that offered
+        only parked work and produced a deferral or dismissal.
+        """
+        with self.store.lock:
+            batch = self.store.begin_batch("attention:" + batch_id, embed=False, cancel=self.cancel)
+            record = stage_attention_outcome(batch, batch_id=batch_id, nomination_ids=tuple(nomination_ids),
+                decision=decision, grant=grant)
+            batch.preserve_on_recovery()
+            self.commit(batch)
+            return record
+
     def execution_grant(self, parent: InquiryRecord, *, source_ids: Sequence[int] = ()) -> InquiryGrant:
         """Capture inspected graph IDs without refreshing earlier source meaning."""
         state = parent.receipt.state
@@ -121,19 +191,36 @@ class PrivateInquiryOwner:
             return extend_inquiry_grant(self.store.snapshot(capture=False), state.grant,
                                         [*state.node_ids, *source_ids])
 
-    def accept_resume(self, parent: InquiryRecord, decision: InquiryResumeDecision, *, grant: InquiryGrant,
-                      commit_id: str, now_utc: datetime) -> InquiryRecord:
+    def accept_resume(self, parent: InquiryRecord, decision: InquiryResumeDecision,
+                      *, attention: ThoughtAttentionDecision, grant: InquiryGrant, commit_id: str,
+                      now_utc: datetime) -> InquiryRecord:
         """Retain explicit parked admission through the same control-owned commit.
 
         This boundary creates no operation or GWT turn. Shared attention must
-        choose the admission before calling it; the timer does not auto-resume.
-        Original source, epoch, private-slot, and finite-budget checks remain
-        mandatory through staging and the host's commit callback.
+        have made the supplied decision for this exact parked receipt; the timer
+        never auto-resumes. Original source, epoch, private-slot, and
+        finite-budget checks remain mandatory through staging and the host's
+        commit callback.
         """
         with self.store.lock:
             batch = self.store.begin_batch(commit_id, embed=False, cancel=self.cancel)
             accepted = stage_inquiry_resume(batch, parent_receipt_id=parent.record.id, decision=decision,
-                grant=grant, now_utc=now_utc, limits=self.limits)
+                attention=attention, grant=grant, now_utc=now_utc, limits=self.limits)
+            batch.preserve_on_recovery()
+            self.commit(batch)
+            return accepted
+
+    def accept_deliberate_entry(self, admission: DeliberateAdmission, *, grant: InquiryGrant,
+                                commit_id: str, now_utc: datetime) -> InquiryRecord:
+        """Commit one accepted deliberate action into the same private slot.
+
+        Allocation creates no operation and no GWT turn, exactly like a
+        spontaneous selection. The deliberate action's own identity guards keep
+        a replayed dispatch from allocating the work twice.
+        """
+        with self.store.lock:
+            batch = self.store.begin_batch(commit_id, embed=False, cancel=self.cancel)
+            accepted = stage_deliberate_inquiry(batch, admission=admission, grant=grant, now_utc=now_utc)
             batch.preserve_on_recovery()
             self.commit(batch)
             return accepted

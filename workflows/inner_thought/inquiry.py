@@ -16,32 +16,35 @@ entity-update, or affect authority.
 """
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 import math
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, JsonValue
 
 from pm.memory.snapshot import GhostConflict, Snapshot
 from pm.memory.write_batch import WriteBatch
 from pm.records.base import Provenance
 from pm.records.enums import FeatureType, FrameEnum, InterlocusType, SourceKind
 from pm.records.lineage import RecordLineage
-from pm.records.memory_records import Feature
+from pm.records.memory_records import ActionSchemaRecord, Feature
 from workflows.cognitive_control.schemas import ControlConfig
 from workflows.inner_thought.nominations import expect_inquiry_grant, read_nomination, source_roots
 from workflows.inner_thought.operations import validate_operation
 from workflows.inner_thought.schemas import (
-    InquiryAlternative, InquiryGrant, InquiryReceipt, InquiryResumeDecision, InquiryState, InquiryStep, LegacyEpisodeState,
-    ThoughtAttentionDecision, ThoughtAttentionReceipt,
+    DeliberateAdmission, InquiryAlternative, InquiryGrant, InquiryOrigin, InquiryReceipt, InquiryResumeDecision,
+    InquiryState, InquiryStep, LegacyEpisodeState, ParkedInquiryOffer, ThoughtAttentionDecision,
+    ThoughtAttentionReceipt,
 )
+from workflows.main_cognition.schemas import ActionMetadata
 
 
 INQUIRY_EPISODE_KEY = "inquiry_episode"
 INQUIRY_RECEIPT_KEY = "inquiry_receipt"
 PRIVATE_SLOT_KEY = "private_inquiry_slot"
 ATTENTION_BATCH_KEY = "thought_attention_batch"
+DELIBERATE_ACTION_KEY = "deliberate_inquiry_action"
 
 
 class InquiryMetadata(BaseModel):
@@ -202,11 +205,7 @@ def inquiry_history(view: Snapshot, episode_id: str) -> tuple[InquiryRecord, ...
             raise ValueError("Inspected evidence must retain its original roots.")
         receipt = item.receipt
         if transition_index == 0:
-            if (receipt.step is not None or receipt.operation_record_id is not None or receipt.alternative_record_ids
-                    or receipt.resume is not None or state.sequence != 0
-                    or state.node_ids or receipt.attention is None or receipt.attention.disposition != "select"
-                    or receipt.attention.nomination_id != state.origin_record_id):
-                raise ValueError("Inquiry selection cannot claim an executed operation.")
+            _validate_entry_transition(state, receipt)
         else:
             prior = chain[transition_index - 1].receipt.state
             if (state.origin_record_id != prior.origin_record_id or state.grant.scope != prior.grant.scope
@@ -245,6 +244,106 @@ def inquiry_history(view: Snapshot, episode_id: str) -> tuple[InquiryRecord, ...
     return tuple(chain)
 
 
+def outside_source(view: Snapshot, record_id: int, *, grant: InquiryGrant) -> bool:
+    """Return whether a captured record is original evidence supplied from outside.
+
+    An early parked reconsideration and its attention offer must name the same
+    kind of independently supplied evidence: an outside report addressed to the
+    observer, or a system-origin observed event. Self-origin content, internal
+    derivations, and anything resolving to another root are never outside
+    evidence. This one definition backs both the offer and the durable guard.
+    """
+    permitted = frozenset(source.record_id for source in grant.sources)
+    if record_id not in permitted:
+        return False
+    record = view.get(record_id)
+    if (not isinstance(record, Feature) or not record.causal or record.scope.frame != FrameEnum.InWorld
+            or record.provenance is None or record.provenance.source_kind == SourceKind.Self):
+        return False
+    external_report = (record.feature_type == FeatureType.Dialogue
+        and record.interlocus == InterlocusType.Public
+        and record.provenance.source_kind in {SourceKind.User, SourceKind.Agent}
+        and record.addressee_entity_id in {0, grant.observer_entity_id})
+    observed_event = (record.feature_type == FeatureType.WorldEvent
+        and record.provenance.source_kind in {SourceKind.System, SourceKind.Workflow})
+    if not (external_report or observed_event):
+        return False
+    return source_roots(view, [record_id], scope=grant.scope, permitted_ids=permitted) == (record_id,)
+
+
+def inquiry_origin(view: Snapshot, state: InquiryState) -> InquiryOrigin:
+    """Read the question an inquiry works on from either admission route.
+
+    A spontaneous episode works on a private proposal with its own judgments. A
+    deliberate episode works on main cognition's accepted instruction, which the
+    proposal stage never scored, so its judgments stay null rather than invented.
+    """
+    entry = inquiry_history(view, state.episode_id)[0].receipt
+    if entry.deliberate is not None:
+        admission = entry.deliberate
+        if admission.action_record_id != state.origin_record_id:
+            raise ValueError("A deliberate inquiry contradicts its accepted action identity.")
+        return InquiryOrigin(record_id=admission.action_record_id, kind="deliberate_action",
+            text=admission.instruction, question=admission.instruction, evidence_ids=admission.evidence_ids,
+            judgments=None, suggested_operation="")
+    nomination = read_nomination(view, state.origin_record_id).receipt.nomination
+    return InquiryOrigin(record_id=state.origin_record_id, kind="nomination", text=nomination.text,
+        question=nomination.question, evidence_ids=nomination.evidence_ids, judgments=nomination.judgments,
+        suggested_operation=nomination.suggested_operation)
+
+
+def parked_offer(view: Snapshot, parked: InquiryRecord, *, grant: InquiryGrant, now_utc: datetime,
+                 limits: ControlConfig) -> ParkedInquiryOffer | None:
+    """Name retained parked work that shared attention can re-admit now, or None.
+
+    Elapsed parking permits reconsideration only; it establishes no new evidence
+    and demands no automatic resumption. Fresh original outside evidence permits
+    reconsideration before that deadline. Work that already exhausted a finite
+    step or active-computation bound stays unofferable, because admission cannot
+    reset either bound. A different Critical epoch means required
+    reconsideration already supersedes the retained graph, so nothing is offered
+    until displacement decides its fate.
+    """
+    if now_utc.tzinfo is not None:
+        raise ValueError("Internal inquiry timestamps require naive UTC.")
+    state = parked.receipt.state
+    if state.status != "paused":
+        raise ValueError("Only a paused inquiry can be offered for re-admission.")
+    if grant.observer_entity_id != state.grant.observer_entity_id or grant.scope != state.grant.scope:
+        raise ValueError("A parked inquiry offer cannot replace its observer or reality.")
+    if grant.critical_epoch != state.grant.critical_epoch:
+        return None
+    if state.sequence >= limits.episode_steps or state.active_elapsed_seconds >= limits.episode_seconds:
+        return None
+    _retains_original_grant(state.grant, grant)
+    supplied = {source.record_id for source in grant.sources}
+    already_supplied = {source.record_id for source in state.grant.sources}
+    fresh_evidence = tuple(source_id for source_id in sorted(supplied - already_supplied)
+                           if outside_source(view, source_id, grant=grant))
+    deadline_elapsed = state.resume_after_utc is not None and now_utc >= state.resume_after_utc
+    if not deadline_elapsed and not fresh_evidence:
+        return None
+    return ParkedInquiryOffer(receipt_id=parked.record.id, episode_id=state.episode_id,
+        question=inquiry_origin(view, state).question, stop_reason=state.stop_reason,
+        resume_after_utc=state.resume_after_utc, deadline_elapsed=deadline_elapsed,
+        available_evidence_ids=fresh_evidence)
+
+
+def _validate_entry_transition(state: InquiryState, receipt: InquiryReceipt) -> None:
+    """Accept one entry identity: a selected nomination or an accepted action."""
+    if (receipt.step is not None or receipt.operation_record_id is not None or receipt.alternative_record_ids
+            or receipt.resume is not None or state.sequence != 0 or state.node_ids):
+        raise ValueError("An inquiry entry cannot claim an executed operation.")
+    if receipt.deliberate is not None:
+        if receipt.attention is not None or receipt.deliberate.action_record_id != state.origin_record_id:
+            raise ValueError("A deliberate inquiry entry cannot also claim a selection decision.")
+        return
+    if (receipt.attention is None or receipt.attention.disposition != "select"
+            or receipt.attention.nomination_id != state.origin_record_id
+            or receipt.attention.parked_receipt_id is not None):
+        raise ValueError("Inquiry selection requires its committed nomination identity.")
+
+
 def _retains_original_grant(prior: InquiryGrant, grant: InquiryGrant) -> None:
     """Reject a continuation that refreshes or drops original captured meaning."""
     dependencies = {source.record_id: source for source in grant.sources}
@@ -257,9 +356,14 @@ def _validate_resume_transition(prior: InquiryState, receipt: InquiryReceipt) ->
     """Validate explicit admission without counting it as executed progress."""
     decision = receipt.resume
     assert decision is not None
-    if (prior.status != "paused" or receipt.attention is not None or receipt.step is not None
-            or receipt.operation_record_id is not None or receipt.alternative_record_ids):
-        raise ValueError("A parked inquiry resume cannot claim selection or an executed operation.")
+    attention = receipt.attention
+    if (prior.status != "paused" or receipt.step is not None or receipt.operation_record_id is not None
+            or receipt.alternative_record_ids or receipt.deliberate is not None):
+        raise ValueError("A parked inquiry resume cannot claim an executed operation or a deliberate entry.")
+    if (attention is None or attention.disposition != "select" or attention.nomination_id is not None
+            or attention.parked_receipt_id != receipt.parent_receipt_id
+            or attention.admitted_operation != decision.operation or attention.reason != decision.reason):
+        raise ValueError("A parked inquiry resume requires the exact attention admission for its parked receipt.")
     _retains_original_grant(prior.grant, receipt.state.grant)
     expected = prior.model_copy(update={"grant": receipt.state.grant, "status": "active", "stop_reason": "",
         "stalled_steps": 0, "next_operation": decision.operation, "resume_after_utc": None, "resume_source_ids": ()})
@@ -279,16 +383,28 @@ def _guard_family(batch: WriteBatch, key: str, value: str) -> None:
     batch.expect_metadata_version(key, value, members)
 
 
-def _stage_receipt(batch: WriteBatch, receipt: InquiryReceipt) -> InquiryRecord:
+def _stage_receipt(batch: WriteBatch, receipt: InquiryReceipt,
+                   *, extra_metadata: Mapping[str, JsonValue] | None = None) -> InquiryRecord:
+    """Append one typed transition record and return its actual memory identity."""
     state = receipt.state
+    summary = state.stop_reason
+    if not summary and receipt.deliberate is not None:
+        summary = receipt.deliberate.reason
+    if not summary and receipt.resume is not None:
+        summary = receipt.resume.reason
+    if not summary:
+        summary = f"Inquiry {state.episode_id}, step {state.sequence}"
     parent_ids = [receipt.parent_receipt_id] if receipt.parent_receipt_id is not None else [state.origin_record_id]
-    record = batch.create(Feature(content=state.stop_reason or f"Inquiry {state.episode_id}, step {state.sequence}",
+    metadata: dict[str, JsonValue] = {INQUIRY_EPISODE_KEY: state.episode_id, PRIVATE_SLOT_KEY: _slot(state.grant),
+                                      INQUIRY_RECEIPT_KEY: receipt.model_dump(mode="json")}
+    if extra_metadata is not None:
+        metadata.update(extra_metadata)
+    record = batch.create(Feature(content=summary,
         feature_type=FeatureType.StateUpdate, entity_id=state.grant.observer_entity_id, scope=state.grant.scope,
         provenance=Provenance(source_kind=SourceKind.Self), interlocus=InterlocusType.PrivateInternal,
         lineage=RecordLineage(episode_id=state.episode_id, operation="inquiry_transition",
             sequence=state.sequence, parent_record_ids=parent_ids, source_event_ids=list(state.root_source_ids)),
-        metadata={INQUIRY_EPISODE_KEY: state.episode_id, PRIVATE_SLOT_KEY: _slot(state.grant),
-                  INQUIRY_RECEIPT_KEY: receipt.model_dump(mode="json")}))
+        metadata=metadata))
     return InquiryRecord(record, receipt)
 
 
@@ -302,6 +418,8 @@ def stage_attention(batch: WriteBatch, nomination_ids: Sequence[int], decision: 
     """
     if not nomination_ids or len(nomination_ids) > 3 or len(set(nomination_ids)) != len(nomination_ids):
         raise ValueError("Private attention requires one to three unique offered nomination IDs.")
+    if decision.parked_receipt_id is not None:
+        raise ValueError("Parked re-admission uses the explicit inquiry resume boundary, not a nomination batch.")
     if now_utc.tzinfo is not None:
         raise ValueError("Internal inquiry timestamps require naive UTC.")
     view = batch.view()
@@ -356,24 +474,78 @@ def stage_attention(batch: WriteBatch, nomination_ids: Sequence[int], decision: 
             lineage=RecordLineage(episode_id=batch_id, operation="private_attention",
                                  parent_record_ids=list(nomination_ids))))
     attention = ThoughtAttentionReceipt(nomination_ids=tuple(nomination_ids), decision=decision, grant=grant)
-    record.metadata.update({ATTENTION_BATCH_KEY: batch_id, "thought_attention": attention.model_dump(mode="json")})
+    _attach_attention(record, attention, batch_id=batch_id)
     batch.revise(record)
     batch.depend_on(nomination_ids)
     return AttentionRecord(record, attention, inquiry)
 
 
+def _attach_attention(record: Feature, attention: ThoughtAttentionReceipt, *, batch_id: str) -> None:
+    """Bind one attention decision to its opportunity identity before revision."""
+    record.metadata.update({ATTENTION_BATCH_KEY: batch_id, "thought_attention": attention.model_dump(mode="json")})
+
+
+def _stage_attention_record(batch: WriteBatch, nomination_ids: Sequence[int], decision: ThoughtAttentionDecision,
+                            *, batch_id: str, grant: InquiryGrant) -> Feature:
+    """Append the durable attention outcome that allocates no inquiry episode."""
+    record = batch.create(Feature(content=decision.reason, feature_type=FeatureType.StateUpdate,
+        entity_id=grant.observer_entity_id, scope=grant.scope, provenance=Provenance(source_kind=SourceKind.Self),
+        interlocus=InterlocusType.PrivateInternal,
+        lineage=RecordLineage(episode_id=batch_id, operation="private_attention",
+                             parent_record_ids=list(nomination_ids))))
+    attention = ThoughtAttentionReceipt(nomination_ids=tuple(nomination_ids), decision=decision, grant=grant)
+    _attach_attention(record, attention, batch_id=batch_id)
+    batch.revise(record)
+    batch.depend_on(nomination_ids)
+    return record
+
+
+def stage_attention_outcome(batch: WriteBatch, *, batch_id: str, nomination_ids: Sequence[int],
+                            decision: ThoughtAttentionDecision, grant: InquiryGrant) -> Feature:
+    """Retain one shared attention outcome that allocates no episode by nomination.
+
+    An opportunity may offer only retained parked work. Deferral or dismissal
+    then touches no slot, but it still needs the durable opportunity identity, so
+    a later tick cannot pay for the same selection call again. A parked
+    re-admission records its decision here too, because the slot change itself is
+    committed through the separate resume boundary. A nomination selection uses
+    :func:`stage_attention`, which allocates the episode in the same commit.
+    """
+    if decision.nomination_id is not None:
+        raise ValueError("A nomination selection allocates its episode through stage_attention.")
+    if len(nomination_ids) > 3 or len(set(nomination_ids)) != len(nomination_ids):
+        raise ValueError("An attention outcome retains at most three unique offered nomination IDs.")
+    if decision.parked_receipt_id is not None and decision.disposition != "select":
+        raise ValueError("Only a selection can name parked work.")
+    view = batch.view()
+    if any(record.metadata.get(ATTENTION_BATCH_KEY) == batch_id for record in view.all_knoxels.values()):
+        raise ValueError("One attention opportunity must have exactly one retained outcome.")
+    expect_inquiry_grant(batch, grant)
+    _guard_family(batch, ATTENTION_BATCH_KEY, batch_id)
+    return _stage_attention_record(batch, nomination_ids, decision, batch_id=batch_id, grant=grant)
+
+
 def stage_inquiry_resume(batch: WriteBatch, *, parent_receipt_id: int, decision: InquiryResumeDecision,
-                         grant: InquiryGrant, now_utc: datetime, limits: ControlConfig) -> InquiryRecord:
+                         attention: ThoughtAttentionDecision, grant: InquiryGrant, now_utc: datetime,
+                         limits: ControlConfig) -> InquiryRecord:
     """Stage explicit parked admission without executing a thought or resetting bounds.
 
-    The caller owns shared attention, Critical and wait validation, and commit.
-    An elapsed parked deadline permits reconsideration, not automatic execution.
-    Earlier admission requires newly supplied original outside evidence.
-    A resume preserves graph identity, original source fingerprints, operation
-    count, and active duration. Only its stall counter and parking fields reset.
+    Shared attention owns the choice: ``attention`` must be the decision that
+    admits this exact parked receipt, and it is retained beside the admission so
+    a later reader can see why the question won the slot again. The caller owns
+    Critical and wait validation, and commit. An elapsed parked deadline permits
+    reconsideration, not automatic execution. Earlier admission requires newly
+    supplied original outside evidence. A resume preserves graph identity,
+    original source fingerprints, operation count, and active duration. Only its
+    stall counter and parking fields reset.
     """
     if now_utc.tzinfo is not None:
         raise ValueError("Internal inquiry resume timestamps require naive UTC.")
+    if (attention.disposition != "select" or attention.parked_receipt_id != parent_receipt_id
+            or attention.nomination_id is not None):
+        raise ValueError("A parked inquiry resume requires the attention decision admitting this exact receipt.")
+    if attention.admitted_operation != decision.operation or attention.reason != decision.reason:
+        raise ValueError("A parked inquiry resume must carry the admitted operation and reason unchanged.")
     view = batch.view()
     parent = InquiryMetadata.model_validate(view.get(parent_receipt_id).metadata).inquiry_receipt
     prior = parent.state
@@ -397,19 +569,8 @@ def stage_inquiry_resume(batch: WriteBatch, *, parent_receipt_id: int, decision:
     for source_id in decision.trigger_source_ids:
         if source_id in already_supplied or source_id not in permitted:
             raise ValueError("An early resume trigger must be newly supplied in the captured grant.")
-        source = view.get(source_id)
-        if (not isinstance(source, Feature) or not source.causal or source.scope.frame != FrameEnum.InWorld
-                or source.provenance is None or source.provenance.source_kind == SourceKind.Self):
-            raise ValueError("A resume trigger must be an original outside report or observed event.")
-        external_report = (source.feature_type == FeatureType.Dialogue
-            and source.interlocus == InterlocusType.Public
-            and source.provenance.source_kind in {SourceKind.User, SourceKind.Agent}
-            and source.addressee_entity_id in {0, grant.observer_entity_id})
-        observed_event = (source.feature_type == FeatureType.WorldEvent
-            and source.provenance.source_kind in {SourceKind.System, SourceKind.Workflow})
-        if (not (external_report or observed_event)
-                or source_roots(view, [source_id], scope=grant.scope, permitted_ids=permitted) != (source_id,)):
-            raise ValueError("Generated or derived content cannot become an original outside resume trigger.")
+        if not outside_source(view, source_id, grant=grant):
+            raise ValueError("A resume trigger must be newly supplied original outside evidence, never generated or derived content.")
     deadline_elapsed = prior.resume_after_utc is not None and now_utc >= prior.resume_after_utc
     if not deadline_elapsed and not decision.trigger_source_ids:
         raise GhostConflict("Parked work needs its original deadline or newly supplied outside evidence before admission.")
@@ -427,7 +588,62 @@ def stage_inquiry_resume(batch: WriteBatch, *, parent_receipt_id: int, decision:
     state = prior.model_copy(update={"grant": grant, "status": "active", "stop_reason": "", "stalled_steps": 0,
         "next_operation": decision.operation, "resume_after_utc": None, "resume_source_ids": ()})
     return _stage_receipt(batch, InquiryReceipt(parent_receipt_id=parent_receipt_id, state=state,
-        attention=None, step=None, operation_record_id=None, alternative_record_ids=(), resume=decision))
+        attention=attention, step=None, operation_record_id=None, alternative_record_ids=(), resume=decision))
+
+
+def stage_deliberate_inquiry(batch: WriteBatch, *, admission: DeliberateAdmission,
+                            grant: InquiryGrant, now_utc: datetime) -> InquiryRecord:
+    """Stage a private episode admitted by main cognition's accepted deliberate action.
+
+    The slower deliberate path already chose this work, so no nomination batch
+    and no attention model call happen here. The same observer, reality,
+    Critical epoch, private-slot, and source-fingerprint guards apply as for a
+    spontaneous selection, because one slot cannot hold two episodes. No
+    nomination judgments are invented for an instruction that the private
+    proposal stage never scored.
+    """
+    if now_utc.tzinfo is not None:
+        raise ValueError("Internal inquiry timestamps require naive UTC.")
+    view = batch.view()
+    action = view.get(admission.action_record_id)
+    if not isinstance(action, ActionSchemaRecord) or action.scope != grant.scope:
+        # An action record carries no entity link: main cognition creates the
+        # companion's own actions inside one reality. Its scope, plus the fact
+        # that only this observer's own owner captured a grant containing it,
+        # is what ties the accepted work to this private slot.
+        raise ValueError("A deliberate inquiry requires an accepted action record in its inquiry reality.")
+    metadata = ActionMetadata.model_validate(action.metadata)
+    if metadata.dispatch_status not in {"pending", "admitted"} or action.metadata.get("dispatch_deferred") is True:
+        raise ValueError("Only a deliberate action released by main cognition can enter the private slot.")
+    if action.metadata.get("mental_result_id") is not None:
+        raise ValueError("This deliberate action already owns a mental result.")
+    if any(record.metadata.get(DELIBERATE_ACTION_KEY) == str(action.id) for record in view.all_knoxels.values()):
+        raise GhostConflict("This accepted deliberate action already owns a private inquiry.")
+    validate_operation(admission.operation)
+    expect_inquiry_grant(batch, grant)
+    permitted = frozenset(source.record_id for source in grant.sources)
+    if action.id not in permitted:
+        raise ValueError("A deliberate inquiry grant must retain the accepted action it serves.")
+    roots = source_roots(view, [action.id, *admission.evidence_ids], scope=grant.scope, permitted_ids=permitted)
+    episode_id = f"deliberate:{action.id}"
+    _guard_family(batch, INQUIRY_EPISODE_KEY, episode_id)
+    _guard_family(batch, PRIVATE_SLOT_KEY, _slot(grant))
+    episode_ids = {InquiryMetadata.model_validate(record.metadata).inquiry_episode
+                   for record in view.all_knoxels.values()
+                   if record.metadata.get(PRIVATE_SLOT_KEY) == _slot(grant)}
+    for existing_id in episode_ids:
+        if inquiry_history(view, existing_id)[-1].receipt.state.status == "active":
+            raise GhostConflict("The private inquiry slot already holds an active episode.")
+    batch.expect_revision(action.id, view.revisions[action.id])
+    batch.depend_on([action.id])
+    state = InquiryState(episode_id=episode_id, origin_record_id=action.id, grant=grant, node_ids=(),
+        frontier_ids=(), pending_generation_ids=(), root_source_ids=roots, inspected_root_ids=roots,
+        sequence=0, status="active", stop_reason="", started_at_utc=now_utc, active_elapsed_seconds=0,
+        stalled_steps=0, next_operation=admission.operation, resume_after_utc=None, resume_source_ids=())
+    return _stage_receipt(batch,
+        InquiryReceipt(parent_receipt_id=None, state=state, attention=None, step=None,
+            operation_record_id=None, alternative_record_ids=(), deliberate=admission),
+        extra_metadata={DELIBERATE_ACTION_KEY: str(action.id)})
 
 
 def stage_inquiry_step(batch: WriteBatch, *, parent_receipt_id: int, step: InquiryStep,

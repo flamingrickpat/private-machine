@@ -70,7 +70,11 @@ Its identity depends on source guards, main guidance, and fired triggers, rather
 An empty batch retains its reason and is not an executed thought.
 An accepted attention decision also prevents repetition of that selection call for the same batch.
 
-Runtime parked resumption and deliberate-action admission remain unimplemented.
+Runtime parked re-entry is wired: a parked question competes for the slot inside the same attention
+decision as fresh nominations, and only that decision can re-open it.
+Deliberate-action admission exists at the owner boundary through
+[`workflows.inner_thought.graph_host.PrivateInquiryOwner.accept_deliberate_entry`][], while the
+deliberate path that would call it remains designed work.
 An active inquiry from an older Critical epoch stays held for fresh admission.
 The coordinator does not replace its original epoch with a newer value.
 
@@ -84,7 +88,24 @@ Generated thoughts cannot serve as independent outside triggers.
 Staging requires the exact paused parent and preserves its nodes, source fingerprints, observer, reality, and Critical epoch.
 The original operation count and active-time budget remain unchanged.
 Admission creates no executed operation, GWT turn, or finding.
-The timer does not yet call this boundary; automatic scheduling and deliberate-entry sharing remain designed work.
+
+[`workflows.inner_thought.inquiry.parked_offer`][] builds a reconsideration only when the retained deadline has elapsed or outside evidence newer than the pause exists.
+[`workflows.inner_thought.graph_execution.parked_candidate`][] reads the observer's eligible parked work each opportunity and delivers that single offer beside the nominations, because one observer holds one private slot.
+
+[`workflows.inner_thought.graph_execution.admit_opportunity`][] makes the one paid selection call and routes its outcome.
+Selecting a parked receipt commits the attention outcome and the resume in one store batch through [`workflows.inner_thought.graph_host.PrivateInquiryOwner.admit_parked_inquiry`][], so a restart cannot pay for the same decision twice.
+A decision that admits nothing still leaves one durable outcome behind through [`workflows.inner_thought.graph_host.PrivateInquiryOwner.record_attention_outcome`][] and [`workflows.inner_thought.inquiry.stage_attention_outcome`][].
+Both carry the opportunity's attention batch identity, which the host reads back before spending another selection call.
+
+### Deliberate entry
+
+An accepted deliberate action can open the same slot without any nomination.
+[`workflows.inner_thought.inquiry.stage_deliberate_inquiry`][] requires the actual `ActionSchemaRecord` whose dispatch main cognition already released.
+A deferred dispatch, an action that already owns a mental result, or an action from another reality cannot enter, and a second admission for the same accepted work is refused.
+[`workflows.inner_thought.schemas.DeliberateAdmission`][] names the operation main cognition already delivered, so the first step runs the chosen work rather than a fresh suggestion.
+[`workflows.inner_thought.schemas.InquiryOrigin`][] records which route opened the episode, and [`workflows.inner_thought.inquiry.inquiry_origin`][] reads it.
+The accepted instruction stays self-origin content: it cites its evidence and never impersonates outside evidence.
+The deliberate path that would call this boundary is not wired yet.
 
 ## Private attention
 
@@ -99,9 +120,12 @@ Interestingness, character relevance, plausibility, consequence, desirability, a
 Desire or emotional intensity can motivate exploration without increasing evidence support.
 
 The existing `trigger` child now also accepts an explicit private-attention request.
-It considers committed nominations, pending input, accepted focus, active intentions, and the accepted mental aperture.
+It considers committed nominations, one offered parked question, pending input, accepted focus, active intentions, and the accepted mental aperture.
+[`workflows.inner_thought.schemas.ParkedInquiryOffer`][] carries the paused question, its stop reason, its deadline state, and the outside evidence supplied since the pause.
 [`workflows.cognitive_control.attention.validate_private_attention`][] validates that decision against the supplied identities and admission context.
 The choice selects at most one question, defers it, or dismisses it with a reason.
+A selection names exactly one admitted identity: a nomination, or a parked receipt plus the operation it admits.
+Admitting parked work travels through that same decision, so elapsed parking alone never resumes a question.
 The nomination producer cannot select itself with a high score.
 
 Nomination and selection produce private receipts without an inner GWT turn or a `thought.created` event.

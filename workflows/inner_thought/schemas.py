@@ -292,10 +292,44 @@ class AttentionCandidate(InquiryContract):
     root_source_ids: tuple[int, ...]
 
 
+class ParkedInquiryOffer(InquiryContract):
+    """Retained paused work re-offered to the same shared private attention.
+
+    Parking time permits reconsideration; it never establishes new evidence or
+    demands automatic resumption. An offer therefore names the concrete basis
+    that makes reconsideration meaningful now.
+    """
+
+    receipt_id: int = Field(gt=0, description="Exact current receipt identity of the paused inquiry.")
+    episode_id: str = Field(min_length=1)
+    question: str = Field(min_length=1, description="The retained question read from the inquiry's own origin.")
+    stop_reason: str = Field(description="Why the inquiry was parked, such as an information gap or a stall bound.")
+    resume_after_utc: datetime | None = Field(description="Recorded parked deadline in naive UTC; null records none.")
+    deadline_elapsed: bool = Field(description="Whether that recorded parked deadline has passed.")
+    available_evidence_ids: tuple[int, ...] = Field(description="Newly supplied original outside evidence in the captured grant.")
+
+    @field_validator("resume_after_utc")
+    @classmethod
+    def naive_utc(cls, value: datetime | None) -> datetime | None:
+        """Keep the internal record convention for a retained deadline."""
+        if value is not None and value.tzinfo is not None:
+            raise ValueError("Internal inquiry timestamps require naive UTC.")
+        return value
+
+    @model_validator(mode="after")
+    def reconsideration_basis(self) -> Self:
+        """Refuse an offer that elapsed time or fresh evidence does not justify."""
+        if not self.deadline_elapsed and not self.available_evidence_ids:
+            raise ValueError("A parked inquiry offer needs its elapsed deadline or newly supplied outside evidence.")
+        return self
+
+
 class PrivateAttentionContext(InquiryContract):
     """The separate selection owner's current nominations and competing work."""
 
     candidates: tuple[AttentionCandidate, ...] = Field(max_length=3)
+    parked: tuple[ParkedInquiryOffer, ...] = Field(default=(), max_length=1,
+        description="Retained paused work competing for the same private slot; the slot admits at most one episode.")
     pending_input_ids: tuple[int, ...]
     accepted_focus: FocusState | None
     active_intention_ids: tuple[int, ...]
@@ -304,17 +338,38 @@ class PrivateAttentionContext(InquiryContract):
 
 
 class ThoughtAttentionDecision(InquiryContract):
-    """The attention owner's disposition, without a conscious thought event."""
+    """The attention owner's disposition, without a conscious thought event.
 
-    nomination_id: int | None = Field(description="Exact supplied nomination ID, or null when the whole batch is deferred or dismissed.")
+    One selection admits exactly one identity: a new committed nomination, or
+    one offered parked inquiry re-entering the same private slot. A parked
+    admission also names the delivered operation to execute next, because
+    parking discarded no graph but did end the previous admitted operation.
+    """
+
+    nomination_id: int | None = Field(default=None, description="Exact supplied nomination ID, or null when nothing is admitted or a parked inquiry is re-admitted.")
+    parked_receipt_id: int | None = Field(default=None, description="Exact offered parked-inquiry receipt re-entering the private slot.")
+    admitted_operation: str = Field(default="", description="Delivered operation admitted for the re-admitted parked inquiry.")
     disposition: Literal["select", "defer", "dismiss"]
     reason: str = Field(min_length=1)
 
     @model_validator(mode="after")
     def selected_identity(self) -> Self:
-        """Require an exact identity before allocating the private episode slot."""
-        if self.disposition == "select" and self.nomination_id is None:
-            raise ValueError("Selecting a thought requires its committed nomination identity.")
+        """Require exactly one admitted identity before allocating the private slot."""
+        if self.disposition != "select":
+            # A deferral or dismissal may still name the nomination it refused,
+            # because that naming is what keeps the rejected question from being
+            # offered again. Parked work has no such refusal record.
+            if self.parked_receipt_id is not None:
+                raise ValueError("Only a selection can re-admit a parked inquiry.")
+            if self.admitted_operation:
+                raise ValueError("Only an admitted parked inquiry can name an operation.")
+            return self
+        if (self.nomination_id is None) == (self.parked_receipt_id is None):
+            raise ValueError("Selecting work admits exactly one nomination or exactly one parked inquiry.")
+        if self.parked_receipt_id is not None and not self.admitted_operation.strip():
+            raise ValueError("Re-admitting a parked inquiry names the delivered operation to execute next.")
+        if self.parked_receipt_id is None and self.admitted_operation:
+            raise ValueError("A new nomination carries its own suggested operation.")
         return self
 
 
@@ -414,6 +469,33 @@ class InquiryState(InquiryContract):
         return value
 
 
+class DeliberateAdmission(InquiryContract):
+    """Main cognition's accepted mental action entering the shared private slot.
+
+    The action was already chosen by the slower deliberate path, so this
+    admission carries no nomination judgments. Inventing them would fabricate
+    evidence that the private proposal stage never produced.
+    """
+
+    action_record_id: int = Field(gt=0, description="Accepted selected-action record that owns this inquiry.")
+    instruction: str = Field(min_length=1, description="The accepted mental work to perform, in its own words.")
+    evidence_ids: tuple[int, ...] = Field(description="Original sources the deliberate path named with this instruction.")
+    operation: str = Field(min_length=1, description="Delivered operation admitted for the first executed step.")
+    reason: str = Field(min_length=1, description="Why the deliberate path assigned this work to the private slot.")
+
+
+class InquiryOrigin(InquiryContract):
+    """The question a private inquiry works on, from either admission route."""
+
+    record_id: int = Field(gt=0, description="Nomination record or accepted deliberate action record.")
+    kind: Literal["nomination", "deliberate_action"]
+    text: str = Field(min_length=1, description="Proposed idea or accepted instruction as its owner stated it.")
+    question: str = Field(min_length=1, description="The unresolved question this inquiry examines.")
+    evidence_ids: tuple[int, ...] = Field(description="Original sources named by the origin itself.")
+    judgments: ThoughtJudgments | None = Field(description="Private proposal judgments; a deliberate action carries none.")
+    suggested_operation: str = Field(description="Operation its owner suggested; empty for a deliberate action.")
+
+
 class InquiryResumeDecision(InquiryContract):
     """Explicit attention admission for retained paused work, without progress."""
 
@@ -432,6 +514,7 @@ class InquiryReceipt(InquiryContract):
     operation_record_id: int | None
     alternative_record_ids: tuple[int, ...]
     resume: InquiryResumeDecision | None = Field(default=None, description="Explicit parked admission; it creates no executed node or progress.")
+    deliberate: DeliberateAdmission | None = Field(default=None, description="Accepted deliberate action that opened this episode; null for a nomination origin.")
 
 
 class LegacyEpisodeState(InquiryContract):
@@ -505,8 +588,9 @@ __all__ = [
     "ThoughtResult",
     "TriggerCandidate",
     "TriggerChoice",
-    "InquiryAlternative", "InquiryGrant", "InquiryProgress", "InquiryReceipt", "InquiryResumeDecision",
-    "InquiryState", "InquiryStep", "NominationReceipt", "ThoughtAttentionDecision",
+    "AttentionCandidate", "DeliberateAdmission", "InquiryAlternative", "InquiryGrant", "InquiryOrigin",
+    "InquiryProgress", "InquiryReceipt", "InquiryResumeDecision", "InquiryState", "InquiryStep",
+    "NominationReceipt", "ParkedInquiryOffer", "PrivateAttentionContext", "ThoughtAttentionDecision",
     "ThoughtJudgments", "ThoughtNomination", "ThoughtRelation", "ThoughtAttentionReceipt",
     "LegacyEpisodeState",
 ]

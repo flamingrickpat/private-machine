@@ -19,6 +19,7 @@ from pm.context_render.turns import Role, Turn
 from workflows.cognitive_control.schemas import FocusRejection, FocusState
 from workflows.main_cognition.model_json import complete_json
 from workflows.main_cognition.schemas import FocusProposalRef
+from workflows.inner_thought.operations import validate_operation
 from workflows.inner_thought.schemas import PrivateAttentionContext, ThoughtAttentionDecision
 
 
@@ -93,22 +94,30 @@ def validate_private_focus(view: Snapshot, captured: CapturedPrivateFocus, *, no
 
 def validate_private_attention(context: PrivateAttentionContext,
                                decision: ThoughtAttentionDecision) -> ThoughtAttentionDecision:
-    """Accept one supplied nomination, or retain explicit deferral or dismissal.
+    """Admit one supplied nomination or one offered parked inquiry, or abstain.
 
     Nomination scores express separate judgments and confer no selection
-    authority. The host supplies current shared attention guidance and keeps
-    Critical, wait, source, and private-slot guards through acceptance.
+    authority. Retained parked work competes for the same private slot and wins
+    only on this same decision; elapsed parking alone never resumes it. The host
+    supplies current shared attention guidance and keeps Critical, wait, source,
+    and private-slot guards through acceptance.
     """
     offered_ids = [candidate.nomination_id for candidate in context.candidates]
     if len(set(offered_ids)) != len(offered_ids):
         raise ValueError("Private attention requires unique committed nomination identities.")
+    offered_parked = [offer.receipt_id for offer in context.parked]
     if decision.nomination_id is not None and decision.nomination_id not in offered_ids:
         raise ValueError("Private attention names a nomination outside the supplied batch.")
+    if decision.parked_receipt_id is not None and decision.parked_receipt_id not in offered_parked:
+        raise ValueError("Private attention names parked work outside the supplied offers.")
     if decision.disposition == "select":
         if context.blocked_reason:
             raise ValueError(f"Private attention cannot allocate the slot: {context.blocked_reason}")
-        if not context.candidates:
-            raise ValueError("An empty nomination batch cannot allocate a private inquiry.")
+        # A selection must already have named one identity, and the two checks
+        # above require that identity to come from what was actually offered.
+        if decision.parked_receipt_id is not None:
+            # Reject a name outside the delivered catalogue before the paid thought call.
+            validate_operation(decision.admitted_operation)
     return decision
 
 

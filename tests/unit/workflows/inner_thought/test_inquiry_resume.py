@@ -1,7 +1,9 @@
 """Verify explicit parked admission through actual store and checkpoint boundaries.
 
 The proposals are synthetic storage inputs. These checks execute no attention
-model, automatic scheduler, or substitute service.
+model, automatic scheduler, or substitute service. They cover what shared
+attention may be offered, the durable opportunity identity behind a re-admission,
+and the rule that retained parked work never holds the private slot.
 """
 from __future__ import annotations
 
@@ -19,14 +21,14 @@ from pm.records.cycle_state import PersonaConfig
 from pm.records.enums import EntityClass, FeatureType, InterlocusType, SourceKind
 from pm.records.memory_records import Entity, Feature
 from workflows.cognitive_control.schemas import ControlConfig
-from workflows.inner_thought.graph_host import PrivateInquiryOwner
+from workflows.inner_thought.graph_host import PrivateInquiryOwner, active_inquiry, parked_inquiry
 from workflows.inner_thought.inquiry import (
-    InquiryRecord, inquiry_history, stage_attention, stage_inquiry_resume, stage_inquiry_step,
+    InquiryRecord, inquiry_history, parked_offer, stage_attention, stage_inquiry_resume, stage_inquiry_step,
 )
 from workflows.inner_thought.nominations import capture_inquiry_grant, extend_inquiry_grant, stage_nominations
 from workflows.inner_thought.schemas import (
-    InquiryGrant, InquiryProgress, InquiryResumeDecision, InquiryStep, ThoughtAttentionDecision,
-    ThoughtJudgments, ThoughtNomination, ThoughtRelation,
+    InquiryGrant, InquiryProgress, InquiryResumeDecision, InquiryStep, ParkedInquiryOffer, ThoughtAttentionDecision,
+    ThoughtAttentionReceipt, ThoughtJudgments, ThoughtNomination, ThoughtRelation,
 )
 
 
@@ -88,16 +90,54 @@ class InquiryResumeTests(unittest.TestCase):
         self.commit(batch)
         return accepted
 
+    def admit(self, parent: InquiryRecord, operation: str, reason: str) -> ThoughtAttentionDecision:
+        """State the shared attention choice that puts this parked inquiry back in the slot."""
+        return ThoughtAttentionDecision(parked_receipt_id=parent.record.id, disposition="select",
+            admitted_operation=operation, reason=reason)
+
     def stage_resume(self, parent: InquiryRecord, *, grant: InquiryGrant | None = None,
                      trigger_ids: tuple[int, ...] = (), now_utc: datetime | None = None,
                      limits: ControlConfig | None = None, commit_id: str = "resume") -> tuple[WriteBatch, InquiryRecord]:
-        """Stage the explicit decision without committing it or inventing a thought."""
+        """Stage the shared attention admission without committing it or inventing a thought."""
+        reason = "Reconsider the retained question."
+        decision = InquiryResumeDecision(operation="feasibility_check", reason=reason,
+            trigger_source_ids=trigger_ids)
         batch = self.store.begin_batch(commit_id, embed=False)
-        accepted = stage_inquiry_resume(batch, parent_receipt_id=parent.record.id,
-            decision=InquiryResumeDecision(operation="feasibility_check", reason="Reconsider the retained question.",
-                trigger_source_ids=trigger_ids), grant=grant or parent.receipt.state.grant,
+        accepted = stage_inquiry_resume(batch, parent_receipt_id=parent.record.id, decision=decision,
+            attention=self.admit(parent, decision.operation, reason),
+            grant=grant or parent.receipt.state.grant,
             now_utc=now_utc or self.now + timedelta(seconds=self.limits.parked_seconds), limits=limits or self.limits)
         return batch, accepted
+
+    def owner(self) -> PrivateInquiryOwner:
+        """Build the private owner that keeps commit authority over the store."""
+        return PrivateInquiryOwner(self.store, commit=self.commit, cancel=Event(), limits=self.limits)
+
+    def offer(self, parked: InquiryRecord, *, grant: InquiryGrant | None = None,
+              now_utc: datetime | None = None, limits: ControlConfig | None = None) -> ParkedInquiryOffer | None:
+        """Ask what shared attention may be offered for this retained work right now."""
+        deadline = self.now + timedelta(seconds=self.limits.parked_seconds)
+        return parked_offer(self.store.snapshot(capture=False), parked,
+            grant=grant or parked.receipt.state.grant, now_utc=now_utc or deadline, limits=limits or self.limits)
+
+    def admit_opportunity(self, parked: InquiryRecord, *, grant: InquiryGrant | None = None,
+                          batch_id: str = "opportunity-one") -> InquiryRecord:
+        """Commit one shared attention decision that re-admits parked work and spends an opportunity."""
+        reason = "Revisit the retained question now that its parked deadline passed."
+        decision = InquiryResumeDecision(operation="feasibility_check", reason=reason, trigger_source_ids=())
+        attention = ThoughtAttentionDecision(parked_receipt_id=parked.record.id, disposition="select",
+            admitted_operation=decision.operation, reason=reason)
+        deadline = self.now + timedelta(seconds=self.limits.parked_seconds)
+        return self.owner().admit_parked_inquiry(parked, decision, attention=attention, nomination_ids=(),
+            offered_grant=self.grant, grant=grant or parked.receipt.state.grant, batch_id=batch_id,
+            now_utc=deadline)
+
+    def attention_outcomes(self, batch_id: str) -> list[ThoughtAttentionReceipt]:
+        """Read the retained attention outcomes recorded for one opportunity identity."""
+        view = self.store.snapshot(capture=False)
+        return [ThoughtAttentionReceipt.model_validate(record.metadata["thought_attention"])
+                for record in view.all_knoxels.values()
+                if record.metadata.get("thought_attention_batch") == batch_id]
 
     def report(self, *, source_kind: SourceKind = SourceKind.User,
                feature_type: FeatureType = FeatureType.Dialogue) -> Feature:
@@ -113,9 +153,10 @@ class InquiryResumeTests(unittest.TestCase):
         parked = self.parked()
         before = parked.receipt.state
         owner = PrivateInquiryOwner(self.store, commit=self.commit, cancel=Event(), limits=self.limits)
+        reason = "Reconsider the retained question after parking."
         resumed = owner.accept_resume(parked,
-            InquiryResumeDecision(operation="feasibility_check", reason="Reconsider the retained question after parking.",
-                                  trigger_source_ids=()), grant=before.grant, commit_id="resume",
+            InquiryResumeDecision(operation="feasibility_check", reason=reason, trigger_source_ids=()),
+            attention=self.admit(parked, "feasibility_check", reason), grant=before.grant, commit_id="resume",
             now_utc=self.now + timedelta(seconds=self.limits.parked_seconds))
         restored = MemoryStore.load(self.path)
         history = inquiry_history(restored.snapshot(capture=False), "sketch")
@@ -201,6 +242,74 @@ class InquiryResumeTests(unittest.TestCase):
         self.select("different-question")
         with self.assertRaises(GhostConflict):
             self.stage_resume(parked)
+
+    def test_parked_work_is_offered_only_on_its_deadline_or_new_outside_evidence(self) -> None:
+        parked = self.parked()
+        self.assertIsNone(self.offer(parked, now_utc=self.now))
+        late = self.offer(parked)
+        assert late is not None
+        self.assertEqual(late.receipt_id, parked.record.id)
+        self.assertTrue(late.deadline_elapsed)
+        self.assertEqual(late.available_evidence_ids, ())
+        self.assertEqual(late.question, "What remains unknown?")
+        self.assertEqual(late.stop_reason, "Leave this question until reconsideration.")
+        report = self.report()
+        grant = extend_inquiry_grant(self.store.snapshot(capture=False), parked.receipt.state.grant, [report.id])
+        early = self.offer(parked, grant=grant, now_utc=self.now)
+        assert early is not None
+        self.assertFalse(early.deadline_elapsed)
+        self.assertEqual(early.available_evidence_ids, (report.id,))
+        self.assertIsNone(self.offer(parked, limits=ControlConfig(episode_steps=1)))
+        self.assertIsNone(self.offer(parked, grant=parked.receipt.state.grant.model_copy(update={"critical_epoch": 3})))
+
+    def test_attention_admission_spends_one_opportunity_and_survives_restart(self) -> None:
+        parked = self.parked()
+        before = parked.receipt.state
+        resumed = self.admit_opportunity(parked)
+        self.assertEqual(resumed.receipt.state.status, "active")
+        self.assertEqual(resumed.receipt.state.sequence, before.sequence)
+        self.assertEqual(resumed.receipt.state.grant, before.grant)
+        self.assertEqual(resumed.receipt.state.active_elapsed_seconds, before.active_elapsed_seconds)
+        self.assertIsNone(resumed.receipt.operation_record_id)
+        self.assertEqual(self.store.gwt_turns, {})
+        outcomes = self.attention_outcomes("opportunity-one")
+        self.assertEqual(len(outcomes), 1)
+        self.assertEqual(outcomes[0].decision.parked_receipt_id, parked.record.id)
+        self.assertEqual(outcomes[0].decision.admitted_operation, "feasibility_check")
+        self.assertEqual(outcomes[0].nomination_ids, ())
+        restored = MemoryStore.load(self.path)
+        history = inquiry_history(restored.snapshot(capture=False), "sketch")
+        self.assertEqual(tuple(item.receipt.state.sequence for item in history), (0, 1, 1))
+        self.assertEqual(history[-1].receipt.state.status, "active")
+        with self.assertRaisesRegex(ValueError, "exactly one retained outcome"):
+            self.admit_opportunity(parked, batch_id="opportunity-one")
+
+    def test_parked_deferral_records_the_opportunity_and_allocates_nothing(self) -> None:
+        parked = self.parked()
+        owner = self.owner()
+        decision = ThoughtAttentionDecision(disposition="defer", reason="Conversation holds attention now.")
+        owner.record_attention_outcome(batch_id="deferred-opportunity", nomination_ids=(), decision=decision,
+            grant=self.grant)
+        head = inquiry_history(self.store.snapshot(capture=False), "sketch")[-1]
+        self.assertEqual(head.record.id, parked.record.id)
+        self.assertEqual(head.receipt.state.status, "paused")
+        self.assertEqual(self.store.gwt_turns, {})
+        self.assertEqual(self.attention_outcomes("deferred-opportunity")[0].decision.disposition, "defer")
+        with self.assertRaisesRegex(ValueError, "exactly one retained outcome"):
+            owner.record_attention_outcome(batch_id="deferred-opportunity", nomination_ids=(),
+                decision=ThoughtAttentionDecision(disposition="defer", reason="Still busy."), grant=self.grant)
+
+    def test_retained_parked_work_does_not_hold_the_private_slot(self) -> None:
+        parked = self.parked()
+        view = self.store.snapshot(capture=False)
+        self.assertIsNone(active_inquiry(view, observer_entity_id=self.observer.id))
+        self.assertIsNotNone(parked_inquiry(view, observer_entity_id=self.observer.id))
+        competing = self.select("different-question")
+        active = active_inquiry(self.store.snapshot(capture=False), observer_entity_id=self.observer.id)
+        assert active is not None
+        self.assertEqual(active.record.id, competing.record.id)
+        with self.assertRaisesRegex(GhostConflict, "already holds this observer's private slot"):
+            self.admit_opportunity(parked)
 
     def test_next_operation_uses_same_graph_after_resume_and_clean_restart(self) -> None:
         parked = self.parked()

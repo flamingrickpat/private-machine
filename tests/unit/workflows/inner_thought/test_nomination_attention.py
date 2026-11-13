@@ -23,7 +23,7 @@ from workflows.inner_thought.nominations import (
     capture_inquiry_grant, read_nomination_batch, source_roots, stage_nomination_batch,
 )
 from workflows.inner_thought.schemas import (
-    AttentionCandidate, InnerRequest, NominationBatch, PrivateAttentionContext,
+    AttentionCandidate, InnerRequest, NominationBatch, ParkedInquiryOffer, PrivateAttentionContext,
     ThoughtAttentionDecision, ThoughtCandidate, ThoughtJudgments, ThoughtNomination,
 )
 from workflows.inner_thought.stage_runner import stage_manifest
@@ -130,6 +130,52 @@ class NominationAttentionTests(unittest.TestCase):
                 disposition="select", reason="Choose it."))
         decision = ThoughtAttentionDecision(nomination_id=None, disposition="defer", reason="The accepted wait remains active.")
         self.assertEqual(validate_private_attention(context, decision), decision)
+
+    def test_parked_work_wins_the_slot_only_on_its_own_offer(self) -> None:
+        offer = ParkedInquiryOffer(receipt_id=77, episode_id="story-inquiry",
+            question="What made finishing it together matter?", stop_reason="Awaiting Jesse's actual motive.",
+            resume_after_utc=datetime(2026, 11, 12, 14, 0), deadline_elapsed=True, available_evidence_ids=())
+        context = PrivateAttentionContext(candidates=(), parked=(offer,), pending_input_ids=(),
+            accepted_focus=None, active_intention_ids=(), attention_summary="A broad aperture; parked work is due.")
+        admitted = validate_private_attention(context, ThoughtAttentionDecision(parked_receipt_id=77,
+            disposition="select", admitted_operation="feasibility_check",
+            reason="The parked wait has passed and nothing new competes."))
+        self.assertEqual(admitted.parked_receipt_id, 77)
+        self.assertEqual(admitted.admitted_operation, "feasibility_check")
+        declined = validate_private_attention(context,
+            ThoughtAttentionDecision(disposition="defer", reason="Ordinary input holds attention now."))
+        self.assertIsNone(declined.parked_receipt_id)
+        with self.assertRaisesRegex(ValueError, "outside the supplied offers"):
+            validate_private_attention(context, ThoughtAttentionDecision(parked_receipt_id=99,
+                disposition="select", admitted_operation="feasibility_check", reason="Choose it."))
+        with self.assertRaisesRegex(KeyError, "unknown thought operation: daydream"):
+            validate_private_attention(context, ThoughtAttentionDecision(parked_receipt_id=77,
+                disposition="select", admitted_operation="daydream", reason="Choose it."))
+        # Nothing was offered, so no identity can be admitted from this context.
+        unoffered = PrivateAttentionContext(candidates=(), pending_input_ids=(), accepted_focus=None,
+            active_intention_ids=(), attention_summary="Nothing competes.")
+        with self.assertRaisesRegex(ValueError, "outside the supplied offers"):
+            validate_private_attention(unoffered, ThoughtAttentionDecision(parked_receipt_id=77,
+                disposition="select", admitted_operation="feasibility_check", reason="Choose it."))
+        with self.assertRaisesRegex(ValueError, "outside the supplied batch"):
+            validate_private_attention(unoffered, ThoughtAttentionDecision(nomination_id=77,
+                disposition="select", reason="Choose it."))
+
+    def test_attention_prompt_delivers_offered_parked_work_and_legal_operations(self) -> None:
+        request = InnerRequest(companion_name="Spamuel", user_name="Jesse", candidates=[
+            ThoughtCandidate(knoxel_id=self.source.id, text=self.source.content, revision=1)])
+        offer = ParkedInquiryOffer(receipt_id=77, episode_id="story-inquiry",
+            question="What made finishing it together matter?", stop_reason="Stalled without new evidence.",
+            resume_after_utc=None, deadline_elapsed=False, available_evidence_ids=(self.source.id,))
+        context = PrivateAttentionContext(candidates=(), parked=(offer,), pending_input_ids=(self.source.id,),
+            accepted_focus=None, active_intention_ids=(), attention_summary="New input competes for attention.")
+        messages = build_attention_messages(AttentionStageRequest(request=request, attention=context),
+            attention_prompts())
+        system, user = str(messages[0].content), str(messages[1].content)
+        self.assertIn("parked", system)
+        self.assertIn("parked_receipt_id", user)
+        self.assertIn("available_evidence_ids", user)
+        self.assertIn("feasibility_check", user)
 
     def test_nomination_and_attention_prompts_keep_separate_schema_and_source_contracts(self) -> None:
         request = InnerRequest(companion_name="Spamuel", user_name="Jesse", candidates=[
