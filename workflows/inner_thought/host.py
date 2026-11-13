@@ -117,7 +117,7 @@ def build_inner_thought_tools(
     cancel_provider: Callable[[], Event | None] | None = None,
     embeddings: EmbeddingService | None = None,
     yield_provider: Callable[[], bool] | None = None,
-    inquiry_provider: Callable[[InnerRequest, StageRunner], PrivateGraphResult] | None = None,
+    inquiry_provider: Callable[[InnerRequest, StageRunner], PrivateGraphResult],
 ) -> Callable[[MemoryBashEnvironment, object], dict[str, Callable[..., object]]]:
     """Bind private stages and bounded recall to the invocation's frozen read grant.
 
@@ -125,6 +125,12 @@ def build_inner_thought_tools(
     call checks ``yield_provider`` before and after inference, so a cooperative
     yield stops the cycle instead of keeping the model slot. ``cancel_provider``
     supplies the run's cancellation event; it is None until a run starts.
+
+    ``inquiry_provider`` is required because the ``inner_thought`` manifest
+    grants ``run_private_inquiry`` to its ``work`` role unconditionally. The
+    kernel refuses a role whose declared tool is absent from the run grant, so
+    an unwired loop must fail here at assembly rather than at the first private
+    cycle. A private loop without inquiry authority is not a supported shape.
 
     The returned tools read only records inside the environment's frozen view.
     ``retrieve_memory`` raises ValueError for an empty query; a failed
@@ -172,14 +178,12 @@ def build_inner_thought_tools(
             return result
 
         runner = build_inner_stage_runner(ghost, complete, Path(runtime_root), read_environment=environment, cancel=cancel)
-        tools: dict[str, Callable[..., object]] = {"run_stage": runner, "retrieve_memory": retrieve_memory}
-        if inquiry_provider is not None:
-            provider = inquiry_provider
-            def run_private_inquiry(payload: dict[str, object]) -> dict[str, object]:
-                """Run the parent's typed graph path under its existing private owner."""
-                return provider(InnerRequest.model_validate(payload), runner).model_dump(mode="json")
-            tools["run_private_inquiry"] = run_private_inquiry
-        return tools
+        def run_private_inquiry(payload: dict[str, object]) -> dict[str, object]:
+            """Run the parent's typed graph path under its existing private owner."""
+            return inquiry_provider(InnerRequest.model_validate(payload), runner).model_dump(mode="json")
+
+        return {"run_stage": runner, "retrieve_memory": retrieve_memory,
+                "run_private_inquiry": run_private_inquiry}
 
     return factory
 

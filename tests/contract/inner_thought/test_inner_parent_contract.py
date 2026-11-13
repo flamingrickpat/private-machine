@@ -18,7 +18,7 @@ from pm.bus.bus import BusSystem
 from pm.memory.bash_view import MemoryBashEnvironment, MemoryBashTarget
 from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 
-from tests.support import ManualClock, Recorder
+from tests.support import ManualClock, Recorder, refuse_private_inquiry
 from tests.unit.test_design_contracts import small_ghost
 from workflows.inner_thought.host import PrivateThoughtLoop, build_inner_thought_tools
 from workflows.inner_thought.pipeline import citable_ids
@@ -83,7 +83,8 @@ class FullCycleTests(unittest.TestCase):
         ]
         run_stage = build_inner_stage_runner(ghost, deterministic_llm(completions), ROOT)
         environment = MemoryBashTarget(ghost, "read").open("parent-contract")
-        tools = build_inner_thought_tools(ghost, ROOT, None)(environment, None)
+        tools = build_inner_thought_tools(
+            ghost, ROOT, None, inquiry_provider=refuse_private_inquiry)(environment, None)
         runtime = WorkflowRuntime(environment=environment, stop_event=threading.Event(),
                                   tools={**tools, "run_stage": run_stage}, propagate_python_errors=True)
         runner = WorkflowRunner(MANIFEST, ROOT / "parent", namespace="inner_thought",
@@ -114,7 +115,9 @@ class ModelProposalBoundaryTests(unittest.TestCase):
         module = FrozenInputLoop(
             "inner_thought", bus, errors.append, ManualClock(), None,
             working_target=MemoryBashTarget(ghost, "read"), workflow=MANIFEST,
-            tools_factory=build_inner_thought_tools(ghost, runtime_root, llm_complete),
+            tools_factory=build_inner_thought_tools(
+                ghost, runtime_root, llm_complete,
+                inquiry_provider=refuse_private_inquiry),
             runtime_root=runtime_root, ghost=ghost,
         )
         return module, ghost, Recorder(bus), errors

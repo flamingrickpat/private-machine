@@ -119,3 +119,80 @@ def store_action(
         id=new_id(), source="test", kind="data", topic=f"action.{route}",
         correlation_id=correlation_id, payload={"knoxel_id": action.id, "gwt_tick": tick},
     )
+
+
+class PrivateInquiryRouteReached(AssertionError):
+    """A private cycle entered the inquiry graph in a test that pins another path."""
+
+
+def refuse_private_inquiry(request: object, run_stage: object) -> object:
+    """Satisfy the ``inner_thought`` tool grant while supplying no inquiry owner.
+
+    The private loop's manifest grants ``run_private_inquiry`` to its role, so a
+    test that pins the retained linear episode path must still grant the tool.
+    This boundary names the routing change instead of faking an inquiry result.
+    """
+    raise PrivateInquiryRouteReached(
+        "This private-loop test grants no inquiry owner; the graph path must not run.")
+
+
+def seed_retained_episode(ghost: MemoryStore, *, episode_id: str = "retained-linear",
+                          sequence: int = 0, closed: bool = False,
+                          next_operation: str = "plan_next_step", stalled: int = 0,
+                          parked_sources: tuple[int, ...] = (), parked_until_seconds: float | None = None,
+                          control_generation: int | None = None, acknowledged: bool = True,
+                          content: str = "the story draft still waits") -> int:
+    """Commit one accepted private thought that carries a retained linear episode.
+
+    B05 sends every fresh private opportunity to the inquiry graph. A retained
+    pre-graph episode is the only cycle the linear pipeline still runs, so a
+    linear-pipeline test starts from this record instead of a fresh cycle.
+    ``parked_until_seconds`` opens a parking interval that has not elapsed.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    from pm.records.cycle_records import StimulusGroup
+    from pm.records.cycle_state import CycleState
+    from pm.records.enums import SourceKind
+    from pm.records.memory_records import new_feature
+    from workflows.inner_thought.schemas import LegacyEpisodeState
+
+    # A new tick also claims the record in that tick's cycle state, which would
+    # acknowledge the thought. An unacknowledged seed therefore joins no new tick.
+    batch = ghost.begin_batch(new_id(), new_tick=acknowledged)
+    thought = new_feature(
+        ghost, content, FeatureType.InnerMonologue,
+        source=ghost.get_companion_name(), changes=batch, source_kind=SourceKind.Self,
+        metadata={
+        "loop": "inner", "reality": "internal", "operation": "curiosity_spark",
+        **({"control_generation": control_generation} if control_generation is not None else {}),
+        "episode": LegacyEpisodeState(
+            episode_id=episode_id,
+            sequence=sequence,
+            started_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(seconds=5),
+            elapsed_seconds=5.0,
+            closed=closed,
+            closed_reason="test" if closed else None,
+            operations=("curiosity_spark",),
+            evidence_ids=(),
+            alternatives=(),
+            thoughts=(content,),
+            progress=("none",),
+            stalled=stalled,
+            continuation="continue" if not closed else "summarize",
+            next_operation=next_operation,
+            parked_until=(datetime.now(timezone.utc).replace(tzinfo=None)
+                          + timedelta(seconds=parked_until_seconds)) if parked_until_seconds is not None else None,
+            parked_sources=parked_sources,
+            parent_thought_id=None,
+        ).model_dump(mode="json"),
+        },
+    )
+    if acknowledged:
+        batch.set_gwt(GwtTurnRecord(tick_id=batch.tick_id, stimulus_ids=[thought.id],
+                                    knoxel_ids=[thought.id]),
+                      CycleState(tick_id=batch.tick_id,
+                                 control_generation=control_generation or 0,
+                                 stimulus_groups=[StimulusGroup(stimulus_ids=[thought.id])]))
+    ghost.commit(batch)
+    return thought.id

@@ -2,11 +2,22 @@
 
 No model endpoint and no module thread. A deterministic ``run_stage`` stub
 stands in for the kernel, exactly as the main cognition state tests do.
+
+B05 moved every fresh private opportunity into the inquiry graph
+(:mod:`workflows.inner_thought.graph_execution`), which is verified by
+``test_graph_host``/``test_graph_execution`` and the real OpenRouter gate in
+``tests.live.test_private_inquiry``. The commit, rejection, and restart checks
+here pin the one cycle the kernel still runs on the linear pipeline: a retained
+pre-graph episode continuing through its original stages. Each fixture therefore
+seeds one accepted private thought carrying an open retained episode, and the
+inquiry provider is a routing guard that refuses the cycle if the linear path is
+reached without a retained episode. It supplies no inquiry behavior.
 """
 from __future__ import annotations
 
 import json
 import asyncio
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -15,6 +26,8 @@ from unittest.mock import patch
 
 from pm.bus.bus import BusSystem
 from pm.memory.bash_view import MemoryBashTarget
+from pm.records.cycle_records import StimulusGroup
+from pm.records.cycle_state import CycleState
 from pm.memory.snapshot import GhostConflict
 from pm.memory.store import MemoryStore
 from pm.records.cognitive_records import ExpectationRecord
@@ -23,9 +36,10 @@ from pm.records.global_workspace import GwtTurnRecord
 from pm.records.memory_records import new_feature
 from pm.runs.workflow_module import PROJECT_ROOT
 
-from tests.support import ManualClock, Recorder
+from tests.support import (ManualClock, PrivateInquiryRouteReached, Recorder,
+                            refuse_private_inquiry, seed_retained_episode)
 from workflows.inner_thought.host import PrivateThoughtLoop, build_inner_thought_tools
-from workflows.inner_thought.schemas import InnerReport
+from workflows.inner_thought.schemas import InnerReport, LegacyEpisodeState
 from workflows.main_cognition.model_json import ModelFormatError
 
 MANIFEST = PROJECT_ROOT / "workflows" / "inner_thought" / "inner_thought.workflow.md"
@@ -61,7 +75,10 @@ def _reports(*, operation="curiosity_spark", expectation=None):
     }
 
 
-def _module(ghost, reports, tmp, stage_called=None, *, stage_error=None):
+def _module(ghost, reports, tmp, stage_called=None, *, stage_error=None, retained=True):
+    if retained:
+        seed_retained_episode(ghost, next_operation="curiosity_spark")
+
     def run_stage(name, payload):
         if stage_called is not None:
             stage_called.append(name)
@@ -76,7 +93,8 @@ def _module(ghost, reports, tmp, stage_called=None, *, stage_error=None):
         working_target=MemoryBashTarget(ghost, "read"),
         workflow=MANIFEST,
         tools_factory=lambda environment, batch: {
-            **build_inner_thought_tools(ghost, Path(tmp) / "runtime", None)(environment, batch),
+            **build_inner_thought_tools(ghost, Path(tmp) / "runtime", None,
+                                        inquiry_provider=refuse_private_inquiry)(environment, batch),
             "run_stage": run_stage},
         runtime_root=Path(tmp) / "runtime",
         ghost=ghost,
@@ -116,7 +134,8 @@ class PriorityYieldTests(unittest.TestCase):
 
             factory = build_inner_thought_tools(ghost, directory, complete,
                 cancel_provider=lambda: module.run_stop,
-                yield_provider=module.yield_requested.is_set)
+                yield_provider=module.yield_requested.is_set,
+                inquiry_provider=refuse_private_inquiry)
             with patch("workflows.inner_thought.host.build_inner_stage_runner",
                        side_effect=lambda ghost, complete, *args, **kwargs: complete):
                 tools = factory(module.working_target.open("private"), None)
@@ -164,20 +183,21 @@ class PrivateInferenceTests(unittest.TestCase):
                     context_window=8192, input_tokens=1000, max_output_tokens=4096), {"enable_thinking": False})
 
 
-class IdleCycleTests(unittest.TestCase):
-    def test_no_trigger_calls_no_stage_and_commits_nothing(self):
+class FreshCycleRoutingTests(unittest.TestCase):
+    def test_a_fresh_opportunity_leaves_the_linear_pipeline_before_any_stage(self):
         ghost = small_ghost()
-        # A fresh user message suppresses the idle trigger; nothing else fires.
+        # A fresh user message suppresses the idle trigger; only the graph may run.
         new_feature(ghost, "hello again", FeatureType.Dialogue, source=ghost.get_user_name())
         stage_called: list[str] = []
         with TemporaryDirectory() as tmp:
-            module, bus, errors = _module(ghost, _reports(), tmp, stage_called)
-            idle = Recorder(bus, "thought.idle")
+            module, bus, errors = _module(ghost, _reports(), tmp, stage_called, retained=False)
             before = ghost.state_dict()
-            module.handle_batch([])
+            with self.assertRaises(PrivateInquiryRouteReached):
+                module.handle_batch([])
+            # The inquiry owner refused the cycle, so the kernel committed nothing.
             self.assertEqual(stage_called, [])
-            self.assertEqual(len(idle.events), 1)
             self.assertEqual(ghost.state_dict(), before)
+            self.assertEqual(ghost.gwt_turns_of("inner"), [])
             self.assertEqual(errors, [])
 
 
@@ -218,9 +238,11 @@ class AcceptedCycleTests(unittest.TestCase):
         ghost = small_ghost()
         with TemporaryDirectory() as tmp:
             module, bus, errors = _module(ghost, _reports(), tmp)
+            main_before = ghost.gwt_turns_of("main")
             module.handle_batch([])
             self.assertEqual(errors, [])
-            self.assertEqual(ghost.gwt_turns_of("main"), [])
+            # The seed's appraisal turn is the only main turn; the cycle adds none.
+            self.assertEqual(ghost.gwt_turns_of("main"), main_before)
             self.assertEqual([item.slot_id for item in ghost.gwt_turns_of("inner")], ["inner"])
 
     def test_expectation_open_and_resolve_use_the_lifecycle_helpers(self):
@@ -392,7 +414,8 @@ class RestartTests(unittest.TestCase):
             thoughts = [record for record in reopened.all_features
                         if record.feature_type == FeatureType.InnerMonologue
                         and (record.metadata or {}).get("loop") == "inner"]
-            self.assertEqual(len(thoughts), 1)
+            # One is the seeded retained episode, the other is this cycle's thought.
+            self.assertEqual(len(thoughts), 2)
 
 
 if __name__ == "__main__":

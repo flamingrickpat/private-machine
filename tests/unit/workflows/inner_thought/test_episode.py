@@ -3,6 +3,13 @@
 No model endpoint and no module thread. A deterministic ``run_stage`` stub
 supplies the stage reports; the memory store, checkpoint, and wait controller
 are real. The stub is a protocol boundary, not behavioral acceptance.
+
+B05 moved fresh private work to the inquiry graph, so each cycle here continues
+a retained pre-graph episode seeded by ``tests.support.seed_retained_episode``.
+Where a case used to end the linear episode and start a fresh one, it now pins
+the routing boundary instead: the cycle must leave the linear pipeline.
+:mod:`tests.live.test_private_inquiry` and ``test_graph_host`` cover the graph
+side.
 """
 from __future__ import annotations
 
@@ -19,7 +26,8 @@ from pm.records.enums import FeatureType
 from pm.records.global_workspace import GwtTurnRecord
 from pm.records.memory_records import new_feature
 
-from tests.support import ManualClock, Recorder
+from tests.support import (ManualClock, PrivateInquiryRouteReached, Recorder,
+                            refuse_private_inquiry, seed_retained_episode)
 from tests.unit.test_design_contracts import small_ghost
 from workflows.cognitive_control.host import CognitiveControl
 from workflows.cognitive_control.schemas import ControlConfig
@@ -56,7 +64,10 @@ def stage_reports(*, continuation="continue", next_operation="plan_next_step",
     }
 
 
-def _module(ghost, tmp, reports, config=None):
+def _module(ghost, tmp, reports, config=None, *, retained=True, episode=None):
+    if retained:
+        seed_retained_episode(ghost, **(episode or {}))
+
     def run_stage(name, payload):
         return dict(reports()[name])
 
@@ -68,7 +79,8 @@ def _module(ghost, tmp, reports, config=None):
         "inner_thought", bus, errors.append, ManualClock(), None,
         working_target=MemoryBashTarget(ghost, "read"), workflow=MANIFEST,
         tools_factory=lambda environment, batch: {
-            **build_inner_thought_tools(ghost, Path(tmp) / "runtime", None)(environment, batch),
+            **build_inner_thought_tools(ghost, Path(tmp) / "runtime", None,
+                                        inquiry_provider=refuse_private_inquiry)(environment, batch),
             "run_stage": run_stage},
         runtime_root=Path(tmp) / "runtime", ghost=ghost,
     )
@@ -96,69 +108,61 @@ def _inner_thoughts(ghost):
 class EpisodeLifecycleTests(unittest.TestCase):
     def test_continuation_reuses_identity_and_records_lineage(self):
         ghost = small_ghost()
-        reports = stage_reports(alternatives=[{"text": "reread it", "disposition": "chosen",
+        reports = stage_reports(continuation="summarize", next_operation="", progress="none",
+                                alternatives=[{"text": "reread it", "disposition": "chosen",
                                                "reason": "it matters"}])
         with TemporaryDirectory() as tmp:
-            module, bus, errors, _ = _module(ghost, tmp, lambda: reports)
+            seeded = seed_retained_episode(ghost)
+            module, bus, errors, _ = _module(ghost, tmp, lambda: reports, retained=False)
             created = Recorder(bus, "thought.created")
             module.handle_batch([])
-            first = ghost.get_knoxel_by_id(created.events[0].payload["knoxel_id"])
-            self.assertFalse(first.metadata["episode"]["closed"])
-            self.assertEqual(first.metadata["episode"]["sequence"], 0)
-            episode_id = first.metadata["episode"]["episode_id"]
-            self.assertEqual(first.lineage.episode_id, episode_id)
-            self.assertEqual(first.lineage.sequence, 0)
-
-            _acknowledge(ghost, first.id)
-            reports = stage_reports(continuation="summarize", next_operation="", progress="none")
-            module.handle_batch([])
-            second = ghost.get_knoxel_by_id(created.events[1].payload["knoxel_id"])
-            self.assertEqual(second.metadata["episode"]["episode_id"], episode_id)
-            self.assertEqual(second.metadata["episode"]["sequence"], 1)
-            self.assertTrue(second.metadata["episode"]["closed"])
-            self.assertEqual(second.metadata["episode"]["closed_reason"], "summarize")
-            self.assertEqual(second.metadata["episode"]["parent_thought_id"], first.id)
-            self.assertEqual(second.lineage.parent_record_ids, [first.id])
-            self.assertEqual(second.lineage.episode_id, episode_id)
+            continued = ghost.get_knoxel_by_id(created.events[0].payload["knoxel_id"])
+            self.assertEqual(continued.metadata["episode"]["episode_id"], "retained-linear")
+            self.assertEqual(continued.metadata["episode"]["sequence"], 1)
+            self.assertTrue(continued.metadata["episode"]["closed"])
+            self.assertEqual(continued.metadata["episode"]["closed_reason"], "summarize")
+            self.assertEqual(continued.metadata["episode"]["parent_thought_id"], seeded)
+            self.assertEqual(continued.lineage.parent_record_ids, [seeded])
+            self.assertEqual(continued.lineage.episode_id, "retained-linear")
             self.assertEqual(errors, [])
 
     def test_continuation_waits_for_main_acknowledgment(self):
         ghost = small_ghost()
         with TemporaryDirectory() as tmp:
-            module, bus, errors, _ = _module(ghost, tmp, lambda: stage_reports())
-            created = Recorder(bus, "thought.created")
-            idle = Recorder(bus, "thought.idle")
-            module.handle_batch([])
-            first_id = created.events[0].payload["knoxel_id"]
-            # No main cycle acknowledged the thought yet: the next tick waits.
-            module.handle_batch([])
-            self.assertEqual([record.id for record in _inner_thoughts(ghost)], [first_id])
-            self.assertEqual(len(idle.events), 1)
-            _acknowledge(ghost, first_id)
-            module.handle_batch([])
-            self.assertEqual(len(_inner_thoughts(ghost)), 2)
+            seeded = seed_retained_episode(ghost, acknowledged=False)
+            module, bus, errors, _ = _module(ghost, tmp, lambda: stage_reports(), retained=False)
+            # No main cycle acknowledged the retained thought yet, so the host
+            # hands the pipeline an episode that must not start new work.
+            waiting = module.prepare_input([])
+            self.assertTrue(waiting["episode"]["awaiting_acknowledgment"])
+            self.assertEqual(waiting["trigger_candidates"], [])
+            self.assertEqual([record.id for record in _inner_thoughts(ghost)], [seeded])
+            _acknowledge(ghost, seeded)
+            released = module.prepare_input([])
+            self.assertFalse(released["episode"]["awaiting_acknowledgment"])
             self.assertEqual(errors, [])
 
-    def test_new_generation_interrupts_the_open_episode(self):
+    def test_new_control_generation_ends_the_linear_episode_for_good(self):
         ghost = small_ghost()
         with TemporaryDirectory() as tmp:
-            module, bus, errors, control = _module(ghost, tmp, lambda: stage_reports())
+            seeded = seed_retained_episode(ghost, control_generation=0)
+            module, bus, errors, control = _module(ghost, tmp, lambda: stage_reports(),
+                                                   retained=False)
             created = Recorder(bus, "thought.created")
-            module.handle_batch([])
-            first = ghost.get_knoxel_by_id(created.events[0].payload["knoxel_id"])
-            control.generation += 1  # a new outside input supersedes the episode
-            module.handle_batch([])
-            second = ghost.get_knoxel_by_id(created.events[1].payload["knoxel_id"])
-            self.assertNotEqual(second.metadata["episode"]["episode_id"],
-                                first.metadata["episode"]["episode_id"])
-            self.assertEqual(second.metadata["episode"]["sequence"], 0)
+            control.generation = 5  # a new outside input supersedes the retained episode
+            with self.assertRaises(PrivateInquiryRouteReached):
+                module.handle_batch([])
+            # The superseded episode cannot continue, and no fresh linear episode starts.
+            self.assertEqual(created.events, [])
+            self.assertEqual([record.id for record in _inner_thoughts(ghost)], [seeded])
             self.assertEqual(errors, [])
 
     def test_step_limit_closes_the_episode_explicitly(self):
         ghost = small_ghost()
         with TemporaryDirectory() as tmp:
+            seed_retained_episode(ghost, sequence=0)
             module, bus, errors, _ = _module(ghost, tmp, lambda: stage_reports(),
-                                             config=ControlConfig(episode_steps=1))
+                                             config=ControlConfig(episode_steps=1), retained=False)
             created = Recorder(bus, "thought.created")
             module.handle_batch([])
             only = ghost.get_knoxel_by_id(created.events[0].payload["knoxel_id"])
@@ -169,16 +173,13 @@ class EpisodeLifecycleTests(unittest.TestCase):
     def test_stalled_progress_closes_and_parks_the_sources(self):
         ghost = small_ghost()
         with TemporaryDirectory() as tmp:
+            seed_retained_episode(ghost, sequence=0, stalled=1)
             module, bus, errors, _ = _module(
                 ghost, tmp, lambda: stage_reports(progress="none"),
-                config=ControlConfig(stalled_steps=2))
+                config=ControlConfig(stalled_steps=2), retained=False)
             created = Recorder(bus, "thought.created")
             module.handle_batch([])
-            first = ghost.get_knoxel_by_id(created.events[0].payload["knoxel_id"])
-            self.assertFalse(first.metadata["episode"]["closed"])
-            _acknowledge(ghost, first.id)
-            module.handle_batch([])
-            second = ghost.get_knoxel_by_id(created.events[1].payload["knoxel_id"])
+            second = ghost.get_knoxel_by_id(created.events[0].payload["knoxel_id"])
             self.assertTrue(second.metadata["episode"]["closed"])
             self.assertEqual(second.metadata["episode"]["closed_reason"], "stalled progress")
             self.assertIsNotNone(second.metadata["episode"]["parked_until"])
@@ -199,14 +200,14 @@ class EpisodeLifecycleTests(unittest.TestCase):
         source = new_feature(ghost, "the old draft is still unfinished", FeatureType.Dialogue,
                              source=ghost.get_user_name())
         aging = ghost.begin_batch("older-dialogue")
-        older = aging.view().get(source.id)
+        older = aging.view().get(source.id).copy_for_edit()
         older.timestamp_world_begin = datetime.utcnow() - timedelta(minutes=10)
         aging.replace(older)
         ghost.commit(aging)
         with TemporaryDirectory() as tmp:
-            module, _, errors, _ = _module(
-                ghost, tmp, lambda: stage_reports(continuation="suspend", evidence=[source.id]))
-            module.handle_batch([])
+            seed_retained_episode(ghost, closed=True, parked_sources=(source.id,),
+                                  parked_until_seconds=600.0)
+            module, _, errors, _ = _module(ghost, tmp, lambda: stage_reports(), retained=False)
             module.last_environment = MemoryBashTarget(ghost, "read").open("after-parking")
             request = module.prepare_input([])
             self.assertEqual(request["episode"]["suppressed_source_ids"], [source.id])
@@ -218,35 +219,33 @@ class EpisodeLifecycleTests(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             checkpoint = Path(tmp) / "ghost.pickle"
             ghost.checkpoint = checkpoint
-            module, bus, errors, _ = _module(ghost, tmp, lambda: stage_reports())
-            module.cognitive_control.generation = 7
-            created = Recorder(bus, "thought.created")
-            module.handle_batch([])
-            thought_id = created.events[0].payload["knoxel_id"]
+            thought_id = seed_retained_episode(ghost, control_generation=7)
             reopened = type(ghost).from_checkpoint(checkpoint)
             stored = reopened.get_knoxel_by_id(thought_id)
             self.assertFalse(stored.metadata["episode"]["closed"])
             self.assertEqual(stored.metadata["episode"]["sequence"], 0)
-            pending, pending_bus, _, _ = _module(reopened, tmp, lambda: stage_reports())
-            replayed = Recorder(pending_bus, "thought.created")
-            pending.resume()
-            pending.resume()
-            self.assertEqual([event.payload["knoxel_id"] for event in replayed.events], [thought_id])
-            _acknowledge(reopened, thought_id)
-            pending.release_results(replayed.events)
-            pending.resume()
-            self.assertEqual(len(replayed.events), 1)
-            resumed, _, _, restored_control = _module(reopened, tmp, lambda: stage_reports())
-            self.assertEqual(restored_control.generation, 7)
+            # A restarted loop reads the same retained episode and continues it,
+            # so a stop never restarts the episode identity or loses its step.
+            resumed, resumed_bus, resumed_errors, _ = _module(reopened, tmp, lambda: stage_reports(),
+                                                              retained=False)
+            self.assertEqual(resumed.cognitive_control.generation, 7)
+            continued = Recorder(resumed_bus, "thought.created")
             resumed.handle_batch([])
-            latest = _inner_thoughts(reopened)[-1]
+            latest = reopened.get_knoxel_by_id(continued.events[-1].payload["knoxel_id"])
             self.assertEqual(latest.metadata["episode"]["episode_id"], stored.metadata["episode"]["episode_id"])
             self.assertEqual(latest.metadata["episode"]["sequence"], 1)
+            self.assertEqual(resumed_errors, [])
 
     def test_acknowledged_episode_can_continue_without_another_trigger(self):
         request = InnerRequest(seconds_since_user_input=1,
-            episode={"episode_id": "continued", "next_operation": "plan_next_step",
-                     "awaiting_acknowledgment": False})
+            episode={"provenance": "legacy_linear", "awaiting_acknowledgment": False,
+                     "state": {"episode_id": "continued", "sequence": 0,
+                               "started_at": datetime.utcnow(), "elapsed_seconds": 1.0,
+                               "closed": False, "closed_reason": None, "operations": [],
+                               "evidence_ids": [], "alternatives": [], "thoughts": [],
+                               "progress": [], "stalled": 0, "continuation": "continue",
+                               "next_operation": "plan_next_step", "parked_until": None,
+                               "parked_sources": [], "parent_thought_id": None}})
         triggers = evaluate_triggers(request)
         self.assertEqual([item.name for item in triggers], ["episode_continuation"])
         self.assertEqual(triggers[0].operations, ["plan_next_step"])
@@ -254,18 +253,20 @@ class EpisodeLifecycleTests(unittest.TestCase):
     def test_time_limit_closes_the_durable_state_before_new_work(self):
         ghost = small_ghost()
         with TemporaryDirectory() as tmp:
-            module, _, _, _ = _module(ghost, tmp, lambda: stage_reports())
-            module.handle_batch([])
-            first = _inner_thoughts(ghost)[-1]
+            first_id = seed_retained_episode(ghost)
+            module, _, _, _ = _module(ghost, tmp, lambda: stage_reports(), retained=False)
             aging = ghost.begin_batch("expired-episode")
-            expired = aging.view().get(first.id)
-            expired.metadata["episode"]["started_at"] = (datetime.utcnow() - timedelta(hours=1)).isoformat()
-            aging.replace(expired)
+            aged_episode = dict(aging.view().get(first_id).metadata["episode"])
+            aged_episode["started_at"] = (datetime.utcnow() - timedelta(hours=1)).isoformat()
+            aging.set_lifecycle(first_id, episode=aged_episode)
             ghost.commit(aging)
-            module.handle_batch([])
-            closed = ghost.get_knoxel_by_id(first.id).metadata["episode"]
+            # The expired episode is closed first, so the cycle has no linear work.
+            with self.assertRaises(PrivateInquiryRouteReached):
+                module.handle_batch([])
+            closed = ghost.get_knoxel_by_id(first_id).metadata["episode"]
             self.assertTrue(closed["closed"])
             self.assertEqual(closed["closed_reason"], "time limit")
+            self.assertEqual([record.id for record in _inner_thoughts(ghost)], [first_id])
 
 
 if __name__ == "__main__":

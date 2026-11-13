@@ -790,3 +790,54 @@ Receipt: `.runtime/beta-b05/finish/preexisting-failures-readmission.log`. These 
 this increment and no budget was spent. The owner scheduled the live model gate plus the full suite
 for the end of the beta work items, so runtime re-entry is verified only against actual stores and
 checkpoints so far.
+
+## Pass: fresh private work leaves the linear pipeline (2026-11-13)
+
+`workflows.inner_thought.steps.run` now routes by episode shape. A private cycle whose
+`InnerRequest.episode.state` is `None` has no retained linear episode, so it must call the manifest
+tool `run_private_inquiry` and write the returned `PrivateGraphResult`. Only a retained pre-graph
+episode, where `state` is not `None`, still finishes through `run_cycle` and the trigger, thought,
+and integration children. No fresh private opportunity can silently keep using the cheaper linear
+path.
+
+`build_inner_thought_tools` now requires `inquiry_provider`. The `inner_thought` manifest grants
+`run_private_inquiry` to its `work` role unconditionally, and the kernel refuses a role whose
+declared tool is missing from the run grant. Registering the tool only when a provider happened to
+be supplied therefore broke every caller that omitted it. Assembly now fails at the factory instead
+of at the first private cycle, and a private loop without inquiry authority is not a supported shape.
+
+Test support gained `tests.support.seed_retained_episode`, which commits one accepted private
+thought carrying a `LegacyEpisodeState`, and `tests.support.refuse_private_inquiry`, which satisfies
+the manifest grant and raises if a linear-pipeline test enters the graph. Retained-episode tests now
+start from the only cycle shape that still uses the linear path.
+
+`tests.unit.workflows.inner_thought.test_private_host` keeps its thirteen checks and gained
+`FreshCycleRoutingTests.test_a_fresh_opportunity_leaves_the_linear_pipeline_before_any_stage`, which
+asserts that a fresh opportunity reaches the inquiry provider before any linear stage runs.
+`tests.unit.workflows.inner_thought.test_episode` keeps its ten checks. Its acknowledgement case now
+reads the host request gate (`awaiting_acknowledgment` plus empty trigger candidates) instead of a
+full cycle, and its new-generation and expired-episode cases now pin the routing boundary: the
+retained episode ends or closes, and no fresh linear episode starts.
+`tests.unit.workflows.inner_thought.test_pipeline` keeps its sixteen checks and its episode fixtures
+now build the typed `LegacyEpisodeContext` state and full introspection `EpisodeRow` instead of the
+old flat `episode` keys.
+
+Verification: **157** inner-thought unit checks passed in **2.489 seconds**
+(`.runtime/beta-b05/triage/unit-inner-thought.log`), covering `test_private_host`, `test_episode`,
+`test_pipeline`, `test_graph_host`, and the inquiry stage modules. The three stale `InnerRequest`
+errors and the eleven manifest-grant errors recorded above are closed by this pass.
+Probe receipt `.runtime/beta-b05/triage/probe_legacy.py` shows a retained episode on the linear path
+and a fresh cycle on the graph path against an actual store.
+
+Still red and unrelated to this slice: `tests.contract.inner_thought.test_inner_parent_contract`
+(4 failures plus 1 error, stale `InnerRequest` fixtures in that file). The identical failure set
+reproduces at HEAD `5f5e6cb` with `workflows/inner_thought/host.py` and `steps.py` stashed, so it is
+pre-existing. It needs its own contract-fixture triage.
+
+No formatter, linter, or type checker ran: `pyproject.toml` configures none and `.venv/Scripts`
+installs no `ruff`, `mypy`, or `pyright`. **NOT RUN** for lack of configured tooling, not skipped.
+Strict MkDocs passed and the new routing sentence plus its `workflows.inner_thought.steps.run`
+reference render in `site/subsystems/private-loop.html`.
+
+**NOT RUN:** the real OpenRouter gate. This pass added no inference call and spent no budget; the
+live model gate stays scheduled for the end-of-beta acceptance run.

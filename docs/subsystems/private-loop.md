@@ -298,6 +298,7 @@ A stored graph or a clean local check is not evidence that this migration is com
 The old `run_cycle` path remains an explicit compatibility path for retained linear contracts and direct callers.
 It uses `TriggerChoice`, `ThoughtResult`, and `IntegrationResult` through trigger, thought, and integration children.
 The assembled application's private host uses graph execution instead.
+[`workflows.inner_thought.steps.run`][] enforces the split: a private cycle with no retained linear episode must enter the inquiry graph through `run_private_inquiry`, and only a retained linear episode continues on the linear children.
 
 [`workflows.inner_thought.schemas.LegacyEpisodeContext`][] keeps legacy episode state and suppression reasons in named fields.
 [`workflows.inner_thought.inquiry.read_legacy_inquiry`][] preserves the old chain and its recorded world-clock duration.

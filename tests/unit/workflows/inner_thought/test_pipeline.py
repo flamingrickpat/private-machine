@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import unittest
+from datetime import datetime
 
 from workflows.inner_thought.pipeline import IntegrationError, ModelProposalError, citable_ids, run_cycle
 from workflows.inner_thought.schemas import InnerRequest, TriggerCandidate
@@ -29,6 +30,25 @@ def request(**overrides) -> InnerRequest:
     )
     values.update(overrides)
     return InnerRequest(**values)
+
+
+def legacy_episode(**overrides) -> dict:
+    """One retained linear episode in the shape the host request carries."""
+    state = dict(episode_id="pipeline-episode", sequence=0,
+                 started_at=datetime(2026, 11, 12, 12, 0, 0), elapsed_seconds=5.0,
+                 closed=False, closed_reason=None, operations=["commitment_review"],
+                 evidence_ids=[], alternatives=[], thoughts=[], progress=[], stalled=0,
+                 continuation="continue", next_operation="plan_next_step",
+                 parked_until=None, parked_sources=[], parent_thought_id=None)
+    state.update(overrides)
+    return {"provenance": "legacy_linear", "state": state}
+
+
+def episode_row(episode_id: int, loop: str, operation: str) -> dict:
+    """One introspection episode row, outside the request's citable evidence."""
+    return dict(episode_id=episode_id, kind="episode", loop=loop, tick_id=90,
+                operation=operation, owner="main", summary="", outcome="",
+                revision=1, inputs=[], outputs=[], links={}, metadata={})
 
 
 def stage_reports(operation="commitment_review"):
@@ -91,8 +111,8 @@ class PipelineTests(unittest.TestCase):
 
     def test_unsupported_and_inspection_only_ids_reject_before_integration(self):
         parsed = request(inspection={"status": "ok", "episodes": [
-            {"episode_id": 812, "loop": "main", "operation": "frame:blended"},
-            {"episode_id": 11295, "loop": "main", "operation": "action:Proposed"},
+            episode_row(812, "main", "frame:blended"),
+            episode_row(11295, "main", "action:Proposed"),
         ]})
         self.assertEqual(citable_ids(parsed), {3, 5, 7})
         for record_id in (999, 812, 11295):
@@ -198,7 +218,7 @@ class PipelineTests(unittest.TestCase):
     def test_rephrased_evidence_downgrades_to_none(self):
         reports = stage_reports()
         reports["integrate"] = {**reports["integrate"], "progress": "new_evidence"}
-        report = run_cycle(request(episode={"evidence_ids": [5]}),
+        report = run_cycle(request(episode=legacy_episode(evidence_ids=[5])),
                            lambda name, payload: reports[name])
         self.assertEqual(report.progress, "none")
         self.assertIn("no concrete difference", report.progress_reason)
@@ -206,7 +226,7 @@ class PipelineTests(unittest.TestCase):
     def test_new_evidence_kept_when_the_id_is_unseen(self):
         reports = stage_reports()
         reports["integrate"] = {**reports["integrate"], "progress": "new_evidence"}
-        report = run_cycle(request(episode={"evidence_ids": []}),
+        report = run_cycle(request(episode=legacy_episode(evidence_ids=[])),
                            lambda name, payload: reports[name])
         self.assertEqual(report.progress, "new_evidence")
 
