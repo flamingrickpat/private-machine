@@ -970,6 +970,19 @@ Strict MkDocs passed in **212.98 seconds**, including the new
 `docs/workflows/scenario-replay.md` page and the renamed
 "What supersedes private work" section in `docs/subsystems/private-loop.md`.
 
+### Recorded provider cost
+
+The four recordings issued **82 provider requests** in total
+(`request_count` in each `manifest.json`):
+baseline 5 + 5, continuity before the change 6 + 8, continuity after 6 + 12.
+
+Their dollar cost is **not measured**. The harness disables the prompt log so
+that replay and recording draw the same identities, and the recording keeps the
+completion text without the provider usage block. `request_count` is therefore
+a lower bound on the requests, not a spend receipt. A future harness version
+should retain the provider usage beside the recorded answer without drawing an
+identity; until then, quote request counts and not dollars.
+
 ### Not run and remaining limits
 
 **NOT RUN:** any new paid inference beyond the four scenario recordings, the
