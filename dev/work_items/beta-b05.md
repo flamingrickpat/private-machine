@@ -1001,4 +1001,90 @@ Still unfinished in B05, in dependency order:
    real child kernels, preserving one-slot arbitration, action receipts, replay,
    and main acknowledgment.
 3. Integrate scoped reflection/inspection evidence and graph felt-state emission.
-4. Repair the stale parent-contract fixtures and run the integrated live gates.
+4. ~~Repair the stale parent-contract fixtures~~ — done: commit `eb829ca` gives
+   each parent contract a retained pre-graph episode and a measuring completion
+   fixture. All four pass. The remaining contract errors are in the main-cognition
+   phase contracts, whose fake `llm_complete` also provides no measurement; that
+   is the same pre-existing fixture staleness and is not part of B05.
+5. Run the integrated live gates.
+
+## Pending owner decision: displacing an inquiry from an older Critical epoch
+
+Not implemented. This is a design choice about meaning, so it waits for the owner.
+
+### The situation
+
+`run_graph_opportunity` refuses an active inquiry whose retained
+`grant.critical_epoch` is older than the current control epoch. It returns
+"This inquiry predates accepted Critical reconsideration and requires fresh
+admission." and changes nothing.
+
+That is safe but not terminal. The inquiry stays `active`, and
+`active_inquiry(view, observer_entity_id=...)` keeps returning it. Every later
+private opportunity takes the same branch, so the one private slot stays
+occupied by work that can never proceed. The character stops having private
+thoughts after a Critical reconsideration until a restart.
+
+The plan calls for "the actual displacement/resumption transition" and forbids a
+silent rebase of the original grant. The two halves of that sentence pull apart:
+
+- **Displacement** means the stale inquiry gives up the slot.
+- **Resumption** means the question survives the displacement.
+- **No silent rebase** means the new work cannot inherit the old grant, because
+  the old grant was captured under an authority the character no longer has.
+
+### Option A — abandon and free the slot
+
+Stage one durable receipt: `status="abandoned"`,
+`stop_reason="Critical reconsideration superseded this inquiry's authority"`,
+`next_operation=""`. The nodes stay inspectable as history.
+
+- Slot frees on the next timer tick; a fresh nomination runs normally.
+- No new concept, no new field, no resumption path.
+- The question is lost. A later episode can still read the old nodes as evidence,
+  but nothing re-offers them.
+- Honest but wasteful: a Critical message about something else ends an unrelated
+  private inquiry.
+
+### Option B — displace to paused, resume only through fresh attention
+
+Stage a `paused` receipt with an explicit displacement reason and no automatic
+deadline, and teach `parked_offer` to treat a displaced inquiry differently from
+a parked one: it may be *offered* to shared attention, but its admission creates a
+**new episode**, not a continuation.
+
+Admission would re-capture the grant from the current view under the current
+epoch, keep the old episode as `origin`/historical input, and start `sequence=0`.
+The old nodes become evidence the new episode may cite, never authority it
+inherits.
+
+- The question survives; the authority does not. That matches the plan's wording.
+- Costs a new persisted distinction (`displaced`), a second admission shape in
+  `admit_opportunity`, and a rule that a displaced offer reuses the same
+  one-slot arbitration as a parked offer.
+- Risk: the model may treat the old nodes as corroboration of the new episode.
+  That needs an explicit rendering rule ("these are earlier internal artifacts,
+  not outside evidence").
+
+### Option C — keep holding, add an operator escape
+
+Leave the current behaviour and require a restart or an explicit operator action
+to clear the slot.
+
+- No new semantics.
+- Leaves a known stall in normal operation, which is why it is listed as work.
+
+### Recommendation
+
+Option B, with the displaced inquiry admitted as a new episode under a fresh
+grant. It is the only option that satisfies all three constraints the plan states,
+and it reuses the existing parked-offer arbitration instead of adding a second
+admission path. It is also the most expensive: it needs a persisted `displaced`
+state, a second admission shape, and a rendering rule that separates "earlier
+private artifacts" from outside evidence.
+
+Option A is the cheap fallback if the owner prefers a smaller B05. It ends
+unrelated private work after a Critical message, which is a real behaviour loss.
+
+**Nothing was implemented for this item.** The next step is the owner's choice
+between A and B.
