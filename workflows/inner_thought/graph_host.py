@@ -11,6 +11,10 @@ Accepted graph nodes survive interrupted
 delivery, and replay uses actual main claimed IDs rather than rerunning a
 completed model call. Scheduling and Critical/wait validation remain with the
 injected host commit callback.
+
+The slot readers separate three kinds of retained work. Active work holds the
+slot. Parked work can resume its own graph. Displaced work is closed by
+accepted Critical reconsideration; only its question returns, as a new episode.
 """
 from __future__ import annotations
 
@@ -32,8 +36,8 @@ from workflows.cognitive_control.schemas import ControlConfig
 from workflows.cognitive_control.attention import CapturedPrivateFocus, validate_private_focus
 from workflows.inner_thought.inquiry import (
     AttentionRecord, DELIBERATE_ACTION_KEY, InquiryMetadata, InquiryRecord, PRIVATE_SLOT_KEY,
-    inquiry_history, stage_attention, stage_attention_outcome, stage_deliberate_inquiry, stage_inquiry_resume,
-    stage_inquiry_step,
+    displaced_successor, inquiry_history, stage_attention, stage_attention_outcome, stage_deliberate_inquiry,
+    stage_displaced_inquiry, stage_inquiry_displacement, stage_inquiry_resume, stage_inquiry_step,
 )
 from workflows.inner_thought.nominations import extend_inquiry_grant
 from workflows.inner_thought.nominations import NominationBatchRecord, stage_nomination_batch
@@ -64,13 +68,18 @@ def attach_inner_projection(operation: Feature, payload: FrozenProjectionPayload
     operation.metadata["inquiry_projection"] = payload.model_dump(mode="json")
 
 
-def active_inquiry(view: Snapshot, *, observer_entity_id: int) -> InquiryRecord | None:
-    """Read the sole active slot without treating parked work as active."""
+def _slot_heads(view: Snapshot, *, observer_entity_id: int) -> list[InquiryRecord]:
+    """Read the current receipt head of every episode in one observer's private slot."""
     episodes = {InquiryMetadata.model_validate(record.metadata).inquiry_episode
                 for record in view.all_knoxels.values()
                 if record.metadata.get(PRIVATE_SLOT_KEY) == str(observer_entity_id)}
-    active = [inquiry_history(view, episode)[-1] for episode in sorted(episodes)
-              if inquiry_history(view, episode)[-1].receipt.state.status == "active"]
+    return [inquiry_history(view, episode)[-1] for episode in sorted(episodes)]
+
+
+def active_inquiry(view: Snapshot, *, observer_entity_id: int) -> InquiryRecord | None:
+    """Read the sole active slot without treating parked work as active."""
+    active = [head for head in _slot_heads(view, observer_entity_id=observer_entity_id)
+              if head.receipt.state.status == "active"]
     if len(active) > 1:
         raise ValueError("One private observer cannot hold multiple active inquiries.")
     return active[0] if active else None
@@ -84,13 +93,26 @@ def parked_inquiries(view: Snapshot, *, observer_entity_id: int) -> tuple[Inquir
     names can contain hashes and carry no chronology. A newer ineligible head
     must not hide older eligible work.
     """
-    episodes = {InquiryMetadata.model_validate(record.metadata).inquiry_episode
-                for record in view.all_knoxels.values()
-                if record.metadata.get(PRIVATE_SLOT_KEY) == str(observer_entity_id)}
-    heads = [inquiry_history(view, episode)[-1] for episode in sorted(episodes)]
-    parked = [head for head in heads if head.receipt.state.status == "paused"]
+    parked = [head for head in _slot_heads(view, observer_entity_id=observer_entity_id)
+              if head.receipt.state.status == "paused"]
     parked.sort(key=lambda head: head.record.id, reverse=True)
     return tuple(parked)
+
+
+def displaced_inquiries(view: Snapshot, *, observer_entity_id: int) -> tuple[InquiryRecord, ...]:
+    """Read displaced heads whose question no episode took over, newest first.
+
+    A displaced episode never holds the slot and never resumes. Its question
+    stays here until shared attention admits it as a new episode.
+    """
+    waiting: list[InquiryRecord] = []
+    for head in _slot_heads(view, observer_entity_id=observer_entity_id):
+        if head.receipt.state.status != "displaced":
+            continue
+        if displaced_successor(view, head.record.id) is None:
+            waiting.append(head)
+    waiting.sort(key=lambda head: head.record.id, reverse=True)
+    return tuple(waiting)
 
 
 def deliberate_inquiry(view: Snapshot, action_record_id: int) -> InquiryRecord | None:
@@ -171,6 +193,71 @@ class PrivateInquiryOwner:
                 decision=attention, grant=offered_grant)
             accepted = stage_inquiry_resume(batch, parent_receipt_id=parked.record.id, decision=decision,
                 attention=attention, grant=grant, now_utc=now_utc, limits=self.limits)
+            batch.preserve_on_recovery()
+            self.commit(batch)
+            return accepted
+
+    def displace_superseded(self, *, observer_entity_id: int, critical_epoch: int) -> tuple[InquiryRecord, ...]:
+        """Close every active or parked inquiry admitted under an older Critical epoch.
+
+        ``critical_epoch`` is the accepted epoch of the current opportunity.
+        Each closed episode gets its own commit through the host's control
+        fence, so the slot is free before this opportunity nominates or admits
+        anything. No model call happens here. The returned receipts are the
+        terminal displaced heads; their questions are offered to shared
+        attention through :func:`displaced_inquiries`.
+        """
+        displaced: list[InquiryRecord] = []
+        with self.store.lock:
+            view = self.store.snapshot(capture=False)
+            for head in _slot_heads(view, observer_entity_id=observer_entity_id):
+                state = head.receipt.state
+                if state.status not in {"active", "paused"}:
+                    continue
+                if state.grant.critical_epoch >= critical_epoch:
+                    continue
+                batch = self.store.begin_batch(f"inquiry-displace:{head.record.id}", embed=False, cancel=self.cancel)
+                closed = stage_inquiry_displacement(batch, parent_receipt_id=head.record.id,
+                    superseding_critical_epoch=critical_epoch)
+                batch.preserve_on_recovery()
+                self.commit(batch)
+                displaced.append(closed)
+        return tuple(displaced)
+
+    def displaced_grant(self, displaced: InquiryRecord, *, offered_grant: InquiryGrant) -> InquiryGrant:
+        """Capture the grant a displaced question would start its new episode under.
+
+        The current opportunity's grant supplies the observer, the reality, the
+        accepted Critical epoch, and the present source meanings. The displaced
+        receipt and the earlier nodes are added from the current view, so the
+        new episode can cite its earlier thinking as private history. No
+        fingerprint of the superseded grant is reused.
+        """
+        earlier = displaced.receipt.state
+        with self.store.lock:
+            return extend_inquiry_grant(self.store.snapshot(capture=False), offered_grant,
+                                        [displaced.record.id, *earlier.node_ids])
+
+    def admit_displaced_inquiry(self, displaced: InquiryRecord, *, attention: ThoughtAttentionDecision,
+                                nomination_ids: Sequence[int], offered_grant: InquiryGrant,
+                                grant: InquiryGrant, batch_id: str, episode_id: str, now_utc: datetime,
+                                focus: CapturedPrivateFocus) -> InquiryRecord:
+        """Commit the attention decision that admits a displaced question in one batch.
+
+        The opportunity identity and the new episode land together, exactly as
+        for a parked re-admission, so an interrupted admission can neither
+        spend the opportunity without opening the episode nor open it twice.
+        ``offered_grant`` is the grant the offered nominations were captured
+        under; ``grant`` comes from :meth:`displaced_grant`. The captured focus
+        head and its original expiry are checked under the store lock first.
+        """
+        with self.store.lock:
+            validate_private_focus(self.store.snapshot(capture=False), focus, now_utc=vclock.utcnow())
+            batch = self.store.begin_batch("attention:" + batch_id, embed=False, cancel=self.cancel)
+            stage_attention_outcome(batch, batch_id=batch_id, nomination_ids=tuple(nomination_ids),
+                decision=attention, grant=offered_grant)
+            accepted = stage_displaced_inquiry(batch, displaced_receipt_id=displaced.record.id,
+                attention=attention, grant=grant, episode_id=episode_id, now_utc=now_utc)
             batch.preserve_on_recovery()
             self.commit(batch)
             return accepted

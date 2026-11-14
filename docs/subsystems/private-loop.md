@@ -46,13 +46,14 @@ A storage bound can pause unfinished work without an integration call or finding
 ```mermaid
 flowchart TB
     T[Private timer] --> H[Freeze scoped sources and inspect control]
-    H --> A{Active inquiry?}
+    H --> D[Close work from an older Critical epoch]
+    D --> A{Active inquiry?}
     A -- no --> O{Opportunity fired?}
     O -- no --> I[Idle without model call]
     O -- yes --> N[Nomination child]
     N --> NR[Commit nomination stage receipt]
-    NR -- empty --> I
-    NR -- proposals --> S[Separate attention child]
+    NR -- nothing to offer --> I
+    NR -- proposals or retained questions --> S[Separate attention child]
     S --> SR[Commit attention decision]
     SR -- select --> X[Thought child: one admitted operation]
     SR -- defer or dismiss --> I
@@ -76,8 +77,8 @@ decision as fresh nominations, and only that decision can re-open it.
 Deliberate-action admission exists at the owner boundary through
 [`workflows.inner_thought.graph_host.PrivateInquiryOwner.accept_deliberate_entry`][], while the
 deliberate path that would call it remains designed work.
-An active inquiry from an older Critical epoch stays held for fresh admission.
-The coordinator does not replace its original epoch with a newer value.
+Work admitted under an older Critical epoch is closed before anything else happens in the opportunity.
+The coordinator never replaces an original epoch with a newer value; see [Displacement by Critical reconsideration](#displacement-by-critical-reconsideration).
 
 ### Explicit parked admission
 
@@ -102,6 +103,65 @@ Changed or expired advice leaves the opportunity unconsumed for fresh selection.
 A decision that admits nothing still leaves one durable outcome behind through [`workflows.inner_thought.graph_host.PrivateInquiryOwner.record_attention_outcome`][] and [`workflows.inner_thought.inquiry.stage_attention_outcome`][].
 Both carry the opportunity's attention batch identity, which the host reads back before spending another selection call.
 
+### Displacement by Critical reconsideration
+
+A Critical message makes the character reconsider its situation.
+An inquiry admitted before that reconsideration holds a grant from an authority the character no longer has.
+The inquiry therefore cannot continue. Its question is a different matter: the message interrupted the thinking, it did not answer the question.
+
+The loop separates the two.
+The first private opportunity after the accepted reconsideration closes every active or parked inquiry from the older epoch.
+[`workflows.inner_thought.graph_host.PrivateInquiryOwner.displace_superseded`][] commits one terminal `displaced` receipt per inquiry through [`workflows.inner_thought.inquiry.stage_inquiry_displacement`][].
+That receipt makes no model call, executes no thought, and creates no GWT turn.
+It frees the private slot at once, so the same opportunity can nominate and admit new work.
+The closed episode keeps its grant, nodes, operation count, and active duration as readable history, and it accepts no further transition.
+The displacement does not depend on the old source fingerprints: the inquiry ends whether or not its sources changed.
+
+The question returns as an offer, not as a continuation.
+[`workflows.inner_thought.graph_execution.displaced_candidate`][] reads the newest displaced question that no episode took over, and [`workflows.inner_thought.inquiry.displaced_offer`][] names it for shared attention as a [`workflows.inner_thought.schemas.DisplacedInquiryOffer`][].
+It competes in the same single attention decision as fresh nominations and parked work.
+Unlike parked work it needs no elapsed deadline and no new outside evidence, because the inquiry itself never chose to stop.
+
+Admission opens a new episode through [`workflows.inner_thought.inquiry.stage_displaced_inquiry`][] and [`workflows.inner_thought.graph_host.PrivateInquiryOwner.admit_displaced_inquiry`][].
+The new episode starts with no nodes, operation count zero, and no active duration, under a grant captured from the current view at the current epoch.
+Its origin is the displaced receipt, which [`workflows.inner_thought.schemas.InquiryOrigin`][] records as `displaced_inquiry`.
+The earlier nomination judgments do not carry over, because they were made under the superseded authority.
+
+```mermaid
+flowchart TB
+    S([Attention selects a nomination]) --> A[active]
+    A -- a step parks it --> P[paused]
+    P -- attention re-admits the same graph --> A
+    A -- newer Critical epoch --> D[displaced]
+    P -- newer Critical epoch --> D
+    D -- attention admits the question --> R[active: new episode, fresh grant]
+```
+
+`displaced` is terminal for its episode and holds no slot.
+The last edge creates a different episode; the closed one stays closed.
+
+The earlier nodes reach the new episode's thought stage as `earlier_artifacts` of [`workflows.inner_thought.graph_execution.GraphThoughtRequest`][].
+The stage instruction calls them the character's own earlier thinking, made before the reconsideration: not outside evidence, not observations, and not corroboration.
+Three guards back that wording.
+An earlier artifact is never a relation target or a compared node, because it is not a node of the new graph.
+It can be cited as internal material, and its source roots resolve through the earlier receipt chain to the same original records, so citing it adds no root.
+It can never count as newly acquired evidence.
+
+A question can be displaced more than once.
+[`workflows.inner_thought.graph_execution.earlier_artifacts`][] then follows the origin chain and supplies the nodes of every closed episode, oldest first.
+
+**Modeled capacity and its limit.**
+This models one aspect of how people handle an interrupted line of thought: the urgent event takes the mind at once, the unfinished concern stays latent, and it is picked up again later from the present situation instead of being restored unchanged.
+That reading is an analogy drawn from general accounts of interrupted goals and current concerns, not from this project's research collection, and it is not a claim about human memory mechanisms.
+The runtime contract is only what the paragraphs above state.
+In particular the loop does not model forgetting: a displaced question does not fade with time.
+
+**Why can attention not dismiss a displaced question?**
+Owner decision of 2026-11-14: for now a displaced question is not dismissed.
+A deferral or dismissal in one opportunity leaves it offered at the next qualifying opportunity, and [`workflows.inner_thought.schemas.ThoughtAttentionDecision`][] rejects any non-selecting decision that names it.
+The owner named a later memory-reconsolidation "sleep" phase as the possible place to retire such questions. That phase is proposed, not designed.
+Until then one more displaced question costs one more offer in an attention prompt that already runs; it never causes a model call by itself.
+
 ### Deliberate entry
 
 An accepted deliberate action can open the same slot without any nomination.
@@ -125,11 +185,12 @@ Interestingness, character relevance, plausibility, consequence, desirability, a
 Desire or emotional intensity can motivate exploration without increasing evidence support.
 
 The existing `trigger` child now also accepts an explicit private-attention request.
-It considers committed nominations, one offered parked question, pending input, accepted focus, active intentions, and the accepted mental aperture.
+It considers committed nominations, one offered parked question, one offered displaced question, pending input, accepted focus, active intentions, and the accepted mental aperture.
 [`workflows.inner_thought.schemas.ParkedInquiryOffer`][] carries the paused question, its stop reason, its deadline state, and the outside evidence supplied since the pause.
+[`workflows.inner_thought.schemas.DisplacedInquiryOffer`][] carries a question that Critical reconsideration interrupted, and how many operations its closed episode retains.
 [`workflows.cognitive_control.attention.validate_private_attention`][] validates that decision against the supplied identities and admission context.
 The choice selects at most one question, defers it, or dismisses it with a reason.
-A selection names exactly one admitted identity: a nomination, or a parked receipt plus the operation it admits.
+A selection names exactly one admitted identity: a nomination, a parked receipt plus the operation it admits, or a displaced receipt plus the operation its new episode starts with.
 Admitting parked work travels through that same decision, so elapsed parking alone never resumes a question.
 The nomination producer cannot select itself with a high score.
 
@@ -300,7 +361,7 @@ Three different events used to be one fence. They are now separate because they 
 | Event | Effect on private work | Why |
 | --- | --- | --- |
 | Unrelated ordinary message arrives | keeps calculating | the message has not been classified yet and may not concern the work |
-| Input is classified Critical | cancelled, and its generation never commits again | accepted reconsideration changes what the character may do |
+| Input is classified Critical | cancelled, and its generation never commits again; after main cognition accepts the reconsideration, the next opportunity closes the inquiry as `displaced` | accepted reconsideration changes what the character may do, but it does not answer the interrupted question |
 | Input is still unclassified | acceptance waits for the assessment | an unknown message could still turn out to be Critical |
 | Accepted inference wait | no continuation and no late commit | the character chose silence, not more thinking |
 | Wake or wait expiry | older private generations are refused | the quiet window ended |
@@ -365,9 +426,12 @@ An offline gap contains no invented intermediate samples.
 | Invalid citation or graph relation | reject before graph acceptance |
 | Source meaning or current parent changes | the guarded commit fails |
 | Projection fails after graph commit | preserve the graph for visible diagnosis and projection repair |
-| Active inquiry belongs to an older Critical epoch | hold it for fresh admission |
+| Active or parked inquiry belongs to an older Critical epoch | close it with a `displaced` receipt and offer its question to attention as a new episode |
+| A generative step claims discrimination progress | reject with a message that names the operation mode, separately from the two-node rule |
+| One identical rejection fills two complete repair conversations | `RepeatedRejectionError` discards the cycle with `thought.rejected` telemetry |
 | Broken manifest, catalogue, or internal contract | fail through the actual error path |
 
 The B05 engineering record distinguishes connected workflow evidence from generated-content review and sustained behavior.
-Runtime parked resumption, deliberate-entry sharing, ordinary-input continuity, and new graph felt-state emission remain incomplete.
+Deliberate-entry wiring, scoped reflection and inspection evidence, and new graph felt-state emission remain incomplete.
+Displacement has actual-store and real-control checks; no recorded scenario or live gate has driven it through a model-classified Critical message yet.
 The [output recovery guide](cognitive-output-recovery.md) explains the shared error and repair boundaries.

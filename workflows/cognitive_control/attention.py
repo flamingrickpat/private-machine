@@ -94,13 +94,15 @@ def validate_private_focus(view: Snapshot, captured: CapturedPrivateFocus, *, no
 
 def validate_private_attention(context: PrivateAttentionContext,
                                decision: ThoughtAttentionDecision) -> ThoughtAttentionDecision:
-    """Admit one supplied nomination or one offered parked inquiry, or abstain.
+    """Admit one supplied nomination, one offered parked inquiry, or one displaced question, or abstain.
 
     Nomination scores express separate judgments and confer no selection
     authority. Retained parked work competes for the same private slot and wins
-    only on this same decision; elapsed parking alone never resumes it. The host
-    supplies current shared attention guidance and keeps Critical, wait, source,
-    and private-slot guards through acceptance.
+    only on this same decision; elapsed parking alone never resumes it. A
+    question displaced by Critical reconsideration competes there too and
+    enters as a new episode. The host supplies current shared attention
+    guidance and keeps Critical, wait, source, and private-slot guards through
+    acceptance.
     """
     offered_ids = [candidate.nomination_id for candidate in context.candidates]
     if len(set(offered_ids)) != len(offered_ids):
@@ -110,12 +112,15 @@ def validate_private_attention(context: PrivateAttentionContext,
         raise ValueError("Private attention names a nomination outside the supplied batch.")
     if decision.parked_receipt_id is not None and decision.parked_receipt_id not in offered_parked:
         raise ValueError("Private attention names parked work outside the supplied offers.")
+    offered_displaced = [offer.receipt_id for offer in context.displaced]
+    if decision.displaced_receipt_id is not None and decision.displaced_receipt_id not in offered_displaced:
+        raise ValueError("Private attention names a displaced question outside the supplied offers.")
     if decision.disposition == "select":
         if context.blocked_reason:
             raise ValueError(f"Private attention cannot allocate the slot: {context.blocked_reason}")
-        # A selection must already have named one identity, and the two checks
+        # A selection must already have named one identity, and the three checks
         # above require that identity to come from what was actually offered.
-        if decision.parked_receipt_id is not None:
+        if decision.parked_receipt_id is not None or decision.displaced_receipt_id is not None:
             # Reject a name outside the delivered catalogue before the paid thought call.
             validate_operation(decision.admitted_operation)
     return decision

@@ -18,8 +18,14 @@ contracts; nominations retains generated batches; inquiry owns graph staging;
 graph_host binds durable acceptance and derived GWT repair; graph_execution
 coordinates the existing child kernels; graph_outcomes retains integration.
 Existing linear episodes finish through the explicit legacy pipeline without
-invented graph judgments or active computation time. Ordinary-input control
-fences and deliberate mental work still await their coordinated migration.
+invented graph judgments or active computation time.
+
+Ordinary input does not supersede private work. Accepted Critical
+reconsideration does: the next opportunity closes every inquiry from the older
+epoch as ``displaced`` and frees the slot. The closed question is offered to
+shared attention and can start a new episode under the current grant; inquiry
+owns that staging and graph_execution the offer. Deliberate mental work still
+awaits its wiring to this slot.
 """
 from __future__ import annotations
 

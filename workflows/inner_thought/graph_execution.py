@@ -7,6 +7,11 @@ shared attention, actual scoped recall when requested, thought, and boundary
 integration, and the parked re-admission that shares that same attention decision.
 PrivateInquiryOwner retains commit and GWT repair authority. This module does not
 convert legacy episode history.
+
+An opportunity first closes work from an older Critical epoch, so stale work
+never holds the private slot. The closed question competes in the same
+attention decision as a displaced offer. Admission opens a new episode; the
+earlier nodes reach its thought stage as earlier private artifacts only.
 """
 from __future__ import annotations
 
@@ -16,7 +21,7 @@ from dataclasses import dataclass
 from time import monotonic
 import hashlib
 
-from pydantic import BaseModel, ConfigDict, JsonValue
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 from pm import vclock
 from pm.memory.snapshot import Snapshot
@@ -26,18 +31,22 @@ from pm.records.mental_state import FullMentalState
 from pm.records.enums import FeatureType
 from pm.records.memory_records import Feature
 from workflows.cognitive_control.attention import CapturedPrivateFocus, validate_private_attention, validate_private_focus
-from workflows.inner_thought.graph_host import PrivateInquiryOwner, active_inquiry, parked_inquiries
+from workflows.inner_thought.graph_host import (
+    PrivateInquiryOwner, active_inquiry, displaced_inquiries, parked_inquiries,
+)
 from workflows.inner_thought.inquiry import (
-    InquiryAlternativeMetadata, InquiryNodeMetadata, InquiryRecord, inquiry_origin, parked_offer,
+    InquiryAlternativeMetadata, InquiryNodeMetadata, InquiryRecord, displaced_offer, inquiry_origin, parked_offer,
+    read_displaced_inquiry,
 )
 from workflows.inner_thought.nominations import NominationBatchRecord, read_nomination_batch
 from workflows.inner_thought.operations import operation_lines, validate_operation
 from workflows.inner_thought.graph_outcomes import capture_graph_outcome
 from workflows.inner_thought.pipeline import ModelProposalError, citable_ids, validate_integration
 from workflows.inner_thought.schemas import (
-    AttentionCandidate, InquiryAlternative, InquiryGrant, InquiryOrigin, InquiryResumeDecision, InquiryState,
-    InquiryStep, InnerRequest, IntegrationResult, NominationBatch, ParkedInquiryOffer, PrivateAttentionContext,
-    ThoughtAlternative, ThoughtAttentionDecision, ThoughtCandidate, ThoughtResult, TriggerChoice,
+    AttentionCandidate, DisplacedInquiryOffer, InquiryAlternative, InquiryGrant, InquiryOrigin,
+    InquiryResumeDecision, InquiryState, InquiryStep, InnerRequest, IntegrationResult, NominationBatch,
+    ParkedInquiryOffer, PrivateAttentionContext, ThoughtAlternative, ThoughtAttentionDecision, ThoughtCandidate,
+    ThoughtResult, TriggerChoice,
 )
 
 StageRunner = Callable[[str, dict[str, JsonValue]], dict[str, JsonValue]]
@@ -85,7 +94,46 @@ class GraphThoughtRequest(BaseModel):
     grant: InquiryGrant
     origin: InquiryOrigin
     nodes: tuple[InquiryNodeView, ...]
+    earlier_artifacts: tuple[InquiryNodeView, ...] = Field(default=(),
+        description="Nodes of the closed earlier episodes behind a displaced question, oldest first. "
+                    "They are private history, never graph relation targets of this episode.")
     recall: PrivateRecall | None = None
+
+
+def _node_view(view: Snapshot, node_id: int) -> InquiryNodeView:
+    """Read one accepted node with its original payload and lineage."""
+    node = view.get(node_id)
+    if not isinstance(node, Feature) or node.lineage is None:
+        raise ValueError("An accepted inquiry node requires its original lineage.")
+    if node.feature_type == FeatureType.InnerMonologue:
+        payload = InquiryNodeMetadata.model_validate(node.metadata).inquiry_step
+    elif node.feature_type == FeatureType.Thought:
+        payload = InquiryAlternativeMetadata.model_validate(node.metadata).inquiry_alternative
+    else:
+        raise ValueError("An inquiry node must be an executed operation or an independent branch.")
+    return InquiryNodeView(record_id=node_id, text=node.content,
+        operation=node.lineage.operation, reality=node.lineage.reality,
+        parent_record_ids=tuple(node.lineage.parent_record_ids),
+        source_event_ids=tuple(node.lineage.source_event_ids), payload=payload)
+
+
+def earlier_artifacts(view: Snapshot, state: InquiryState) -> tuple[InquiryNodeView, ...]:
+    """Read the nodes of every closed episode behind a displaced question, oldest first.
+
+    A question can be displaced more than once, so this follows the origin
+    chain to its first episode. An episode that began from a nomination or a
+    deliberate action has no earlier artifacts.
+    """
+    episodes_newest_first: list[InquiryState] = []
+    current = state
+    while inquiry_origin(view, current).kind == "displaced_inquiry":
+        current = read_displaced_inquiry(view, current.origin_record_id).receipt.state
+        episodes_newest_first.append(current)
+    artifacts: list[InquiryNodeView] = []
+    for earlier in reversed(episodes_newest_first):
+        for node_id in earlier.node_ids:
+            artifacts.append(_node_view(view, node_id))
+    return tuple(artifacts)
 
 
 def graph_thought_request(view: Snapshot, request: InnerRequest, parent: InquiryRecord,
@@ -93,22 +141,9 @@ def graph_thought_request(view: Snapshot, request: InnerRequest, parent: Inquiry
     """Supply actual accepted nodes; never invent IDs for new alternatives."""
     state = parent.receipt.state
     origin = inquiry_origin(view, state)
-    nodes: list[InquiryNodeView] = []
-    for node_id in state.node_ids:
-        node = view.get(node_id)
-        if not isinstance(node, Feature) or node.lineage is None:
-            raise ValueError("An accepted inquiry node requires its original lineage.")
-        if node.feature_type == FeatureType.InnerMonologue:
-            payload = InquiryNodeMetadata.model_validate(node.metadata).inquiry_step
-        elif node.feature_type == FeatureType.Thought:
-            payload = InquiryAlternativeMetadata.model_validate(node.metadata).inquiry_alternative
-        else:
-            raise ValueError("An inquiry node must be an executed operation or an independent branch.")
-        nodes.append(InquiryNodeView(record_id=node_id, text=node.content,
-            operation=node.lineage.operation, reality=node.lineage.reality,
-            parent_record_ids=tuple(node.lineage.parent_record_ids),
-            source_event_ids=tuple(node.lineage.source_event_ids), payload=payload))
-    return GraphThoughtRequest(request=request, state=state, grant=grant, origin=origin, nodes=tuple(nodes))
+    nodes = tuple(_node_view(view, node_id) for node_id in state.node_ids)
+    return GraphThoughtRequest(request=request, state=state, grant=grant, origin=origin, nodes=nodes,
+                               earlier_artifacts=earlier_artifacts(view, state))
 
 
 def graph_thought_instruction(request: GraphThoughtRequest) -> str:
@@ -143,6 +178,7 @@ def graph_thought_instruction(request: GraphThoughtRequest) -> str:
         + relation_rule + "\n"
         + f"This operation is {operation.mode}. " + branch_rule + "\n"
         + progress_rule + "\n"
+        + _earlier_artifact_rule(request)
         + "Return one InquiryStep. Execute only the admitted operation. Cite only supplied source or accepted node IDs. "
         "A later step must relate explicitly to accepted earlier nodes. New alternatives have no committed IDs yet. "
         "Keep assumptions, evidence, plausibility, interest, desirability and action suitability separate. "
@@ -157,6 +193,26 @@ def graph_thought_instruction(request: GraphThoughtRequest) -> str:
         "and remaining uncertainty. Only outcome='continue' names next_operation; all other outcomes use an empty string.\n"
         "Available operations:\n" + "\n".join(operation_lines())
     )
+
+
+def _earlier_artifact_rule(request: GraphThoughtRequest) -> str:
+    """State how a new episode may use the nodes of the episode it replaced.
+
+    Without this rule the model reads its own earlier conclusions as support
+    for the same conclusions now. The earlier thinking happened under an
+    authority that Critical reconsideration replaced, and repeating a thought
+    is never corroboration.
+    """
+    if not request.earlier_artifacts:
+        return ""
+    artifact_ids = [artifact.record_id for artifact in request.earlier_artifacts]
+    return (
+        "This inquiry restarts a question that accepted Critical reconsideration interrupted. "
+        f"earlier_artifacts {artifact_ids} are your own earlier private thinking on it, made before that "
+        "reconsideration. They are not outside evidence, not observations, and not corroboration: agreeing with "
+        "an earlier artifact adds no support. Re-examine them against what is known now. You can cite an earlier "
+        "artifact ID in evidence_ids as internal material. An earlier artifact is never a graph relation target "
+        "and never belongs in compared_node_ids.\n")
 
 
 def validate_graph_step(request: GraphThoughtRequest, step: InquiryStep) -> InquiryStep:
@@ -228,6 +284,33 @@ class OpportunityAdmission:
 
 
 @dataclass(frozen=True, slots=True)
+class DisplacedCandidate:
+    """A displaced question, the grant its new episode would start under, and its offer."""
+
+    inquiry: InquiryRecord
+    grant: InquiryGrant
+    offer: DisplacedInquiryOffer
+
+
+def displaced_candidate(owner: PrivateInquiryOwner, *, observer_entity_id: int,
+                        grant: InquiryGrant) -> DisplacedCandidate | None:
+    """Read the newest displaced question this opportunity may offer to shared attention.
+
+    One opportunity offers at most one displaced question, like parked work, so
+    the attention prompt stays bounded. An older displaced question is offered
+    once the newer one opened its episode.
+    """
+    view = owner.store.snapshot(capture=False)
+    for displaced in displaced_inquiries(view, observer_entity_id=observer_entity_id):
+        offer = displaced_offer(view, displaced)
+        if offer is None:
+            continue
+        new_grant = owner.displaced_grant(displaced, offered_grant=grant)
+        return DisplacedCandidate(displaced, new_grant, offer)
+    return None
+
+
+@dataclass(frozen=True, slots=True)
 class ParkedCandidate:
     """Retained parked work, the grant that can re-admit it, and its offer."""
 
@@ -260,20 +343,24 @@ def admit_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner, gran
                       run_stage: StageRunner, nominations: NominationBatchRecord, batch_id: str,
                       pending_input_ids: tuple[int, ...], focus: CapturedPrivateFocus,
                       mental_state: FullMentalState) -> OpportunityAdmission:
-    """Offer one nomination batch and any eligible parked work to shared attention.
+    """Offer one nomination batch and any retained work to shared attention.
 
     One model call admits at most one inquiry for the private slot. Parked work
     competes in that same decision, and only on an elapsed parked deadline or
     original outside evidence newly supplied beside its retained grant, so
-    elapsed parking alone never resumes it. Every outcome stays durable: a
-    nomination selection through ``stage_attention``, a parked re-admission
-    through its resume receipt beside the opportunity's attention outcome, and
-    any other decision through that attention outcome alone. A completed
-    opportunity is never paid for twice.
+    elapsed parking alone never resumes it. A displaced question competes there
+    too and needs no such basis. Every outcome stays durable: a nomination
+    selection through ``stage_attention``, a parked re-admission through its
+    resume receipt beside the opportunity's attention outcome, a displaced
+    question through its new entry receipt beside that outcome, and any other
+    decision through that attention outcome alone. A completed opportunity is
+    never paid for twice. A deferral or dismissal leaves a displaced question
+    offerable for a later opportunity.
     """
     from workflows.inner_thought.stages.trigger.steps import AttentionStageRequest
     candidate = parked_candidate(owner, observer_entity_id=grant.observer_entity_id, grant=grant)
-    if not nominations.nominations and candidate is None:
+    displaced = displaced_candidate(owner, observer_entity_id=grant.observer_entity_id, grant=grant)
+    if not nominations.nominations and candidate is None and displaced is None:
         return OpportunityAdmission(None, PrivateGraphResult(summary=nominations.receipt.reason,
             receipt_id=nominations.record.id))
     # A retained attention outcome is a completed selection call. A later
@@ -288,6 +375,7 @@ def admit_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner, gran
         candidates=tuple(AttentionCandidate(nomination_id=item.record.id, nomination=item.receipt.nomination,
             root_source_ids=item.receipt.root_source_ids) for item in nominations.nominations),
         parked=() if candidate is None else (candidate.offer,),
+        displaced=() if displaced is None else (displaced.offer,),
         pending_input_ids=pending_input_ids, accepted_focus=focus.focus,
         active_intention_ids=tuple(goal.knoxel_id for goal in request.active_goal_records),
         attention_summary=mental_state.state_cognition.model_dump_json())
@@ -302,6 +390,12 @@ def admit_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner, gran
             attention=decision, nomination_ids=nominations.receipt.nomination_ids, offered_grant=grant,
             grant=candidate.grant, batch_id=batch_id, now_utc=vclock.utcnow(), focus=focus)
         return OpportunityAdmission(resumed, None)
+    if decision.displaced_receipt_id is not None:
+        assert displaced is not None  # Only an offered displaced receipt can be named.
+        restarted = owner.admit_displaced_inquiry(displaced.inquiry, attention=decision,
+            nomination_ids=nominations.receipt.nomination_ids, offered_grant=grant, grant=displaced.grant,
+            batch_id=batch_id, episode_id="inquiry:" + batch_id, now_utc=vclock.utcnow(), focus=focus)
+        return OpportunityAdmission(restarted, None)
     if not nominations.nominations:
         outcome = owner.record_attention_outcome(batch_id=batch_id, nomination_ids=(), decision=decision,
             grant=grant, focus=focus)
@@ -332,13 +426,19 @@ def run_graph_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner,
     through its commit callback. Parked work re-enters only through the shared
     attention decision in :func:`admit_opportunity`; this entry never resumes it
     from elapsed parking or legacy episode metadata.
+
+    Work admitted under an older Critical epoch is closed first, durably and
+    without a model call. The slot is then free for this same opportunity, and
+    the closed question competes in its attention decision.
     """
+    owner.displace_superseded(observer_entity_id=grant.observer_entity_id, critical_epoch=grant.critical_epoch)
     view = owner.store.snapshot(capture=False)
     parent = active_inquiry(view, observer_entity_id=grant.observer_entity_id)
     if parent is not None:
         if parent.receipt.state.grant.critical_epoch != grant.critical_epoch:
-            return PrivateGraphResult(summary="This inquiry predates accepted Critical reconsideration and requires fresh admission.",
-                                      receipt_id=parent.record.id)
+            # Older work was just displaced, so this inquiry is from a newer
+            # epoch than the opportunity. The host captures both under one lock.
+            raise ValueError("An active inquiry holds a newer Critical epoch than the opportunity reading it.")
         if parent.receipt.operation_record_id is not None:
             owner.ensure_inner_turn(parent)
     if parent is None:

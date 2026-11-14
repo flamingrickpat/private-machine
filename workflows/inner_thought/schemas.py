@@ -324,12 +324,31 @@ class ParkedInquiryOffer(InquiryContract):
         return self
 
 
+class DisplacedInquiryOffer(InquiryContract):
+    """A question whose inquiry lost its authority to accepted Critical reconsideration.
+
+    The earlier episode is closed and never resumes. Admitting this offer opens
+    a new episode under the current grant. The earlier graph stays readable as
+    private history; none of its grant, nodes, or budgets carry over. The
+    question stays offered until shared attention admits it, because no
+    decision can dismiss displaced work yet.
+    """
+
+    receipt_id: int = Field(gt=0, description="Terminal displaced receipt of the earlier episode.")
+    episode_id: str = Field(min_length=1, description="Identity of the closed earlier episode.")
+    question: str = Field(min_length=1, description="The retained question read from the earlier inquiry's own origin.")
+    displaced_reason: str = Field(min_length=1, description="Why the earlier episode gave up its authority.")
+    earlier_operation_count: int = Field(ge=0, description="Executed operations the closed episode retains as private history.")
+
+
 class PrivateAttentionContext(InquiryContract):
     """The separate selection owner's current nominations and competing work."""
 
     candidates: tuple[AttentionCandidate, ...] = Field(max_length=3)
     parked: tuple[ParkedInquiryOffer, ...] = Field(default=(), max_length=1,
         description="Retained paused work competing for the same private slot; the slot admits at most one episode.")
+    displaced: tuple[DisplacedInquiryOffer, ...] = Field(default=(), max_length=1,
+        description="A question displaced by Critical reconsideration, competing for the same private slot as a new episode.")
     pending_input_ids: tuple[int, ...]
     accepted_focus: FocusState | None
     active_intention_ids: tuple[int, ...]
@@ -340,15 +359,18 @@ class PrivateAttentionContext(InquiryContract):
 class ThoughtAttentionDecision(InquiryContract):
     """The attention owner's disposition, without a conscious thought event.
 
-    One selection admits exactly one identity: a new committed nomination, or
-    one offered parked inquiry re-entering the same private slot. A parked
-    admission also names the delivered operation to execute next, because
-    parking discarded no graph but did end the previous admitted operation.
+    One selection admits exactly one identity: a new committed nomination,
+    one offered parked inquiry re-entering the same private slot, or one
+    offered displaced question entering it as a new episode. A parked or
+    displaced admission also names the delivered operation to execute next:
+    parking ended the previous admitted operation, and a displaced question
+    starts a new graph that inherits none.
     """
 
-    nomination_id: int | None = Field(default=None, description="Exact supplied nomination ID, or null when nothing is admitted or a parked inquiry is re-admitted.")
+    nomination_id: int | None = Field(default=None, description="Exact supplied nomination ID, or null when nothing is admitted or retained work is admitted.")
     parked_receipt_id: int | None = Field(default=None, description="Exact offered parked-inquiry receipt re-entering the private slot.")
-    admitted_operation: str = Field(default="", description="Delivered operation admitted for the re-admitted parked inquiry.")
+    displaced_receipt_id: int | None = Field(default=None, description="Exact offered displaced-inquiry receipt whose question enters the private slot as a new episode.")
+    admitted_operation: str = Field(default="", description="Delivered operation admitted for the parked inquiry or the displaced question.")
     disposition: Literal["select", "defer", "dismiss"]
     reason: str = Field(min_length=1)
 
@@ -358,18 +380,26 @@ class ThoughtAttentionDecision(InquiryContract):
         if self.disposition != "select":
             # A deferral or dismissal may still name the nomination it refused,
             # because that naming is what keeps the rejected question from being
-            # offered again. Parked work has no such refusal record.
+            # offered again. Parked and displaced work have no such refusal
+            # record, so neither can be dismissed by naming it.
             if self.parked_receipt_id is not None:
                 raise ValueError("Only a selection can re-admit a parked inquiry.")
+            if self.displaced_receipt_id is not None:
+                raise ValueError("Only a selection can admit a displaced question; it cannot be dismissed.")
             if self.admitted_operation:
-                raise ValueError("Only an admitted parked inquiry can name an operation.")
+                raise ValueError("Only admitted parked or displaced work can name an operation.")
             return self
-        if (self.nomination_id is None) == (self.parked_receipt_id is None):
-            raise ValueError("Selecting work admits exactly one nomination or exactly one parked inquiry.")
-        if self.parked_receipt_id is not None and not self.admitted_operation.strip():
-            raise ValueError("Re-admitting a parked inquiry names the delivered operation to execute next.")
-        if self.parked_receipt_id is None and self.admitted_operation:
-            raise ValueError("A new nomination carries its own suggested operation.")
+        admitted_identities = [identity for identity in
+                               (self.nomination_id, self.parked_receipt_id, self.displaced_receipt_id)
+                               if identity is not None]
+        if len(admitted_identities) != 1:
+            raise ValueError("Selecting work admits exactly one nomination, one parked inquiry, or one displaced question.")
+        if self.nomination_id is not None:
+            if self.admitted_operation:
+                raise ValueError("A new nomination carries its own suggested operation.")
+            return self
+        if not self.admitted_operation.strip():
+            raise ValueError("Admitting parked or displaced work names the delivered operation to execute next.")
         return self
 
 
@@ -442,7 +472,7 @@ class InquiryState(InquiryContract):
     """Durable graph state after selection or an accepted operation."""
 
     episode_id: str = Field(min_length=1)
-    origin_record_id: int = Field(gt=0, description="Selected nomination or accepted deliberate action identity.")
+    origin_record_id: int = Field(gt=0, description="Selected nomination, accepted deliberate action, or displaced receipt of the earlier episode this question came from.")
     grant: InquiryGrant
     node_ids: tuple[int, ...] = Field(description="Executed operation and branch IDs in causal creation order.")
     frontier_ids: tuple[int, ...] = Field(description="Retained unresolved branches and the latest executed node.")
@@ -450,7 +480,9 @@ class InquiryState(InquiryContract):
     root_source_ids: tuple[int, ...]
     inspected_root_ids: tuple[int, ...] = Field(description="Original sources already inspected during this inquiry.")
     sequence: int = Field(ge=0, description="Count of accepted executed operations; selection starts at zero.")
-    status: Literal["active", "paused", "completed", "abandoned"]
+    status: Literal["active", "paused", "completed", "abandoned", "displaced"] = Field(
+        description="'active' holds the private slot. 'paused' is parked and can resume the same graph. "
+                    "'displaced' is closed by Critical reconsideration; its question can open a new episode.")
     stop_reason: str
     started_at_utc: datetime
     active_elapsed_seconds: float = Field(ge=0, allow_inf_nan=False, description="Accumulated monotonic computation duration at accepted boundaries; offline time is excluded.")
@@ -485,15 +517,21 @@ class DeliberateAdmission(InquiryContract):
 
 
 class InquiryOrigin(InquiryContract):
-    """The question a private inquiry works on, from either admission route."""
+    """The question a private inquiry works on, from any of its admission routes."""
 
-    record_id: int = Field(gt=0, description="Nomination record or accepted deliberate action record.")
-    kind: Literal["nomination", "deliberate_action"]
+    record_id: int = Field(gt=0, description="Nomination record, accepted deliberate action record, or displaced receipt of the earlier episode.")
+    kind: Literal["nomination", "deliberate_action", "displaced_inquiry"]
     text: str = Field(min_length=1, description="Proposed idea or accepted instruction as its owner stated it.")
     question: str = Field(min_length=1, description="The unresolved question this inquiry examines.")
     evidence_ids: tuple[int, ...] = Field(description="Original sources named by the origin itself.")
-    judgments: ThoughtJudgments | None = Field(description="Private proposal judgments; a deliberate action carries none.")
-    suggested_operation: str = Field(description="Operation its owner suggested; empty for a deliberate action.")
+    judgments: ThoughtJudgments | None = Field(description="Private proposal judgments; a deliberate action and a displaced question carry none.")
+    suggested_operation: str = Field(description="Operation its owner suggested; empty for a deliberate action and a displaced question.")
+
+
+class InquiryDisplacement(InquiryContract):
+    """Why an inquiry closed without an executed thought: its authority was superseded."""
+
+    superseding_critical_epoch: int = Field(ge=0, description="Accepted Critical epoch that replaced the epoch this inquiry was admitted under.")
 
 
 class InquiryResumeDecision(InquiryContract):
@@ -515,6 +553,7 @@ class InquiryReceipt(InquiryContract):
     alternative_record_ids: tuple[int, ...]
     resume: InquiryResumeDecision | None = Field(default=None, description="Explicit parked admission; it creates no executed node or progress.")
     deliberate: DeliberateAdmission | None = Field(default=None, description="Accepted deliberate action that opened this episode; null for a nomination origin.")
+    displacement: InquiryDisplacement | None = Field(default=None, description="Critical reconsideration that closed this episode; it creates no executed node or progress.")
 
 
 class LegacyEpisodeState(InquiryContract):
@@ -588,7 +627,8 @@ __all__ = [
     "ThoughtResult",
     "TriggerCandidate",
     "TriggerChoice",
-    "AttentionCandidate", "DeliberateAdmission", "InquiryAlternative", "InquiryGrant", "InquiryOrigin",
+    "AttentionCandidate", "DeliberateAdmission", "DisplacedInquiryOffer", "InquiryAlternative",
+    "InquiryDisplacement", "InquiryGrant", "InquiryOrigin",
     "InquiryProgress", "InquiryReceipt", "InquiryResumeDecision", "InquiryState", "InquiryStep",
     "NominationReceipt", "ParkedInquiryOffer", "PrivateAttentionContext", "ThoughtAttentionDecision",
     "ThoughtJudgments", "ThoughtNomination", "ThoughtRelation", "ThoughtAttentionReceipt",

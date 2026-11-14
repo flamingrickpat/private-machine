@@ -13,6 +13,13 @@ parent guards reject competing continuations. Captured source fingerprints
 guard meaning without a global ordinary-input veto. Original sources remain
 distinct from internal derivations. No graph node grants external action,
 entity-update, or affect authority.
+
+Accepted Critical reconsideration ends an inquiry's authority, not its
+question. :func:`stage_inquiry_displacement` closes the episode with a terminal
+``displaced`` receipt that frees the private slot. :func:`displaced_offer`
+names the retained question for shared attention, and
+:func:`stage_displaced_inquiry` opens a new episode for it under the current
+grant. The earlier grant, nodes, and budgets never carry over.
 """
 from __future__ import annotations
 
@@ -33,9 +40,9 @@ from workflows.cognitive_control.schemas import ControlConfig
 from workflows.inner_thought.nominations import expect_inquiry_grant, read_nomination, source_roots
 from workflows.inner_thought.operations import validate_operation
 from workflows.inner_thought.schemas import (
-    DeliberateAdmission, InquiryAlternative, InquiryGrant, InquiryOrigin, InquiryReceipt, InquiryResumeDecision,
-    InquiryState, InquiryStep, LegacyEpisodeState, ParkedInquiryOffer, ThoughtAttentionDecision,
-    ThoughtAttentionReceipt,
+    DeliberateAdmission, DisplacedInquiryOffer, InquiryAlternative, InquiryDisplacement, InquiryGrant, InquiryOrigin,
+    InquiryReceipt, InquiryResumeDecision, InquiryState, InquiryStep, LegacyEpisodeState, ParkedInquiryOffer,
+    ThoughtAttentionDecision, ThoughtAttentionReceipt,
 )
 from workflows.main_cognition.schemas import ActionMetadata
 
@@ -45,6 +52,9 @@ INQUIRY_RECEIPT_KEY = "inquiry_receipt"
 PRIVATE_SLOT_KEY = "private_inquiry_slot"
 ATTENTION_BATCH_KEY = "thought_attention_batch"
 DELIBERATE_ACTION_KEY = "deliberate_inquiry_action"
+#: On the entry receipt of a new episode: the displaced receipt its question came from.
+DISPLACED_ORIGIN_KEY = "displaced_inquiry_origin"
+DISPLACED_REASON = "Accepted Critical reconsideration superseded the authority this inquiry was admitted under."
 
 
 class InquiryMetadata(BaseModel):
@@ -212,6 +222,11 @@ def inquiry_history(view: Snapshot, episode_id: str) -> tuple[InquiryRecord, ...
                     or state.grant.observer_entity_id != prior.grant.observer_entity_id
                     or state.grant.critical_epoch != prior.grant.critical_epoch):
                 raise ValueError("An inquiry transition contradicts its retained operation or origin.")
+            if prior.status == "displaced":
+                raise ValueError("A displaced inquiry accepts no further transition.")
+            if receipt.displacement is not None:
+                _validate_displacement_transition(prior, receipt)
+                continue
             if receipt.resume is not None:
                 _validate_resume_transition(prior, receipt)
                 continue
@@ -272,11 +287,14 @@ def outside_source(view: Snapshot, record_id: int, *, grant: InquiryGrant) -> bo
 
 
 def inquiry_origin(view: Snapshot, state: InquiryState) -> InquiryOrigin:
-    """Read the question an inquiry works on from either admission route.
+    """Read the question an inquiry works on from any of its admission routes.
 
     A spontaneous episode works on a private proposal with its own judgments. A
     deliberate episode works on main cognition's accepted instruction, which the
     proposal stage never scored, so its judgments stay null rather than invented.
+    An episode opened for a displaced question works on the earlier episode's
+    question. The earlier judgments were made under the superseded authority,
+    so they stay null too.
     """
     entry = inquiry_history(view, state.episode_id)[0].receipt
     if entry.deliberate is not None:
@@ -285,6 +303,12 @@ def inquiry_origin(view: Snapshot, state: InquiryState) -> InquiryOrigin:
             raise ValueError("A deliberate inquiry contradicts its accepted action identity.")
         return InquiryOrigin(record_id=admission.action_record_id, kind="deliberate_action",
             text=admission.instruction, question=admission.instruction, evidence_ids=admission.evidence_ids,
+            judgments=None, suggested_operation="")
+    if entry.attention is not None and entry.attention.displaced_receipt_id is not None:
+        earlier = read_displaced_inquiry(view, state.origin_record_id)
+        earlier_origin = inquiry_origin(view, earlier.receipt.state)
+        return InquiryOrigin(record_id=state.origin_record_id, kind="displaced_inquiry",
+            text=earlier_origin.text, question=earlier_origin.question, evidence_ids=earlier_origin.evidence_ids,
             judgments=None, suggested_operation="")
     nomination = read_nomination(view, state.origin_record_id).receipt.nomination
     return InquiryOrigin(record_id=state.origin_record_id, kind="nomination", text=nomination.text,
@@ -302,7 +326,8 @@ def parked_offer(view: Snapshot, parked: InquiryRecord, *, grant: InquiryGrant, 
     step or active-computation bound stays unofferable, because admission cannot
     reset either bound. A different Critical epoch means required
     reconsideration already supersedes the retained graph, so nothing is offered
-    until displacement decides its fate.
+    here. :func:`stage_inquiry_displacement` closes such work, and its question
+    returns through :func:`displaced_offer` instead.
     """
     if now_utc.tzinfo is not None:
         raise ValueError("Internal inquiry timestamps require naive UTC.")
@@ -329,19 +354,85 @@ def parked_offer(view: Snapshot, parked: InquiryRecord, *, grant: InquiryGrant, 
         available_evidence_ids=fresh_evidence)
 
 
+def read_displaced_inquiry(view: Snapshot, receipt_id: int) -> InquiryRecord:
+    """Read the terminal displaced receipt of a closed episode.
+
+    The identity must be the current head of its episode. An earlier receipt of
+    that episode, or a head in any other status, is not a displaced question.
+    """
+    record = view.get(receipt_id)
+    episode_id = InquiryMetadata.model_validate(record.metadata).inquiry_episode
+    head = inquiry_history(view, episode_id)[-1]
+    if head.record.id != receipt_id or head.receipt.state.status != "displaced" or head.receipt.displacement is None:
+        raise ValueError("A displaced question requires the terminal displaced receipt of its earlier episode.")
+    return head
+
+
+def displaced_successor(view: Snapshot, displaced_receipt_id: int) -> str | None:
+    """Return the episode that already took over a displaced question, or None."""
+    episode_ids = {InquiryMetadata.model_validate(record.metadata).inquiry_episode
+                   for record in view.all_knoxels.values()
+                   if record.metadata.get(DISPLACED_ORIGIN_KEY) == str(displaced_receipt_id)}
+    if len(episode_ids) > 1:
+        raise ValueError("One displaced question cannot open multiple episodes.")
+    return next(iter(episode_ids)) if episode_ids else None
+
+
+def displaced_offer(view: Snapshot, displaced: InquiryRecord) -> DisplacedInquiryOffer | None:
+    """Name a displaced question that shared attention can admit now, or None.
+
+    A displaced question needs no deadline and no new evidence: Critical
+    reconsideration interrupted it, the inquiry itself did not stop. It stays
+    offered at every qualifying opportunity until an episode takes it over.
+    No decision dismisses it. An offer grants nothing; admission opens a new
+    episode through :func:`stage_displaced_inquiry`.
+    """
+    state = displaced.receipt.state
+    if state.status != "displaced":
+        raise ValueError("Only a displaced inquiry can be offered as a displaced question.")
+    if displaced_successor(view, displaced.record.id) is not None:
+        return None
+    return DisplacedInquiryOffer(receipt_id=displaced.record.id, episode_id=state.episode_id,
+        question=inquiry_origin(view, state).question, displaced_reason=state.stop_reason,
+        earlier_operation_count=state.sequence)
+
+
 def _validate_entry_transition(state: InquiryState, receipt: InquiryReceipt) -> None:
-    """Accept one entry identity: a selected nomination or an accepted action."""
+    """Accept one entry identity: a nomination, an accepted action, or a displaced question."""
     if (receipt.step is not None or receipt.operation_record_id is not None or receipt.alternative_record_ids
-            or receipt.resume is not None or state.sequence != 0 or state.node_ids):
+            or receipt.resume is not None or receipt.displacement is not None
+            or state.sequence != 0 or state.node_ids):
         raise ValueError("An inquiry entry cannot claim an executed operation.")
     if receipt.deliberate is not None:
         if receipt.attention is not None or receipt.deliberate.action_record_id != state.origin_record_id:
             raise ValueError("A deliberate inquiry entry cannot also claim a selection decision.")
         return
-    if (receipt.attention is None or receipt.attention.disposition != "select"
-            or receipt.attention.nomination_id != state.origin_record_id
-            or receipt.attention.parked_receipt_id is not None):
+    attention = receipt.attention
+    if attention is None or attention.disposition != "select" or attention.parked_receipt_id is not None:
         raise ValueError("Inquiry selection requires its committed nomination identity.")
+    if attention.displaced_receipt_id is not None:
+        if (attention.displaced_receipt_id != state.origin_record_id
+                or attention.admitted_operation != state.next_operation):
+            raise ValueError("A displaced question entry requires its exact attention admission.")
+        return
+    if attention.nomination_id != state.origin_record_id:
+        raise ValueError("Inquiry selection requires its committed nomination identity.")
+
+
+def _validate_displacement_transition(prior: InquiryState, receipt: InquiryReceipt) -> None:
+    """Validate a closing displacement: no thought, no progress, no changed graph."""
+    displacement = receipt.displacement
+    assert displacement is not None
+    if (prior.status not in {"active", "paused"} or receipt.step is not None
+            or receipt.operation_record_id is not None or receipt.alternative_record_ids
+            or receipt.attention is not None or receipt.resume is not None or receipt.deliberate is not None):
+        raise ValueError("A displacement closes active or parked work without an executed operation or admission.")
+    if displacement.superseding_critical_epoch <= prior.grant.critical_epoch:
+        raise ValueError("Only a newer accepted Critical epoch can displace an inquiry.")
+    expected = prior.model_copy(update={"status": "displaced", "stop_reason": DISPLACED_REASON,
+        "next_operation": "", "resume_after_utc": None, "resume_source_ids": ()})
+    if receipt.state != expected:
+        raise ValueError("A displaced inquiry must retain its original grant, graph, operation count, and active duration.")
 
 
 def _retains_original_grant(prior: InquiryGrant, grant: InquiryGrant) -> None:
@@ -420,6 +511,8 @@ def stage_attention(batch: WriteBatch, nomination_ids: Sequence[int], decision: 
         raise ValueError("Private attention requires one to three unique offered nomination IDs.")
     if decision.parked_receipt_id is not None:
         raise ValueError("Parked re-admission uses the explicit inquiry resume boundary, not a nomination batch.")
+    if decision.displaced_receipt_id is not None:
+        raise ValueError("A displaced question enters through stage_displaced_inquiry, not a nomination batch.")
     if now_utc.tzinfo is not None:
         raise ValueError("Internal inquiry timestamps require naive UTC.")
     view = batch.view()
@@ -507,8 +600,9 @@ def stage_attention_outcome(batch: WriteBatch, *, batch_id: str, nomination_ids:
     An opportunity may offer only retained parked work. Deferral or dismissal
     then touches no slot, but it still needs the durable opportunity identity, so
     a later tick cannot pay for the same selection call again. A parked
-    re-admission records its decision here too, because the slot change itself is
-    committed through the separate resume boundary. A nomination selection uses
+    re-admission and a displaced-question admission record their decision here
+    too, because the slot change itself is committed through its own boundary.
+    A nomination selection uses
     :func:`stage_attention`, which allocates the episode in the same commit.
     """
     if decision.nomination_id is not None:
@@ -517,6 +611,8 @@ def stage_attention_outcome(batch: WriteBatch, *, batch_id: str, nomination_ids:
         raise ValueError("An attention outcome retains at most three unique offered nomination IDs.")
     if decision.parked_receipt_id is not None and decision.disposition != "select":
         raise ValueError("Only a selection can name parked work.")
+    if decision.displaced_receipt_id is not None and decision.disposition != "select":
+        raise ValueError("Only a selection can name a displaced question.")
     view = batch.view()
     if any(record.metadata.get(ATTENTION_BATCH_KEY) == batch_id for record in view.all_knoxels.values()):
         raise ValueError("One attention opportunity must have exactly one retained outcome.")
@@ -589,6 +685,100 @@ def stage_inquiry_resume(batch: WriteBatch, *, parent_receipt_id: int, decision:
         "next_operation": decision.operation, "resume_after_utc": None, "resume_source_ids": ()})
     return _stage_receipt(batch, InquiryReceipt(parent_receipt_id=parent_receipt_id, state=state,
         attention=attention, step=None, operation_record_id=None, alternative_record_ids=(), resume=decision))
+
+
+def stage_inquiry_displacement(batch: WriteBatch, *, parent_receipt_id: int,
+                               superseding_critical_epoch: int) -> InquiryRecord:
+    """Close active or parked work whose Critical epoch a newer accepted epoch replaced.
+
+    The receipt is terminal for this episode and frees the private slot at
+    once. It executes no thought, creates no GWT turn, and keeps the original
+    grant, graph, operation count, and active duration as readable history.
+    The original source fingerprints are deliberately not staged as
+    dependencies: the inquiry ends whether or not its sources changed. The
+    caller owns the control commit under the current authority.
+    """
+    view = batch.view()
+    parent = InquiryMetadata.model_validate(view.get(parent_receipt_id).metadata).inquiry_receipt
+    prior = parent.state
+    history = inquiry_history(view, prior.episode_id)
+    if history[-1].record.id != parent_receipt_id:
+        raise GhostConflict("An inquiry displacement requires its exact current receipt parent.")
+    if prior.status not in {"active", "paused"}:
+        raise ValueError("Only active or parked work can be displaced.")
+    if superseding_critical_epoch <= prior.grant.critical_epoch:
+        raise ValueError("Only a newer accepted Critical epoch can displace an inquiry.")
+    _guard_family(batch, INQUIRY_EPISODE_KEY, prior.episode_id)
+    _guard_family(batch, PRIVATE_SLOT_KEY, _slot(prior.grant))
+    batch.expect_revision(parent_receipt_id, view.revisions[parent_receipt_id])
+    batch.depend_on([parent_receipt_id])
+    state = prior.model_copy(update={"status": "displaced", "stop_reason": DISPLACED_REASON,
+        "next_operation": "", "resume_after_utc": None, "resume_source_ids": ()})
+    return _stage_receipt(batch, InquiryReceipt(parent_receipt_id=parent_receipt_id, state=state, attention=None,
+        step=None, operation_record_id=None, alternative_record_ids=(),
+        displacement=InquiryDisplacement(superseding_critical_epoch=superseding_critical_epoch)))
+
+
+def stage_displaced_inquiry(batch: WriteBatch, *, displaced_receipt_id: int,
+                            attention: ThoughtAttentionDecision, grant: InquiryGrant, episode_id: str,
+                            now_utc: datetime) -> InquiryRecord:
+    """Open a new episode for a displaced question under the current grant.
+
+    Shared attention owns the choice: ``attention`` must be the decision that
+    admits this exact displaced receipt. ``grant`` is captured from the current
+    view under the current Critical epoch, and it must contain the displaced
+    receipt so the earlier episode stays citable as private history. The new
+    episode starts with no nodes, operation count zero, and no active duration.
+    The earlier grant and budgets are not inherited. The source roots resolve
+    through the earlier receipt chain to the same original records, so the
+    earlier thoughts add no corroboration. The caller owns Critical and wait
+    validation, and commit.
+    """
+    if now_utc.tzinfo is not None:
+        raise ValueError("Internal inquiry timestamps require naive UTC.")
+    if (attention.disposition != "select" or attention.displaced_receipt_id != displaced_receipt_id
+            or attention.nomination_id is not None or attention.parked_receipt_id is not None):
+        raise ValueError("A displaced question requires the attention decision admitting this exact receipt.")
+    validate_operation(attention.admitted_operation)
+    view = batch.view()
+    displaced = read_displaced_inquiry(view, displaced_receipt_id)
+    earlier = displaced.receipt.state
+    displacement = displaced.receipt.displacement
+    assert displacement is not None  # read_displaced_inquiry requires it.
+    if displaced_successor(view, displaced_receipt_id) is not None:
+        raise GhostConflict("This displaced question already opened a new episode.")
+    if grant.observer_entity_id != earlier.grant.observer_entity_id or grant.scope != earlier.grant.scope:
+        raise ValueError("A displaced question cannot change its observer or reality.")
+    if grant.critical_epoch < displacement.superseding_critical_epoch:
+        raise ValueError("A displaced question requires a grant from the superseding Critical epoch or a later one.")
+    permitted = frozenset(source.record_id for source in grant.sources)
+    if displaced_receipt_id not in permitted:
+        raise ValueError("The new grant must retain the displaced receipt its question came from.")
+    if not episode_id.strip():
+        raise ValueError("A displaced question requires a new episode identity.")
+    if inquiry_history(view, episode_id):
+        raise ValueError("A new inquiry cannot reuse an existing episode identity.")
+    expect_inquiry_grant(batch, grant)
+    roots = source_roots(view, [displaced_receipt_id], scope=grant.scope, permitted_ids=permitted)
+    _guard_family(batch, INQUIRY_EPISODE_KEY, episode_id)
+    _guard_family(batch, PRIVATE_SLOT_KEY, _slot(grant))
+    _guard_family(batch, DISPLACED_ORIGIN_KEY, str(displaced_receipt_id))
+    episode_ids = {InquiryMetadata.model_validate(record.metadata).inquiry_episode
+                   for record in view.all_knoxels.values()
+                   if record.metadata.get(PRIVATE_SLOT_KEY) == _slot(grant)}
+    for existing_id in episode_ids:
+        if inquiry_history(view, existing_id)[-1].receipt.state.status == "active":
+            raise GhostConflict("The private inquiry slot already holds an active episode.")
+    batch.expect_revision(displaced_receipt_id, view.revisions[displaced_receipt_id])
+    batch.depend_on([displaced_receipt_id])
+    state = InquiryState(episode_id=episode_id, origin_record_id=displaced_receipt_id, grant=grant, node_ids=(),
+        frontier_ids=(), pending_generation_ids=(), root_source_ids=roots, inspected_root_ids=roots,
+        sequence=0, status="active", stop_reason="", started_at_utc=now_utc, active_elapsed_seconds=0,
+        stalled_steps=0, next_operation=attention.admitted_operation, resume_after_utc=None, resume_source_ids=())
+    return _stage_receipt(batch,
+        InquiryReceipt(parent_receipt_id=None, state=state, attention=attention, step=None,
+            operation_record_id=None, alternative_record_ids=()),
+        extra_metadata={DISPLACED_ORIGIN_KEY: str(displaced_receipt_id)})
 
 
 def stage_deliberate_inquiry(batch: WriteBatch, *, admission: DeliberateAdmission,

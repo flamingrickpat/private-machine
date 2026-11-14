@@ -68,16 +68,30 @@ attention_system_prompt: |
   available_evidence_ids. Re-admit one offered parked question by setting
   parked_receipt_id and naming its admitted_operation from the delivered list;
   leave nomination_id null. Waiting alone is not new information, so do not
-  re-admit a question just because time passed. One decision admits at most one
-  identity: one new nomination or one parked question.
+  re-admit a question just because time passed.
+
+  The shared context may also offer a displaced question: a question you were
+  working on when something critical interrupted you and you had to reconsider
+  your situation. That earlier inquiry is closed. Admit the question by setting
+  displaced_receipt_id and naming its admitted_operation from the delivered
+  list; leave nomination_id and parked_receipt_id null. It then starts again
+  from the beginning in the present situation. Your earlier thinking on it is
+  kept as private history, not as evidence. Judge whether the question still
+  matters now, against the nominations and the other concerns. You cannot
+  dismiss a displaced question: when you do not admit it, it stays for a later
+  decision.
+
+  One decision admits at most one identity: one new nomination, one parked
+  question, or one displaced question.
 attention_user_template: |
   Frozen companion context:
   {request}
 
-  Shared attention context, committed nominations, and offered parked work:
+  Shared attention context, committed nominations, offered parked work, and
+  offered displaced questions:
   {attention}
 
-  Delivered operations a re-admitted parked question can perform:
+  Delivered operations an admitted parked or displaced question can perform:
   {operations}
 
   Return an object conforming to this schema:
