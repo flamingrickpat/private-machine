@@ -126,6 +126,7 @@ It adds no second trace store.
 
 - committed GWT turns: claimed stimuli, shard changes, codelet runs, the experience, and the decision record;
 - committed private thoughts;
+- executed operations of the private inquiry graph, with kind `inquiry_operation`;
 - action schemas;
 - managed-run receipts.
 
@@ -135,6 +136,18 @@ The outcome is `committed`, `idle`, `rejected`, `cancelled`, `failed`, or
 `unresolved`.
 An incomplete episode stays queryable.
 A cancelled cycle and a rejected proposal are episodes, not missing rows.
+
+The private loop has two shapes, and both are episodes.
+The linear monologue records `loop: "inner"`.
+The live inquiry graph records `loop: "inquiry"`, and each accepted step becomes
+one `inquiry_operation` episode built by
+[`pm.introspection.episodes.EpisodeIndex`][].
+That step's own evidence, its result, the alternatives it settled, and the
+earlier node it answered all come from the committed record and its lineage.
+[`workflows.inner_thought.graph_host.PrivateInquiryOwner.accept_step`][] writes the
+operation and the inner workspace turn that holds it, so a step shows as two rows:
+the turn reports what the private mind was holding, and the decision row cites why.
+An inquiry outcome outside the recorded mapping raises instead of being guessed.
 
 Causal links are explicit.
 The `links` field maps `cause`, `evidence`, `output`, `proposal`, and

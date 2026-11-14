@@ -7,6 +7,17 @@ A main turn (``pm.gwt-turn.v2``) names its claimed stimuli, its shard
 changes, its subjective experience, and its decision record. The view adds the causal fields the records carry, and it
 refuses to infer an execution fact from timestamp order.
 
+A private loop contributes episodes in both of its shapes: a linear inner
+monologue (``loop: "inner"``) and an executed operation of the inquiry graph
+(``loop: "inquiry"``, kind ``inquiry_operation``). The graph is the live private
+path, so a mind that thinks in the graph is only inspectable, and only able to
+notice its own recent thinking, when its operations are episode rows too. The
+private workspace turn of that step stays its own row. That turn leaves
+``decision_id`` empty, and the field names a main-cycle ``StateUpdate`` rather
+than a private decision, so the two rows cannot be merged without inventing a
+causal fact: a turn row reports the frame the mind held, while the decision row
+carries the evidence, the outcome, and the earlier nodes it answered.
+
 An episode stays queryable when it is incomplete. A cancelled cycle, a
 rejected proposal, or an unresolved expectation is a first-class episode with
 an explicit outcome, not a missing row. A missing trace produces an explicit
@@ -23,7 +34,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import hashlib
-from typing import Literal, TypeAlias, TypedDict
+from typing import Literal, TypeAlias, TypedDict, cast
 
 from pm.memory.references import referenced_ids
 from pm.memory.snapshot import Snapshot
@@ -99,6 +110,52 @@ class AlternativeRow(TypedDict):
     disposition: str
 
 
+class InquiryProgressRow(TypedDict, total=False):
+    """One inquiry step's claimed progress, as the operation record keeps it.
+
+    ``workflows.inner_thought.schemas.InquiryProgress`` writes these fields. The
+    graph boundary has already rejected an unsupported progress claim, so the
+    index reports what was accepted rather than re-judging it.
+    """
+
+    kind: str
+    reason: str
+    meaningful_difference: bool
+
+
+class InquiryRelationRow(TypedDict, total=False):
+    """One explicit relation to an earlier graph node, with its stated reason."""
+
+    target_record_id: int
+    kind: str
+    reason: str
+
+
+class InquiryAlternativeRow(TypedDict, total=False):
+    """One branch an inquiry step generated, as its operation record keeps it."""
+
+    text: str
+    disposition: str
+
+
+class InquiryStepEnvelope(TypedDict, total=False):
+    """Read-side shape of the ``inquiry_step`` payload on an accepted operation.
+
+    ``workflows.inner_thought.schemas.InquiryStep`` writes the complete payload.
+    ``pm`` must not import ``workflows``, so this names only the fields the
+    episode index reads from that persisted JSON. The evidence, the earlier
+    nodes, the operation, and the reality label come from the record's typed
+    :class:`~pm.records.base.RecordLineage` instead.
+    """
+
+    outcome: str
+    reason: str
+    information_gap: str
+    progress: InquiryProgressRow
+    relations: list[InquiryRelationRow]
+    alternatives: list[InquiryAlternativeRow]
+
+
 class BeliefEvidenceRow(TypedDict):
     """One belief record with its supporting and opposing evidence ids."""
 
@@ -127,11 +184,23 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-#: Record kinds that carry a decision and therefore anchor an episode.
-_ANCHOR_OPERATIONS = {
-    "main_cognition": "cognition_cycle",
-    "inner_thought": "private_cycle",
+#: How one inquiry operation's stated outcome reads as an episode outcome. A step
+#: that continues leaves its question open, so the episode is unresolved; work an
+#: inquiry gave up on is a rejected episode; every other terminal outcome states a
+#: result. The operation's own word stays in ``metadata["inquiry_outcome"]``.
+_INQUIRY_OUTCOMES = {
+    "continue": "unresolved",
+    "finding": "committed",
+    "completed": "committed",
+    "information_gap": "unresolved",
+    "wait": "unresolved",
+    "pause": "unresolved",
+    "abandoned": "rejected",
 }
+
+#: Kinds anchored to a record rather than to a workspace turn. A record id and a
+#: tick id can share a number, so :meth:`EpisodeIndex.by_id` tries these first.
+_RECORD_ANCHOR_KINDS = ("thought", "inquiry_operation", "action", "run_receipt")
 
 
 @dataclass(frozen=True)
@@ -156,7 +225,7 @@ class Episode:
     inputs: tuple[int, ...] = ()
     outputs: tuple[int, ...] = ()
     links: dict[str, tuple[int, ...]] = field(default_factory=dict)
-    metadata: dict = field(default_factory=dict)
+    metadata: dict[str, object] = field(default_factory=dict)
 
     def record_ids(self) -> set[int]:
         """Return every record this episode names as input, output, or link."""
@@ -217,12 +286,18 @@ class EpisodeIndex:
         episodes: list[Episode] = []
         for tick, turn in store.gwt_turns.items():
             episodes.append(self._from_turn(tick, turn))
+        inquiry_branches = _inquiry_branch_ids(store)
         for record in store.all_knoxels.values():
-            # Only a Feature carries a feature type, and only the private loop
-            # writes inner monologue records.
+            # Only a Feature carries a feature type, and only the private loops
+            # write inner monologue records. The private mind has two shapes: the
+            # retained linear monologue and an executed inquiry operation.
             if isinstance(record, Feature) and record.feature_type is FeatureType.InnerMonologue:
-                if record.metadata.get("loop") == "inner":
+                loop = str(record.metadata.get("loop", ""))
+                if loop == "inner":
                     episodes.append(self._from_thought(record))
+                elif loop == "inquiry":
+                    branches = inquiry_branches.get(int(record.id), ())
+                    episodes.append(self._from_inquiry_operation(record, branches))
         for record in store.all_knoxels.values():
             if isinstance(record, ActionSchemaRecord):
                 episodes.append(self._from_action(record))
@@ -285,6 +360,60 @@ class EpisodeIndex:
             inputs=evidence, outputs=(int(record.id),), links=links,
             metadata={"trigger": metadata.get("trigger", ""), "reality": metadata.get("reality", ""),
                       "alternatives": alternatives, "uncertainty": metadata.get("uncertainty")},
+        )
+
+    def _from_inquiry_operation(self, record: Feature, branch_ids: tuple[int, ...]) -> Episode:
+        """Return the episode of one executed operation of the inquiry graph.
+
+        The operation's lineage names its cited evidence, its earlier graph nodes,
+        the operation, and its reality label, so those come from typed fields.
+        The step's own judgement fields stay as persisted JSON under
+        ``inquiry_step`` and are read through :class:`InquiryStepEnvelope`. A
+        record with no lineage, or an outcome the index cannot map, is a broken
+        contract rather than an episode with guessed fields.
+
+        ``branch_ids`` are the competing branch records this operation created,
+        found through their lineage. They are the operation's proposals, so they
+        are both outputs and ``proposal`` links.
+        """
+        lineage = record.lineage
+        if lineage is None or not lineage.episode_id:
+            raise ValueError("An accepted inquiry operation requires its own lineage.")
+        envelope = InquiryStepEnvelope(record.metadata.get("inquiry_step", {}))
+        stated_outcome = str(envelope.get("outcome", ""))
+        outcome = _INQUIRY_OUTCOMES.get(stated_outcome)
+        if outcome is None:
+            raise ValueError(
+                f"An inquiry operation reported an outcome the episode index cannot read: {stated_outcome!r}")
+        evidence = _ints(lineage.source_event_ids)
+        # The graph records the operation itself among its parents when the step
+        # has no earlier node to answer. An episode is not its own cause, so the
+        # index drops that self-reference and keeps only the answered nodes.
+        parents = tuple(node_id for node_id in _ints(lineage.parent_record_ids) if node_id != int(record.id))
+        links: dict[str, tuple[int, ...]] = {"evidence": evidence}
+        if parents:
+            links["cause"] = parents
+        if branch_ids:
+            links["proposal"] = branch_ids
+        progress = envelope.get("progress", {})
+        relations = [{"target_record_id": int(item.get("target_record_id", 0)),
+                      "kind": str(item.get("kind", "")), "reason": str(item.get("reason", ""))}
+                     for item in envelope.get("relations", []) or []]
+        alternatives = [{"text": str(item.get("text", "")), "disposition": str(item.get("disposition", ""))}
+                        for item in envelope.get("alternatives", []) or []]
+        return Episode(
+            episode_id=int(record.id), kind="inquiry_operation", loop="inquiry",
+            tick_id=int(record.tick_id), operation=lineage.operation, owner="workflows.inner_thought",
+            summary=str(record.content), outcome=outcome, revision=self._revision(record),
+            inputs=evidence, outputs=(int(record.id), *branch_ids), links=links,
+            metadata={"graph_episode_id": lineage.episode_id, "sequence": int(lineage.sequence),
+                      "reality": lineage.reality, "inquiry_outcome": stated_outcome,
+                      "reason": str(envelope.get("reason", "")),
+                      "information_gap": str(envelope.get("information_gap", "")),
+                      "progress": {"kind": str(progress.get("kind", "")),
+                                   "reason": str(progress.get("reason", "")),
+                                   "meaningful_difference": bool(progress.get("meaningful_difference", False))},
+                      "relations": relations, "alternatives": alternatives},
         )
 
     def _from_action(self, record: ActionSchemaRecord) -> Episode:
@@ -356,12 +485,12 @@ class EpisodeIndex:
     def by_id(self, episode_id: int) -> Episode | None:
         """Return the record-anchored episode, or a workspace turn with that tick.
 
-        A record id and a tick id can share a number. Record anchors
-        (thought, action, receipt) take precedence, so a caller that names a
-        record id never silently receives a turn episode.
+        A record id and a tick id can share a number. Record anchors (a linear
+        thought, an inquiry operation, an action, a run receipt) take precedence,
+        so a caller that names a record id never silently receives a turn episode.
         """
         target = int(episode_id)
-        for kind in ("thought", "action", "run_receipt", "gwt_turn"):
+        for kind in _RECORD_ANCHOR_KINDS + ("gwt_turn",):
             for item in self._episodes:
                 if item.kind == kind and item.episode_id == target:
                     return item
@@ -394,11 +523,11 @@ class EpisodeIndex:
         """Return explicit main/inner influence pairs.
 
         A pair is recorded only when the main loop's evidence or cause links
-        name an inner-loop episode's output record. A shared timestamp is
-        never a link.
+        name a private-loop episode's output record: a linear inner monologue or
+        an inquiry operation and its branches. A shared timestamp is never a link.
         """
         inner_outputs = {record_id: item for item in self._episodes
-                         if item.loop == "inner" for record_id in item.outputs}
+                         if item.loop in {"inner", "inquiry"} for record_id in item.outputs}
         pairs: list[CrossLoopLink] = []
         for item in self._episodes:
             if item.loop != "main":
@@ -412,6 +541,25 @@ class EpisodeIndex:
                     relation="evidence" if record_id in item.inputs else "cause",
                 ))
         return pairs
+
+
+def _inquiry_branch_ids(store: MemoryStore | Snapshot) -> dict[int, tuple[int, ...]]:
+    """Map each executed inquiry operation to the branch records it created.
+
+    A generative inquiry step writes its competing branches as separate ``Thought``
+    records whose lineage parent is that operation. The operation record does not
+    name them, so the index follows lineage instead of pairing them by time order.
+    """
+    branches: dict[int, list[int]] = {}
+    for record in store.all_knoxels.values():
+        if not isinstance(record, Feature) or record.feature_type is not FeatureType.Thought:
+            continue
+        lineage = record.lineage
+        if lineage is None or lineage.operation != "inquiry_alternative" or not lineage.parent_record_ids:
+            continue
+        for parent_id in lineage.parent_record_ids:
+            branches.setdefault(int(parent_id), []).append(int(record.id))
+    return {key: tuple(dict.fromkeys(values)) for key, values in branches.items()}
 
 
 def _question(store: MemoryStore | Snapshot, episode: Episode,
@@ -457,7 +605,9 @@ def answer_questions(store: MemoryStore | Snapshot, episode: Episode, *,
         "limit": None if producer_ids else "no producer or cause link was retained",
     }
 
-    alternatives: list[AlternativeRow] = episode.metadata.get("alternatives", [])
+    # Both private builders write this metadata entry as ``AlternativeRow`` entries,
+    # and no other writer touches it, so the narrow cast states that contract.
+    alternatives = cast("list[AlternativeRow]", episode.metadata.get("alternatives", []))
     answers["alternatives"] = {
         "answer": "Recorded nominations and dispositions name the competing options.",
         "evidence": alternatives,

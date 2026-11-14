@@ -1797,11 +1797,66 @@ test now asserts the documented behaviour.
   API links resolve in the built pages (`private_material`,
   `reflection.experiments.context`).
 
+### Private graph operations became episode rows
+
+The index listed only the retained linear thoughts, so a mind that now thinks
+in the graph could not see its own recent thinking. `pm/introspection/episodes.py`
+reads a committed inquiry operation as its own episode, with kind
+`inquiry_operation` and loop `inquiry`. Its evidence, cause, and proposal links
+come from `RecordLineage`. Generated branches are found through their own
+lineage, `lineage.operation == "inquiry_alternative"`, and stay proposals of the
+step rather than episodes of their own. The step's judgement fields are read
+through read-side `TypedDict` envelopes in the same module, because `pm` must not
+import `workflows.inner_thought`. An outcome outside `_INQUIRY_OUTCOMES` raises
+instead of being guessed. `EpisodeIndex.by_id` now accepts a record anchor of
+kind `thought`, `inquiry_operation`, `action`, or `run_receipt`, and
+`cross_loop_links` reads an inquiry output as private influence on a main turn.
+`Episode.metadata` is now `dict[str, object]`; the one read that needs a row type
+states its cast in `answer_questions`.
+
+Verification of this step:
+
+- `tests/unit/pm/introspection/test_episodes`: **13 passed**. Six new checks build
+  a real `MemoryStore`, a real `PrivateInquiryOwner` attention capture, and real
+  accepted graph steps through `stage_nominations`, `capture_inquiry_grant`,
+  `accept_attention`, and `accept_step`. No model.
+- `tests/unit/workflows/inner_thought`: **217 passed**.
+  `tests/unit/workflows/reflection`: **22 passed**. The focus-management suite:
+  **15 passed**. `test_architecture` and `test_replay_harness`: **24 passed**.
+- `tests/unit/pm/introspection`: 42 ran, **3 failed**, and the same three fail at
+  `4018528` in a clean worktree, so they are not from this change:
+  `test_a_cycle_package_holds_the_state_the_turn_and_every_named_record`,
+  `test_a_changed_finding_supersedes_and_keeps_history`, and
+  `test_narrative_revision_keeps_the_original_episode_reference`.
+- Configured strict Pyright on the two touched files: **92 errors**, against 101
+  for the same files at `4018528`. Naming `Episode.metadata` removed a family of
+  unknown-type errors. No new error kind was added. A whole-repo run still
+  reports the older errors this file had before B05.
+- The new row reaches real prompts. Replaying
+  `deliberate-reflection-20261114T110440Z` and
+  `deliberate-entry-20261114T110610Z` now diverges at the call that carries
+  private episode material, calls 6 and 10. The replayed prompt gained
+  `episode_id 15 (inquiry_operation, future_projection)` and `episode_id 29
+  (inquiry_operation, feasibility_check)` beside the rows it already carried. In
+  the second scenario the new row displaced one `action` row, because
+  `private_material` renders at most three episodes and states what it omitted.
+  Receipts: `divergence-01-006-{recorded,replayed}.txt` and
+  `divergence-01-010-{recorded,replayed}.txt` beside those samples.
+  `private-continuity-20261114T104837Z` still replays with an identical summary.
+
 ### Not run and limits
 
 - **NOT RUN — a graph step that commits a reflection decision.** Not
   implemented, for the reason above.
-- **NOT RUN — a graph operation as an episode row.**
+- **NOT RUN — a recording that holds the graph episode row.** The two
+  recordings above now prove the prompt changed, not that current behavior is
+  good. `python -m tests.replay record --scenario deliberate-reflection` and
+  `--scenario deliberate-entry` need the owner's go-ahead, because every sample
+  spends provider money.
+- **One private step still appears twice** in the recent list: its workspace turn
+  and its accepted record. The private turn leaves `decision_id` empty, and that
+  field names a main-cycle `StateUpdate`, not a private decision. Setting it, or
+  adding a private decision identity, is a record-schema choice for the owner.
 - **NOT RUN — a citation that needs the extended reflection grant.** The
   recorded reflection steps cited records the origin grant already covered, so
   the extension is present but unused by any sample.
@@ -1815,10 +1870,11 @@ test now asserts the documented behaviour.
 
 Still unfinished in B05, in dependency order:
 
-1. Finish remaining item 1: run the reflection child for a graph
-   `reflection_review` step and commit its decision in a derived commit, and let
-   the episode index read graph operations. Both need the owner decision named
-   above.
+1. Run the reflection child for a graph `reflection_review` step and commit its
+   decision in a derived commit. This needs the owner decision named above,
+   because `stage_decision` replaces records and a recovery-root commit rejects
+   replacements. The episode index now reads graph operations, so the rest of
+   that item is done.
 2. Run the integrated live gates, including a real Critical displacement, two
    waiting displaced questions, a graph `QualeRecord`, deliberate recall, and a
    main cycle that selects and appraises deliberate work.

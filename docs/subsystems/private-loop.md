@@ -571,7 +571,7 @@ The retained linear path samples at its own commit, with the same threshold and 
 | Broken manifest, catalogue, or internal contract | fail through the actual error path |
 
 The B05 engineering work distinguishes connected workflow evidence from generated-content review and sustained behavior.
-Reflection and inspection evidence now reach a step that reads it, with its source scope captured. Two limits remain: a shared inquiry step cannot change the experiment ledger yet, and the episode index still lists only the retained linear private thoughts, not graph operations.
+Reflection and inspection evidence now reach a step that reads it, with its source scope captured, and an executed graph operation is now its own episode row that the companion can read. Two limits remain: a shared inquiry step cannot change the experiment ledger yet, and a private workspace turn leaves `decision_id` empty while that field names a main-cycle `StateUpdate`, so one step still shows as a frame row and a decision row.
 Deliberate entry ran in recorded real scenarios with an explicit first operation. Its default first operation, recall, has not run in one: recall sends an embedding request that the harness does not record.
 Graph felt-state sampling ran in one recorded real scenario. The mental state did not move in that scenario, so no real run has emitted a `QualeRecord` from the graph yet.
 Displacement has actual-store and real-control checks; no recorded scenario or live gate has driven it through a model-classified Critical message yet.
