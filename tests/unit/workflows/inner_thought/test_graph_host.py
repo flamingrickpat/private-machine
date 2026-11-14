@@ -31,16 +31,22 @@ from workflows.inner_thought.graph_execution import (
 )
 from workflows.inner_thought.pipeline import ModelProposalError
 from workflows.inner_thought.graph_host import (
-    FrozenProjectionPayload, PrivateInquiryOwner, accepted_source_ids, active_inquiry, attach_inner_projection,
-    capture_felt_state, pending_findings,
+    FrozenProjectionPayload, MENTAL_ACTION_KEY, PrivateInquiryOwner, accepted_source_ids, active_inquiry,
+    attach_inner_projection, capture_felt_state, deliberate_inquiry, pending_findings,
 )
 from workflows.inner_thought.graph_outcomes import capture_graph_outcome
 from workflows.inner_thought.inquiry import InquiryRecord, inquiry_history, stage_inquiry_step
+from workflows.inner_thought.metacognition import thought_activity
 from workflows.inner_thought.nominations import capture_inquiry_grant, stage_nominations
+from workflows.inner_thought.request_views import InquiryThoughtView, RecentThoughtView, ThoughtActivityView
 from workflows.inner_thought.schemas import (
-    ExpectationUpdate, InnerRequest, InquiryAlternative, InquiryProgress, InquiryStep, IntegrationResult,
-    NominationBatch, ThoughtAttentionDecision, ThoughtJudgments, ThoughtNomination, ThoughtRelation,
+    DeliberateAdmission, ExpectationUpdate, InnerRequest, InquiryAlternative, InquiryProgress, InquiryStep,
+    IntegrationResult, NominationBatch, ThoughtAttentionDecision, ThoughtJudgments, ThoughtNomination,
+    ThoughtRelation,
 )
+from workflows.focus_management.host import mental_outcome
+from pm.records.memory_records import ActionSchemaRecord
+from pm.records.enums import ActionType
 
 
 class GraphHostTests(unittest.TestCase):
@@ -570,6 +576,95 @@ class GraphHostTests(unittest.TestCase):
         self.assertEqual(generated.receipt.state.status, "paused")
         self.assertTrue(generated.receipt.state.pending_generation_ids)
         self.assertEqual(pending_findings(self.store), ())
+
+
+class MetacognitionDeliveryTests(GraphHostTests):
+    """A noticing is an intermediate result: delivered once, never an action close."""
+
+    def begin_with(self, operation: str) -> InquiryRecord:
+        """Persist a spontaneous nomination and attention for the given operation."""
+        batch = self.store.begin_batch("nomination", embed=False)
+        nomination = ThoughtNomination(text="The short reply keeps returning.",
+            question="Why does it keep returning without new evidence?", evidence_ids=(self.source.id,),
+            reality="inferred", judgments=self.judgments, suggested_operation=operation)
+        records = stage_nominations(batch, [nomination], grant=self.grant, batch_id="nomination")
+        batch.preserve_on_recovery()
+        self.commit(batch)
+        selected = self.owner.accept_attention([records[0].record.id],
+            ThoughtAttentionDecision(nomination_id=records[0].record.id, disposition="select",
+                reason="Inspect the returning reply."),
+            commit_id="attention", episode_id="private-return", now_utc=self.now)
+        assert selected.inquiry is not None
+        return selected.inquiry
+
+    def noticing_step(self, operation: str) -> InquiryStep:
+        """One continuing step of the admitted operation, with its recorded activity."""
+        return InquiryStep(operation=operation, thought="The reply returns without new material.",
+            evidence_ids=(self.source.id,), assumptions=(), reality="inferred", judgments=self.judgments,
+            relations=(), alternatives=(),
+            progress=InquiryProgress(kind="none", inspected_source_ids=(), compared_node_ids=(),
+                meaningful_difference=False, reason="No new original evidence yet."),
+            outcome="continue", reason="The step read its recorded activity.", information_gap="",
+            next_operation="future_projection")
+
+    def activity(self) -> ThoughtActivityView:
+        """Recorded activity facts: one window with one stalled step on the source."""
+        step = RecentThoughtView(knoxel_id=100, text="The reply returned again.", revision=1,
+            operation="emotional_debrief", source_ids=[self.source.id], loop="inquiry",
+            inquiry=InquiryThoughtView(episode_id="private-return", outcome="continue", reason="No gain.",
+                information_gap="", progress_kind="none"))
+        return thought_activity([step])
+
+    def test_rumination_notice_is_pending_and_keeps_its_activity(self) -> None:
+        head = self.begin_with("rumination_notice")
+        activity = self.activity()
+        accepted = self.owner.accept_step(head, self.noticing_step("rumination_notice"),
+            grant=self.owner.execution_grant(head), commit_id="step-notice", active_seconds=1.5,
+            now_utc=self.now, mental_state=FullMentalState(), control_generation=0, activity=activity)
+        assert accepted.receipt.operation_record_id is not None
+        operation_id = accepted.receipt.operation_record_id
+        restored = MemoryStore.load(self.path)
+        self.assertIn(operation_id, {item.id for item in pending_findings(restored)})
+        operation = restored.snapshot(capture=False).get(operation_id)
+        self.assertEqual(operation.metadata["thought_activity"]["window_step_ids"], [100])
+        self.assertIsNone(operation.metadata.get(MENTAL_ACTION_KEY))
+
+    def test_future_projection_continue_is_not_pending(self) -> None:
+        head = self.begin_with("future_projection")
+        accepted = self.owner.accept_step(head, self.noticing_step("future_projection"),
+            grant=self.owner.execution_grant(head), commit_id="step-projection", active_seconds=1.5,
+            now_utc=self.now, mental_state=FullMentalState(), control_generation=0)
+        assert accepted.receipt.operation_record_id is not None
+        self.assertNotIn(accepted.receipt.operation_record_id, {item.id for item in pending_findings(self.store)})
+
+    def test_noticing_inside_a_deliberate_episode_closes_no_action(self) -> None:
+        batch = self.store.begin_batch("dispatch", embed=False)
+        action = batch.create(ActionSchemaRecord(content="I want to notice this on my own.",
+            action_type=ActionType.Loopback, provenance=Provenance(source_kind=SourceKind.Workflow),
+            metadata={"action_id": "action-notice", "workflow_name": "theory_of_mind",
+                      "dispatch_status": "pending", "dispatch_target": "theory_of_mind",
+                      "dispatch_correlation": "corr-notice", "evidence_ids": [self.source.id]}))
+        batch.preserve_on_recovery()
+        self.commit(batch)
+        view = self.store.snapshot(capture=False)
+        grant = capture_inquiry_grant(view, observer_entity_id=self.observer.id, scope=RecordScope(),
+            source_ids=[action.id, self.source.id], critical_epoch=0)
+        admission = DeliberateAdmission(action_record_id=action.id,
+            instruction="Notice whether the reply keeps returning.", evidence_ids=(self.source.id,),
+            operation="rumination_notice", reason="Selected private mental work.",
+            subject_entity_id=self.partner.id)
+        head = self.owner.admit_deliberate_action(admission, grant=grant, now_utc=self.now)
+        activity = self.activity()
+        accepted = self.owner.accept_step(head, self.noticing_step("rumination_notice"),
+            grant=self.owner.execution_grant(head), commit_id="step-deliberate-notice", active_seconds=1.5,
+            now_utc=self.now, mental_state=FullMentalState(), control_generation=0, activity=activity)
+        assert accepted.receipt.operation_record_id is not None
+        operation = self.store.snapshot(capture=False).get(accepted.receipt.operation_record_id)
+        self.assertIsNone(operation.metadata.get(MENTAL_ACTION_KEY))
+        view = self.store.snapshot(capture=False)
+        head_now = deliberate_inquiry(view, action.id)
+        assert head_now is not None
+        self.assertIsNone(mental_outcome(view, head_now))
 
 
 if __name__ == "__main__":

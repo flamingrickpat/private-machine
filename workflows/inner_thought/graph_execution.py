@@ -781,6 +781,8 @@ def run_graph_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner,
         activity = thought_activity(request.recent_thoughts)
         supplied = supplied.model_copy(update={
             "activity_evidence": activity_rule(render_thought_activity(activity))})
+    else:
+        activity = None
     started = monotonic()
     if parent.receipt.state.next_operation == "memory_search":
         if recall_memory is None:
@@ -843,7 +845,7 @@ def run_graph_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner,
     accepted = owner.accept_step(parent, step, grant=execution_grant,
         commit_id=f"inquiry-step:{parent.record.id}", active_seconds=active_seconds,
         now_utc=vclock.utcnow(), mental_state=mental_state, control_generation=control_generation,
-        outcome=outcome)
-    boundary = step.outcome != "continue"
+        outcome=outcome, activity=activity)
+    boundary = step.outcome != "continue" or step.operation in METACOGNITION_OPERATIONS
     return PrivateGraphResult(summary=accepted.receipt.state.stop_reason or step.reason,
         receipt_id=accepted.record.id, finding_id=accepted.receipt.operation_record_id if boundary else None)

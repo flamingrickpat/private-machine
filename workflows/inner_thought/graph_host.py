@@ -4,7 +4,11 @@ The canonical overview is :mod:`workflows.inner_thought.host`. This adapter
 owns no timer, model, or second slot. The existing host supplies its control
 commit callback and its accepted mental state. Nomination and attention commits
 create no GWT turn. An executed step creates an inner turn; only an explicit
-outcome boundary becomes a finding for main appraisal.
+outcome boundary becomes a finding for main appraisal. One exception is
+intentional: a metacognition step (``rumination_notice`` or
+``attention_drift_notice``) is delivered as an intermediate result even when
+the episode continues, so main cognition hears what the companion noticed
+about its own thinking; the step's recorded activity travels with it.
 
 Every graph append is a recovery root; the derived GWT is a separate commit.
 Accepted graph nodes survive interrupted
@@ -54,8 +58,10 @@ from workflows.inner_thought.inquiry import (
     stage_deliberate_inquiry, stage_displaced_inquiry, stage_inquiry_displacement, stage_inquiry_preemption,
     stage_inquiry_resume, stage_inquiry_step,
 )
+from workflows.inner_thought.metacognition import METACOGNITION_OPERATIONS
 from workflows.inner_thought.nominations import extend_inquiry_grant
 from workflows.inner_thought.nominations import NominationBatchRecord, stage_nomination_batch
+from workflows.inner_thought.request_views import ThoughtActivityView
 from workflows.inner_thought.schemas import (
     DeliberateAdmission, InquiryGrant, InquiryResumeDecision, InquiryStep, NominationBatch, RetainedOfferSelection,
     ThoughtAttentionDecision,
@@ -249,7 +255,9 @@ def pending_findings(store: MemoryStore) -> tuple[Feature, ...]:
 
     A finding of a deliberate episode carries its action identity. The
     deliberate owner delivers it with the action's correlation, so it is left
-    out here and never delivered twice.
+    out here and never delivered twice. A noticing is a finding even without
+    an outcome, because main cognition must hear it once; it keeps the step's
+    recorded activity, and the episode can continue.
     """
     with store.lock:
         appraised = {record_id for cycle in store.read_cycles() for record_id in cycle.claimed_ids()}
@@ -493,14 +501,20 @@ class PrivateInquiryOwner:
     def accept_step(self, parent: InquiryRecord, step: InquiryStep, *, grant: InquiryGrant,
                     commit_id: str, active_seconds: float, now_utc: datetime,
                     mental_state: FullMentalState, control_generation: int,
-                    outcome: GraphOutcomePayload | None = None) -> InquiryRecord:
+                    outcome: GraphOutcomePayload | None = None,
+                    activity: ThoughtActivityView | None = None) -> InquiryRecord:
         """Commit the graph atomically, then derive its inner GWT projection.
 
         Generation and comparison nodes remain internal graph events. A finding
-        marker is attached only at an explicit outcome boundary. The host sends
-        that accepted identity to main after this method returns. A finding of
-        a deliberate episode also carries its action identity and correlation,
-        and the deliberate owner sends it instead.
+        marker is attached only at an explicit outcome boundary, or when this
+        step is a metacognition operation: a noticing is delivered to main
+        cognition as an intermediate result while the episode continues, so
+        main can appraise what the companion noticed about its own thinking.
+        ``activity`` is the recorded activity facts of a noticing step; they
+        travel with its delivery for review. The host sends the accepted
+        identity to main after this method returns. A finding of a deliberate
+        episode also carries its action identity and correlation, and the
+        deliberate owner sends it instead.
         """
         with self.store.lock:
             deliberate = deliberate_admission(self.store.snapshot(capture=False), parent.receipt.state)
@@ -513,8 +527,11 @@ class PrivateInquiryOwner:
             if not isinstance(operation, Feature):
                 raise TypeError("An executed inquiry operation must be a Feature.")
             operation.metadata.update({"loop": "inquiry", "control_generation": control_generation,
-                "private_inquiry_finding": step.outcome != "continue",
+                "private_inquiry_finding": step.outcome != "continue"
+                or step.operation in METACOGNITION_OPERATIONS,
                 "inquiry_receipt_id": accepted.record.id})
+            if activity is not None:
+                operation.metadata["thought_activity"] = activity.model_dump(mode="json")
             felt_state = capture_felt_state(self.store, mental_state, driver_ids=step.evidence_ids, now_utc=now_utc)
             attach_inner_projection(operation, FrozenProjectionPayload(mental_state=mental_state, felt_state=felt_state))
             if outcome is not None:
