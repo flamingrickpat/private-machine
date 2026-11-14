@@ -1,6 +1,6 @@
 # B05: spontaneous nomination and bounded inquiry
 
-Status: close-out, 2026-11-14. The mechanisms are implemented; the owner accepted a close-out in passes after an audit. See [Audit and close-out decisions](#audit-and-close-out-decisions-2026-11-14) at the end of this record and [the handoff](beta-handoff-20261112.md). Work deferred from B05 is [gamma G01](gamma.md).
+Status: close-out complete, 2026-11-14. The four close-out passes are implemented and verified; the owner closes B05 after rating the record package at http://127.0.0.1:8095/#capture/b05-dwelling-20261114. See [Audit and close-out decisions](#audit-and-close-out-decisions-2026-11-14) and the dated pass sections at the end of this record. Work deferred from B05 is [gamma G01](gamma.md).
 Source baseline: `d72fd3b`, after B03 implementation `a9e78e8`.
 B04 committed as `e7a7ce8`. This continuation starts from that commit.
 
@@ -2152,3 +2152,16 @@ The gate did not commit the action itself.
 
 The gate does not establish character quality or long-history behaviour. It shows the three
 integrated paths where the model chose them, and records the model's choices where it did not.
+
+
+## Close-out result (2026-11-14)
+
+| Pass | Commit | Result |
+| --- | --- | --- |
+| 1 | `dec476c` | Graph steps reach the private loop's own readers; D1 repeated-concern rule. |
+| 2 | `4d96d7a` | One required-field step read; the companion reads each step once with its reasons. |
+| 3 | `1d6dd82` | Three scenarios re-recorded, `private-dwelling` added and recorded three times, review package registered. |
+| 4 | `3d6624b` | Integrated live gate: Part A passed; Part B observed once and then NOT RUN on a main inference wait; Part C NOT RUN because main selected no mental action. |
+
+The owner review package is http://127.0.0.1:8095/#capture/b05-dwelling-20261114.
+B05 is not closed by this record. The owner closes it after rating the package. B06 and gamma have not started.
