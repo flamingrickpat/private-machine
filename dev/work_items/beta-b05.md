@@ -974,7 +974,13 @@ Strict MkDocs passed in **212.98 seconds**, including the new
 
 The four recordings issued **82 provider requests** in total
 (`request_count` in each `manifest.json`):
-baseline 5 + 5, continuity before the change 6 + 8, continuity after 6 + 12.
+baseline 5 + 5, continuity before the change 6 + 8, continuity after 46 + 12.
+
+Correction (2026-11-14): this line first read "continuity after 6 + 12", which
+sums to 42, not 82. The manifests in
+`.runtime/replay/private-continuity-20261113T211905Z/` hold 46 and 12. The
+46-request sample is the post-change sample 1; its cause is diagnosed in the
+displacement pass below.
 
 Their dollar cost is **not measured**. The harness disables the prompt log so
 that replay and recording draw the same identities, and the recording keeps the
@@ -1004,12 +1010,13 @@ unchanged by this pass:
   46 errors appear at HEAD.
 - `tests/unit/workflows/public_speech` discovery: one error and one failure
   (`test_attribution`, `test_speech_review`), identical at HEAD.
-- `tests.contract.inner_thought.test_inner_parent_contract` remains red.
+- `tests.contract.inner_thought.test_inner_parent_contract` was red at HEAD
+  `60ea26f`. Commit `eb829ca` repaired its fixtures; see item 4 below.
 
 Still unfinished in B05, in dependency order:
 
-1. An explicit durable displacement/reconsideration transition for an active
-   inquiry from an older Critical epoch. It is currently held for admission.
+1. ~~An explicit durable displacement/reconsideration transition for an active
+   inquiry from an older Critical epoch.~~ Done; see the displacement pass below.
 2. Wire `FocusManagement` selected actions to the shared private owner and the
    real child kernels, preserving one-slot arbitration, action receipts, replay,
    and main acknowledgment.
@@ -1021,9 +1028,20 @@ Still unfinished in B05, in dependency order:
    is the same pre-existing fixture staleness and is not part of B05.
 5. Run the integrated live gates.
 
-## Pending owner decision: displacing an inquiry from an older Critical epoch
+## Owner decision (2026-11-14): displacing an inquiry from an older Critical epoch
 
-Not implemented. This is a design choice about meaning, so it waits for the owner.
+Decided and implemented; the pass that follows this section records it.
+The owner chose Option B in a changed shape:
+
+1. The old episode ends with a terminal `displaced` status, not `paused`.
+   `paused` keeps its one meaning: the same graph can resume under the same grant.
+2. The question is offered to shared attention as a third candidate kind and
+   starts a new episode under a fresh grant.
+3. A displaced question is not dismissed for now and does not expire. The owner
+   named a later memory-reconsolidation "sleep" phase as the possible place to
+   retire such questions. That phase is not designed.
+
+The situation and the options below are kept as they were offered.
 
 ### The situation
 
@@ -1099,5 +1117,152 @@ private artifacts" from outside evidence.
 Option A is the cheap fallback if the owner prefers a smaller B05. It ends
 unrelated private work after a Critical message, which is a real behaviour loss.
 
-**Nothing was implemented for this item.** The next step is the owner's choice
-between A and B.
+At the time of this write-up nothing was implemented for this item.
+
+## Pass: Critical displacement, repair diagnosis, and recording receipts (2026-11-14)
+
+The owner accepted three things together: the displacement shape above, a fix
+for the repair loop behind the 46-request sample, and the smaller record and
+harness corrections found while checking the previous pass.
+
+### Displacement
+
+- `InquiryState.status` gains `displaced`. `InquiryReceipt.displacement` holds
+  the superseding Critical epoch. `InquiryOrigin.kind` gains `displaced_inquiry`.
+- `stage_inquiry_displacement` closes active or parked work from an older epoch
+  with one terminal receipt. It keeps the original grant, nodes, operation
+  count, and active duration, and it stages no source fingerprint, so a changed
+  source cannot block it. `inquiry_history` rejects any transition after it.
+- `PrivateInquiryOwner.displace_superseded` runs at the start of
+  `run_graph_opportunity`, one commit per closed episode through the host's
+  control fence, before nomination. The earlier "requires fresh admission"
+  return is gone. An active inquiry with a newer epoch than the opportunity
+  now raises, because the host captures both under one lock.
+- Parked inquiries from an older epoch were stranded the same way: nothing
+  offered them and nothing closed them. They are displaced by the same call.
+- `displaced_offer` and `displaced_candidate` offer the newest displaced
+  question that no episode took over. `PrivateAttentionContext.displaced` and
+  `ThoughtAttentionDecision.displaced_receipt_id` carry it through the existing
+  single attention call. A non-selecting decision cannot name it.
+- `stage_displaced_inquiry` and `PrivateInquiryOwner.admit_displaced_inquiry`
+  open the new episode and the attention outcome in one batch. The new grant
+  is the opportunity's grant extended with the displaced receipt and the
+  earlier nodes, captured from the current view.
+- `GraphThoughtRequest.earlier_artifacts` supplies the earlier nodes to the
+  thought stage, and the step instruction states that they are earlier private
+  thinking and not corroboration. They cannot be relation targets, compared
+  nodes, or newly acquired evidence, and citing one adds no source root.
+
+Deviation from the accepted wording: the decision said attention's existing
+`dismiss` would be the abandonment. The owner then chose no dismissal for now,
+so `dismiss` leaves a displaced question offered.
+
+### Repair diagnosis
+
+The 46-request sample is
+`.runtime/replay/private-continuity-20261113T211905Z/sample-01`. 35 answers of
+its generative `plan_next_step` operation were rejected, 30 of them with
+"Discrimination progress must compare at least two accepted nodes." Each
+rejected answer claimed `progress.kind="discrimination"` and compared two to
+five nodes. The check tested the operation mode and the node count together and
+reported only the count. The nine-rejection reset restored the original prompt
+four times, and the model repeated the claim each time.
+
+- `validate_graph_step` now reports the operation mode separately and names the
+  two legal progress kinds for a generative operation.
+- `graph_thought_instruction` states the progress rule for the admitted
+  operation's mode before the first answer.
+- `pm.llm.structured.RepeatedRejectionError` stops a repair when one identical
+  problem rejects every answer of two consecutive nine-rejection
+  conversations. It is a `ModelFormatError`, so the private loop discards the
+  cycle with `thought.rejected` telemetry. A conversation shortened by its
+  context budget does not count. This changes the shared repair policy for
+  every caller of `complete_json` and `complete_json_async`.
+
+### Recording receipts
+
+- `LazyStageModel.complete_chat` returns the provider result that `complete`
+  reduces to text. `complete` now calls it, so both use one path.
+- The recorder keeps `ProviderUsage` beside each completion and `UsageTotal` in
+  the manifest. A total is `null` when a completion reported no value.
+
+### Verification
+
+Affected deterministic checks, all with actual stores and no model:
+
+- `tests/unit/workflows/inner_thought` discovery: **179 passed**: the 162 from
+  before, 15 displacement checks, and 2 validator-message checks.
+- `tests.unit.workflows.inner_thought.test_inquiry_displacement`: **15 passed**.
+  One of them drives the real `CognitiveControl`: an explicitly supplied
+  Critical assessment, an accepted main state batch, and every private commit
+  through `commit_private`. It shows that no displacement lands before main
+  cognition accepts the reconsideration, and that the next opportunity closes
+  the inquiry and can re-admit its question at the new epoch.
+- `tests.unit.pm.llm.test_structured`: **20 passed**, including the stop after
+  18 identical rejections and the unchanged reset behaviour for mixed problems.
+  The earlier reset check used 19 identical rejections; its second conversation
+  now holds one different problem, because 18 identical ones stop the repair.
+- `tests.unit.test_replay_harness`: **17 passed** with four usage checks.
+- Early triage (14), architecture (7), interaction boundaries (7), empty
+  completions (3), and the parent contracts (4): passed.
+- Configured strict Pyright: **0 errors, 0 warnings**. A scoped strict scan of
+  the new test, `tests/replay`, and the harness check: 0 errors.
+  `pm/llm/structured.py` and `pm/llm/stage_model.py` are outside the configured
+  set and report the same 21 diagnostics as their `HEAD` versions.
+- Strict MkDocs passed in **198.62 seconds**. Headless Chromium rendered the
+  four diagrams of `docs/subsystems/private-loop.md`, found the new API text on
+  ten changed pages, and recorded no JavaScript or request error. The first two
+  renderings clipped one edge label of the new diagram; the label is shorter now.
+
+Real model evidence, `deepseek/deepseek-v4.1-flash-1017` through OpenRouter:
+
+- `python -m tests.replay record --scenario private-continuity --samples 2`
+  recorded `.runtime/replay/private-continuity-20261114T064112Z`:
+  **7 and 14 provider requests, provider-reported $0.008035 and $0.009270**.
+  Both samples replay exactly with an identical summary, also after the last
+  source edit of this pass.
+- Three generative `plan_next_step` operations ran in those samples with
+  **zero rejections**. Three calls do not establish a rate; they show that the
+  new instruction and schema are accepted by the real model and that the
+  earlier loop did not recur.
+- Both samples show the injected ordinary message classified Moderate and the
+  inquiry continuing, so the previous pass's result holds on the new prompts.
+
+Receipts: `.runtime/beta-b05/displacement-20261114/`.
+
+### Not run and remaining limits
+
+**NOT RUN — displacement through a model-classified Critical message.** The
+recorded scenarios never step main cognition, and clearing a Critical barrier
+needs a main cycle. That cycle uses agent sessions and remote embeddings that
+the scripted model does not record, so it cannot become a replayable scenario
+without extending the harness. The attention model has therefore never seen a
+displaced offer, and the thought model has never seen `earlier_artifacts`. The
+integrated live gate has to cover both.
+
+**NOT RUN:** the full unit and contract suites, the integrated live gates, and
+the final scenarios.
+
+The six recordings made before this pass no longer replay: the attention prompt
+and the step instruction changed. That is the harness's intended stop. A replay
+attempt on `.runtime/replay/private-baseline-20261113T211133Z` during this pass
+replaced that snapshot's earlier successful `replay-*.json` files with the
+divergence result. The earlier success is recorded only in the pass above.
+
+Every recorded sample still shows one rejected early-triage answer:
+"Missing required properties at $.entity_extraction.claims[0]". It costs one
+extra request per message and repairs on the second answer. It is a prompt
+defect in input triage and is not addressed here.
+
+A cycle discarded by `RepeatedRejectionError` leaves the inquiry active, so the
+next timer tick can repeat the same failing step: at most 18 requests per tick
+instead of an unbounded loop, visible as `thought.rejected` each time.
+
+Still unfinished in B05, in dependency order:
+
+1. Wire `FocusManagement` selected actions to the shared private owner and the
+   real child kernels. A deliberate entry must also meet a slot that stale work
+   no longer holds; `displace_superseded` currently runs only on the private
+   timer opportunity.
+2. Integrate scoped reflection/inspection evidence and graph felt-state emission.
+3. Run the integrated live gates, including a real Critical displacement.
