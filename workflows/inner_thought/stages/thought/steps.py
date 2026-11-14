@@ -71,7 +71,8 @@ def run(context: RoleContext) -> dict[str, str]:
         # envelope would send the same material twice.
         graph_messages = [Turn(Role.System, graph_thought_instruction(parsed_graph)),
                           Turn(Role.User, parsed_graph.model_dump_json(
-                                   exclude={"reflection_evidence", "inspection_evidence"}) +
+                                   exclude={"reflection_evidence", "inspection_evidence",
+                                            "perspective_evidence"}) +
                                "\nReturn only an object conforming to this output schema. "
                                "Do not echo the input envelope or add run_id/stage_kind:\n" +
                                json.dumps(InquiryStep.model_json_schema(), ensure_ascii=False))]
