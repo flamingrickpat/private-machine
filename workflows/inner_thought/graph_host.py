@@ -42,7 +42,8 @@ from workflows.inner_thought.inquiry import (
 from workflows.inner_thought.nominations import extend_inquiry_grant
 from workflows.inner_thought.nominations import NominationBatchRecord, stage_nomination_batch
 from workflows.inner_thought.schemas import (
-    DeliberateAdmission, InquiryGrant, InquiryResumeDecision, InquiryStep, NominationBatch, ThoughtAttentionDecision,
+    DeliberateAdmission, InquiryGrant, InquiryResumeDecision, InquiryStep, NominationBatch, RetainedOfferSelection,
+    ThoughtAttentionDecision,
 )
 from workflows.inner_thought.graph_outcomes import (
     GraphOutcomePayload, attach_graph_outcome, read_graph_outcome, stage_graph_outcome,
@@ -161,13 +162,19 @@ class PrivateInquiryOwner:
 
     def accept_attention(self, nomination_ids: Sequence[int], decision: ThoughtAttentionDecision, *,
                          commit_id: str, episode_id: str, now_utc: datetime,
-                         validate_context: Callable[[], None] | None = None) -> AttentionRecord:
-        """Commit selection separately; it cannot fabricate an executed thought."""
+                         validate_context: Callable[[], None] | None = None,
+                         displaced_selection: RetainedOfferSelection | None = None) -> AttentionRecord:
+        """Commit selection separately; it cannot fabricate an executed thought.
+
+        ``displaced_selection`` records why the displaced question offered
+        beside these nominations was the one offered, when one was.
+        """
         with self.store.lock:
             if validate_context is not None:
                 validate_context()
             batch = self.store.begin_batch(commit_id, embed=False, cancel=self.cancel)
-            selected = stage_attention(batch, nomination_ids, decision, episode_id=episode_id, now_utc=now_utc)
+            selected = stage_attention(batch, nomination_ids, decision, episode_id=episode_id, now_utc=now_utc,
+                                       displaced_selection=displaced_selection)
             batch.preserve_on_recovery()
             self.commit(batch)
             return selected
@@ -175,7 +182,8 @@ class PrivateInquiryOwner:
     def admit_parked_inquiry(self, parked: InquiryRecord, decision: InquiryResumeDecision,
                             *, attention: ThoughtAttentionDecision, nomination_ids: Sequence[int],
                             offered_grant: InquiryGrant, grant: InquiryGrant, batch_id: str,
-                            now_utc: datetime, focus: CapturedPrivateFocus) -> InquiryRecord:
+                            now_utc: datetime, focus: CapturedPrivateFocus,
+                            displaced_selection: RetainedOfferSelection | None = None) -> InquiryRecord:
         """Commit the attention decision that re-admits parked work in one batch.
 
         The opportunity identity and the slot change land together, so an
@@ -190,7 +198,7 @@ class PrivateInquiryOwner:
             validate_private_focus(self.store.snapshot(capture=False), focus, now_utc=vclock.utcnow())
             batch = self.store.begin_batch("attention:" + batch_id, embed=False, cancel=self.cancel)
             stage_attention_outcome(batch, batch_id=batch_id, nomination_ids=tuple(nomination_ids),
-                decision=attention, grant=offered_grant)
+                decision=attention, grant=offered_grant, displaced_selection=displaced_selection)
             accepted = stage_inquiry_resume(batch, parent_receipt_id=parked.record.id, decision=decision,
                 attention=attention, grant=grant, now_utc=now_utc, limits=self.limits)
             batch.preserve_on_recovery()
@@ -241,8 +249,12 @@ class PrivateInquiryOwner:
     def admit_displaced_inquiry(self, displaced: InquiryRecord, *, attention: ThoughtAttentionDecision,
                                 nomination_ids: Sequence[int], offered_grant: InquiryGrant,
                                 grant: InquiryGrant, batch_id: str, episode_id: str, now_utc: datetime,
-                                focus: CapturedPrivateFocus) -> InquiryRecord:
+                                focus: CapturedPrivateFocus,
+                                displaced_selection: RetainedOfferSelection) -> InquiryRecord:
         """Commit the attention decision that admits a displaced question in one batch.
+
+        ``displaced_selection`` is the receipt of why this question was the one
+        offered; it must name the admitted receipt.
 
         The opportunity identity and the new episode land together, exactly as
         for a parked re-admission, so an interrupted admission can neither
@@ -255,7 +267,7 @@ class PrivateInquiryOwner:
             validate_private_focus(self.store.snapshot(capture=False), focus, now_utc=vclock.utcnow())
             batch = self.store.begin_batch("attention:" + batch_id, embed=False, cancel=self.cancel)
             stage_attention_outcome(batch, batch_id=batch_id, nomination_ids=tuple(nomination_ids),
-                decision=attention, grant=offered_grant)
+                decision=attention, grant=offered_grant, displaced_selection=displaced_selection)
             accepted = stage_displaced_inquiry(batch, displaced_receipt_id=displaced.record.id,
                 attention=attention, grant=grant, episode_id=episode_id, now_utc=now_utc)
             batch.preserve_on_recovery()
@@ -264,7 +276,8 @@ class PrivateInquiryOwner:
 
     def record_attention_outcome(self, *, batch_id: str, nomination_ids: Sequence[int],
                                  decision: ThoughtAttentionDecision, grant: InquiryGrant,
-                                 focus: CapturedPrivateFocus) -> Feature:
+                                 focus: CapturedPrivateFocus,
+                                 displaced_selection: RetainedOfferSelection | None = None) -> Feature:
         """Commit an attention decision that leaves the private slot untouched.
 
         This retains the opportunity identity for an opportunity that offered
@@ -275,7 +288,7 @@ class PrivateInquiryOwner:
             validate_private_focus(self.store.snapshot(capture=False), focus, now_utc=vclock.utcnow())
             batch = self.store.begin_batch("attention:" + batch_id, embed=False, cancel=self.cancel)
             record = stage_attention_outcome(batch, batch_id=batch_id, nomination_ids=tuple(nomination_ids),
-                decision=decision, grant=grant)
+                decision=decision, grant=grant, displaced_selection=displaced_selection)
             batch.preserve_on_recovery()
             self.commit(batch)
             return record

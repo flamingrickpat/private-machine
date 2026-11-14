@@ -403,12 +403,54 @@ class ThoughtAttentionDecision(InquiryContract):
         return self
 
 
+class RetainedQuestionRating(InquiryContract):
+    """How strongly the current private context cues one retained question.
+
+    Two separate signals feed the rating. Source overlap says the context holds
+    an original record the question came from. Similarity says something in the
+    context means nearly the same, whichever record it is.
+    """
+
+    receipt_id: int = Field(gt=0, description="Receipt of the retained question that was rated.")
+    shared_source_ids: tuple[int, ...] = Field(
+        description="Original sources of the question that the current context also holds.")
+    source_overlap: float = Field(ge=0, le=1,
+        description="Share of the question's original sources that the current context holds; 0 for a question without sources.")
+    similarity: float = Field(ge=0, le=1,
+        description="Highest embedding cosine similarity between the question and one current cue, clamped to [0, 1].")
+    most_similar_cue_id: int | None = Field(
+        description="Record of the most similar cue. Null when that cue has no record, or when no cue had text.")
+    relevance: float = Field(ge=0, le=1, description="Weighted sum of source overlap and similarity, before noise.")
+    noise: float = Field(description="Seeded jitter added to relevance; smaller when attention is more focused.")
+    rating: float = Field(ge=0, le=1, description="Relevance plus noise, clamped to [0, 1]. The selection uses this value.")
+
+
+class RetainedOfferSelection(InquiryContract):
+    """Why one retained question, and not another, was offered to shared attention.
+
+    The selection only decides which question the attention stage sees. It
+    grants nothing: the attention decision still admits, defers, or dismisses.
+    """
+
+    offered_receipt_id: int = Field(gt=0, description="Receipt of the question that was offered.")
+    mode: Literal["only_candidate", "highest_rating", "weighted_random"] = Field(
+        description="'only_candidate' measured nothing because one question waited. 'highest_rating' took the top "
+                    "rating under focused attention. 'weighted_random' sampled by rating under wider attention.")
+    seed: str = Field(description="Seed of the random generator; empty for 'only_candidate'.")
+    salience_bias: float = Field(ge=0, le=1,
+        description="How strictly attention follows the top rating, from the accepted mental state: 0 is random, 1 is top-locked.")
+    ratings: tuple[RetainedQuestionRating, ...] = Field(
+        description="One rating per waiting question; empty for 'only_candidate'.")
+
+
 class ThoughtAttentionReceipt(InquiryContract):
     """Retain the exact offered batch beside the separate attention decision."""
 
     nomination_ids: tuple[int, ...]
     decision: ThoughtAttentionDecision
     grant: InquiryGrant
+    displaced_selection: RetainedOfferSelection | None = Field(default=None,
+        description="Why the offered displaced question was the one offered; null when no displaced question waited.")
 
 
 class ThoughtRelation(InquiryContract):
@@ -630,7 +672,8 @@ __all__ = [
     "AttentionCandidate", "DeliberateAdmission", "DisplacedInquiryOffer", "InquiryAlternative",
     "InquiryDisplacement", "InquiryGrant", "InquiryOrigin",
     "InquiryProgress", "InquiryReceipt", "InquiryResumeDecision", "InquiryState", "InquiryStep",
-    "NominationReceipt", "ParkedInquiryOffer", "PrivateAttentionContext", "ThoughtAttentionDecision",
+    "NominationReceipt", "ParkedInquiryOffer", "PrivateAttentionContext", "RetainedOfferSelection",
+    "RetainedQuestionRating", "ThoughtAttentionDecision",
     "ThoughtJudgments", "ThoughtNomination", "ThoughtRelation", "ThoughtAttentionReceipt",
     "LegacyEpisodeState",
 ]

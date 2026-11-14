@@ -31,6 +31,7 @@
     "workflows/inner_thought/stages/trigger",
     "workflows/inner_thought/nominations.py",
     "workflows/inner_thought/inquiry.py",
+    "workflows/inner_thought/offer_salience.py",
     "workflows/inner_thought/stages/reflection/steps.py",
     "workflows/main_cognition/model_json.py",
     "pm/memory/evidence.py",

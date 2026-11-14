@@ -118,9 +118,55 @@ The closed episode keeps its grant, nodes, operation count, and active duration 
 The displacement does not depend on the old source fingerprints: the inquiry ends whether or not its sources changed.
 
 The question returns as an offer, not as a continuation.
-[`workflows.inner_thought.graph_execution.displaced_candidate`][] reads the newest displaced question that no episode took over, and [`workflows.inner_thought.inquiry.displaced_offer`][] names it for shared attention as a [`workflows.inner_thought.schemas.DisplacedInquiryOffer`][].
+[`workflows.inner_thought.graph_execution.displaced_candidate`][] chooses one displaced question that no episode took over, and [`workflows.inner_thought.inquiry.displaced_offer`][] names it for shared attention as a [`workflows.inner_thought.schemas.DisplacedInquiryOffer`][].
 It competes in the same single attention decision as fresh nominations and parked work.
 Unlike parked work it needs no elapsed deadline and no new outside evidence, because the inquiry itself never chose to stop.
+
+#### Which displaced question comes into focus
+
+Several displaced questions can wait, and the attention prompt offers one.
+A single waiting question is offered without any measurement.
+With several, [`workflows.inner_thought.offer_salience.select_retained_offer`][] rates each one against what the private mind holds right now.
+Those cues are the records the private stages can already cite, plus the summary of the newest main turn; [`workflows.inner_thought.offer_salience.attention_cues`][] reads them from the frozen request.
+
+Two separate signals feed the rating:
+
+| Signal | Meaning | Value |
+| --- | --- | --- |
+| Source overlap | the context holds an original record the question came from | share of the question's source roots among the cue records |
+| Similarity | something in the context means nearly the same, whichever record it is | highest embedding cosine between the question and any one cue |
+
+The relevance is their weighted sum, with equal weights for now.
+Seeded noise is added, and the accepted mental state decides how strictly the top rating wins.
+Focused attention offers the highest rating. Wider attention samples one question by rating, so a weakly cued question can still surface.
+This is the same sampling the main loop uses for a codelet's view in [`pm.records.situational_model.SituationalModel.snapshot_for`][], driven by the same salience bias from [`pm.records.mental_state.compute_attention_bias`][].
+
+```mermaid
+flowchart TB
+    Q[Waiting displaced questions] --> O[Source overlap]
+    C[Current cues] --> O
+    Q --> S[Embedding similarity]
+    C --> S
+    O --> R[Weighted relevance]
+    S --> R
+    R --> N[Rating with seeded noise]
+    M[Salience bias of the mental state] --> N
+    N --> P{Attention focused?}
+    P -- yes --> H[Offer the highest rating]
+    P -- no --> W[Offer one weighted draw]
+```
+
+The selection only decides which question the attention stage sees. It grants nothing, and the attention decision still admits, defers, or dismisses.
+The random generator is seeded with the opportunity's own identity, so a restart offers the same question for the same opportunity.
+Rating several questions costs one embedding request for the question and cue texts. An opportunity that already has an attention outcome returns before that request.
+
+Every attention outcome of the opportunity keeps the full selection as [`workflows.inner_thought.schemas.RetainedOfferSelection`][] on its [`workflows.inner_thought.schemas.ThoughtAttentionReceipt`][]: each question's shared sources, similarity, most similar cue, noise, and rating, plus the seed and the mode.
+The selection is not part of the attention prompt.
+
+*Verified implementation example* (real embedding endpoint, synthetic texts): two questions waited, one about an unfinished harbour sketch and one about a dripping kitchen tap.
+A new remark about a leaking pipe under the sink shared no source with either. It rated the tap question at similarity 0.40 and the sketch question at 0.06.
+A private thought about the half-painted harbour picture rated the sketch question at 0.45 and the tap question at 0.06.
+Holding the tap's original report again gave the tap question a source overlap of 1.0 and a rating of 0.83.
 
 Admission opens a new episode through [`workflows.inner_thought.inquiry.stage_displaced_inquiry`][] and [`workflows.inner_thought.graph_host.PrivateInquiryOwner.admit_displaced_inquiry`][].
 The new episode starts with no nodes, operation count zero, and no active duration, under a grant captured from the current view at the current epoch.
@@ -154,13 +200,18 @@ A question can be displaced more than once.
 This models one aspect of how people handle an interrupted line of thought: the urgent event takes the mind at once, the unfinished concern stays latent, and it is picked up again later from the present situation instead of being restored unchanged.
 That reading is an analogy drawn from general accounts of interrupted goals and current concerns, not from this project's research collection, and it is not a claim about human memory mechanisms.
 The runtime contract is only what the paragraphs above state.
-In particular the loop does not model forgetting: a displaced question does not fade with time.
+In particular the loop does not model forgetting: a displaced question does not fade with time, and the rating has no recency term.
+
+**Why does similar text count, and not only a shared source?**
+Owner rationale of 2026-11-14: a shared source is a good signal, but simply hearing something similar, or having an adjacent thought, should also bring a displaced question into focus.
+The owner also asked for the two signals to be combined into one weighted score with some random chance, instead of offering the newest question first.
+The equal weights are a starting value chosen during implementation, not an owner decision.
 
 **Why can attention not dismiss a displaced question?**
 Owner decision of 2026-11-14: for now a displaced question is not dismissed.
 A deferral or dismissal in one opportunity leaves it offered at the next qualifying opportunity, and [`workflows.inner_thought.schemas.ThoughtAttentionDecision`][] rejects any non-selecting decision that names it.
 The owner named a later memory-reconsolidation "sleep" phase as the possible place to retire such questions. That phase is proposed, not designed.
-Until then one more displaced question costs one more offer in an attention prompt that already runs; it never causes a model call by itself.
+Until then a waiting displaced question never causes a chat model call by itself. Two or more waiting questions cost one embedding request per opportunity that reaches the attention call.
 
 ### Deliberate entry
 
@@ -186,6 +237,7 @@ Desire or emotional intensity can motivate exploration without increasing eviden
 
 The existing `trigger` child now also accepts an explicit private-attention request.
 It considers committed nominations, one offered parked question, one offered displaced question, pending input, accepted focus, active intentions, and the accepted mental aperture.
+Which displaced question is offered follows from [what the private mind currently holds](#which-displaced-question-comes-into-focus).
 [`workflows.inner_thought.schemas.ParkedInquiryOffer`][] carries the paused question, its stop reason, its deadline state, and the outside evidence supplied since the pause.
 [`workflows.inner_thought.schemas.DisplacedInquiryOffer`][] carries a question that Critical reconsideration interrupted, and how many operations its closed episode retains.
 [`workflows.cognitive_control.attention.validate_private_attention`][] validates that decision against the supplied identities and admission context.
@@ -427,6 +479,7 @@ An offline gap contains no invented intermediate samples.
 | Source meaning or current parent changes | the guarded commit fails |
 | Projection fails after graph commit | preserve the graph for visible diagnosis and projection repair |
 | Active or parked inquiry belongs to an older Critical epoch | close it with a `displaced` receipt and offer its question to attention as a new episode |
+| Several displaced questions wait and the run has no embedding endpoint | raise; the questions cannot be rated |
 | A generative step claims discrimination progress | reject with a message that names the operation mode, separately from the two-node rule |
 | One identical rejection fills two complete repair conversations | `RepeatedRejectionError` discards the cycle with `thought.rejected` telemetry |
 | Broken manifest, catalogue, or internal contract | fail through the actual error path |

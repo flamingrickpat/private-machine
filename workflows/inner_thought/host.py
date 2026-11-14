@@ -24,7 +24,10 @@ Ordinary input does not supersede private work. Accepted Critical
 reconsideration does: the next opportunity closes every inquiry from the older
 epoch as ``displaced`` and frees the slot. The closed question is offered to
 shared attention and can start a new episode under the current grant; inquiry
-owns that staging and graph_execution the offer. Deliberate mental work still
+owns that staging and graph_execution the offer. When several closed questions
+wait, offer_salience chooses the one offered from what the private mind holds
+now: shared original sources, embedding similarity, and seeded chance. That
+choice is retained on the attention outcome. Deliberate mental work still
 awaits its wiring to this slot.
 """
 from __future__ import annotations
@@ -285,12 +288,21 @@ class PrivateThoughtLoop(CognitiveWorkflow):
             trace = json.loads(json.dumps(result["trace"]))
             return PrivateRecall(matches=matches, trace=trace, sources=tuple(
                 capture_source(view, key, current_head=False) for key in sorted(source_ids)))
+        embedding_service = self.ghost.embeddings
+
+        def embed_texts(texts: Sequence[str]) -> list[list[float]]:
+            """Embed question and cue texts through the run's one embedding endpoint."""
+            import asyncio
+            assert embedding_service is not None  # Passed on only when the endpoint exists.
+            return asyncio.run(embedding_service.embed_many(list(texts), cancel=self.run_stop))
+
         try:
             return run_graph_opportunity(request, owner=owner, grant=grant, run_stage=run_stage,
                 mental_state=self._mental_state, control_generation=generation,
                 pending_input_ids=tuple(sorted(record.id for record in view.all_knoxels.values()
                     if isinstance(record, Feature) and record.metadata.get("exchange_status") == "pending")), focus=focus,
-                recall_memory=recall_memory)
+                recall_memory=recall_memory,
+                embed_texts=embed_texts if embedding_service is not None else None)
         except GhostCancelled:
             return PrivateGraphResult(summary="Private graph work was held or cancelled before acceptance.")
         except GhostConflict as error:

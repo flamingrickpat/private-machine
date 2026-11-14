@@ -42,7 +42,7 @@ from workflows.inner_thought.operations import validate_operation
 from workflows.inner_thought.schemas import (
     DeliberateAdmission, DisplacedInquiryOffer, InquiryAlternative, InquiryDisplacement, InquiryGrant, InquiryOrigin,
     InquiryReceipt, InquiryResumeDecision, InquiryState, InquiryStep, LegacyEpisodeState, ParkedInquiryOffer,
-    ThoughtAttentionDecision, ThoughtAttentionReceipt,
+    RetainedOfferSelection, ThoughtAttentionDecision, ThoughtAttentionReceipt,
 )
 from workflows.main_cognition.schemas import ActionMetadata
 
@@ -500,12 +500,15 @@ def _stage_receipt(batch: WriteBatch, receipt: InquiryReceipt,
 
 
 def stage_attention(batch: WriteBatch, nomination_ids: Sequence[int], decision: ThoughtAttentionDecision,
-                    *, episode_id: str, now_utc: datetime) -> AttentionRecord:
+                    *, episode_id: str, now_utc: datetime,
+                    displaced_selection: RetainedOfferSelection | None = None) -> AttentionRecord:
     """Persist the separate attention decision and allocate at most one episode.
 
     The caller supplies a decision from the shared attention owner. This
     function enforces its identities and bounds; it does not choose a thought.
-    Selection creates no executed node or GWT turn.
+    Selection creates no executed node or GWT turn. ``displaced_selection``
+    is retained beside the decision when a displaced question was offered in
+    the same opportunity, so a reader can see why that question was the one.
     """
     if not nomination_ids or len(nomination_ids) > 3 or len(set(nomination_ids)) != len(nomination_ids):
         raise ValueError("Private attention requires one to three unique offered nomination IDs.")
@@ -566,7 +569,8 @@ def stage_attention(batch: WriteBatch, nomination_ids: Sequence[int], decision: 
             interlocus=InterlocusType.PrivateInternal,
             lineage=RecordLineage(episode_id=batch_id, operation="private_attention",
                                  parent_record_ids=list(nomination_ids))))
-    attention = ThoughtAttentionReceipt(nomination_ids=tuple(nomination_ids), decision=decision, grant=grant)
+    attention = ThoughtAttentionReceipt(nomination_ids=tuple(nomination_ids), decision=decision, grant=grant,
+                                        displaced_selection=displaced_selection)
     _attach_attention(record, attention, batch_id=batch_id)
     batch.revise(record)
     batch.depend_on(nomination_ids)
@@ -579,14 +583,16 @@ def _attach_attention(record: Feature, attention: ThoughtAttentionReceipt, *, ba
 
 
 def _stage_attention_record(batch: WriteBatch, nomination_ids: Sequence[int], decision: ThoughtAttentionDecision,
-                            *, batch_id: str, grant: InquiryGrant) -> Feature:
+                            *, batch_id: str, grant: InquiryGrant,
+                            displaced_selection: RetainedOfferSelection | None) -> Feature:
     """Append the durable attention outcome that allocates no inquiry episode."""
     record = batch.create(Feature(content=decision.reason, feature_type=FeatureType.StateUpdate,
         entity_id=grant.observer_entity_id, scope=grant.scope, provenance=Provenance(source_kind=SourceKind.Self),
         interlocus=InterlocusType.PrivateInternal,
         lineage=RecordLineage(episode_id=batch_id, operation="private_attention",
                              parent_record_ids=list(nomination_ids))))
-    attention = ThoughtAttentionReceipt(nomination_ids=tuple(nomination_ids), decision=decision, grant=grant)
+    attention = ThoughtAttentionReceipt(nomination_ids=tuple(nomination_ids), decision=decision, grant=grant,
+                                        displaced_selection=displaced_selection)
     _attach_attention(record, attention, batch_id=batch_id)
     batch.revise(record)
     batch.depend_on(nomination_ids)
@@ -594,7 +600,8 @@ def _stage_attention_record(batch: WriteBatch, nomination_ids: Sequence[int], de
 
 
 def stage_attention_outcome(batch: WriteBatch, *, batch_id: str, nomination_ids: Sequence[int],
-                            decision: ThoughtAttentionDecision, grant: InquiryGrant) -> Feature:
+                            decision: ThoughtAttentionDecision, grant: InquiryGrant,
+                            displaced_selection: RetainedOfferSelection | None = None) -> Feature:
     """Retain one shared attention outcome that allocates no episode by nomination.
 
     An opportunity may offer only retained parked work. Deferral or dismissal
@@ -618,7 +625,11 @@ def stage_attention_outcome(batch: WriteBatch, *, batch_id: str, nomination_ids:
         raise ValueError("One attention opportunity must have exactly one retained outcome.")
     expect_inquiry_grant(batch, grant)
     _guard_family(batch, ATTENTION_BATCH_KEY, batch_id)
-    return _stage_attention_record(batch, nomination_ids, decision, batch_id=batch_id, grant=grant)
+    if decision.displaced_receipt_id is not None and (
+            displaced_selection is None or displaced_selection.offered_receipt_id != decision.displaced_receipt_id):
+        raise ValueError("An admitted displaced question must be the one its offer selection names.")
+    return _stage_attention_record(batch, nomination_ids, decision, batch_id=batch_id, grant=grant,
+                                   displaced_selection=displaced_selection)
 
 
 def stage_inquiry_resume(batch: WriteBatch, *, parent_receipt_id: int, decision: InquiryResumeDecision,

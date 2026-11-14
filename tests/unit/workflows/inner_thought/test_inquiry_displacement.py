@@ -36,15 +36,15 @@ from workflows.cognitive_control.attention import captured_private_focus, valida
 from workflows.cognitive_control.host import CognitiveControl
 from workflows.cognitive_control.schemas import ControlConfig
 from workflows.inner_thought.graph_execution import (
-    displaced_candidate, graph_thought_instruction, graph_thought_request, run_graph_opportunity,
-    validate_graph_step,
+    DisplacedCandidate, displaced_candidate, graph_thought_instruction, graph_thought_request,
+    run_graph_opportunity, validate_graph_step,
 )
 from workflows.inner_thought.graph_host import (
     PrivateInquiryOwner, active_inquiry, displaced_inquiries, parked_inquiries,
 )
 from workflows.inner_thought.inquiry import (
-    DISPLACED_REASON, InquiryRecord, inquiry_history, inquiry_origin, stage_attention, stage_inquiry_displacement,
-    stage_inquiry_resume, stage_inquiry_step,
+    DISPLACED_REASON, InquiryRecord, inquiry_history, inquiry_origin, stage_attention, stage_attention_outcome,
+    stage_inquiry_displacement, stage_inquiry_resume, stage_inquiry_step,
 )
 from workflows.inner_thought.nominations import capture_inquiry_grant, stage_nominations
 from workflows.input_triage.schemas import EarlyTriageAssessment, TriageEvidence
@@ -54,8 +54,8 @@ from workflows.public_speech.user_input import UserInputProxy
 from workflows.inner_thought.pipeline import ModelProposalError
 from workflows.inner_thought.schemas import (
     InnerRequest, InquiryAlternative, InquiryGrant, InquiryProgress, InquiryResumeDecision, InquiryStep,
-    PrivateAttentionContext, ThoughtAttentionDecision, ThoughtAttentionReceipt, ThoughtJudgments, ThoughtNomination,
-    ThoughtRelation,
+    PrivateAttentionContext, RetainedOfferSelection, ThoughtAttentionDecision, ThoughtAttentionReceipt,
+    ThoughtJudgments, ThoughtNomination, ThoughtRelation,
 )
 
 
@@ -153,6 +153,17 @@ class DisplacementFixture(unittest.TestCase):
         self.assertEqual(len(closed), 1)
         return closed[0]
 
+    def offered(self, grant: InquiryGrant) -> DisplacedCandidate | None:
+        """Ask which displaced question this opportunity offers; one waiting question needs no embedding."""
+        return displaced_candidate(self.owner, observer_entity_id=self.observer.id, grant=grant,
+            request=InnerRequest(), mental_state=FullMentalState(), selection_seed="test-opportunity",
+            embed_texts=None)
+
+    def only_candidate(self, displaced: InquiryRecord) -> RetainedOfferSelection:
+        """State the offer receipt of a question that waited alone."""
+        return RetainedOfferSelection(offered_receipt_id=displaced.record.id, mode="only_candidate", seed="",
+                                      salience_bias=0.0, ratings=())
+
     def admit(self, displaced: InquiryRecord, *, batch_id: str = "opportunity-one",
               offered_grant: InquiryGrant | None = None) -> InquiryRecord:
         """Commit the shared attention decision that restarts a displaced question."""
@@ -162,7 +173,8 @@ class DisplacementFixture(unittest.TestCase):
         return self.owner.admit_displaced_inquiry(displaced, attention=decision, nomination_ids=(),
             offered_grant=offered, grant=self.owner.displaced_grant(displaced, offered_grant=offered),
             batch_id=batch_id, episode_id="inquiry:" + batch_id, now_utc=self.now,
-            focus=captured_private_focus(self.store.snapshot(capture=False), self.now))
+            focus=captured_private_focus(self.store.snapshot(capture=False), self.now),
+            displaced_selection=self.only_candidate(displaced))
 
     def attention_outcomes(self, batch_id: str) -> list[ThoughtAttentionReceipt]:
         """Read the retained attention outcomes recorded for one opportunity identity."""
@@ -279,9 +291,13 @@ class InquiryDisplacementTests(DisplacementFixture):
         current = self.capture(self.new_epoch)
         focus = captured_private_focus(self.store.snapshot(capture=False), self.now)
         for batch_id, disposition in [("deferred", "defer"), ("dismissed", "dismiss")]:
-            candidate = displaced_candidate(self.owner, observer_entity_id=self.observer.id, grant=current)
+            candidate = self.offered(current)
             assert candidate is not None
             self.assertEqual(candidate.offer.receipt_id, closed.record.id)
+            # One waiting question is offered without any measurement.
+            self.assertEqual(candidate.selection.mode, "only_candidate")
+            self.assertEqual(candidate.selection.offered_receipt_id, closed.record.id)
+            self.assertEqual(candidate.selection.ratings, ())
             self.assertEqual(candidate.offer.question, "What remains unknown about the sketch?")
             self.assertEqual(candidate.offer.displaced_reason, DISPLACED_REASON)
             self.assertEqual(candidate.offer.earlier_operation_count, 1)
@@ -290,10 +306,38 @@ class InquiryDisplacementTests(DisplacementFixture):
             decision = validate_private_attention(context,
                 ThoughtAttentionDecision.model_validate({"disposition": disposition, "reason": "Not now."}))
             self.owner.record_attention_outcome(batch_id=batch_id, nomination_ids=(), decision=decision,
-                grant=current, focus=focus)
-        still_offered = displaced_candidate(self.owner, observer_entity_id=self.observer.id, grant=current)
+                grant=current, focus=focus, displaced_selection=candidate.selection)
+            # The refusal keeps the receipt of why this question was the one offered.
+            self.assertEqual(self.attention_outcomes(batch_id)[0].displaced_selection, candidate.selection)
+        still_offered = self.offered(current)
         assert still_offered is not None
         self.assertEqual(still_offered.offer.receipt_id, closed.record.id)
+
+    def test_an_admitted_question_must_be_the_one_its_offer_selection_names(self) -> None:
+        self.working()
+        closed = self.displace()
+        current = self.capture(self.new_epoch)
+        decision = ThoughtAttentionDecision(displaced_receipt_id=closed.record.id, disposition="select",
+            admitted_operation="feasibility_check", reason="The interrupted question still matters.")
+        other = self.only_candidate(closed).model_copy(update={"offered_receipt_id": closed.record.id + 1000})
+        for selection in (None, other):
+            with self.assertRaisesRegex(ValueError, "must be the one its offer selection names"):
+                stage_attention_outcome(self.store.begin_batch("mismatched-offer", embed=False),
+                    batch_id="mismatched-offer", nomination_ids=(), decision=decision, grant=current,
+                    displaced_selection=selection)
+
+    def test_several_waiting_questions_need_the_embedding_endpoint_to_be_rated(self) -> None:
+        self.working()
+        first = self.displace()
+        # A second question is admitted at the new epoch and displaced by a still newer one.
+        second_episode = self.select("second-question", grant=self.capture(self.new_epoch))
+        latest_epoch = self.new_epoch + 1
+        closed = self.owner.displace_superseded(observer_entity_id=self.observer.id, critical_epoch=latest_epoch)
+        self.assertEqual(tuple(item.receipt.parent_receipt_id for item in closed), (second_episode.record.id,))
+        waiting = displaced_inquiries(self.store.snapshot(capture=False), observer_entity_id=self.observer.id)
+        self.assertEqual({head.record.id for head in waiting}, {first.record.id, closed[0].record.id})
+        with self.assertRaisesRegex(RuntimeError, "requires the host's embedding endpoint"):
+            self.offered(self.capture(latest_epoch))
 
     def test_no_decision_can_name_a_displaced_question_without_admitting_it(self) -> None:
         for disposition in ("defer", "dismiss"):
@@ -340,8 +384,7 @@ class InquiryDisplacementTests(DisplacementFixture):
         self.assertEqual(active.record.id, restarted.record.id)
         self.assertEqual(inquiry_history(view, earlier.episode_id)[-1].receipt.state.status, "displaced")
         self.assertEqual(displaced_inquiries(view, observer_entity_id=self.observer.id), ())
-        self.assertIsNone(displaced_candidate(self.owner, observer_entity_id=self.observer.id,
-                                              grant=self.capture(self.new_epoch)))
+        self.assertIsNone(self.offered(self.capture(self.new_epoch)))
 
     def test_admission_spends_one_opportunity_and_survives_restart(self) -> None:
         self.working()
@@ -421,7 +464,7 @@ class InquiryDisplacementTests(DisplacementFixture):
         closed_again = self.owner.displace_superseded(observer_entity_id=self.observer.id, critical_epoch=latest_epoch)
         self.assertEqual(len(closed_again), 1)
         offered = self.capture(latest_epoch)
-        candidate = displaced_candidate(self.owner, observer_entity_id=self.observer.id, grant=offered)
+        candidate = self.offered(offered)
         assert candidate is not None
         self.assertEqual(candidate.offer.receipt_id, closed_again[0].record.id)
         self.assertEqual(candidate.offer.question, "What remains unknown about the sketch?")
@@ -430,7 +473,8 @@ class InquiryDisplacementTests(DisplacementFixture):
         third = self.owner.admit_displaced_inquiry(closed_again[0], attention=decision, nomination_ids=(),
             offered_grant=offered, grant=candidate.grant, batch_id="opportunity-three",
             episode_id="inquiry:opportunity-three", now_utc=self.now,
-            focus=captured_private_focus(self.store.snapshot(capture=False), self.now))
+            focus=captured_private_focus(self.store.snapshot(capture=False), self.now),
+            displaced_selection=candidate.selection)
         request = graph_thought_request(self.store.snapshot(capture=False), InnerRequest(), third,
                                        self.owner.execution_grant(third))
         self.assertEqual(tuple(artifact.record_id for artifact in request.earlier_artifacts),

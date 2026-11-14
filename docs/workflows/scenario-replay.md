@@ -83,6 +83,7 @@ Three things made that possible, and each is worth knowing before you write a sc
 - **Replay serves the recorded context measurement.** It cannot discover that a newly lengthened prompt no longer fits the context window. A recording does hit the real budget check, so re-record when prompts grow.
 - **An aborted invocation cannot be replayed.** A cancellation races the model call, so the recording is a partial trace. The manifest marks such a sample and replay reports `NotReplayable` instead of blaming the current code.
 - **Only the modules a scenario steps are exercised.** A scenario that never steps main cognition says nothing about it.
+- **Embedding requests are not recorded.** Only chat completions and context measurements go through the scripted model. A scenario that reaches memory search, or that has several displaced questions waiting, sends real embedding requests during a replay too. The recordings made so far reached neither.
 
 ## Adding a scenario
 

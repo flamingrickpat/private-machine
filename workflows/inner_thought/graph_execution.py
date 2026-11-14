@@ -12,11 +12,13 @@ An opportunity first closes work from an older Critical epoch, so stale work
 never holds the private slot. The closed question competes in the same
 attention decision as a displaced offer. Admission opens a new episode; the
 earlier nodes reach its thought stage as earlier private artifacts only.
+When several displaced questions wait, :mod:`workflows.inner_thought.offer_salience`
+chooses the one to offer from what the private mind currently holds.
 """
 from __future__ import annotations
 
 from typing import Literal
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from time import monotonic
 import hashlib
@@ -27,7 +29,7 @@ from pm import vclock
 from pm.memory.snapshot import Snapshot
 from pm.memory.dependencies import SourceDependency
 from workflows.public_speech.public_context import EvidenceItem
-from pm.records.mental_state import FullMentalState
+from pm.records.mental_state import FullMentalState, compute_attention_bias
 from pm.records.enums import FeatureType
 from pm.records.memory_records import Feature
 from workflows.cognitive_control.attention import CapturedPrivateFocus, validate_private_attention, validate_private_focus
@@ -39,17 +41,20 @@ from workflows.inner_thought.inquiry import (
     read_displaced_inquiry,
 )
 from workflows.inner_thought.nominations import NominationBatchRecord, read_nomination_batch
+from workflows.inner_thought.offer_salience import RetainedQuestion, attention_cues, select_retained_offer
 from workflows.inner_thought.operations import operation_lines, validate_operation
 from workflows.inner_thought.graph_outcomes import capture_graph_outcome
 from workflows.inner_thought.pipeline import ModelProposalError, citable_ids, validate_integration
 from workflows.inner_thought.schemas import (
     AttentionCandidate, DisplacedInquiryOffer, InquiryAlternative, InquiryGrant, InquiryOrigin,
     InquiryResumeDecision, InquiryState, InquiryStep, InnerRequest, IntegrationResult, NominationBatch,
-    ParkedInquiryOffer, PrivateAttentionContext, ThoughtAlternative, ThoughtAttentionDecision, ThoughtCandidate,
-    ThoughtResult, TriggerChoice,
+    ParkedInquiryOffer, PrivateAttentionContext, RetainedOfferSelection, ThoughtAlternative,
+    ThoughtAttentionDecision, ThoughtCandidate, ThoughtResult, TriggerChoice,
 )
 
 StageRunner = Callable[[str, dict[str, JsonValue]], dict[str, JsonValue]]
+#: Embed texts in input order through the run's one embedding endpoint.
+EmbedTexts = Callable[[Sequence[str]], list[list[float]]]
 
 
 class PrivateGraphResult(BaseModel):
@@ -284,30 +289,74 @@ class OpportunityAdmission:
 
 
 @dataclass(frozen=True, slots=True)
+class WaitingDisplacedQuestion:
+    """One displaced question that no episode took over, with its attention offer."""
+
+    inquiry: InquiryRecord
+    offer: DisplacedInquiryOffer
+
+
+@dataclass(frozen=True, slots=True)
 class DisplacedCandidate:
-    """A displaced question, the grant its new episode would start under, and its offer."""
+    """A displaced question, its new grant, its offer, and why it was the one offered."""
 
     inquiry: InquiryRecord
     grant: InquiryGrant
     offer: DisplacedInquiryOffer
+    selection: RetainedOfferSelection
 
 
-def displaced_candidate(owner: PrivateInquiryOwner, *, observer_entity_id: int,
-                        grant: InquiryGrant) -> DisplacedCandidate | None:
-    """Read the newest displaced question this opportunity may offer to shared attention.
+def displaced_candidate(owner: PrivateInquiryOwner, *, observer_entity_id: int, grant: InquiryGrant,
+                        request: InnerRequest, mental_state: FullMentalState, selection_seed: str,
+                        embed_texts: EmbedTexts | None) -> DisplacedCandidate | None:
+    """Choose the one displaced question this opportunity offers to shared attention.
 
     One opportunity offers at most one displaced question, like parked work, so
-    the attention prompt stays bounded. An older displaced question is offered
-    once the newer one opened its episode.
+    the attention prompt stays bounded. A single waiting question is offered
+    without any measurement. Several waiting questions are rated against what
+    the private mind currently holds: shared original sources, and embedding
+    similarity to any current cue. See
+    :func:`workflows.inner_thought.offer_salience.select_retained_offer`.
+
+    Rating several questions makes one embedding request for the question and
+    cue texts. ``embed_texts`` is the host's embedding endpoint; a missing one
+    raises when a rating is needed. ``selection_seed`` is the opportunity's
+    identity, so a restart offers the same question again.
     """
     view = owner.store.snapshot(capture=False)
+    waiting: dict[int, WaitingDisplacedQuestion] = {}
     for displaced in displaced_inquiries(view, observer_entity_id=observer_entity_id):
         offer = displaced_offer(view, displaced)
-        if offer is None:
-            continue
-        new_grant = owner.displaced_grant(displaced, offered_grant=grant)
-        return DisplacedCandidate(displaced, new_grant, offer)
-    return None
+        if offer is not None:
+            waiting[displaced.record.id] = WaitingDisplacedQuestion(displaced, offer)
+    if not waiting:
+        return None
+
+    _, salience_bias = compute_attention_bias(mental_state)
+    if len(waiting) == 1:
+        only_receipt_id = next(iter(waiting))
+        selection = RetainedOfferSelection(offered_receipt_id=only_receipt_id, mode="only_candidate", seed="",
+                                           salience_bias=salience_bias, ratings=())
+    else:
+        if embed_texts is None:
+            raise RuntimeError("Rating several displaced questions requires the host's embedding endpoint.")
+        questions: list[RetainedQuestion] = []
+        for receipt_id, question in waiting.items():
+            state = question.inquiry.receipt.state
+            origin = inquiry_origin(view, state)
+            questions.append(RetainedQuestion(receipt_id=receipt_id, text=origin.text + "\n" + origin.question,
+                                              source_ids=state.root_source_ids))
+        cues = attention_cues(request)
+        # One request embeds the questions first and the cues after them.
+        vectors = embed_texts([item.text for item in questions] + [cue.text for cue in cues])
+        if len(vectors) != len(questions) + len(cues):
+            raise ValueError("The embedding endpoint returned a different number of vectors than texts.")
+        selection = select_retained_offer(questions, cues, question_vectors=vectors[:len(questions)],
+            cue_vectors=vectors[len(questions):], salience_bias=salience_bias, seed=selection_seed)
+
+    chosen = waiting[selection.offered_receipt_id]
+    new_grant = owner.displaced_grant(chosen.inquiry, offered_grant=grant)
+    return DisplacedCandidate(chosen.inquiry, new_grant, chosen.offer, selection)
 
 
 @dataclass(frozen=True, slots=True)
@@ -342,7 +391,7 @@ def parked_candidate(owner: PrivateInquiryOwner, *, observer_entity_id: int,
 def admit_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner, grant: InquiryGrant,
                       run_stage: StageRunner, nominations: NominationBatchRecord, batch_id: str,
                       pending_input_ids: tuple[int, ...], focus: CapturedPrivateFocus,
-                      mental_state: FullMentalState) -> OpportunityAdmission:
+                      mental_state: FullMentalState, embed_texts: EmbedTexts | None = None) -> OpportunityAdmission:
     """Offer one nomination batch and any retained work to shared attention.
 
     One model call admits at most one inquiry for the private slot. Parked work
@@ -355,22 +404,30 @@ def admit_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner, gran
     question through its new entry receipt beside that outcome, and any other
     decision through that attention outcome alone. A completed opportunity is
     never paid for twice. A deferral or dismissal leaves a displaced question
-    offerable for a later opportunity.
+    offerable for a later opportunity. When several displaced questions wait,
+    :func:`displaced_candidate` chooses the one that is offered, and every
+    outcome retains that selection.
     """
     from workflows.inner_thought.stages.trigger.steps import AttentionStageRequest
     candidate = parked_candidate(owner, observer_entity_id=grant.observer_entity_id, grant=grant)
-    displaced = displaced_candidate(owner, observer_entity_id=grant.observer_entity_id, grant=grant)
-    if not nominations.nominations and candidate is None and displaced is None:
+    view = owner.store.snapshot(capture=False)
+    displaced_waiting = bool(displaced_inquiries(view, observer_entity_id=grant.observer_entity_id))
+    if not nominations.nominations and candidate is None and not displaced_waiting:
         return OpportunityAdmission(None, PrivateGraphResult(summary=nominations.receipt.reason,
             receipt_id=nominations.record.id))
     # A retained attention outcome is a completed selection call. A later
     # opportunity receives a different captured-context identity.
-    view = owner.store.snapshot(capture=False)
     if any(record.metadata.get("thought_attention_batch") == batch_id
            for record in view.all_knoxels.values()):
         return OpportunityAdmission(None, PrivateGraphResult(
             summary="This nomination opportunity already has an attention outcome.",
             receipt_id=nominations.record.id))
+    # Choose the displaced offer only now: rating several questions costs one
+    # embedding request, which a completed opportunity must not pay again.
+    displaced = displaced_candidate(owner, observer_entity_id=grant.observer_entity_id, grant=grant,
+        request=request, mental_state=mental_state, selection_seed=batch_id + ":displaced-offer",
+        embed_texts=embed_texts)
+    displaced_selection = None if displaced is None else displaced.selection
     attention = PrivateAttentionContext(
         candidates=tuple(AttentionCandidate(nomination_id=item.record.id, nomination=item.receipt.nomination,
             root_source_ids=item.receipt.root_source_ids) for item in nominations.nominations),
@@ -388,17 +445,19 @@ def admit_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner, gran
             InquiryResumeDecision(operation=decision.admitted_operation, reason=decision.reason,
                 trigger_source_ids=candidate.offer.available_evidence_ids),
             attention=decision, nomination_ids=nominations.receipt.nomination_ids, offered_grant=grant,
-            grant=candidate.grant, batch_id=batch_id, now_utc=vclock.utcnow(), focus=focus)
+            grant=candidate.grant, batch_id=batch_id, now_utc=vclock.utcnow(), focus=focus,
+            displaced_selection=displaced_selection)
         return OpportunityAdmission(resumed, None)
     if decision.displaced_receipt_id is not None:
         assert displaced is not None  # Only an offered displaced receipt can be named.
         restarted = owner.admit_displaced_inquiry(displaced.inquiry, attention=decision,
             nomination_ids=nominations.receipt.nomination_ids, offered_grant=grant, grant=displaced.grant,
-            batch_id=batch_id, episode_id="inquiry:" + batch_id, now_utc=vclock.utcnow(), focus=focus)
+            batch_id=batch_id, episode_id="inquiry:" + batch_id, now_utc=vclock.utcnow(), focus=focus,
+            displaced_selection=displaced.selection)
         return OpportunityAdmission(restarted, None)
     if not nominations.nominations:
         outcome = owner.record_attention_outcome(batch_id=batch_id, nomination_ids=(), decision=decision,
-            grant=grant, focus=focus)
+            grant=grant, focus=focus, displaced_selection=displaced_selection)
         return OpportunityAdmission(None, PrivateGraphResult(summary=decision.reason, receipt_id=outcome.id))
 
     def validate_context() -> None:
@@ -407,7 +466,7 @@ def admit_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner, gran
 
     selected = owner.accept_attention(nominations.receipt.nomination_ids, decision,
         commit_id="attention:" + batch_id, episode_id="inquiry:" + batch_id, now_utc=vclock.utcnow(),
-        validate_context=validate_context)
+        validate_context=validate_context, displaced_selection=displaced_selection)
     if selected.inquiry is None:
         return OpportunityAdmission(None, PrivateGraphResult(summary=decision.reason, receipt_id=selected.record.id))
     return OpportunityAdmission(selected.inquiry, None)
@@ -417,7 +476,8 @@ def run_graph_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner,
                           grant: InquiryGrant, run_stage: StageRunner,
                           mental_state: FullMentalState, control_generation: int,
                           pending_input_ids: tuple[int, ...], focus: CapturedPrivateFocus,
-                          recall_memory: Callable[[str], PrivateRecall] | None = None) -> PrivateGraphResult:
+                          recall_memory: Callable[[str], PrivateRecall] | None = None,
+                          embed_texts: EmbedTexts | None = None) -> PrivateGraphResult:
     """Retain nomination, selection, and one executed step as separate boundaries.
 
     Continuation uses the accepted graph rather than main acknowledgment of
@@ -429,7 +489,8 @@ def run_graph_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner,
 
     Work admitted under an older Critical epoch is closed first, durably and
     without a model call. The slot is then free for this same opportunity, and
-    the closed question competes in its attention decision.
+    the closed question competes in its attention decision. ``embed_texts`` is
+    needed only when several displaced questions wait and one must be chosen.
     """
     owner.displace_superseded(observer_entity_id=grant.observer_entity_id, critical_epoch=grant.critical_epoch)
     view = owner.store.snapshot(capture=False)
@@ -457,7 +518,7 @@ def run_graph_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner,
             nominations = owner.accept_nominations(result, grant=grant, batch_id=batch_id)
         admission = admit_opportunity(request, owner=owner, grant=grant, run_stage=run_stage,
             nominations=nominations, batch_id=batch_id, pending_input_ids=pending_input_ids,
-            focus=focus, mental_state=mental_state)
+            focus=focus, mental_state=mental_state, embed_texts=embed_texts)
         if admission.inquiry is None:
             assert admission.result is not None  # Every non-admission names its own outcome.
             return admission.result
