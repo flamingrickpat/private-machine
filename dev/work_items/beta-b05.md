@@ -1,6 +1,6 @@
 # B05: spontaneous nomination and bounded inquiry
 
-Status: close-out, 2026-11-14. The mechanisms are implemented; the owner accepted a three-pass close-out after an audit. See [Audit and close-out decisions](#audit-and-close-out-decisions-2026-11-14) at the end of this record and [the coder handoff](beta-b05-closeout-handoff.md). Work deferred from B05 is [gamma G01](gamma.md).
+Status: close-out, 2026-11-14. The mechanisms are implemented; the owner accepted a close-out in passes after an audit. See [Audit and close-out decisions](#audit-and-close-out-decisions-2026-11-14) at the end of this record and [the handoff](beta-handoff-20261112.md). Work deferred from B05 is [gamma G01](gamma.md).
 Source baseline: `d72fd3b`, after B03 implementation `a9e78e8`.
 B04 committed as `e7a7ce8`. This continuation starts from that commit.
 
@@ -1924,7 +1924,7 @@ The 13 episode checks pass. The three failures in `tests/unit/pm/introspection` 
 | D1 | What counts as a repeated concern in the graph | Accepted. A graph step counts toward repetition only when its accepted `progress.kind` is `"none"`. Linear thoughts keep the existing rule. |
 | D2 | One step shows as a frame row and a decision row | Accepted. No record-schema change. `EpisodeIndex` keeps both rows. The two companion-facing projections drop an inner frame row when the list holds the private episode it outputs. |
 | D3 | Recording budget for the close-out | The owner declined a $2 cap: "no im going all out". Record what the passes need and report the provider cost of each sample. |
-| D4 | Close B05 after the third pass | Accepted. The deferred work is the first gamma work item, [G01](gamma.md). |
+| D4 | Close B05 after the close-out passes | Accepted. The deferred work is the first gamma work item, [G01](gamma.md). |
 
 D2 answers the earlier open question about a private decision identity: none is added.
 D4 moves these out of B05: a graph step that commits a `ReflectionDecision`, `capability_doubt` in the graph,
@@ -1932,11 +1932,19 @@ decision 3B (a step proposes the next recall query), and a sample that needs the
 
 ### Remaining B05 work
 
-Three passes, specified in [the coder handoff](beta-b05-closeout-handoff.md):
+Four passes, specified in [the handoff](beta-handoff-20261112.md):
 
 1. Graph thoughts reach the private loop's own readers: recent thoughts, the repeated-concern trigger, self-feedback detection, and the capability observation.
 2. The companion reads each step once, with its reasons. The episode reader fails on a missing required field.
-3. Real evidence and owner review: re-record the three scenarios, add `private-dwelling` with a non-neutral mental state,
-   run the existing live gates, and register a record package for owner rating.
+3. Recorded evidence and owner review: record the three scenarios again, add `private-dwelling` with a non-neutral mental state,
+   run `tests.live.test_private_inquiry`, and register a record package for owner rating.
+4. One integrated live gate through the assembled application: a private finding that main cognition appraises,
+   a Critical displacement of private work, and a main cycle that selects deliberate mental work.
 
-B05 closes after pass 3 and its owner review. None of the three passes has run yet.
+Correction of 2026-11-14, after the owner accepted D4: the plan first said pass 3 would run the existing live gates.
+Inspection showed that no existing live gate drives a private finding into a main cycle, a Critical displacement of private work,
+or a main-selected mental action. `tests/live/test_private_inquiry.py` runs no main cycle, `tests/live/test_critical_preemption.py`
+covers main calculation and a public draft, and the replay harness cannot record a main cycle. Pass 4 adds that gate.
+It is the integrated-gate item this record already listed as unfinished; it adds no new mechanism.
+
+B05 closes after pass 4 and the owner's review of the record package. None of the four passes has run yet.
