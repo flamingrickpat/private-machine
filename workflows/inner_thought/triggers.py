@@ -165,9 +165,21 @@ def _capability_doubt(request: InnerRequest) -> TriggerCandidate | None:
 
 
 def _repeated_source(recent_thoughts: Sequence[RecentThoughtView]) -> int | None:
-    """Return the id that appears in enough recent thoughts to count as rumination."""
+    """Return the id that appears in enough recent thoughts to count as rumination.
+
+    A graph step counts only when it accepted no progress. Every step of one
+    inquiry cites the same origin sources by design, so counting a progressing
+    step would report rumination inside any ordinary multi-step question. A
+    linear thought keeps the existing rule.
+    """
     counts: dict[int, int] = {}
     for thought in recent_thoughts:
+        if thought.loop == "inquiry":
+            inquiry = thought.inquiry
+            if inquiry is None:
+                raise ValueError("An inquiry thought requires its executed step view.")
+            if inquiry.progress_kind != "none":
+                continue
         for source_id in thought.source_ids:
             counts[source_id] = counts.get(source_id, 0) + 1
             if counts[source_id] >= RUMINATION_REPEATS:

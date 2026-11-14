@@ -7,9 +7,9 @@ not establish new memory, judgments, or execution facts.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
 from pm.introspection.episodes import EpisodeAnswer, EpisodeRow
 
@@ -44,11 +44,45 @@ class ExpectationView(PrivateSource):
     expected_outcome: str = ""
 
 
-class RecentThoughtView(PrivateSource):
-    """A retained private operation, with its exact cited sources."""
+class InquiryThoughtView(BaseModel):
+    """The executed inquiry step behind one recent private thought.
 
+    The private loop reads these fields from the operation's own accepted
+    metadata. They describe what the step did, not a new judgment about it.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+    episode_id: str = Field(description="The private inquiry episode that owns this executed step.")
+    outcome: Literal["continue", "finding", "information_gap", "wait", "pause", "completed", "abandoned"] = Field(
+        description="How the step left its question: continue, a finding, a stated gap, a wait, a pause, or an end.")
+    reason: str = Field(description="Why the step continued or stopped, in its own recorded words.")
+    information_gap: str = Field(
+        description="The specific missing evidence the step states; empty when it states none.")
+    progress_kind: Literal["new_evidence", "discrimination", "none"] = Field(
+        description="Accepted progress: newly inspected evidence, a meaningful comparison, or none.")
+
+
+class RecentThoughtView(PrivateSource):
+    """A retained private operation, with its exact cited sources.
+
+    ``loop`` names the path that produced the record. A linear thought carries
+    no inquiry step, so ``inquiry`` is null rather than an invented episode.
+    """
+
+    loop: Literal["inner", "inquiry"] = Field(
+        description="The private path that produced the thought: the legacy linear loop or the inquiry graph.")
     trigger: str = ""
     continuation: str = ""
+    inquiry: InquiryThoughtView | None = Field(
+        default=None,
+        description="The executed graph step for an inquiry thought; null for a linear thought.")
+
+    @model_validator(mode="after")
+    def loop_matches_inquiry(self) -> Self:
+        """Keep the loop label and the step view from contradicting each other."""
+        if (self.loop == "inquiry") != (self.inquiry is not None):
+            raise ValueError("An inquiry thought requires its step view, and a linear thought has none.")
+        return self
 
 
 class MainFrameView(BaseModel):

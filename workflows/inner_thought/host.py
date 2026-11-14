@@ -80,8 +80,8 @@ from workflows.inner_thought.schemas import (
     InnerReport, InnerRequest, LegacyEpisodeContext, LegacyEpisodeState, LegacyThoughtMetadata, ThoughtCandidate,
 )
 from workflows.inner_thought.request_views import (
-    CapabilityInspection, ExpectationView, GoalView, MainFrameView, OperationSuggestion,
-    PrivateInspection, RecentThoughtView,
+    CapabilityInspection, ExpectationView, GoalView, InquiryThoughtView, MainFrameView,
+    OperationSuggestion, PrivateInspection, RecentThoughtView,
 )
 from workflows.inner_thought.stage_runner import build_inner_stage_runner
 from workflows.inner_thought.triggers import evaluate_triggers
@@ -91,7 +91,7 @@ from workflows.public_speech.public_context import EvidenceItem
 from workflows.inner_thought.graph_host import (
     MENTAL_ACTION_KEY, PrivateInquiryOwner, accepted_source_ids, pending_findings, private_observer,
 )
-from workflows.inner_thought.inquiry import INQUIRY_EPISODE_KEY, inquiry_history
+from workflows.inner_thought.inquiry import INQUIRY_EPISODE_KEY, InquiryNodeMetadata, inquiry_history
 from workflows.inner_thought.nominations import capture_inquiry_grant
 from workflows.inner_thought.pipeline import citable_ids
 from pm.memory.read_scope import ReadScope
@@ -947,21 +947,45 @@ class PrivateThoughtLoop(CognitiveWorkflow):
         """Return every committed private thought id, for self-feedback detection."""
         return {int(knoxel.id) for knoxel in self.ghost.all_features
                 if knoxel.feature_type == FeatureType.InnerMonologue
-                and (knoxel.metadata or {}).get("loop") == "inner"}
+                and (knoxel.metadata or {}).get("loop") in {"inner", "inquiry"}}
 
     def _recent_private_thoughts(self) -> list[RecentThoughtView]:
-        """Return named retained thought views with their actual evidence IDs."""
+        """Return named retained thought views with their actual evidence IDs.
+
+        A linear thought keeps its legacy metadata read. A graph operation is
+        read from its own inquiry step, so its operation, sources, outcome, and
+        progress reach the trigger policy and the prompt without a legacy
+        default hiding the difference. An unrecognized loop is a broken
+        internal contract, not an empty thought.
+        """
         thoughts: list[RecentThoughtView] = []
         for knoxel in self.ghost.all_features:
             if knoxel.feature_type != FeatureType.InnerMonologue:
                 continue
             if knoxel.provenance is None or knoxel.provenance.source_kind != SourceKind.Self:
                 continue
-            metadata = LegacyThoughtMetadata.model_validate(knoxel.metadata)
-            thoughts.append(RecentThoughtView(knoxel_id=knoxel.id, text=knoxel.content,
-                tick_id=knoxel.tick_id, operation=metadata.operation, trigger=metadata.trigger,
-                continuation=metadata.continuation, source_ids=list(metadata.evidence_ids),
-                revision=self.ghost.revisions[knoxel.id]))
+            loop = (knoxel.metadata or {}).get("loop")
+            if loop == "inner":
+                metadata = LegacyThoughtMetadata.model_validate(knoxel.metadata)
+                thoughts.append(RecentThoughtView(knoxel_id=knoxel.id, text=knoxel.content,
+                    loop="inner", tick_id=knoxel.tick_id, operation=metadata.operation,
+                    trigger=metadata.trigger, continuation=metadata.continuation,
+                    source_ids=list(metadata.evidence_ids),
+                    revision=self.ghost.revisions[knoxel.id]))
+            elif loop == "inquiry":
+                step = InquiryNodeMetadata.model_validate(knoxel.metadata).inquiry_step
+                if knoxel.lineage is None:
+                    raise ValueError(f"An inquiry thought {knoxel.id} requires its recorded lineage.")
+                thoughts.append(RecentThoughtView(knoxel_id=knoxel.id, text=knoxel.content,
+                    loop="inquiry", tick_id=knoxel.tick_id, operation=knoxel.lineage.operation,
+                    source_ids=list(step.evidence_ids),
+                    inquiry=InquiryThoughtView(episode_id=knoxel.lineage.episode_id,
+                        outcome=step.outcome, reason=step.reason,
+                        information_gap=step.information_gap,
+                        progress_kind=step.progress.kind),
+                    revision=self.ghost.revisions[knoxel.id]))
+            else:
+                raise ValueError(f"A private thought {knoxel.id} has no recognized loop: {loop!r}.")
         thoughts.sort(key=lambda item: item.tick_id, reverse=True)
         return thoughts[:RECENT_THOUGHT_LIMIT]
 

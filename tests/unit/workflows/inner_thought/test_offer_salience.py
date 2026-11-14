@@ -165,7 +165,7 @@ class CueTests(unittest.TestCase):
         request = InnerRequest(
             main_frame=MainFrameView(tick=4, frame_id=None, summary="Jesse mentioned the kitchen."),
             candidates=[ThoughtCandidate(knoxel_id=5, text="The tap drips."), ThoughtCandidate(knoxel_id=6, text=" ")],
-            recent_thoughts=[RecentThoughtView(knoxel_id=7, text="Water again.")])
+            recent_thoughts=[RecentThoughtView(knoxel_id=7, text="Water again.", loop="inner")])
         cues = attention_cues(request)
         self.assertEqual([(cue.record_id, cue.kind) for cue in cues],
                          [(None, "main_turn"), (5, "candidate"), (7, "recent_thought")])

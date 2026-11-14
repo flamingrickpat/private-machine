@@ -17,7 +17,8 @@ def request(**overrides) -> InnerRequest:
                                "anticipation": "a reply", "expected_outcome": "a reply",
                                "tick_id": 100, "revision": 1}],
         recent_thoughts=[{"knoxel_id": 9, "text": "again the story", "tick_id": 99,
-                          "operation": "memory_search", "trigger": "unresolved_commitment",
+                          "loop": "inner", "operation": "memory_search",
+                          "trigger": "unresolved_commitment",
                           "continuation": "summarize", "source_ids": [5], "revision": 1}],
         seconds_since_user_input=10.0,
         main_frame={"tick": 99, "frame_id": 3, "summary": "the story talk", "surprise": 0.0,
@@ -71,8 +72,9 @@ class TriggerTests(unittest.TestCase):
 
     def test_repeated_source_fires_rumination_notice(self):
         thoughts = [{"knoxel_id": index, "text": f"thought {index}", "tick_id": 98,
-                     "operation": "memory_search", "trigger": "", "continuation": "",
-                     "source_ids": [5], "revision": 1} for index in range(3)]
+                     "loop": "inner", "operation": "memory_search", "trigger": "",
+                     "continuation": "", "source_ids": [5], "revision": 1}
+                    for index in range(3)]
         triggers = evaluate_triggers(request(recent_thoughts=thoughts))
         self.assertIn("repeated_concern", [item.name for item in triggers])
 

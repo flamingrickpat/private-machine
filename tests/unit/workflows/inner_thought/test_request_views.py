@@ -23,7 +23,8 @@ class NamedPrivateRequestTests(unittest.TestCase):
         request = InnerRequest(main_frame=MainFrameView(frame_id=17),
             active_goal_records=[GoalView(knoxel_id=19, text="Finish the story", revision=3)],
             pending_expectations=[ExpectationView(knoxel_id=23, text="A reply", revision=2)],
-            recent_thoughts=[RecentThoughtView(knoxel_id=29, text="An unresolved reading", source_ids=[19])])
+            recent_thoughts=[RecentThoughtView(knoxel_id=29, text="An unresolved reading",
+                                               loop="inner", source_ids=[19])])
         restored = InnerRequest.model_validate_json(request.model_dump_json())
         self.assertEqual(citable_ids(restored), {17, 19, 23, 29})
         self.assertEqual(restored.active_goal_records[0].revision, 3)

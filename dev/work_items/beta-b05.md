@@ -1948,3 +1948,36 @@ covers main calculation and a public draft, and the replay harness cannot record
 It is the integrated-gate item this record already listed as unfinished; it adds no new mechanism.
 
 B05 closes after pass 4 and the owner's review of the record package. None of the four passes has run yet.
+
+## Pass 1 — graph thoughts reach the private loop's own readers (2026-11-14)
+
+Status: implemented and verified with a real store and a real `PrivateInquiryOwner`, no model.
+
+- `PrivateThoughtLoop._recent_private_thoughts` now branches on the record's `loop`.
+  A linear thought keeps `LegacyThoughtMetadata`. An inquiry step is read through
+  `InquiryNodeMetadata`, with the operation from `record.lineage.operation`, the sources from
+  `step.evidence_ids`, and the step's `outcome`, `reason`, `information_gap`, and `progress.kind`.
+  Any other loop value raises.
+- `RecentThoughtView` carries `loop` and an optional `InquiryThoughtView` (episode id, outcome,
+  reason, information gap, progress kind). A validator keeps the label and the step view consistent.
+  A linear thought has no inquiry, so the field is null rather than an invented episode.
+- `_repeated_source` implements D1: a graph step counts toward `repeated_concern` only when its
+  accepted `progress.kind` is `"none"`. Linear thoughts keep the existing rule.
+- `_private_thought_ids` includes `loop == "inquiry"` operations, so a main frame that claims only
+  a graph finding is `self_feedback`.
+- `workflows/introspection/snapshot.py` counts a graph operation as an observed private thought.
+
+Checks, in `tests/unit/workflows/inner_thought/test_graph_readers.py`:
+
+- a graph step appears in `recent_thoughts` with its real operation, sources, episode, outcome,
+  reason, gap, and progress kind;
+- three accepted stalled steps on one source make `evaluate_triggers` return `repeated_concern`;
+- three steps that claim accepted discrimination progress do not;
+- a main frame that claims only a graph step is `self_feedback`.
+
+Ran: inner-thought suite (221 checks), focus-management suite (15 checks),
+`tests.unit.test_architecture` (7 checks), strict Pyright (0 errors).
+The request JSON now carries the new fields, so the three current recordings will diverge on
+replay. Pass 3 records them again.
+
+Not run: no model, no live gate. That is this pass's scope.

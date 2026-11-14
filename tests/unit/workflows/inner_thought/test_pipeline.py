@@ -232,8 +232,8 @@ class PipelineTests(unittest.TestCase):
 
     def test_citable_ids_cover_goals_expectations_thoughts_and_frame(self):
         parsed = request(recent_thoughts=[{"knoxel_id": 9, "text": "x", "tick_id": 99,
-                                           "operation": "", "trigger": "", "continuation": "",
-                                           "source_ids": [], "revision": 1}])
+                                           "loop": "inner", "operation": "", "trigger": "",
+                                           "continuation": "", "source_ids": [], "revision": 1}])
         self.assertEqual(citable_ids(parsed), {5, 7, 9, 3})
 
 

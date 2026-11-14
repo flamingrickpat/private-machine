@@ -80,7 +80,7 @@ def observed_capability_receipts(ghost: MemoryStore) -> dict[str, list[dict[str,
 
     thoughts = [record for record in ghost.all_features
                 if record.feature_type == FeatureType.InnerMonologue
-                and (record.metadata or {}).get("loop") == "inner"]
+                and (record.metadata or {}).get("loop") in {"inner", "inquiry"}]
     if thoughts:
         newest = max(thoughts, key=lambda record: record.tick_id)
         observed["private_thought"] = [{

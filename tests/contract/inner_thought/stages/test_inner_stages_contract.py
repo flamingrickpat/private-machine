@@ -61,9 +61,9 @@ def example_request() -> dict:
             {"knoxel_id": 7, "content": "Jesse replies tonight", "anticipation": "a reply",
              "expected_outcome": "a friendly reply", "tick_id": 90, "revision": 1}],
         "recent_thoughts": [
-            {"knoxel_id": 9, "text": "the draft again", "tick_id": 98, "operation": "memory_search",
-             "trigger": "unresolved_commitment", "continuation": "summarize",
-             "source_ids": [5], "revision": 1}],
+            {"knoxel_id": 9, "text": "the draft again", "tick_id": 98, "loop": "inner",
+             "operation": "memory_search", "trigger": "unresolved_commitment",
+             "continuation": "summarize", "source_ids": [5], "revision": 1}],
         "candidates": [
             {"knoxel_id": 5, "kind": "goal", "text": "finish the story", "revision": 1,
              "tick_id": 80, "urgency": 0.6, "reason": "unresolved"},
