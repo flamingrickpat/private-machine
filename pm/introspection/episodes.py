@@ -158,6 +158,13 @@ class Episode:
     links: dict[str, tuple[int, ...]] = field(default_factory=dict)
     metadata: dict = field(default_factory=dict)
 
+    def record_ids(self) -> set[int]:
+        """Return every record this episode names as input, output, or link."""
+        ids: set[int] = set(self.inputs) | set(self.outputs)
+        for linked in self.links.values():
+            ids.update(linked)
+        return ids
+
     def to_dict(self) -> EpisodeRow:
         """Return the serialized episode for a package, a trace, or a belief."""
         return {

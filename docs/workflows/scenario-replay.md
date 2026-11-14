@@ -45,6 +45,7 @@ A later replay of the same sample replaces those three files, so copy them first
 | `private-baseline` | three private cycles, nothing competes | the uninterrupted inquiry path |
 | `private-continuity` | an unrelated ordinary message arrives while a private step is calculating | the step is accepted, not discarded |
 | `deliberate-entry` | a selected mental action arrives while a spontaneous inquiry holds the private slot | the spontaneous inquiry is parked with a receipt, the deliberate episode runs to its outcome, and the result is delivered under the action's correlation |
+| `deliberate-reflection` | the same entry, with `reflection_review` as the first operation | the reflection step receives the scoped experiment and episode evidence, and the next step inspects a retained episode |
 
 `deliberate-entry` commits the action record and its request itself, as synthetic input at the dispatch boundary.
 The harness cannot record a main cycle, so the scenario does not show that main cognition selects such an action.
@@ -67,9 +68,10 @@ The receipt therefore comes from [`pm.llm.stage_model.LazyStageModel.complete_ch
 ```powershell
 python -m tests.replay list
 python -m tests.replay record --scenario private-continuity --samples 3
-python -m tests.replay replay --snapshot .runtime/replay/private-continuity-20261114T081059Z
-python -m tests.replay compare --snapshot .runtime/replay/private-continuity-20261114T081059Z
-python -m tests.replay replay --snapshot .runtime/replay/deliberate-entry-20261114T092813Z
+python -m tests.replay replay --snapshot .runtime/replay/private-continuity-20261114T104837Z
+python -m tests.replay compare --snapshot .runtime/replay/private-continuity-20261114T104837Z
+python -m tests.replay replay --snapshot .runtime/replay/deliberate-entry-20261114T110610Z
+python -m tests.replay replay --snapshot .runtime/replay/deliberate-reflection-20261114T110440Z
 ```
 
 `record` spends provider money: every sample is one independent live run.

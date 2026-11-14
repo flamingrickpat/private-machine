@@ -11,6 +11,7 @@ The generated behaviour belongs to the recorded scenario and the live gates.
 """
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -36,7 +37,7 @@ from workflows.cognitive_control.attention import captured_private_focus, valida
 from workflows.cognitive_control.host import CognitiveControl
 from workflows.cognitive_control.schemas import ControlConfig
 from workflows.inner_thought.graph_execution import (
-    DisplacedCandidate, displaced_candidate, graph_thought_instruction, graph_thought_request,
+    DisplacedCandidate, GraphThoughtRequest, displaced_candidate, graph_thought_instruction, graph_thought_request,
     run_graph_opportunity, validate_graph_step,
 )
 from workflows.inner_thought.graph_host import (
@@ -52,6 +53,8 @@ from workflows.main_cognition.schemas import TriageItem, TriageResult
 from workflows.public_speech.public_context import source_fingerprint
 from workflows.public_speech.user_input import UserInputProxy
 from workflows.inner_thought.pipeline import ModelProposalError
+from workflows.inner_thought.request_views import PrivateInspection
+from workflows.reflection.experiments import context as reflection_context
 from workflows.inner_thought.schemas import (
     InnerRequest, InquiryAlternative, InquiryGrant, InquiryProgress, InquiryResumeDecision, InquiryStep,
     PrivateAttentionContext, RetainedOfferSelection, ThoughtAttentionDecision, ThoughtAttentionReceipt,
@@ -413,6 +416,34 @@ class InquiryDisplacementTests(DisplacementFixture):
         self.select("different-question", grant=self.capture(self.new_epoch))
         with self.assertRaisesRegex(GhostConflict, "already holds an active episode"):
             self.admit(closed)
+
+    def test_only_an_operation_that_reads_evidence_receives_it(self) -> None:
+        working = self.working()
+        view = self.store.snapshot(capture=False)
+        grant = self.owner.execution_grant(working)
+        evidence = reflection_context(view, permitted_ids=frozenset(view.all_knoxels))
+        inspection = PrivateInspection(status="ok", observed_at=self.now)
+
+        def request_for(operation: str) -> GraphThoughtRequest:
+            """Read one step of the accepted episode as if it admitted this operation."""
+            state = working.receipt.state.model_copy(update={"next_operation": operation})
+            parent = replace(working, receipt=working.receipt.model_copy(update={"state": state}))
+            return graph_thought_request(view, InnerRequest(), parent, grant,
+                                         reflection=evidence, inspection=inspection)
+
+        ordinary = request_for("feasibility_check")
+        self.assertIsNone(ordinary.reflection_evidence)
+        self.assertIsNone(ordinary.inspection_evidence)
+        cases = (("reflection_review", "reflection_evidence", "Recorded reflection evidence"),
+                 ("capability_inspection", "inspection_evidence", "Selected implementation evidence"),
+                 ("episode_inspection", "inspection_evidence", "Selected implementation evidence"))
+        for operation, field, heading in cases:
+            request = request_for(operation)
+            self.assertIsNotNone(getattr(request, field), operation)
+            self.assertIn(heading, graph_thought_instruction(request))
+        reflected = request_for("reflection_review")
+        self.assertIsNone(reflected.inspection_evidence)
+        self.assertIn("Both explanations remain possible.", reflected.reflection_evidence or "")
 
     def test_earlier_nodes_are_private_history_and_never_relation_targets(self) -> None:
         working = self.working()

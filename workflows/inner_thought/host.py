@@ -96,6 +96,7 @@ from workflows.inner_thought.nominations import capture_inquiry_grant
 from workflows.inner_thought.pipeline import citable_ids
 from pm.memory.read_scope import ReadScope
 from pm.memory.write_batch import WriteBatch
+from workflows.reflection.experiments import context as reflection_context, source_evidence, stage_decision
 from workflows.reflection.schemas import ReflectionContext
 from workflows.cognitive_control.attention import captured_private_focus
 
@@ -186,7 +187,6 @@ def build_inner_thought_tools(
                 raise ValueError("Private recall requires a nonempty query.")
             result = asyncio.run(ghost.retrieve_experiences(
                 query, embeddings, view=view, scopes=scopes, limit=8, cancel=cancel))
-            from workflows.reflection.experiments import source_evidence
             ids = {key for item in result["matches"] for key in [item["knoxel_id"], *item.get("source_ids", [])]}
             result["reflection_sources"] = [source_evidence(view, view.get(key)).model_dump(mode="json") for key in sorted(ids)
                                             if key in view.revisions]
@@ -244,10 +244,21 @@ class PrivateThoughtLoop(CognitiveWorkflow):
             # commits are recovery roots, which cannot depend on a derived
             # commit that no main cycle has read yet.
             accepted_ids = accepted_source_ids(self.ghost)
+            observer_ids = frozenset(record_id for record_id, record in view.all_knoxels.items()
+                                     if record.scope == observer.scope and record_id in accepted_ids)
+            # Reflection and inspection evidence read the same observer reality.
+            # Their own records therefore come from this observer's grant, and a
+            # projection that names a foreign record is omitted with its limit.
+            reflection = reflection_context(view, permitted_ids=observer_ids)
+            inspection = self._build_inspection(permitted_ids=observer_ids)
             permitted = {record_id for record_id in citable_ids(request)
-                         if view.get(record_id).scope == observer.scope and record_id in accepted_ids}
+                         if record_id in observer_ids}
             # The request and its grant describe the same observer reality.
             # Foreign frame contents cannot remain in the model's evidence list.
+            # The reflection and inspection evidence travels beside the request
+            # instead of inside it: the attention, nomination, and integration
+            # prompts serialize the whole request, and only the thought step of
+            # an operation that reads that evidence receives it.
             request = request.model_copy(update={
                 "candidates": [item for item in request.candidates if item.knoxel_id in permitted],
                 "active_goal_records": [item for item in request.active_goal_records if item.knoxel_id in permitted],
@@ -257,7 +268,8 @@ class PrivateThoughtLoop(CognitiveWorkflow):
                 "reflection": ReflectionContext(),
                 "inspection": None,
                 "context_limits": (*request.context_limits,
-                    "Legacy experiment and inspection summaries are excluded from this graph grant; their source scope is not captured here."),
+                    "Reflection and inspection evidence is scoped to this observer's reality and frame and to accepted records; "
+                    "it reaches only the operation that reads it."),
             })
             if request.trigger_candidates:
                 request.trigger_candidates = evaluate_triggers(request)
@@ -304,6 +316,7 @@ class PrivateThoughtLoop(CognitiveWorkflow):
 
         try:
             return run_graph_opportunity(request, owner=owner, grant=grant, run_stage=run_stage,
+                reflection=reflection, inspection=inspection,
                 mental_state=self._mental_state, control_generation=generation,
                 pending_input_ids=tuple(sorted(record.id for record in view.all_knoxels.values()
                     if isinstance(record, Feature) and record.metadata.get("exchange_status") == "pending")), focus=focus,
@@ -494,7 +507,6 @@ class PrivateThoughtLoop(CognitiveWorkflow):
                                         main_frame, thoughts, latest_user),
             operations=[OperationSuggestion(name=line) for line in operation_lines()],
         )
-        from workflows.reflection.experiments import context as reflection_context, source_evidence
         request.reflection = reflection_context(view)
         reflection_sources = {item.knoxel_id for item in request.reflection.records}
         for candidate in request.candidates:
@@ -613,7 +625,6 @@ class PrivateThoughtLoop(CognitiveWorkflow):
 
         experiment_record = None
         if parsed.reflection.action != "none":
-            from workflows.reflection.experiments import source_evidence, stage_decision
             payload = self._reflection_context.model_copy(deep=True)
             known = {item.knoxel_id for item in payload.records}
             for item in parsed.retrieved_memories:
@@ -756,12 +767,16 @@ class PrivateThoughtLoop(CognitiveWorkflow):
     # Deterministic gathering helpers. All read committed state under the
     # caller's lock.
 
-    def _build_inspection(self) -> PrivateInspection | None:
+    def _build_inspection(self, permitted_ids: frozenset[int] | None = None) -> PrivateInspection | None:
         """Freeze selected implementation evidence or the provider's explicit limit.
 
         The provider owns the real source grant. Missing configuration supplies
         no inspection. Filesystem failures remain visible evidence limits;
-        provider logic errors propagate.
+        provider logic errors propagate. ``permitted_ids`` restricts the episode
+        rows to one observer's captured reality and frame; an episode that names
+        any record outside it is omitted, so no foreign frame reaches the prompt.
+        A capability overlay is implementation evidence, not a memory record, so
+        it is not scoped here.
         """
         self._overlay = None
         provider = self.inspector_provider
@@ -776,6 +791,8 @@ class PrivateThoughtLoop(CognitiveWorkflow):
         from pm.introspection.episodes import EpisodeIndex, answer_questions
         index = EpisodeIndex(self.ghost)
         recent = index.recent(limit=5)
+        if permitted_ids is not None:
+            recent = [item for item in recent if item.record_ids() <= permitted_ids]
         answers = answer_questions(self.ghost, recent[0], overlay=overlay) if recent else {}
         return PrivateInspection(status="ok",
             capability_overlay=CapabilityInspection.model_validate(overlay_public(overlay)),

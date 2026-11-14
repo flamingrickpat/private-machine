@@ -270,6 +270,13 @@ DELIBERATE_INSTRUCTION = (
     "what I should keep in mind when we talk about the story tomorrow."
 )
 
+#: The deliberate instruction of the reflection scenario. It names the one
+#: operation whose step reads recorded experiment and episode evidence.
+DELIBERATE_REFLECTION_INSTRUCTION = (
+    "Review what the last few private steps established about the story, and say what still needs "
+    "checking before I propose one ending to Jesse."
+)
+
 #: The first inquiry operation of the deliberate scenario. Recall is the
 #: default first operation, but it sends an embedding request, and the harness
 #: does not record embedding requests. A replay must need no endpoint. The
@@ -317,7 +324,8 @@ class DeliberateEntryOutcome(ScenarioOutcome):
     requests: int = Field(ge=0, description="Real provider requests this session made.")
 
 
-def _dispatch_mental_action(runtime: ScenarioRuntime) -> int:
+def _dispatch_mental_action(runtime: ScenarioRuntime, *, instruction: str, operation: str,
+                            correlation: str) -> int:
     """Commit one accepted mental action and publish its request, as main cognition would.
 
     The record and the request are synthetic boundary input. Everything after
@@ -327,10 +335,9 @@ def _dispatch_mental_action(runtime: ScenarioRuntime) -> int:
     sources = [record.id for record in runtime.store.all_features if record.content == CONCERN_SOURCE]
     if len(sources) != 1:
         raise LookupError("The situation must hold exactly one concern source.")
-    correlation = "replay-deliberate-entry"
     request = ActionRequest(action_id="replay-mental-action", workflow_name="focus_management",
         content="I want to settle this on my own before we talk again.",
-        arguments=ActionArguments(instruction=DELIBERATE_INSTRUCTION, operation=DELIBERATE_FIRST_OPERATION),
+        arguments=ActionArguments(instruction=instruction, operation=operation),
         stimuli=[Stimulus(knoxel_id=sources[0], source="user_input", text=CONCERN_SOURCE)])
     batch = runtime.store.begin_batch("replay-mental-dispatch", embed=False)
     action = batch.create(ActionSchemaRecord(content=request.content, action_type=ActionType.Loopback,
@@ -351,6 +358,30 @@ def _dispatch_mental_action(runtime: ScenarioRuntime) -> int:
 def run_deliberate_entry(runtime: ScenarioRuntime) -> ScenarioOutcome:
     """Dispatch a mental action while a spontaneous inquiry holds the private slot.
 
+    The first operation projects a future outcome. See
+    :func:`run_deliberate_reflection` for the variant that reviews recorded
+    evidence instead.
+    """
+    return _run_deliberate(runtime, name="deliberate-entry", instruction=DELIBERATE_INSTRUCTION,
+                           operation=DELIBERATE_FIRST_OPERATION, correlation="replay-deliberate-entry")
+
+
+def run_deliberate_reflection(runtime: ScenarioRuntime) -> ScenarioOutcome:
+    """Dispatch a reflection review as the deliberate action's first operation.
+
+    The step reads the scoped experiment and episode evidence the host captured
+    under the observer's reality and frame. Nothing about the admission differs
+    from :func:`run_deliberate_entry`; only the operation does.
+    """
+    return _run_deliberate(runtime, name="deliberate-reflection",
+                           instruction=DELIBERATE_REFLECTION_INSTRUCTION,
+                           operation="reflection_review", correlation="replay-deliberate-reflection")
+
+
+def _run_deliberate(runtime: ScenarioRuntime, *, name: str, instruction: str, operation: str,
+                    correlation: str) -> ScenarioOutcome:
+    """Run one deliberate entry with the named first operation.
+
     Cycle one establishes the spontaneous inquiry. The action then arrives and
     the deliberate owner admits it. The following cycles execute the deliberate
     episode through the real thought and integrate stages until it leaves the
@@ -368,7 +399,8 @@ def run_deliberate_entry(runtime: ScenarioRuntime) -> ScenarioOutcome:
     if before.status != "active":
         raise RuntimeError(f"The spontaneous inquiry must hold the slot before the action arrives: {before.status}.")
 
-    action_id = _dispatch_mental_action(runtime)
+    action_id = _dispatch_mental_action(runtime, instruction=instruction, operation=operation,
+                                         correlation=correlation)
     runtime.step_named("focus_management")
     view = runtime.store.snapshot(capture=False)
     parked = inquiry_history(view, spontaneous_id)[-1].receipt
@@ -423,7 +455,7 @@ def run_deliberate_entry(runtime: ScenarioRuntime) -> ScenarioOutcome:
         f"spontaneous episode afterwards: {parked_after}",
     )
     return DeliberateEntryOutcome(
-        scenario="deliberate-entry", summary=summary, cycles=tuple(cycles), replay_blockers=(),
+        scenario=name, summary=summary, cycles=tuple(cycles), replay_blockers=(),
         action_record_id=action_id, parked_episode_id=spontaneous_id,
         parked_stop_reason=parked.state.stop_reason,
         parked_by_action_id=None if parked.preemption is None else parked.preemption.action_record_id,
@@ -464,6 +496,10 @@ SCENARIOS: dict[str, Scenario] = {
         Scenario(name="deliberate-entry",
                  description="A selected mental action takes the private slot from a spontaneous inquiry.",
                  situation=private_concern, run=run_deliberate_entry,
+                 outcome_type=DeliberateEntryOutcome),
+        Scenario(name="deliberate-reflection",
+                 description="A deliberate reflection review runs in the private slot with scoped experiment and episode evidence.",
+                 situation=private_concern, run=run_deliberate_reflection,
                  outcome_type=DeliberateEntryOutcome),
     )
 }

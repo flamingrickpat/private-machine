@@ -61,6 +61,55 @@ def _episode_ids(episode: ReflectionEpisode) -> set[int]:
     return source_ids
 
 
+def private_material(value: ReflectionContext | None, *, maximum_experiments: int = 4,
+                     maximum_episodes: int = 3) -> Content:
+    """Render bounded reflection evidence for one shared inquiry step.
+
+    The reflection child selects its own groups against a token budget. A
+    shared inquiry step gets one prompt and makes no separate selection call,
+    so this projection is bounded by count and states what it omitted. It uses
+    the same typed renderers as the reflection child, so the prompt carries no
+    raw bookkeeping. The sources named by the rendered entries are included
+    with their captured text, because a granted record without its text cannot
+    be cited honestly.
+    """
+    if value is None:
+        return Content("(no reflection evidence was supplied for this cycle)")
+    shown_experiments = value.experiments[:maximum_experiments]
+    shown_episodes = value.episodes[:maximum_episodes]
+    if not shown_experiments and not shown_episodes:
+        return Content("(no reflection evidence was supplied for this cycle)")
+    parts: list[Content] = [render_context(status(value))]
+    for entry in shown_experiments:
+        parts.append(render_context(ExperimentSummary.from_evidence(entry)))
+    if len(value.experiments) > len(shown_experiments):
+        parts.append(Content(f"({len(value.experiments) - len(shown_experiments)} more experiments were not rendered.)"))
+    schema_path = Path(__file__).parents[2] / "pm/context_render/architectural.json"
+    for episode in shown_episodes:
+        parts.append(render_context(episode, schema_path=schema_path))
+    if len(value.episodes) > len(shown_episodes):
+        parts.append(Content(f"({len(value.episodes) - len(shown_episodes)} more episodes were not rendered.)"))
+    named: set[int] = set()
+    for entry in shown_experiments:
+        named.update(entry.metadata.source_revisions)
+        named.update(entry.observation_grant.consumer_ids)
+        named.update(entry.observation_grant.observation_ids)
+        if entry.metadata.effective_record_id is not None:
+            named.add(entry.metadata.effective_record_id)
+        if entry.metadata.plan.intervention.expected_record_id is not None:
+            named.add(entry.metadata.plan.intervention.expected_record_id)
+    for episode in shown_episodes:
+        named.update(_episode_ids(episode))
+    records = {record.knoxel_id: record for record in value.records}
+    supplied = [records[key] for key in sorted(named) if key in records]
+    if supplied:
+        parts.append(render_context(ArchitecturalEvidence(tuple(supplied))))
+    material = parts[0]
+    for part in parts[1:]:
+        material = material + "\n" + part
+    return material
+
+
 def _sources(records: Mapping[int, ReflectionSource], source_ids: set[int]) -> Content:
     return render_context(ArchitecturalEvidence(tuple(records[key] for key in sorted(source_ids))))
 

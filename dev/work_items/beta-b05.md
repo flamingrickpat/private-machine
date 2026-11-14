@@ -1674,15 +1674,154 @@ Receipts: `.runtime/beta-b05/deliberate-entry/`.
 - `dev/work_items/alpha_a18c_mental_gate.py` tested the removed agent session
   and no longer runs. Its docstring says so.
 
+## Pass: scoped reflection and inspection evidence (2026-11-14)
+
+This started remaining item 1 and closes its evidence half. The experiment
+lifecycle and the graph's own episode rows remain, for the reason stated
+below.
+
+### Scope of the pass
+
+The accepted design already said the graph excluded experiment and inspection
+summaries because their source scope was not captured. This pass captures that
+scope. No ownership changed: the reflection owner still owns experiments, the
+inspector still owns capability evidence, and main cognition still accepts
+focus advice. Nothing here needed an owner choice.
+
+### Changed
+
+- `workflows.reflection.experiments.context` takes an optional `permitted_ids`.
+  An experiment or episode that names any record outside it is omitted, and
+  the count is stated in `episode_limits`, because a projection with dropped
+  evidence would claim support its reader cannot see. `None` keeps the owner's
+  complete view, so the linear path is unchanged.
+- `PrivateThoughtLoop._build_inspection` takes the same set and keeps only
+  episode rows whose named records are inside it. `Episode.record_ids()` names
+  those records. The capability overlay is implementation evidence, not a
+  memory record, so it is not scoped.
+- `PrivateThoughtLoop.run_inquiry` builds both under the observer's accepted
+  scope. The evidence travels beside the request, not inside it: the
+  attention, nomination, and integration prompts serialize the whole request,
+  and scoped records with their text would bloat all three.
+- `run_graph_opportunity(reflection=..., inspection=...)` passes the typed
+  evidence on. `graph_thought_request` renders it only for the operation that
+  reads it (`REFLECTION_OPERATIONS`, `INSPECTION_OPERATIONS`), into two
+  prompt-ready fields. Every other step's request is byte-identical to before.
+  The raw collections are excluded from the thought payload.
+- A reflection step extends its citation grant with the reflection records
+  (`extend_inquiry_grant`). A reflection step may cite them; no other step's
+  grant changes.
+- `workflows.reflection.rendering.private_material` renders at most four
+  experiments, three episodes, and the sources they name, through the same
+  typed renderers the reflection child uses. Omitted counts are stated.
+- `_render_inspection` moved to `workflows.inner_thought.rendering.inspection`
+  and now takes typed evidence instead of the whole request.
+- New scenario `deliberate-reflection`: the deliberate entry with
+  `reflection_review` as its first operation.
+
+### What was deliberately not done, and why
+
+- **The reflection child still runs only in the retained linear path.** A graph
+  step cannot commit a `ReflectionDecision`: every graph commit is an
+  append-only recovery root, and `stage_decision` replaces an existing
+  experiment record. Committing a decision needs a derived, non-recovery-root
+  commit (the shape `ensure_inner_turn` already has) plus a decision about what
+  to retain on the operation so a repair can replay it without paying for the
+  three calls again. That changes where an experiment transition is accepted,
+  so it is an owner design choice, not a mechanical follow-on.
+- **`EpisodeIndex` still lists only `loop == "inner"` monologues.** A graph
+  operation stores `loop: "inquiry"`, so no graph step is an episode row yet.
+  This is why the inspection evidence cannot show the graph's own trace. Adding
+  it changes the A18 index that record packages and contracts read.
+- **The graph's trigger policy still evaluates without inspection**, so
+  `capability_doubt` fires only in the linear path. Feeding inspection to
+  `evaluate_triggers` in the graph would create new opportunities and new paid
+  calls on every private tick; that is a separate behaviour change.
+
+### A defect found while re-recording
+
+The first re-recording of `deliberate-reflection` did not replay. The recall of
+one `memory_search` step returned an inquiry receipt, and the grant captured
+that receipt as a source. Its metadata carries `active_elapsed_seconds`, so its
+`source_fingerprint` differed between the recording and the replay although the
+accepted state was identical. The harness already normalizes that same field in
+a rendered request, for the same reason.
+
+`pm.memory.dependencies.source_fingerprint` now hashes a receipt without its
+accumulated computation time. Every other field stays significant, and a change
+of the receipt's sequence still changes the fingerprint. This was not introduced
+by the pass; it became visible because this scenario's recall reached a receipt.
+It also affects real guards: a semantic dependency on a retrieved receipt could
+never be satisfied across two runs.
+
+Because the fingerprint rule changed, the recordings whose requests carried a
+receipt fingerprint stopped replaying. `private-continuity` was unaffected;
+`deliberate-entry` and `deliberate-reflection` were re-recorded after the fix.
+
+Adding that check exposed a stale assertion in `test_source_dependencies`: it
+expected a changed `timestamp_creation` to change the meaning, although that
+field is excluded as process bookkeeping. It was already red at `eaef6a9`. The
+test now asserts the documented behaviour.
+
+### Verification
+
+- `tests/unit/workflows/inner_thought`: **217 passed** (210 before, plus six
+  scoped-evidence checks and one operation-gating check). The scoping checks use
+  a real store, a Meta-frame record, and real GWT turns; the gating check drives
+  real receipts.
+- `tests/unit/workflows/focus_management`: **15 passed**.
+- `test_architecture`, `test_early_triage`, `test_shared_prefixes`: **24
+  passed**.
+- `tests/unit/pm/memory`: **171 ran**; the one failure and one error are in
+  `reconsolidation`, and the same two reproduce with the previous
+  `dependencies.py` (20 tests, 1 failure, 1 error). `test_source_dependencies`
+  itself passes, including the new receipt check.
+- Configured strict Pyright: **0 errors, 0 warnings**.
+- Real model, OpenRouter, provider-reported **$0.080125** for six samples, of
+  which three are the current recordings and three are superseded development
+  samples:
+  - `deliberate-reflection-20261114T110440Z`: 12 requests, $0.010395. First
+    operation `reflection_review`; calls 7-8 and 21-22 carried the reflection
+    material, and no other call carried it. The episode completed with a
+    finding, focus advice, and delivery. Replays exactly.
+  - `deliberate-entry-20261114T110610Z`: 12 requests, $0.017514. Calls 11-12
+    carried the reflection material for a `reflection_review` step. Finding with
+    focus advice; the spontaneous question stayed parked. Replays exactly.
+  - `private-continuity-20261114T104837Z`: 7 requests, $0.006495. Replayed
+    without re-recording after the fingerprint fix.
+  - Superseded: `104401Z` $0.013177 and `105637Z` $0.009508 carried the
+    reflection material and showed the receipt fingerprint defect;
+    `104553Z` $0.023036 was recorded before the fingerprint fix. None of the
+    three replays against the current code, and none is claimed as evidence.
+- Strict MkDocs passed in 215.19 s. The new section, its anchor, and both new
+  API links resolve in the built pages (`private_material`,
+  `reflection.experiments.context`).
+
+### Not run and limits
+
+- **NOT RUN — a graph step that commits a reflection decision.** Not
+  implemented, for the reason above.
+- **NOT RUN — a graph operation as an episode row.**
+- **NOT RUN — a citation that needs the extended reflection grant.** The
+  recorded reflection steps cited records the origin grant already covered, so
+  the extension is present but unused by any sample.
+- **NOT RUN — `capability_doubt` in the graph.**
+- Full suites and the integrated live gates: not run.
+- The first reflection sample showed one model defect worth keeping: it called
+  the action record (id 20) "episode 20" and inspected it as an episode. The
+  prompt states that an episode_id is not a record ID, and the model conflated
+  them anyway. Prefixing episode identifiers is a later prompt improvement, not
+  an architecture change.
+
 Still unfinished in B05, in dependency order:
 
-1. Integrate scoped reflection and inspection evidence into the graph. The
-   model already chooses `reflection_review` in deliberate episodes and gets no
-   reflection evidence.
+1. Finish remaining item 1: run the reflection child for a graph
+   `reflection_review` step and commit its decision in a derived commit, and let
+   the episode index read graph operations. Both need the owner decision named
+   above.
 2. Run the integrated live gates, including a real Critical displacement, two
    waiting displaced questions, a graph `QualeRecord`, deliberate recall, and a
    main cycle that selects and appraises deliberate work.
 
 Separate accepted pass after B05 item 1: decision 3B, a recall query proposed
 by the previous step.
-

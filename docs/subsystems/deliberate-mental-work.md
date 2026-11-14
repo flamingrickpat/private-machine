@@ -57,6 +57,8 @@ flowchart TD
 3. **Executed.**
    The private loop runs the episode. Each step is a node in the inquiry graph, with its reason, its relations, and its cited sources.
    The thought stage is told that main cognition waits and how many operations are left.
+   A step whose operation reads recorded evidence also receives it: `reflection_review` gets the scoped experiments, episodes, and their sources (see [private reflection experiments](reflection.md#shared-inquiry-steps)), and the two inspection operations get the inspector's projection.
+   Deliberate work often chooses `reflection_review`, because the companion was asked to think something through.
 4. **Closed.**
    When the episode leaves the slot, the module commits the result identity and status on the action.
    A graph commit is append-only and cannot change an action, so this is a separate commit. It is idempotent.

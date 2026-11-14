@@ -28,6 +28,21 @@ The additional reflection child then makes three focused inference calls:
 
 The host accepts the experiment step in the same memory batch as the private thought.
 Public disclosure remains a separate choice.
+
+### Shared inquiry steps
+
+A private episode now runs in the [shared inquiry graph](private-loop.md#sources-and-graph-data), not only in the linear cycle.
+A step whose operation is `reflection_review` therefore reads the recorded experiments, the retained episodes, and the sources those name.
+[`workflows.inner_thought.host.PrivateThoughtLoop`][] builds that evidence once per opportunity, under the observer's captured reality and frame.
+[`workflows.reflection.experiments.context`][] omits an experiment or episode that names a record outside the scope, and states how many it omitted.
+[`workflows.reflection.rendering.private_material`][] renders a bounded projection: at most four experiments, three episodes, and the sources they name.
+The raw collections stay out of the serialized request, so no store record reaches a prompt without its renderer.
+The step's citation grant is extended with those records; every other operation keeps its original request and grant, so its prompt does not change.
+
+Two limits remain, and they are the rest of the integration.
+A shared inquiry step records its reading and can cite the evidence, but it cannot yet commit a `ReflectionDecision`; the three-call child still runs only in the retained linear path.
+The [A18 episode index](introspection.md) still lists the linear private thoughts, not graph operations, so a graph step's own trace is not yet an episode row.
+The `deliberate-reflection` recording shows a real reflection step reading the material and choosing a later episode inspection.
 Reflection does not require a public explanation, emotional reset, or agreement with the user.
 The main appraisal path still owns goals and the mental-state vector.
 

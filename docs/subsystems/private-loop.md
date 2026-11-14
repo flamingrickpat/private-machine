@@ -17,7 +17,7 @@ The <a href="../../dev/work_items/beta-b05.md">B05 engineering record</a> contai
 The canonical owner is [`workflows.inner_thought.host.PrivateThoughtLoop`][].
 The parent architecture is the [cognitive pipeline](cognition.md).
 [Deliberate mental work](deliberate-mental-work.md) uses this slot and these steps; see [Deliberate entry](#deliberate-entry).
-[Private reflection experiments](reflection.md) retain a separate execution path for now. Their migration to shared inquiry remains designed.
+[Private reflection experiments](reflection.md) reach a shared inquiry step as evidence. Their lifecycle change still runs on the separate reflection child.
 
 ## Where the loop runs
 
@@ -280,7 +280,8 @@ Main attention still accepts or rejects it.
 Owner criterion, 2026-11-14: the behavior should be more human, and the companion should be able to reflect on why its focus was managed the way it was.
 Waiting leaves no trace. Parking leaves a receipt that says which question was set aside and for which chosen work.
 The owner accepted parking and kept focus advice on that basis.
-Reading those receipts in reflection is not implemented yet; the graph does not receive reflection evidence.
+A `reflection_review` step now receives the recorded experiments and episodes, so the companion can read what was set aside.
+It cannot yet change the experiment ledger from a shared inquiry step; see [private reflection experiments](reflection.md#shared-inquiry-steps).
 
 ## Private attention
 
@@ -317,8 +318,16 @@ The host filters citable source views to the companion observer's reality and fr
 Governing intentions and pending expectations retain current-authority guards.
 Historical evidence retains its original identity without a global latest-record requirement.
 
-The graph path excludes legacy experiment and inspection summaries whose source scope it does not capture.
-The request reports this evidence limit explicitly.
+Reflection and inspection evidence is scoped the same way before it reaches a step.
+[`workflows.reflection.experiments.context`][] keeps only experiments, episodes, and records that the observer can cite.
+The same filter keeps inspection to episode rows that name records in that scope.
+An experiment or episode that names any record outside the observer's reality and frame is omitted with a stated limit, because a projection with dropped evidence would claim support its reader cannot see.
+The evidence travels beside the request, not inside it: only the step of an operation that reads it receives rendered material
+([`workflows.inner_thought.graph_execution.graph_thought_request`][]).
+A reflection step also extends its citation grant with those records.
+Every other step keeps its original request and grant, so its prompt is unchanged.
+A retrieved inquiry receipt keeps its meaning across runs: the accumulated computation time in its budget field is process bookkeeping, so
+[`pm.memory.dependencies.source_fingerprint`][] hashes the receipt without it.
 An admitted `memory_search` calls the existing memory retrieval service before the thought child.
 The search uses the invocation's frozen view and the observer's reality and frame, with at most eight matches.
 [`workflows.inner_thought.graph_execution.PrivateRecall`][] retains actual matches, original source guards, and the retrieval trace.
@@ -561,8 +570,8 @@ The retained linear path samples at its own commit, with the same threshold and 
 | One identical rejection fills two complete repair conversations | `RepeatedRejectionError` discards the cycle with `thought.rejected` telemetry |
 | Broken manifest, catalogue, or internal contract | fail through the actual error path |
 
-The B05 engineering record distinguishes connected workflow evidence from generated-content review and sustained behavior.
-Scoped reflection and inspection evidence remain incomplete.
+The B05 engineering work distinguishes connected workflow evidence from generated-content review and sustained behavior.
+Reflection and inspection evidence now reach a step that reads it, with its source scope captured. Two limits remain: a shared inquiry step cannot change the experiment ledger yet, and the episode index still lists only the retained linear private thoughts, not graph operations.
 Deliberate entry ran in recorded real scenarios with an explicit first operation. Its default first operation, recall, has not run in one: recall sends an embedding request that the harness does not record.
 Graph felt-state sampling ran in one recorded real scenario. The mental state did not move in that scenario, so no real run has emitted a `QualeRecord` from the graph yet.
 Displacement has actual-store and real-control checks; no recorded scenario or live gate has driven it through a model-classified Critical message yet.

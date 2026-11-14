@@ -52,11 +52,55 @@ def experiments(view: Snapshot) -> list[Feature]:
     return sorted(selected, key=lambda record: record.id)
 
 
-def context(view: Snapshot) -> ReflectionContext:
-    """Build frozen typed evidence. Keep full ledgers separate from rendering."""
+def _episode_record_ids(episode: ReflectionEpisode) -> set[int]:
+    """Return every record an episode names as input, output, or link."""
+    ids: set[int] = set(episode.inputs) | set(episode.outputs)
+    for linked in episode.links.values():
+        ids.update(linked)
+    return ids
+
+
+def _experiment_record_ids(data: ExperimentMetadata) -> set[int]:
+    """Return every record one ledger entry names outside its triggering episode."""
+    ids: set[int] = set(data.source_revisions) | set(data.observation_ids) | set(data.head_source_ids)
+    for key in (data.effective_record_id, data.reversal_record_id, data.replacement_experiment_id):
+        if key is not None:
+            ids.add(key)
+    ids.update(_plan_ids(data.plan))
+    return ids
+
+
+def context(view: Snapshot, *, permitted_ids: frozenset[int] | None = None) -> ReflectionContext:
+    """Build frozen typed evidence. Keep full ledgers separate from rendering.
+
+    ``permitted_ids`` restricts the grant to one observer's captured reality and
+    frame. An experiment or episode that names any record outside it is omitted
+    with a stated limit, because a projection with dropped evidence would claim
+    support its reader cannot see. ``None`` keeps the owner's complete view.
+    """
+
+    def in_scope(source_ids: set[int]) -> bool:
+        """Return whether every named record belongs to the permitted evidence."""
+        return permitted_ids is None or source_ids <= permitted_ids
+
     records = view.all_knoxels
-    ledger = [(record, experiment_metadata(view, record)) for record in experiments(view)]
-    episodes = [ReflectionEpisode.model_validate(episode.to_dict()) for episode in EpisodeIndex(view).recent(limit=6)]
+    all_ledger = experiments(view)
+    ledger: list[tuple[Feature, ExperimentMetadata]] = []
+    for record in all_ledger:
+        data = experiment_metadata(view, record)
+        referenced = {key for key in _experiment_record_ids(data) if key in view.revisions}
+        if not in_scope({record.id, *referenced}):
+            continue
+        ledger.append((record, data))
+    omitted_experiments_by_scope = len(all_ledger) - len(ledger)
+    episodes: list[ReflectionEpisode] = []
+    omitted_episodes = 0
+    for episode in EpisodeIndex(view).recent(limit=6):
+        row = ReflectionEpisode.model_validate(episode.to_dict())
+        if not in_scope(_episode_record_ids(row)):
+            omitted_episodes += 1
+            continue
+        episodes.append(row)
     opened = [(record, data) for record, data in ledger if data.state in OPEN_STATES][:8]
     terminal = [(record, data) for record, data in ledger if data.state not in OPEN_STATES][-4:]
     selected = [*opened, *terminal]
@@ -75,11 +119,14 @@ def context(view: Snapshot) -> ReflectionContext:
         if data.plan.intervention.expected_record_id is not None:
             source_ids.add(data.plan.intervention.expected_record_id)
     focus = focus_versions(view)
-    if focus:
-        source_ids.add(max(focus))
+    focus_head = max(focus) if focus and in_scope({max(focus)}) else None
+    if focus_head is not None:
+        source_ids.add(focus_head)
     recent: list[RecordBase] = []
     observations: list[RecordBase] = []
     for record in records.values():
+        if not in_scope({record.id}):
+            continue
         details = architecture(record)
         dialogue = isinstance(record, Feature) and record.feature_type == FeatureType.Dialogue
         if details.operation == "action_selection" or details.origin == "appraisal" or dialogue or isinstance(record, BeliefRecord) and record.active:
@@ -89,12 +136,13 @@ def context(view: Snapshot) -> ReflectionContext:
     source_ids.update(record.id for record in sorted(recent, key=lambda record: record.id)[-24:])
     turns = sorted(view.gwt_turns.values(), key=lambda turn: turn.tick_id)
     for turn in [turn for turn in turns if turn.slot_id == "main"][-8:]:
-        source_ids.update(key for key in [turn.decision_id, turn.experience_id, *turn.stimulus_ids] if key is not None and key in records)
+        source_ids.update(key for key in [turn.decision_id, turn.experience_id, *turn.stimulus_ids]
+                          if key is not None and key in records and in_scope({key}))
     newest = max((record.id for record in observations), default=0)
     due = any(data.state in {"proposed", "applied"} or data.state in {"awaiting_evidence", "evaluated"}
               and newest > data.reviewed_source_id for _, data in selected)
     rows = [source_evidence(view, view.get(key)) for key in sorted(source_ids)
-            if key in view.revisions]
+            if key in view.revisions and in_scope({key})]
     entries: list[ExperimentEvidence] = []
     for record, data in selected:
         assert data.experiment_id is not None
@@ -102,9 +150,14 @@ def context(view: Snapshot) -> ReflectionContext:
             stale_source_ids=[key for key, revision in data.source_revisions.items() if view.revisions.get(key) != revision or key in data.head_source_ids and key not in view.all_knoxels],
             observation_grant=observation_grant(data.experiment_id, data, rows), metadata=data)
         entries.append(entry)
-    return ReflectionContext(experiments=entries, omitted_experiments=len(ledger) - len(selected),
-        attention_head_id=max(focus) if focus else None, review_due=due, newest_observation_id=newest,
-        episodes=episodes, episode_limits=["The frozen record grant excludes managed-run receipts."], records=rows)
+    limits = ["The frozen record grant excludes managed-run receipts."]
+    if omitted_experiments_by_scope:
+        limits.append(f"{omitted_experiments_by_scope} experiments are outside this observer's reality and frame.")
+    if omitted_episodes:
+        limits.append(f"{omitted_episodes} episodes are outside this observer's reality and frame.")
+    return ReflectionContext(experiments=entries, omitted_experiments=len(all_ledger) - len(selected),
+        attention_head_id=focus_head, review_due=due, newest_observation_id=newest,
+        episodes=episodes, episode_limits=limits, records=rows)
 
 
 def effective_inputs(view: Snapshot, focus: FocusState | None) -> EffectiveInputs:

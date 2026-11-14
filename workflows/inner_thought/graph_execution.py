@@ -34,6 +34,7 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue
 from pm import vclock
 from pm.memory.snapshot import Snapshot
 from pm.memory.dependencies import SourceDependency
+from workflows.inner_thought.request_views import PrivateInspection
 from workflows.public_speech.public_context import EvidenceItem
 from pm.records.mental_state import FullMentalState, compute_attention_bias
 from pm.records.enums import FeatureType
@@ -46,9 +47,12 @@ from workflows.inner_thought.inquiry import (
     InquiryAlternativeMetadata, InquiryNodeMetadata, InquiryRecord, displaced_offer, inquiry_origin, parked_offer,
     read_displaced_inquiry,
 )
-from workflows.inner_thought.nominations import NominationBatchRecord, read_nomination_batch
+from workflows.inner_thought.nominations import NominationBatchRecord, extend_inquiry_grant, read_nomination_batch
 from workflows.inner_thought.offer_salience import RetainedQuestion, attention_cues, select_retained_offer
 from workflows.inner_thought.operations import operation_lines, validate_operation
+from workflows.inner_thought.rendering import inspection as inspection_material
+from workflows.reflection.rendering import private_material
+from workflows.reflection.schemas import ReflectionContext
 from workflows.inner_thought.graph_outcomes import capture_graph_outcome
 from workflows.inner_thought.pipeline import ModelProposalError, citable_ids, validate_integration
 from workflows.inner_thought.schemas import (
@@ -124,6 +128,12 @@ class GraphThoughtRequest(BaseModel):
         description="Nodes of the closed earlier episodes behind a displaced question, oldest first. "
                     "They are private history, never graph relation targets of this episode.")
     recall: PrivateRecall | None = None
+    reflection_evidence: str | None = Field(default=None, exclude_if=_absent,
+        description="Bounded reflection material the host rendered from experiment and episode evidence it "
+                    "selected under its captured scope. Prompt text, not a second evidence grant.")
+    inspection_evidence: str | None = Field(default=None, exclude_if=_absent,
+        description="Bounded implementation evidence the host rendered from the inspector's own projection. "
+                    "Episode identifiers in it are not citation grants.")
     deliberate_budget: DeliberateBudget | None = Field(default=None, exclude_if=_absent,
         description="Set only for deliberate mental work that main cognition selected. The serialized request "
                     "leaves the field out otherwise, so the prompt of a spontaneous inquiry is unchanged.")
@@ -165,14 +175,35 @@ def earlier_artifacts(view: Snapshot, state: InquiryState) -> tuple[InquiryNodeV
     return tuple(artifacts)
 
 
+#: Operations whose step reads recorded experiment and episode evidence.
+REFLECTION_OPERATIONS: frozenset[str] = frozenset({"reflection_review"})
+#: Operations whose step reads the inspector's implementation evidence.
+INSPECTION_OPERATIONS: frozenset[str] = frozenset({"capability_inspection", "episode_inspection"})
+
+
 def graph_thought_request(view: Snapshot, request: InnerRequest, parent: InquiryRecord,
-                          grant: InquiryGrant) -> GraphThoughtRequest:
-    """Supply actual accepted nodes; never invent IDs for new alternatives."""
+                          grant: InquiryGrant, *, reflection: ReflectionContext | None = None,
+                          inspection: PrivateInspection | None = None) -> GraphThoughtRequest:
+    """Supply actual accepted nodes and the evidence the admitted step reads.
+
+    Never invent IDs for new alternatives. Only an operation that reads
+    reflection or inspection evidence gets its rendered text, so the prompt of
+    every other step stays exactly as it was. The text is rendered here from
+    the typed evidence the host read under its captured scope, and the raw
+    collections stay out of the serialized request.
+    """
     state = parent.receipt.state
     origin = inquiry_origin(view, state)
     nodes = tuple(_node_view(view, node_id) for node_id in state.node_ids)
+    operation = state.next_operation
+    reflection_evidence = (str(private_material(reflection))
+                           if operation in REFLECTION_OPERATIONS else None)
+    inspection_evidence = (str(inspection_material(inspection))
+                           if operation in INSPECTION_OPERATIONS else None)
     return GraphThoughtRequest(request=request, state=state, grant=grant, origin=origin, nodes=nodes,
-                               earlier_artifacts=earlier_artifacts(view, state))
+                               earlier_artifacts=earlier_artifacts(view, state),
+                               reflection_evidence=reflection_evidence,
+                               inspection_evidence=inspection_evidence)
 
 
 def with_origin_evidence(view: Snapshot, request: InnerRequest, origin: InquiryOrigin) -> InnerRequest:
@@ -229,6 +260,7 @@ def graph_thought_instruction(request: GraphThoughtRequest) -> str:
         + f"This operation is {operation.mode}. " + branch_rule + "\n"
         + progress_rule + "\n"
         + _earlier_artifact_rule(request)
+        + _reflection_rule(request)
         + _deliberate_rule(request)
         + "Return one InquiryStep. Execute only the admitted operation. Cite only supplied source or accepted node IDs. "
         "A later step must relate explicitly to accepted earlier nodes. New alternatives have no committed IDs yet. "
@@ -264,6 +296,31 @@ def _earlier_artifact_rule(request: GraphThoughtRequest) -> str:
         "an earlier artifact adds no support. Re-examine them against what is known now. You can cite an earlier "
         "artifact ID in evidence_ids as internal material. An earlier artifact is never a graph relation target "
         "and never belongs in compared_node_ids.\n")
+
+
+def _reflection_rule(request: GraphThoughtRequest) -> str:
+    """State what the recorded reflection and inspection evidence is.
+
+    Without this material a step whose admitted operation is
+    ``reflection_review`` reads a recorded prediction's identifier and no
+    experiment at all. The text is rendered by the host under the same captured
+    scope as the grant; experiment and episode identifiers are not record IDs,
+    so the model must not treat them as one.
+    """
+    blocks: list[str] = []
+    if request.reflection_evidence:
+        blocks.append(
+            "Recorded reflection evidence: experiments with their recorded prediction, retained episodes, and "
+            "the sources they name. A source ID this material lists is an allowed citation. An experiment_id "
+            "and an episode_id identify that evidence; neither is a record ID:\n" + request.reflection_evidence)
+    if request.inspection_evidence:
+        blocks.append(
+            "Selected implementation evidence. A capability state is observed evidence about this runtime, "
+            "not a memory or an external event, and an inspection episode identifier is not a record ID:\n"
+            + request.inspection_evidence)
+    if not blocks:
+        return ""
+    return "\n".join(blocks) + "\n"
 
 
 def _deliberate_rule(request: GraphThoughtRequest) -> str:
@@ -566,6 +623,8 @@ def admit_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner, gran
 
 def run_graph_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner,
                           grant: InquiryGrant, run_stage: StageRunner,
+                          reflection: ReflectionContext | None = None,
+                          inspection: PrivateInspection | None = None,
                           mental_state: FullMentalState, control_generation: int,
                           pending_input_ids: tuple[int, ...], focus: CapturedPrivateFocus,
                           recall_memory: Callable[[str], PrivateRecall] | None = None,
@@ -583,6 +642,10 @@ def run_graph_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner,
     without a model call. The slot is then free for this same opportunity, and
     the closed question competes in its attention decision. ``embed_texts`` is
     needed only when several displaced questions wait and one must be chosen.
+
+    ``reflection`` and ``inspection`` are the scoped evidence the host read.
+    Only an operation that reads them receives their rendered text, and only
+    a reflection step extends its citation grant with the reflection sources.
     """
     owner.displace_superseded(observer_entity_id=grant.observer_entity_id, critical_epoch=grant.critical_epoch)
     view = owner.store.snapshot(capture=False)
@@ -620,7 +683,15 @@ def run_graph_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner,
     dependencies.update({source.record_id: source for source in node_grant.sources})
     execution_grant = node_grant.model_copy(update={"sources": tuple(dependencies[key] for key in sorted(dependencies))})
     step_view = owner.store.snapshot(capture=False)
-    supplied = graph_thought_request(step_view, request, parent, execution_grant)
+    if parent.receipt.state.next_operation in REFLECTION_OPERATIONS:
+        # A reflection step reads experiment and episode evidence, and citing it
+        # needs the captured scope of those records. Every other step keeps its
+        # original grant, so its prompt is unchanged.
+        reflection_ids = tuple(item.knoxel_id for item in (reflection.records if reflection is not None else []))
+        if reflection_ids:
+            execution_grant = extend_inquiry_grant(step_view, execution_grant, reflection_ids)
+    supplied = graph_thought_request(step_view, request, parent, execution_grant,
+                                     reflection=reflection, inspection=inspection)
     deliberate = supplied.origin.kind == "deliberate_action"
     if deliberate:
         request = with_origin_evidence(step_view, request, supplied.origin)
@@ -647,7 +718,11 @@ def run_graph_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner,
                     revision=match.revision, kind="recalled_memory"))
                 existing_ids.add(match.knoxel_id)
         supplied = supplied.model_copy(update={"request": request})
-    step = InquiryStep.model_validate(run_stage("thought", supplied.model_dump(mode="json")))
+    # The rendered evidence fields carry the prompt material. The raw typed
+    # collections behind them stay out of the serialized request, so no store
+    # record reaches the prompt without its renderer.
+    thought_payload = supplied.model_dump(mode="json", exclude={"request": {"reflection", "inspection"}})
+    step = InquiryStep.model_validate(run_stage("thought", thought_payload))
     validate_graph_step(supplied, step)
     outcome = None
     if step.outcome != "continue":

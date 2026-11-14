@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from typing import Any, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -40,6 +41,35 @@ class SourceDependency(BaseModel):
 #: differently. World timestamps stay significant: they are evidence.
 _PROCESS_BOOKKEEPING_FIELDS: frozenset[str] = frozenset({"timestamp_creation", "last_accessed"})
 
+#: The inquiry receipt field that records accumulated active computation time.
+#: The private loop's budget check reads it, but it differs on every run and is
+#: a receipt of how long the run took, never evidence a reader reasons about.
+#: The replay harness normalizes the same field in a rendered request.
+_RECEIPT_TIMING_FIELD: str = "active_elapsed_seconds"
+#: Stable stand-in for that field when a receipt's meaning is hashed.
+_RECEIPT_TIMING_PLACEHOLDER: float = 0.0
+
+
+def _meaning_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
+    """Return a record's metadata without its process bookkeeping.
+
+    Only fields that differ between two runs of the same accepted state are
+    removed: the lifecycle keys, and the elapsed duration inside an inquiry
+    receipt. Every other metadata field stays significant.
+    """
+    meaning = {key: value for key, value in metadata.items() if key not in _LIFECYCLE_METADATA_KEYS}
+    # Stored metadata is heterogeneous JSON. The nested receipt is checked
+    # structurally, then read with its named field boundary.
+    stored_receipt = meaning.get("inquiry_receipt")
+    if isinstance(stored_receipt, dict):
+        receipt = cast(dict[str, Any], stored_receipt)
+        stored_state = receipt.get("state")
+        if isinstance(stored_state, dict) and _RECEIPT_TIMING_FIELD in stored_state:
+            state = cast(dict[str, Any], stored_state)
+            meaning["inquiry_receipt"] = {**receipt, "state": {
+                **state, _RECEIPT_TIMING_FIELD: _RECEIPT_TIMING_PLACEHOLDER}}
+    return meaning
+
 
 def source_fingerprint(record: RecordBase) -> str:
     """Hash source meaning while excluding embeddings and operational receipts.
@@ -51,11 +81,7 @@ def source_fingerprint(record: RecordBase) -> str:
     status-dependent operation; such an operation also requires an exact
     revision guard.
     """
-    semantic_metadata = {
-        key: value for key, value in record.metadata.items()
-        if key not in _LIFECYCLE_METADATA_KEYS
-    }
-    semantic_record = record.model_copy(update={"metadata": semantic_metadata})
+    semantic_record = record.model_copy(update={"metadata": _meaning_metadata(record.metadata)})
     data = semantic_record.model_dump(mode="json",
         exclude={"embedding", "embedding_model", *_PROCESS_BOOKKEEPING_FIELDS})
     serialized = json.dumps(data, sort_keys=True, ensure_ascii=False)

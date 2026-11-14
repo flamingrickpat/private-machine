@@ -47,6 +47,18 @@ class SourceDependencyTests(unittest.TestCase):
         embedded.embedding_model = "derived-vector"
         self.assertEqual(source_fingerprint(embedded), original_fingerprint)
 
+    def test_receipt_fingerprint_ignores_accumulated_computation_time(self) -> None:
+        """Two runs of the same accepted step differ only in how long they took."""
+
+        def receipt(elapsed: float, *, sequence: int = 1) -> RecordBase:
+            record = self.source.copy_for_edit()
+            record.metadata = {"inquiry_receipt": {"state": {
+                "active_elapsed_seconds": elapsed, "sequence": sequence}}}
+            return record
+
+        self.assertEqual(source_fingerprint(receipt(1.5)), source_fingerprint(receipt(2.75)))
+        self.assertNotEqual(source_fingerprint(receipt(1.5)), source_fingerprint(receipt(1.5, sequence=2)))
+
     def test_fingerprint_preserves_content_scope_provenance_time_and_output(self) -> None:
         changed_content = self.source.copy_for_edit()
         changed_content.content = "The codeword is silver birch."
@@ -67,11 +79,12 @@ class SourceDependencyTests(unittest.TestCase):
         changed_output = self.source.copy_for_edit()
         changed_output.metadata["output_record_ids"] = [42]
         variants: list[RecordBase] = [changed_content, changed_scope, changed_reality, changed_provenance,
-                                    changed_creation_time, changed_world_begin, changed_world_end,
-                                    changed_lineage, changed_output]
+                                    changed_world_begin, changed_world_end, changed_lineage, changed_output]
         for index, changed in enumerate(variants):
             with self.subTest(index=index):
                 self.assertNotEqual(source_fingerprint(changed), source_fingerprint(self.source))
+        # Creation time is process bookkeeping, so the same source keeps its meaning.
+        self.assertEqual(source_fingerprint(changed_creation_time), source_fingerprint(self.source))
         claim = SemanticRecord(content="A claim", confidence=0.7)
         revised_claim = claim.copy_for_edit()
         revised_claim.epistemic_status = EpistemicStatus.Inferred

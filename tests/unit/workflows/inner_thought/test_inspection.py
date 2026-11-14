@@ -18,7 +18,8 @@ from pm.runs.workflow_module import PROJECT_ROOT
 from tests.support import ManualClock
 from workflows.inner_thought.host import PrivateThoughtLoop
 from workflows.inner_thought.schemas import InnerReport, InnerRequest
-from workflows.inner_thought.stages.thought.steps import _render_inspection
+from workflows.inner_thought.rendering import inspection as _render_inspection
+from workflows.inner_thought.request_views import PrivateInspection
 from workflows.inner_thought.triggers import evaluate_triggers
 
 MANIFEST = PROJECT_ROOT / "workflows" / "inner_thought" / "inner_thought.workflow.md"
@@ -70,16 +71,16 @@ class CapabilityDoubtTriggerTests(unittest.TestCase):
 
 class InspectionRenderTests(unittest.TestCase):
     def test_render_lists_capabilities_and_episodes(self):
-        rendered = _render_inspection(InnerRequest(inspection=_inspection()))
+        rendered = _render_inspection(PrivateInspection.model_validate(_inspection()))
         self.assertIn("capability=source_inspection", rendered)
         self.assertIn("episode=7", rendered)
 
     def test_missing_inspection_is_an_explicit_limit(self):
-        self.assertIn("no implementation evidence", _render_inspection(InnerRequest()))
+        self.assertIn("no implementation evidence", _render_inspection(None))
 
     def test_failed_inspection_is_reported(self):
-        rendered = _render_inspection(InnerRequest(inspection={"status": "unavailable",
-                                                               "reason": "SourceDenied: no grant"}))
+        rendered = _render_inspection(PrivateInspection.model_validate(
+            {"status": "unavailable", "reason": "SourceDenied: no grant"}))
         self.assertIn("inspection unavailable", rendered)
 
 
