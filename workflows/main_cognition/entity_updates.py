@@ -6,14 +6,19 @@ See :mod:`workflows.main_cognition.host` for the subsystem overview.
 """
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from collections.abc import Sequence
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from pm.constants import WORKSPACE_TAIL_TOKENS
+from pm.llm.structured import ModelFormatError
 from pm.memory.snapshot import Snapshot
 from pm.records.enums import FeatureType, SourceKind
 from pm.records.memory_records import Entity, Feature
 from workflows.entity_context.owner import EntityContextOwner
-from workflows.entity_context.schemas import EntityClaimDraft, EntityContextProposal, EntityExtractionDraft
+from workflows.entity_context.schemas import (
+    EntityClaimDraft, EntityContextProposal, EntityExtractionDraft, PerspectiveRevision,
+)
 from workflows.input_triage.entity_updates import capture_entity_extraction, hydrate_entity_extraction
 from workflows.main_cognition.experience import RejectedBeliefUpdate
 from workflows.main_cognition.schemas import ActionRequest, BeliefUpdate
@@ -48,6 +53,60 @@ class MainEntityUpdates(BaseModel):
     proposals: list[EntityContextProposal] = Field(default_factory=list[EntityContextProposal])
     generic_updates: list[BeliefUpdate] = Field(default_factory=list[BeliefUpdate])
     rejected: list[RejectedBeliefUpdate] = Field(default_factory=list[RejectedBeliefUpdate])
+
+
+def prepare_perspective_revisions(owner: EntityContextOwner, view: Snapshot, stimulus_ids: Sequence[int], *,
+                                  observer_entity_id: int) -> MainEntityUpdates:
+    """Stage the entity entries that private perspective inquiries proposed.
+
+    A perspective finding (a ``theory_of_mind`` outcome) keeps its proposed
+    revision on the operation record. Main cognition accepts it here, exactly
+    like its own belief updates: the private loop proposes, this boundary
+    writes, with ``producer="tom"``. The revision cites the original messages
+    it read, so they become the proposal's evidence and source guards.
+
+    A stored draft that no longer fits the model is a recorded rejection, not
+    an error: the entity family can change between thinking and appraisal
+    (risk R2 in the B06 plan), and hydrating a stale draft against a changed
+    world is a model-quality result. Nothing else is caught here.
+    """
+    result = MainEntityUpdates()
+    for finding_id in stimulus_ids:
+        record = view.get_knoxel_by_id(finding_id)
+        if record is None or not isinstance(record, Feature) or "perspective_revision" not in record.metadata:
+            continue
+        revision = PerspectiveRevisionMetadata.model_validate(record.metadata).perspective_revision
+        cited_ids = list(dict.fromkeys(source_id for claim in revision.claims for source_id in claim.source_ids))
+        if not cited_ids:
+            result.rejected.append({"source_id": finding_id, "reason": "a perspective revision requires cited messages"})
+            continue
+        try:
+            as_of_utc = max(view.get(source_id).timestamp_world_begin for source_id in cited_ids)
+        except (KeyError, TypeError) as error:
+            result.rejected.append({"source_id": finding_id,
+                "reason": f"a perspective revision cites a message outside the current view: {error}"})
+            continue
+        extraction = capture_entity_extraction(owner, view, subject_ids=[revision.subject_entity_id],
+            observer_entity_id=observer_entity_id, source_ids=cited_ids, evidence_ids=cited_ids,
+            as_of_utc=as_of_utc, token_budget=WORKSPACE_TAIL_TOKENS)
+        try:
+            proposals = hydrate_entity_extraction(extraction,
+                EntityExtractionDraft(claims=list(revision.claims)), producer="tom")
+        except ModelFormatError as error:
+            # The stored draft is checked against the world as it is now. A
+            # changed family, a retracted target, or a removed source is a
+            # recorded rejection; the finding keeps its evidence for review.
+            result.rejected.append({"source_id": finding_id, "reason": str(error)})
+            continue
+        result.proposals.extend(proposals)
+    return result
+
+
+class PerspectiveRevisionMetadata(BaseModel):
+    """Read the perspective revision a private finding kept on its operation record."""
+
+    model_config = ConfigDict(extra="ignore")
+    perspective_revision: PerspectiveRevision
 
 
 def prepare_entity_beliefs(owner: EntityContextOwner, view: Snapshot, updates: list[BeliefUpdate], *,

@@ -113,7 +113,10 @@ from workflows.main_cognition.csm_view import record_view
 from workflows.main_cognition.cycle_work import CycleRequest, CycleWork, provisional_tick
 from workflows.main_cognition.experience import consolidate_cycle, update_beliefs
 from workflows.main_cognition.entity_shards import add_entity_context_records, reserve_entity_context
-from workflows.main_cognition.entity_updates import EntityActionMetadata, EntityActionReconsideration, MainEntityUpdates, TerminalReconsideration, prepare_entity_beliefs
+from workflows.main_cognition.entity_updates import (
+    EntityActionMetadata, EntityActionReconsideration, MainEntityUpdates, TerminalReconsideration,
+    prepare_entity_beliefs, prepare_perspective_revisions,
+)
 from workflows.entity_context.owner import EntityContextOwner, active_claims
 from workflows.entity_context.projection import EntityContextChanged, project_entity_context, validate_entity_context
 from workflows.entity_context.schemas import EntityProjectionQuery, EntityUpdateResult
@@ -1040,6 +1043,10 @@ class MainCogLoop(CognitiveWorkflow):
                 work.context.belief_updates, observer_entity_id=request.self_entity_id,
                 permitted_source_ids=set(self._stimulus_ids))
             generic_beliefs = entity_updates.generic_updates
+            perspective_updates = prepare_perspective_revisions(self.entity_context_owner, self._memory_view,
+                self._stimulus_ids, observer_entity_id=request.self_entity_id)
+            entity_updates.proposals.extend(perspective_updates.proposals)
+            entity_updates.rejected.extend(perspective_updates.rejected)
         belief_receipt = update_beliefs(changes, generic_beliefs, user_name=self.ghost.get_user_name(),
                                         permitted_source_ids=set(self._stimulus_ids))
         belief_receipt["rejected"].extend(entity_updates.rejected)
