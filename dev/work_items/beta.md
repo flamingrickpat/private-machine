@@ -24,7 +24,7 @@ Do not infer completed beta acceptance from the budget authorization.
 The owner named the continuous-character milestone and directly related work
 **beta**. The specification remains `docs/continuous-character-milestone.md`.
 Beta is a development milestone, not a claim that its acceptance criteria pass.
-The later milestone can use **gamma** once its scope exists.
+The later milestone is **gamma**. The owner opened [its record](gamma.md) on 2026-11-14 with work deferred from B05.
 
 The preserved baseline is commit `2b17cf8`, tag `alpha-baseline-20261109`.
 Implementation uses branch `beta`. Package version `1.0.2` remains unchanged:

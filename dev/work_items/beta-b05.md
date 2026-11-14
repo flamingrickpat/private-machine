@@ -1,6 +1,6 @@
 # B05: spontaneous nomination and bounded inquiry
 
-Status: implementation in progress, 2026-11-13. Named requests, nomination, attention, connected graph execution, and parked re-entry are implemented. The bounded connected gate passed before the latest re-entry changes; coordinated control, deliberate work, and live re-entry acceptance remain outstanding.
+Status: close-out, 2026-11-14. The mechanisms are implemented; the owner accepted a three-pass close-out after an audit. See [Audit and close-out decisions](#audit-and-close-out-decisions-2026-11-14) at the end of this record and [the coder handoff](beta-b05-closeout-handoff.md). Work deferred from B05 is [gamma G01](gamma.md).
 Source baseline: `d72fd3b`, after B03 implementation `a9e78e8`.
 B04 committed as `e7a7ce8`. This continuation starts from that commit.
 
@@ -1881,3 +1881,62 @@ Still unfinished in B05, in dependency order:
 
 Separate accepted pass after B05 item 1: decision 3B, a recall query proposed
 by the previous step.
+
+## Audit and close-out decisions (2026-11-14)
+
+This section supersedes the "Still unfinished in B05" list above and the note about decision 3B.
+The episode-index half is committed as `3c2640b`.
+
+### What the audit found
+
+The audit used a real store and a real `PrivateInquiryOwner`, with no model.
+Probe and output: `.runtime/beta-b05/audit-20261114/probe.py` and `probe.txt`.
+It also read the replayed prompt
+`.runtime/replay/deliberate-reflection-20261114T110440Z/sample-01/divergence-01-006-replayed.txt`.
+
+The private mind thinks in the inquiry graph (`loop: "inquiry"`).
+Several readers still understand only the retained linear thought (`loop: "inner"`).
+The companion therefore cannot read its own graph thinking well enough to notice that it dwells on one concern.
+That is milestone section 10 and scenario SC-07.
+
+- `PrivateThoughtLoop._recent_private_thoughts` reads a graph step through `LegacyThoughtMetadata`.
+  The step enters `recent_thoughts` with an empty operation and no cited sources, so `repeated_concern` cannot count it.
+  Observed in the probe.
+- `PrivateThoughtLoop._private_thought_ids` and `workflows/introspection/snapshot.py` also read only linear thoughts.
+  Found by reading the source. Not reproduced.
+- One graph step is two episode rows. The reflection material renders three rows and the frame row sorts first.
+  The replayed prompt held one thought three times.
+- `_build_inspection` answers the episode questions for the newest row, which is the frame row with no evidence links.
+- `EpisodeArchitecture` drops the step's outcome, reason, information gap, progress, and relations before rendering.
+  Observed in the probe.
+- `_from_inquiry_operation` reads required step fields with defaults, and its self-parent filter is dead code.
+  The first step's parent is the origin nomination. Observed in the probe.
+- `docs/subsystems/introspection.md` says a step "settled" its alternatives. A generative step only opens branches.
+- `pm/introspection/episodes.py` is outside `pyrightconfig.json`. The configured strict run does not cover it.
+- A diverging replay overwrote `replay-01.json` in the two current deliberate recordings. Their `calls.jsonl` is intact.
+
+The 13 episode checks pass. The three failures in `tests/unit/pm/introspection` reproduce at `4018528` in a clean worktree.
+
+### Owner decisions
+
+| ID | Decision | Owner answer |
+| --- | --- | --- |
+| D1 | What counts as a repeated concern in the graph | Accepted. A graph step counts toward repetition only when its accepted `progress.kind` is `"none"`. Linear thoughts keep the existing rule. |
+| D2 | One step shows as a frame row and a decision row | Accepted. No record-schema change. `EpisodeIndex` keeps both rows. The two companion-facing projections drop an inner frame row when the list holds the private episode it outputs. |
+| D3 | Recording budget for the close-out | The owner declined a $2 cap: "no im going all out". Record what the passes need and report the provider cost of each sample. |
+| D4 | Close B05 after the third pass | Accepted. The deferred work is the first gamma work item, [G01](gamma.md). |
+
+D2 answers the earlier open question about a private decision identity: none is added.
+D4 moves these out of B05: a graph step that commits a `ReflectionDecision`, `capability_doubt` in the graph,
+decision 3B (a step proposes the next recall query), and a sample that needs the extended reflection citation grant.
+
+### Remaining B05 work
+
+Three passes, specified in [the coder handoff](beta-b05-closeout-handoff.md):
+
+1. Graph thoughts reach the private loop's own readers: recent thoughts, the repeated-concern trigger, self-feedback detection, and the capability observation.
+2. The companion reads each step once, with its reasons. The episode reader fails on a missing required field.
+3. Real evidence and owner review: re-record the three scenarios, add `private-dwelling` with a non-neutral mental state,
+   run the existing live gates, and register a record package for owner rating.
+
+B05 closes after pass 3 and its owner review. None of the three passes has run yet.
