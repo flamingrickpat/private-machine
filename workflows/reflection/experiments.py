@@ -13,7 +13,7 @@ from pm.memory.snapshot import GhostConflict, Snapshot
 from pm.memory.write_batch import WriteBatch
 from pm.records.base import RecordBase, Provenance
 from pm.records.memory_records import Feature, Narrative, Stimulus
-from pm.introspection.episodes import EpisodeIndex
+from pm.introspection.episodes import EpisodeIndex, recent_without_duplicate_inner_frames
 from pm.records.cognitive_records import BeliefRecord
 from pm.records.enums import FeatureType, SourceKind
 from workflows.cognitive_control.attention import focus_versions, stage_focus
@@ -95,7 +95,7 @@ def context(view: Snapshot, *, permitted_ids: frozenset[int] | None = None) -> R
     omitted_experiments_by_scope = len(all_ledger) - len(ledger)
     episodes: list[ReflectionEpisode] = []
     omitted_episodes = 0
-    for episode in EpisodeIndex(view).recent(limit=6):
+    for episode in recent_without_duplicate_inner_frames(EpisodeIndex(view), limit=6):
         row = ReflectionEpisode.model_validate(episode.to_dict())
         if not in_scope(_episode_record_ids(row)):
             omitted_episodes += 1

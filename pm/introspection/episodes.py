@@ -36,6 +36,8 @@ from datetime import datetime, timezone
 import hashlib
 from typing import Literal, TypeAlias, TypedDict, cast
 
+from pydantic import BaseModel, ConfigDict
+
 from pm.memory.references import referenced_ids
 from pm.memory.snapshot import Snapshot
 from pm.memory.store import MemoryStore
@@ -56,6 +58,7 @@ __all__ = [
     "EpisodeIndex",
     "EpisodeRow",
     "answer_questions",
+    "recent_without_duplicate_inner_frames",
 ]
 
 
@@ -110,50 +113,59 @@ class AlternativeRow(TypedDict):
     disposition: str
 
 
-class InquiryProgressRow(TypedDict, total=False):
-    """One inquiry step's claimed progress, as the operation record keeps it.
+class InquiryProgressRead(BaseModel):
+    """One inquiry step's accepted progress claim, as its operation record keeps it.
 
     ``workflows.inner_thought.schemas.InquiryProgress`` writes these fields. The
     graph boundary has already rejected an unsupported progress claim, so the
     index reports what was accepted rather than re-judging it.
     """
 
-    kind: str
+    model_config = ConfigDict(extra="ignore")
+
+    kind: Literal["new_evidence", "discrimination", "none"]
     reason: str
     meaningful_difference: bool
 
 
-class InquiryRelationRow(TypedDict, total=False):
+class InquiryRelationRead(BaseModel):
     """One explicit relation to an earlier graph node, with its stated reason."""
+
+    model_config = ConfigDict(extra="ignore")
 
     target_record_id: int
     kind: str
     reason: str
 
 
-class InquiryAlternativeRow(TypedDict, total=False):
+class InquiryAlternativeRead(BaseModel):
     """One branch an inquiry step generated, as its operation record keeps it."""
+
+    model_config = ConfigDict(extra="ignore")
 
     text: str
     disposition: str
 
 
-class InquiryStepEnvelope(TypedDict, total=False):
+class InquiryStepRead(BaseModel):
     """Read-side shape of the ``inquiry_step`` payload on an accepted operation.
 
     ``workflows.inner_thought.schemas.InquiryStep`` writes the complete payload.
     ``pm`` must not import ``workflows``, so this names only the fields the
-    episode index reads from that persisted JSON. The evidence, the earlier
-    nodes, the operation, and the reality label come from the record's typed
-    :class:`~pm.records.base.RecordLineage` instead.
+    episode index reads from that persisted JSON. Every field is required: a
+    missing one is a broken writer contract, not an episode with guessed fields.
+    The evidence, the earlier nodes, the operation, and the reality label come
+    from the record's typed :class:`~pm.records.base.RecordLineage` instead.
     """
 
-    outcome: str
+    model_config = ConfigDict(extra="ignore")
+
+    outcome: Literal["continue", "finding", "information_gap", "wait", "pause", "completed", "abandoned"]
     reason: str
     information_gap: str
-    progress: InquiryProgressRow
-    relations: list[InquiryRelationRow]
-    alternatives: list[InquiryAlternativeRow]
+    progress: InquiryProgressRead
+    relations: tuple[InquiryRelationRead, ...]
+    alternatives: tuple[InquiryAlternativeRead, ...]
 
 
 class BeliefEvidenceRow(TypedDict):
@@ -368,8 +380,8 @@ class EpisodeIndex:
         The operation's lineage names its cited evidence, its earlier graph nodes,
         the operation, and its reality label, so those come from typed fields.
         The step's own judgement fields stay as persisted JSON under
-        ``inquiry_step`` and are read through :class:`InquiryStepEnvelope`. A
-        record with no lineage, or an outcome the index cannot map, is a broken
+        ``inquiry_step`` and are read through :class:`InquiryStepRead`. A record
+        with no lineage, or a step payload missing a required field, is a broken
         contract rather than an episode with guessed fields.
 
         ``branch_ids`` are the competing branch records this operation created,
@@ -379,28 +391,27 @@ class EpisodeIndex:
         lineage = record.lineage
         if lineage is None or not lineage.episode_id:
             raise ValueError("An accepted inquiry operation requires its own lineage.")
-        envelope = InquiryStepEnvelope(record.metadata.get("inquiry_step", {}))
-        stated_outcome = str(envelope.get("outcome", ""))
-        outcome = _INQUIRY_OUTCOMES.get(stated_outcome)
-        if outcome is None:
-            raise ValueError(
-                f"An inquiry operation reported an outcome the episode index cannot read: {stated_outcome!r}")
+        raw_step = record.metadata.get("inquiry_step")
+        if not isinstance(raw_step, Mapping):
+            raise ValueError("An accepted inquiry operation requires its inquiry_step payload.")
+        step = InquiryStepRead.model_validate(raw_step)
+        stated_outcome = step.outcome
+        outcome = _INQUIRY_OUTCOMES[stated_outcome]
         evidence = _ints(lineage.source_event_ids)
-        # The graph records the operation itself among its parents when the step
-        # has no earlier node to answer. An episode is not its own cause, so the
-        # index drops that self-reference and keeps only the answered nodes.
-        parents = tuple(node_id for node_id in _ints(lineage.parent_record_ids) if node_id != int(record.id))
+        # The first step's parent is the nomination (or deliberate action) that
+        # opened the episode. Later steps name the earlier graph nodes they
+        # answered. Neither is the operation itself, so no self-reference is
+        # filtered; a self-parent would be a broken writer contract.
+        parents = _ints(lineage.parent_record_ids)
         links: dict[str, tuple[int, ...]] = {"evidence": evidence}
         if parents:
             links["cause"] = parents
         if branch_ids:
             links["proposal"] = branch_ids
-        progress = envelope.get("progress", {})
-        relations = [{"target_record_id": int(item.get("target_record_id", 0)),
-                      "kind": str(item.get("kind", "")), "reason": str(item.get("reason", ""))}
-                     for item in envelope.get("relations", []) or []]
-        alternatives = [{"text": str(item.get("text", "")), "disposition": str(item.get("disposition", ""))}
-                        for item in envelope.get("alternatives", []) or []]
+        relations = [{"target_record_id": item.target_record_id, "kind": item.kind,
+                      "reason": item.reason} for item in step.relations]
+        alternatives = [{"text": item.text, "disposition": item.disposition}
+                        for item in step.alternatives]
         return Episode(
             episode_id=int(record.id), kind="inquiry_operation", loop="inquiry",
             tick_id=int(record.tick_id), operation=lineage.operation, owner="workflows.inner_thought",
@@ -408,11 +419,9 @@ class EpisodeIndex:
             inputs=evidence, outputs=(int(record.id), *branch_ids), links=links,
             metadata={"graph_episode_id": lineage.episode_id, "sequence": int(lineage.sequence),
                       "reality": lineage.reality, "inquiry_outcome": stated_outcome,
-                      "reason": str(envelope.get("reason", "")),
-                      "information_gap": str(envelope.get("information_gap", "")),
-                      "progress": {"kind": str(progress.get("kind", "")),
-                                   "reason": str(progress.get("reason", "")),
-                                   "meaningful_difference": bool(progress.get("meaningful_difference", False))},
+                      "reason": step.reason,
+                      "information_gap": step.information_gap,
+                      "progress": step.progress.model_dump(mode="json"),
                       "relations": relations, "alternatives": alternatives},
         )
 
@@ -541,6 +550,25 @@ class EpisodeIndex:
                     relation="evidence" if record_id in item.inputs else "cause",
                 ))
         return pairs
+
+
+def recent_without_duplicate_inner_frames(index: EpisodeIndex, *, limit: int = 20) -> list[Episode]:
+    """Return recent episodes without an inner frame row that repeats a private episode.
+
+    One private cycle commits two rows: the thought or graph operation and the
+    inner workspace turn that projects it. The turn's outputs hold the private
+    record id, so the link is explicit. A companion-facing projection reads the
+    private episode once; owner tools keep both rows through
+    :meth:`EpisodeIndex.recent` and :meth:`EpisodeIndex.all`.
+    """
+    recent = index.recent(limit=limit)
+    private_ids = {item.episode_id for item in recent if item.loop in {"inner", "inquiry"}}
+    kept: list[Episode] = []
+    for item in recent:
+        if item.kind == "gwt_turn" and item.loop == "inner" and private_ids.intersection(item.outputs):
+            continue
+        kept.append(item)
+    return kept
 
 
 def _inquiry_branch_ids(store: MemoryStore | Snapshot) -> dict[int, tuple[int, ...]]:

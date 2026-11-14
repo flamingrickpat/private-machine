@@ -223,6 +223,24 @@ class EpisodeAlternative(Contract):
     disposition: str
 
 
+class EpisodeProgress(BaseModel):
+    """One inquiry step's accepted progress claim, as the operation recorded it."""
+
+    model_config = ConfigDict(extra="ignore")
+    kind: str = ""
+    reason: str = ""
+    meaningful_difference: bool = False
+
+
+class EpisodeRelation(BaseModel):
+    """One explicit relation to an earlier graph node, with its stated reason."""
+
+    model_config = ConfigDict(extra="ignore")
+    target_record_id: int
+    kind: str = ""
+    reason: str = ""
+
+
 class EpisodeArchitecture(BaseModel):
     """Useful episode details projected from the existing introspection envelope."""
 
@@ -233,6 +251,11 @@ class EpisodeArchitecture(BaseModel):
     uncertainty: str | float | None = None
     expectation: str = ""
     execution_mode: str = ""
+    inquiry_outcome: str = ""
+    reason: str = ""
+    information_gap: str = ""
+    progress: EpisodeProgress | None = None
+    relations: list[EpisodeRelation] = Field(default_factory=list[EpisodeRelation])
     codelet_runs: list[CodeletRunRef] = Field(default_factory=list[CodeletRunRef])
     structure_ids: list[int] = Field(default_factory=list[int])
     causal_percept_ids: list[int] = Field(default_factory=list[int])

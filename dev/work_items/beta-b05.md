@@ -1981,3 +1981,38 @@ The request JSON now carries the new fields, so the three current recordings wil
 replay. Pass 3 records them again.
 
 Not run: no model, no live gate. That is this pass's scope.
+
+## Pass 2 — the companion reads each step once, with its reasons (2026-11-14)
+
+Status: implemented and verified with a real store and a real `PrivateInquiryOwner`, no model.
+
+- `_from_inquiry_operation` now validates the persisted `inquiry_step` payload through one
+  read-side Pydantic model, `InquiryStepRead`, with required fields and `extra="ignore"`.
+  The four `total=False` TypedDicts are gone. A missing required field raises.
+  `pm` still imports no `workflows` module.
+- The dead self-parent filter is deleted. The first step's `links["cause"]` is now the
+  nomination record id, and the test asserts it.
+- D2: `recent_without_duplicate_inner_frames` returns recent episodes without an inner frame
+  row whose outputs hold a listed private episode. `EpisodeIndex.recent` and `EpisodeIndex.all`
+  are unchanged. `workflows/reflection/experiments.py::context` and
+  `host.py::_build_inspection` use the new projection.
+- `EpisodeArchitecture` now carries `inquiry_outcome`, `reason`, `information_gap`, `progress`,
+  and `relations`. `pm/context_render/architectural.json` omits their empty values, so other
+  episode kinds add no prompt noise.
+- Docs: corrected the "alternatives it settled" sentence in `docs/subsystems/introspection.md`
+  and the two-row limit in `docs/subsystems/private-loop.md`.
+
+Checks, moved from the audit probe into `tests/unit/pm/introspection/test_episodes.py`:
+
+- the step's `reason` and `information_gap` appear in `private_material`;
+- the step appears once as an episode, and its inner frame row is absent from the
+  companion projection while owner queries keep it;
+- `answer_questions` on the newest companion episode names the step's original evidence.
+
+Ran: inner-thought (221), focus-management (15), reflection (22), `test_episodes` (16),
+`tests.unit.test_architecture` (7), strict Pyright (0 errors), strict MkDocs build.
+`tests/unit/pm/introspection` still shows the same three known failures at `4018528`.
+`tests/contract/inner_thought` still shows its known stale inspection fixture failure.
+
+Not added to `pyrightconfig.json`: `pm/introspection/episodes.py` reports 40 strict errors,
+mostly untyped managed-run receipt fields. The configured run stays unchanged.

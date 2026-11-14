@@ -24,7 +24,10 @@ from pm.records.memory_records import ActionSchemaRecord, Entity, Feature, new_f
 from pm.records.enums import ActionSchemaStatus
 from pm.records.mental_state import FullMentalState
 
-from pm.introspection.episodes import AlternativeRow, EpisodeIndex, InquiryProgressRow, answer_questions
+from pm.introspection.episodes import (
+    AlternativeRow, EpisodeIndex, InquiryProgressRead, answer_questions,
+    recent_without_duplicate_inner_frames,
+)
 from typing import cast
 from workflows.cognitive_control.schemas import ControlConfig
 from workflows.inner_thought.graph_host import PrivateInquiryOwner
@@ -140,6 +143,7 @@ class _ExecutedStep:
     executed: InquiryRecord
     operation_id: int
     branch_ids: tuple[int, ...]
+    nomination_id: int
 
 
 class InquiryGraphEpisodeTests(unittest.TestCase):
@@ -215,7 +219,8 @@ class InquiryGraphEpisodeTests(unittest.TestCase):
         operation_id = executed.receipt.operation_record_id
         assert operation_id is not None
         branches = tuple(node_id for node_id in executed.receipt.state.node_ids if node_id != operation_id)
-        return _ExecutedStep(executed=executed, operation_id=operation_id, branch_ids=branches)
+        return _ExecutedStep(executed=executed, operation_id=operation_id, branch_ids=branches,
+                             nomination_id=records[0].record.id)
 
     def test_an_executed_graph_operation_is_an_episode(self) -> None:
         step = self._first_step()
@@ -233,8 +238,11 @@ class InquiryGraphEpisodeTests(unittest.TestCase):
         self.assertEqual(episode.metadata["inquiry_outcome"], "continue")
         self.assertEqual(episode.metadata["reality"], "inferred")
         self.assertEqual(episode.metadata["information_gap"], "Unknown motive.")
-        progress = cast(InquiryProgressRow, episode.metadata["progress"])
-        self.assertEqual(progress["kind"], "none")
+        progress = InquiryProgressRead.model_validate(episode.metadata["progress"])
+        self.assertEqual(progress.kind, "none")
+        # The first step answers the nomination that opened its episode, not
+        # itself. The cause link is the nomination record id.
+        self.assertEqual(episode.links["cause"], (step.nomination_id,))
         self.assertEqual(episode.inputs, (self.source.id,))
         self.assertEqual(episode.outputs, (operation_id, *branches))
         self.assertEqual(episode.links["proposal"], branches)
@@ -262,6 +270,53 @@ class InquiryGraphEpisodeTests(unittest.TestCase):
         self.assertEqual(found.metadata.reality, "inferred")
         self.assertEqual([item.disposition for item in found.metadata.alternatives], ["open"])
         self.assertIn("Both explanations remain possible.", str(private_material(material)))
+
+    def test_a_graph_step_renders_once_with_its_reason(self) -> None:
+        """The companion reads one step once, with the step's own reasons.
+
+        One step commits an operation row and an inner frame row. The frame row
+        has the later tick and repeats the same text, so a naive recent list
+        showed one thought three times and hid why the step stopped.
+        """
+        step = self._first_step()
+        material = reflection_context(self.store.snapshot(capture=False))
+        text = str(private_material(material))
+        # The step appears once as an episode. Its own record still appears in
+        # the cited evidence, which is provenance, not a second episode row.
+        self.assertEqual([item.summary for item in material.episodes].count(
+            "Both explanations remain possible."), 1)
+        self.assertIn("Compare the assumptions before concluding.", text)
+        self.assertIn("Unknown motive.", text)
+        frames = [item for item in material.episodes
+                  if item.kind == "gwt_turn" and step.operation_id in item.outputs]
+        self.assertEqual(frames, [])
+
+    def test_the_newest_companion_episode_answers_with_the_step_evidence(self) -> None:
+        """The host answers the newest companion row, which is the step itself.
+
+        The frame row has the later tick and no evidence links. Reading
+        ``recent[0]`` therefore answered "none retained" for a step that cites
+        its original source.
+        """
+        step = self._first_step()
+        index = EpisodeIndex(self.store)
+        newest = recent_without_duplicate_inner_frames(index, limit=5)[0]
+        self.assertEqual(newest.episode_id, step.operation_id)
+        answers = answer_questions(self.store, newest)
+        cited = [row["record_id"] for row in answers["information_available"]["evidence"]
+                 if "record_id" in row]
+        self.assertEqual(cited, [self.source.id])
+
+    def test_owner_queries_keep_both_rows_while_the_companion_projection_drops_the_frame(self) -> None:
+        step = self._first_step()
+        index = EpisodeIndex(self.store)
+        frames = [item for item in index.all()
+                  if item.kind == "gwt_turn" and step.operation_id in item.outputs]
+        self.assertEqual(len(frames), 1)
+        companion = recent_without_duplicate_inner_frames(index, limit=6)
+        self.assertNotIn(frames[0].episode_id, [item.episode_id for item in companion])
+        self.assertEqual([item.episode_id for item in companion if item.loop == "inquiry"],
+                         [step.operation_id])
 
     def test_a_second_graph_step_names_the_idea_it_answered(self) -> None:
         first = self._first_step()

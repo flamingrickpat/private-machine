@@ -142,11 +142,17 @@ The linear monologue records `loop: "inner"`.
 The live inquiry graph records `loop: "inquiry"`, and each accepted step becomes
 one `inquiry_operation` episode built by
 [`pm.introspection.episodes.EpisodeIndex`][].
-That step's own evidence, its result, the alternatives it settled, and the
-earlier node it answered all come from the committed record and its lineage.
+That step's own evidence, its result, the branches it opened or dismissed, and
+the earlier node it answered all come from the committed record and its lineage.
+A generative step opens branches; a discriminatory step compares or dismisses
+them. Neither settles a branch that it only generated.
 [`workflows.inner_thought.graph_host.PrivateInquiryOwner.accept_step`][] writes the
-operation and the inner workspace turn that holds it, so a step shows as two rows:
+operation and the inner workspace turn that holds it, so owner queries keep two rows:
 the turn reports what the private mind was holding, and the decision row cites why.
+The companion-facing projections read the step once: `EpisodeIndex.recent` and
+`EpisodeIndex.all` keep both rows, while
+[`pm.introspection.episodes.recent_without_duplicate_inner_frames`][] drops an
+inner frame row when the list holds the private episode it outputs.
 An inquiry outcome outside the recorded mapping raises instead of being guessed.
 
 Causal links are explicit.

@@ -788,9 +788,9 @@ class PrivateThoughtLoop(CognitiveWorkflow):
             return PrivateInspection(status="unavailable", reason=f"{type(error).__name__}: {error}")
         self._overlay = overlay
         from workflows.introspection.snapshot import overlay_public
-        from pm.introspection.episodes import EpisodeIndex, answer_questions
+        from pm.introspection.episodes import EpisodeIndex, answer_questions, recent_without_duplicate_inner_frames
         index = EpisodeIndex(self.ghost)
-        recent = index.recent(limit=5)
+        recent = recent_without_duplicate_inner_frames(index, limit=5)
         if permitted_ids is not None:
             recent = [item for item in recent if item.record_ids() <= permitted_ids]
         answers = answer_questions(self.ghost, recent[0], overlay=overlay) if recent else {}
