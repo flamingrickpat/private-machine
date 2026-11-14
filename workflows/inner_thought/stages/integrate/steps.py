@@ -5,8 +5,10 @@ accepted consequences as a validated ``IntegrationResult``. The message
 builder is pure and tested without a kernel, model, or MemoryStore.
 
 A request that carries ``focus_advice`` ends deliberate mental work. Only then
-does the prompt offer the optional ``focus`` field. See
-``workflows/inner_thought/host.py`` for the loop overview.
+does the prompt offer the optional ``focus`` field. A request that carries
+``perspective_revision`` ends a perspective inquiry; only then does the prompt
+offer the optional entity-model revision. Spontaneous integrations see neither.
+See ``workflows/inner_thought/host.py`` for the loop overview.
 """
 from __future__ import annotations
 
@@ -20,6 +22,7 @@ from pm.constants import Sampler
 from pm_workflows.python_role import RoleContext
 from pm.context_render.turns import Role, Turn, format_content
 
+from workflows.inner_thought.perspective import PerspectiveRevisionRequest
 from workflows.inner_thought.schemas import (
     FocusAdviceRequest, InnerRequest, IntegrationResult, ThoughtResult, TriggerChoice,
 )
@@ -36,6 +39,8 @@ class IntegrationPrompts(BaseModel):
     system_prompt: str = Field(description="System turn. It states the rules and the JSON schema of every integration.")
     user_template: str = Field(description="User turn with the performed thought, its evidence, goals, and expectations.")
     focus_advice_template: str = Field(description="Appended to the user turn only when the thought ends deliberate mental work.")
+    perspective_revision_template: str = Field(
+        description="Appended to the user turn only at the outcome of a perspective inquiry.")
 
 
 def load_prompts(path: Path | None = None) -> IntegrationPrompts:
@@ -73,6 +78,18 @@ def build_messages(request: dict[str, object], prompts: IntegrationPrompts) -> l
         user = user + "\n\n" + prompts.focus_advice_template.format(
             companion_name=parsed.companion_name, instruction=focus_advice.instruction,
             citable_ids=json.dumps(list(focus_advice.citable_ids))).strip()
+    revision = request.get("perspective_revision")
+    if revision is not None:
+        # Only a perspective inquiry is asked for a model revision, so no other
+        # integration prompt changes.
+        perspective = PerspectiveRevisionRequest.model_validate(revision)
+        existing = json.dumps([{"id": item.claim_id, "key": item.claim_key,
+                                "statement": item.statement, "source_ids": list(item.source_ids)}
+                               for item in perspective.existing_claims], ensure_ascii=False)
+        user = user + "\n\n" + prompts.perspective_revision_template.format(
+            subject=perspective.subject_name,
+            citable_source_ids=json.dumps(list(perspective.citable_source_ids)),
+            existing_claims=existing).strip()
     return [Turn(Role.System, system.strip()), Turn(Role.User, user.strip())]
 
 
@@ -84,10 +101,17 @@ def run(context: RoleContext) -> dict[str, str]:
     parsed = InnerRequest.model_validate(request)
     known = citable_ids(parsed)
     focus_requested = request.get("focus_advice") is not None
+    perspective: PerspectiveRevisionRequest | None = None
+    revision_data = request.get("perspective_revision")
+    if revision_data is not None:
+        perspective = PerspectiveRevisionRequest.model_validate(revision_data)
+    source_texts = {int(item.knoxel_id): item.text for item in parsed.candidates}
     for attempt in range(2):
         result = complete_json(context, messages, IntegrationResult, temperature=Sampler.TempInstruct, enable_thinking=False)
         try:
-            validate_integration(result, known, parsed, focus_requested=focus_requested)
+            validate_integration(result, known, parsed, focus_requested=focus_requested,
+                                 perspective=perspective,
+                                 source_texts=source_texts if perspective is not None else None)
             break
         except IntegrationError as error:
             # Keep the invalid model proposal. Only the model can correct it.

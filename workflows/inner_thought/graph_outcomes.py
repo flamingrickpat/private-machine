@@ -21,6 +21,7 @@ from pm.memory.write_batch import WriteBatch
 from pm.records.cognitive_records import ExpectationRecord, Intention
 from pm.records.memory_records import Feature
 from workflows.cognitive_control.schemas import FocusProposal
+from workflows.entity_context.schemas import PerspectiveRevision
 from workflows.inner_thought.expectations import open_expectation, resolve_expectation
 from workflows.inner_thought.schemas import InquiryGrant, InquiryStep, IntegrationResult
 from workflows.main_cognition.schemas import GoalChange
@@ -70,6 +71,12 @@ def capture_graph_outcome(grant: InquiryGrant, step: InquiryStep,
         # the inquiry was granted. Main attention reads these IDs later.
         selected_ids.update(integration.focus.promote_ids)
         selected_ids.update(integration.focus.reduce_ids)
+    revision = integration.perspective_revision
+    if revision is not None:
+        # A perspective revision cites the subject's original messages. They
+        # stay in the outcome guards, so the grants they came from remain.
+        for claim in revision.claims:
+            selected_ids.update(claim.source_ids)
     if update.action == "open" and not (update.anticipation.strip() or update.expected_outcome.strip()):
         raise ValueError("An expectation needs its actual anticipation or expected outcome.")
     if update.action == "resolve":
@@ -89,11 +96,14 @@ def capture_graph_outcome(grant: InquiryGrant, step: InquiryStep,
         sources=tuple(supplied[source_id] for source_id in sorted(selected_ids)))
 
 
-def attach_graph_outcome(operation: Feature, step: InquiryStep, outcome: GraphOutcomePayload) -> None:
+def attach_graph_outcome(operation: Feature, step: InquiryStep, outcome: GraphOutcomePayload,
+                         *, perspective_subject_id: int | None = None) -> None:
     """Attach integration to a newly staged operation before graph acceptance.
 
     The caller revises this still-uncommitted record in its graph batch. A
     projection never calls this function on an already accepted operation.
+    ``perspective_subject_id`` is the entity that a perspective inquiry
+    modelled; a proposed revision is kept on the finding only when one exists.
     """
     integration = outcome.integration
     proposal = GraphMentalProposal(instruction=integration.noticing or step.reason,
@@ -102,6 +112,12 @@ def attach_graph_outcome(operation: Feature, step: InquiryStep, outcome: GraphOu
     operation.metadata.update({"graph_outcome": outcome.model_dump(mode="json"),
         "summary": proposal.summary, "disclosure": integration.disclosure.model_dump(mode="json"),
         "mental_plan": proposal.model_dump(mode="json")})
+    revision = integration.perspective_revision
+    if revision is not None and revision.claims:
+        if perspective_subject_id is None:
+            raise ValueError("A perspective revision requires the subject of its inquiry.")
+        stored = PerspectiveRevision(subject_entity_id=perspective_subject_id, claims=tuple(revision.claims))
+        operation.metadata["perspective_revision"] = stored.model_dump(mode="json")
 
 
 def read_graph_outcome(operation: Feature) -> GraphOutcomePayload | None:

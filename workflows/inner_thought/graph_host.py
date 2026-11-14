@@ -518,7 +518,8 @@ class PrivateInquiryOwner:
             felt_state = capture_felt_state(self.store, mental_state, driver_ids=step.evidence_ids, now_utc=now_utc)
             attach_inner_projection(operation, FrozenProjectionPayload(mental_state=mental_state, felt_state=felt_state))
             if outcome is not None:
-                attach_graph_outcome(operation, step, outcome)
+                attach_graph_outcome(operation, step, outcome,
+                    perspective_subject_id=deliberate.subject_entity_id if deliberate is not None else None)
             if deliberate is not None and step.outcome != "continue":
                 action = batch.view().get(deliberate.action_record_id)
                 correlation = ActionMetadata.model_validate(action.metadata).dispatch_correlation

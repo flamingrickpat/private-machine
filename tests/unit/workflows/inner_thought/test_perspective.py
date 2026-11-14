@@ -38,7 +38,7 @@ from workflows.inner_thought.graph_execution import (
     PrivateRecall, graph_thought_request, run_graph_opportunity,
 )
 from workflows.inner_thought.graph_host import PrivateInquiryOwner, accepted_source_ids
-from workflows.inner_thought.inquiry import InquiryRecord
+from workflows.inner_thought.inquiry import InquiryRecord, inquiry_history
 from workflows.inner_thought.nominations import capture_inquiry_grant
 from workflows.inner_thought.perspective import (
     ExistingClaimRef, PerspectiveContext, PerspectiveRevisionRequest, capture_perspective_context,
@@ -49,6 +49,7 @@ from workflows.inner_thought.schemas import (
     DeliberateAdmission, InnerRequest, InquiryGrant, InquiryProgress, InquiryStep, IntegrationResult,
     ThoughtJudgments,
 )
+from workflows.inner_thought.stages.integrate.steps import build_messages, load_prompts
 from pm.memory.dependencies import capture_source
 
 
@@ -78,6 +79,7 @@ class PerspectiveFixture(unittest.TestCase):
         self.key: EntityContextKey = EntityContextKey(subject_entity_id=self.partner.id,
             observer_entity_id=self.observer.id, scope=RecordScope())
         self.thought_payload: dict[str, JsonValue] | None = None
+        self.integrate_payload: dict[str, JsonValue] | None = None
         self.judgments: ThoughtJudgments = ThoughtJudgments(interestingness=0.5, character_relevance=0.6,
             plausibility=0.3, consequence=0.4, desirability=0.4, action_suitability=0.2,
             reason="A morning routine is an estimate, not an observation.")
@@ -170,6 +172,38 @@ class PerspectiveFixture(unittest.TestCase):
             focus=captured_private_focus(self.store.snapshot(capture=False), self.now),
             recall_memory=lambda question: PrivateRecall(matches=(), sources=(), trace={}))
         self.assertIsNotNone(result.receipt_id)
+
+    def run_finding(self, head: InquiryRecord, *, evidence_ids: tuple[int, ...],
+                    integration: IntegrationResult) -> InquiryRecord:
+        """Run one real graph opportunity that ends in a finding with boundary inputs."""
+        view = self.store.snapshot(capture=False)
+        opportunity_grant = capture_inquiry_grant(view, observer_entity_id=self.observer.id,
+            scope=RecordScope(), source_ids=[head.receipt.state.origin_record_id], critical_epoch=0)
+
+        def stages(name: str, payload: dict[str, JsonValue]) -> dict[str, JsonValue]:
+            if name == "thought":
+                return InquiryStep(operation="memory_search", thought="The morning lines settle the pattern.",
+                    evidence_ids=list(evidence_ids), assumptions=(), reality="inferred", judgments=self.judgments,
+                    relations=(), alternatives=(),
+                    progress=InquiryProgress(kind="new_evidence", inspected_source_ids=list(evidence_ids),
+                        compared_node_ids=(), meaningful_difference=True,
+                        reason="The accepted model now carries morning lines."),
+                    outcome="information_gap", reason="The pattern is an estimate; the exact mood stays unknown.",
+                    information_gap="Jesse's exact morning mood is unknown.", next_operation="").model_dump(mode="json")
+            if name == "integrate":
+                self.integrate_payload = payload
+                return integration.model_dump(mode="json")
+            raise AssertionError(f"Unexpected stage {name!r}.")
+
+        result = run_graph_opportunity(InnerRequest(run_id="perspective-finding", companion_name="Spamuel"),
+            owner=self.owner, grant=opportunity_grant, run_stage=stages, mental_state=FullMentalState(),
+            control_generation=0, pending_input_ids=(),
+            focus=captured_private_focus(self.store.snapshot(capture=False), self.now),
+            recall_memory=lambda question: PrivateRecall(matches=(), sources=(), trace={}))
+        self.assertIsNotNone(result.finding_id)
+        after = inquiry_history(self.store.snapshot(capture=False), head.receipt.state.episode_id)[-1]
+        assert after.receipt.operation_record_id is not None
+        return after
 
     def grant_source_ids(self) -> set[int]:
         """Return the source ids the recorded thought payload could cite."""
@@ -357,6 +391,56 @@ class PerspectiveRevisionTests(PerspectiveFixture):
         self.assertEqual(keys, {"routine.workday", "routine.weekend"})
         sources = {item.source_ids for item in request.existing_claims}
         self.assertTrue(all(len(item) == 1 for item in sources))
+
+
+class PerspectiveFindingTests(PerspectiveFixture):
+    """A validated revision is kept on the finding; every other finding stays clean."""
+
+    def test_finding_keeps_a_validated_revision(self) -> None:
+        self.claim(self.workday_line, "morning-workday", claim_key="routine.workday",
+            statement="Jesse is usually up around six on workdays.")
+        self.claim(self.weekend_line, "morning-weekend", claim_key="routine.weekend",
+            statement="Weekends do not count and nothing happens before coffee.")
+        head = self.admit("Work out when Jesse is usually available in the morning.",
+                          subject_entity_id=self.partner.id)
+        draft = EntityExtractionDraft(claims=[EntityClaimDraft(subject_entity_id=self.partner.id,
+            source_ids=[self.weekend_line.id], exact_quote=None, layer="pattern", claim_key="routine.morning",
+            statement="Jesse is usually reachable after seven.", epistemic_kind="inference",
+            perspective_entity_id=None, confidence=0.7)])
+        after = self.run_finding(head, evidence_ids=(self.weekend_line.id,),
+                                 integration=IntegrationResult(perspective_revision=draft))
+        operation = self.store.snapshot(capture=False).get(after.receipt.operation_record_id)
+        stored = operation.metadata["perspective_revision"]
+        self.assertEqual(stored["subject_entity_id"], self.partner.id)
+        self.assertEqual(len(stored["claims"]), 1)
+        self.assertEqual(stored["claims"][0]["claim_key"], "routine.morning")
+        # The original message stayed in the outcome guards.
+        guarded = {int(source["record_id"]) for source in operation.metadata["graph_outcome"]["sources"]}
+        self.assertIn(self.weekend_line.id, guarded)
+        # The integrate stage really saw the revision question.
+        assert self.integrate_payload is not None
+        self.assertEqual(self.integrate_payload["perspective_revision"]["subject_entity_id"], self.partner.id)
+
+    def test_plain_finding_stores_no_revision(self) -> None:
+        head = self.admit("Work out why Jesse stopped describing the story.", subject_entity_id=None,
+                          action_id="action-focus", correlation="corr-focus")
+        after = self.run_finding(head, evidence_ids=(self.workday_line.id,), integration=IntegrationResult())
+        operation = self.store.snapshot(capture=False).get(after.receipt.operation_record_id)
+        self.assertNotIn("perspective_revision", operation.metadata)
+        assert self.integrate_payload is not None
+        self.assertNotIn("perspective_revision", self.integrate_payload)
+
+    def test_integrate_template_appears_only_when_requested(self) -> None:
+        prompts = load_prompts()
+        plain = build_messages({}, prompts)
+        plain_text = plain[1].content.text
+        self.assertNotIn("perspective_revision", plain_text)
+        revision = PerspectiveRevisionRequest(subject_entity_id=3, subject_name="Jesse",
+            citable_source_ids=(10, 11), existing_claims=())
+        asked = build_messages({"perspective_revision": revision.model_dump(mode="json")}, prompts)
+        asked_text = asked[1].content.text
+        self.assertIn("perspective_revision", asked_text)
+        self.assertIn("Repeating an accepted claim", asked_text)
 
 
 if __name__ == "__main__":

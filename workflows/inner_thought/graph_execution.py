@@ -51,7 +51,8 @@ from workflows.inner_thought.nominations import NominationBatchRecord, extend_in
 from workflows.inner_thought.offer_salience import RetainedQuestion, attention_cues, select_retained_offer
 from workflows.inner_thought.operations import operation_lines, validate_operation
 from workflows.inner_thought.perspective import (
-    capture_perspective_context, perspective_rule, render_perspective_context,
+    PerspectiveRevisionRequest, capture_perspective_context, perspective_rule, render_perspective_context,
+    revision_request,
 )
 from workflows.inner_thought.rendering import inspection as inspection_material
 from workflows.reflection.rendering import private_material
@@ -714,6 +715,10 @@ def run_graph_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner,
     supplied = graph_thought_request(step_view, request, parent, execution_grant,
                                      reflection=reflection, inspection=inspection)
     deliberate = supplied.origin.kind == "deliberate_action"
+    #: Optional revision question of a perspective episode, kept until the
+    #: outcome, where the integrate stage is the only caller that may answer it.
+    revision: PerspectiveRevisionRequest | None = None
+    revision_texts: dict[int, str] = {}
     if deliberate:
         request = with_origin_evidence(step_view, request, supplied.origin)
         deliberate_state = parent.receipt.state
@@ -748,6 +753,9 @@ def run_graph_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner,
                         revision=step_view.revisions[source_id], kind="entity_evidence",
                         reason="Original message behind the subject's accepted claim."))
                     supplied_ids.add(source_id)
+            revision = revision_request(step_view, perspective, execution_grant)
+            revision_texts = {source_id: step_view.get(source_id).content
+                              for source_id in revision.citable_source_ids}
             perspective_text = render_perspective_context(perspective)
             supplied = supplied.model_copy(update={"request": request, "grant": execution_grant,
                 "perspective_evidence": perspective_rule(perspective_text,
@@ -802,8 +810,13 @@ def run_graph_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner,
             # spontaneous outcome is never asked for it.
             payload["focus_advice"] = FocusAdviceRequest(instruction=supplied.origin.text,
                 citable_ids=tuple(sorted(integration_ids))).model_dump(mode="json")
+        if revision is not None:
+            # Only a perspective inquiry is asked for an entity-model revision,
+            # and only at its outcome.
+            payload["perspective_revision"] = revision.model_dump(mode="json")
         integration = IntegrationResult.model_validate(run_stage("integrate", payload))
-        validate_integration(integration, integration_ids, integration_request, focus_requested=deliberate)
+        validate_integration(integration, integration_ids, integration_request, focus_requested=deliberate,
+                             perspective=revision, source_texts=revision_texts if revision is not None else None)
         outcome = capture_graph_outcome(execution_grant, step, integration)
     active_seconds = monotonic() - started
     accepted = owner.accept_step(parent, step, grant=execution_grant,

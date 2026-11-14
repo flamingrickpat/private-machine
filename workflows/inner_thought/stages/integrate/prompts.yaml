@@ -95,3 +95,37 @@ focus_advice_template: |
   - Topic hints are advisory labels, not established memory clusters.
   - Do not force a pleasant or cooperative focus. An unwanted concern can stay
     important.
+
+# Appended to the user turn only at the outcome of a perspective inquiry (the
+# theory-of-mind mental action). Every other integration never sees it.
+perspective_revision_template: |
+  This thought ends a perspective inquiry about {subject}. It may propose how
+  to revise the accepted model of that person or agent. Return the optional
+  field "perspective_revision": {{"claims": [{{...}}]}}. Use null, an empty
+  claims list, or omit the field when no entry changes.
+
+  One claim keeps reports, estimates, and attributed knowledge apart:
+  {{"subject_entity_id": <int>, "source_ids": [<int>],
+    "exact_quote": "<verbatim quote or null>", "layer": "<layer>",
+    "claim_key": "<stable proposition key>", "statement": "<short attributed assertion>",
+    "epistemic_kind": "report|inference|hypothetical",
+    "perspective_entity_id": <int or null>,
+    "confidence": <0..1>, "interaction": <null>,
+    "correction_target_ids": [<existing id>], "challenge_target_ids": [<existing id>]}}
+
+  Rules:
+  - source_ids may only use these IDs: {citable_source_ids}
+  - A report copies its exact_quote verbatim from one of those message texts.
+    An inference is an estimate; a hypothetical is a possibility. Observation
+    is impossible from thinking, so never use epistemic_kind "observation".
+  - Do not use layer "situation" and do not change the receive/respond
+    estimate: ordinary message handling keeps that job.
+  - correction_target_ids and challenge_target_ids may only name these
+    existing claim IDs: {existing_claims}
+  - perspective_entity_id, when set, is {subject} itself: attributed
+    knowledge belongs to the subject, not to another entity.
+  - Repeating an accepted claim with the same claim_key and wording without a
+    new source adds no support. Cite a new source or drop the claim.
+  - You cannot contact the subject. If asking them is the best way to learn
+    something, the thought states it as an information gap and main cognition
+    decides whether to ask.
