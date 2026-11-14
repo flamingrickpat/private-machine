@@ -4,11 +4,12 @@
 
 A character needs a revisable understanding of other entities across exchanges.
 It must distinguish what someone reported, what it inferred, and what remains unknown.
-This models continuity and situated interpretation. It does not establish humanlike knowledge or implement deliberate theory of mind.
+This models continuity and situated interpretation. It does not establish humanlike knowledge, and its deliberate theory-of-mind writer is one bounded producer, not a proof of knowing another mind.
 
 The owner, receipt stream, projection, and consumer wiring are implemented.
-Current checks cover immediate model extraction, persistence, and acceptance boundaries.
-Sustained character quality and deliberate ToM remain separate beta work.
+Since B06, a deliberate **perspective inquiry** (the `theory_of_mind` mental action) can propose entries that main cognition stages through the same owner.
+Current checks cover immediate model extraction, persistence, acceptance boundaries, and the deliberate ToM producer.
+Sustained character quality remains review work.
 
 Parent: [cognition](cognition.md).
 Related: [situational guidance](situational-guidance.md), [ordinary interaction](ordinary-interaction.md), and [public dialogue](public-dialogue.md).
@@ -74,7 +75,29 @@ Entity workspace items render that projection rather than the full receipt paylo
 Main cognition stages entity proposals at its final acceptance boundary and records each outcome.
 A stale proposal does not discard valid historical appraisal.
 An action whose governing entity meaning changed remains deferred for a new decision.
-Thought and deliberate ToM behavior remain separate work.
+
+### Deliberate ToM as a producer
+
+A **perspective inquiry** thinks about one subject on purpose (see [deliberate mental work](deliberate-mental-work.md#theory-of-mind)).
+It only **proposes**: the private loop validates the proposal, and main cognition writes it at its final commit through `EntityContextOwner.stage_update` with `producer="tom"`, exactly like its own reports.
+The proposal cites the original messages behind what the inquiry already believed, so the written receipt keeps those guards.
+A stored draft that no longer fits the world as it is now becomes a recorded rejection, not an error.
+
+What `tom` may write, and what it may not:
+
+| May | Meaning |
+| --- | --- |
+| `inference` | an estimate with stated support |
+| `hypothetical` | a possibility, never an ability estimate |
+| `report` | a quoted statement found in a citable message |
+| challenge an old entry | a competing reading, kept beside it |
+| remove an old entry | only when a quoted statement supports the removal |
+
+| May not | Why |
+| --- | --- |
+| write an `observation` | thinking is not observing |
+| change `interaction` or the `situation` layer | ordinary message handling keeps current ability and situation |
+| repeat an accepted claim with no new source | dwelling is not corroboration |
 
 Provenance flow:
 

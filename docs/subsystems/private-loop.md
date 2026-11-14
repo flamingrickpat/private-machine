@@ -311,6 +311,29 @@ The first executed operation creates the actual inner turn.
 One active episode occupies the observer's private inquiry slot.
 No attention decision grants public contact or external action authority.
 
+## Noticing its own thinking
+
+The companion can notice that its thinking is dwelling, without that noticing becoming the very dwelling it notices.
+The trigger policy reports a **repeated concern** when several recent steps return to one source without progress (`repeated_concern`, [`_repeated_source`][workflows.inner_thought.triggers._repeated_source]).
+Nomination and shared attention can then admit a noticing step: `rumination_notice` or `attention_drift_notice`.
+
+Three pieces make the noticing honest and bounded:
+
+1. **Recorded activity facts.**
+   A noticing step reads bare facts about its own recent steps, built without a model call: which sources several steps returned to, how many of those steps accepted no progress, and the window they came from ([`thought_activity`][workflows.inner_thought.metacognition.thought_activity]).
+   The facts carry no cause and no judgment. Why the thinking returns to a source is the step's own reading, and it can be wrong.
+2. **An intermediate result.**
+   A noticing is delivered to main cognition as a `thought.created` finding even when the episode continues ([`METACOGNITION_OPERATIONS`][workflows.inner_thought.metacognition.METACOGNITION_OPERATIONS] and the `private_inquiry_finding` marker in [`PrivateInquiryOwner.accept_step`][workflows.inner_thought.graph_host.PrivateInquiryOwner.accept_step]).
+   The step record keeps the activity facts, so the owner can see what the noticing was based on.
+   Main cognition appraises it like any private finding and owns every consequence: stop, attend elsewhere, ask why, or go on.
+3. **Notice once.**
+   A noticing never counts toward the repeat count, and the source it names is not reported again while the noticing is in the window ([`_repeated_source`][workflows.inner_thought.triggers._repeated_source]).
+   Noticing dwelling must not itself count as dwelling.
+
+The hard stop of stalled thinking is unchanged (owner preference, 2026-11-14: keep it).
+A graded wish-to-stop remains a separate, unaccepted design.
+The recorded `private-dwelling` scenario shows real noticing runs; see [recorded scenario replay](../workflows/scenario-replay.md).
+
 ## Sources and graph data
 
 The host filters citable source views to the companion observer's reality and frame before graph entry.

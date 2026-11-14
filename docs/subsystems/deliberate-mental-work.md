@@ -96,6 +96,30 @@ It promoted four records and reduced one, with strength 0.4 for one hour.
 In an earlier run of the same situation the episode made two steps without progress and was parked.
 The notice was then published for main appraisal instead.
 
+## Theory of mind
+
+A second catalogue entry, `theory_of_mind`, is deliberate thinking about another person or agent.
+It exists because the companion sometimes needs to work out what another entity usually does, knows, believes, or wants before it acts — and asking is itself a decision for main cognition.
+`FocusManagement` admits it exactly like `focus_management`; the only difference is the **subject**, the entity that the action's partner named.
+
+```mermaid
+flowchart LR
+    Action[theory_of_mind action<br/>with subject and question] --> Admit[FocusManagement admits<br/>subject on the entry receipt]
+    Admit --> Step[Each private step also reads the subject's<br/>accepted entity view and its original messages]
+    Step --> Outcome[Outcome integration may propose<br/>a perspective revision]
+    Outcome --> Finding[Finding keeps the revision]
+    Finding --> Main[Main cognition appraises, hydrates,<br/>and stages producer=tom through EntityContextOwner]
+    Main --> Receipt[Entity receipt, labelled tom]
+```
+
+- The subject is the person or agent this part of the story is about. Naming a third entity is later work.
+- A perspective step reads only what this companion already has: the subject's accepted entity view and the original messages behind it, in the same reality and frame. It never reads another character's model or another conversation.
+- At the outcome the integrate stage may propose at most four entity entries ([`workflows.inner_thought.perspective.PerspectiveRevisionRequest`][]). An empty or null revision is valid: not every conclusion changes the model.
+- The revision is validated in the private loop (see [entity context](entity-context.md#deliberate-tom-as-a-producer)) and kept on the finding. Main cognition writes it through `EntityContextOwner` with `producer="tom"` at its final commit; each outcome, staged, deferred, or rejected, is recorded on the decision record.
+- A perspective inquiry sends no message and asks nobody. If asking the subject is the best way to learn something, the finding states it as an information gap, and main cognition decides whether to ask.
+
+The first recorded scenario is `perspective-morning` ([recorded scenario replay](../workflows/scenario-replay.md)); the recorded and live evidence is in the <a href="../../dev/work_items/beta-b06.md">B06 engineering record</a>.
+
 ## Holds, failures, and restart
 
 - An accepted wait, unclassified input, and required Critical reconsideration hold admission. The request stays in memory and the module retries each second without inference.

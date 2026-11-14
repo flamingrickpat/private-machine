@@ -200,8 +200,8 @@ A rename changes Python identifiers only.
 ### entity model
 
 - Definition: the companion's attributed, revisable understanding of another entity, from one observer and within one reality and frame.
-- Relations: accepted **entity claims** retain their sources, uncertainty, corrections, and applicability. An **entity view** presents selected claims to cognition.
-- Owner: `workflows/entity_context/` owns claim acceptance and compact projections. Deliberate ToM remains separate work.
+- Relations: accepted **entity claims** retain their sources, uncertainty, corrections, and applicability. An **entity view** presents selected claims to cognition. A **perspective inquiry** can propose new entries that main cognition stages with producer `tom`.
+- Owner: `workflows/entity_context/` owns claim acceptance and compact projections.
 - Boundary: an observer's interpretation does not establish another entity's private knowledge or an external fact.
 
 ### entity claim
@@ -215,6 +215,24 @@ A rename changes Python identifiers only.
 - Definition: a compact projection of an entity model for a particular observer, subject, scope, and world time.
 - Relations: **situational guidance** uses the view alongside current input, accepted intentions, and previous actions.
 - Boundary: the full accepted model remains in memory outside the bounded workspace view.
+
+### perspective inquiry
+
+- Definition: one deliberate `theory_of_mind` mental action: private multi-step thinking about another person or agent, from the action's subject.
+- Relations: each step reads the subject's accepted **entity view** and the original messages behind it; the action never contacts the subject. Main cognition selects the action and appraises its finding.
+- Boundary: it proposes belief entries; it does not write them, observe the subject, or read another conversation. Naming a third entity is later work.
+
+### perspective revision
+
+- Definition: the entity-model entries a **perspective inquiry** proposes at its outcome, validated in the private loop and kept on the finding.
+- Relations: main cognition hydrates the stored draft and stages it through `EntityContextOwner` with producer `tom`; each outcome (staged, deferred, rejected) is recorded on the decision record.
+- Boundary: thinking cannot write an observation, change the receive/respond estimate or the situation layer, or repeat an accepted claim without a new source.
+
+### thought activity
+
+- Definition: recorded facts about the companion's own recent private steps, built without a model call: which sources several steps returned to, which of them accepted no progress, and the window they came from.
+- Relations: a noticing step (`rumination_notice`, `attention_drift_notice`) reads these facts, keeps them on its record, and is delivered to main cognition while the episode continues. The `repeated_concern` trigger stays quiet for a source the noticing named while the noticing is in the window.
+- Boundary: the facts carry no cause and no judgment; the step's reading of why it returns to a source can be wrong.
 
 ### situational guidance
 

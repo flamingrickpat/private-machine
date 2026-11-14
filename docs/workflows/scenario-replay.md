@@ -46,12 +46,18 @@ A later replay of the same sample replaces those three files, so copy them first
 | `private-continuity` | an unrelated ordinary message arrives while a private step is calculating | the step is accepted, not discarded |
 | `deliberate-entry` | a selected mental action arrives while a spontaneous inquiry holds the private slot | the spontaneous inquiry is parked with a receipt, the deliberate episode runs to its outcome, and the result is delivered under the action's correlation |
 | `deliberate-reflection` | the same entry, with `reflection_review` as the first operation | the reflection step receives the scoped experiment and episode evidence, and the next step inspects a retained episode |
-| `private-dwelling` | Jesse answers a long Spamuel message with one short ambiguous line, from a committed cycle with a non-neutral mental state | the private loop dwells on the reply across connected steps, and the repeated-concern trigger reads a stalled graph step |
+| `private-dwelling` | Jesse answers a long Spamuel message with one short ambiguous line, from a committed cycle with a non-neutral mental state | the private loop dwells on the reply across connected steps, the repeated-concern trigger reads a stalled graph step, and a noticing step carries its recorded activity facts to main cognition while the episode continues |
+| `perspective-morning` | a `theory_of_mind` action works out when Jesse is usually available in the morning, from five synthetic Jesse lines | a deliberate perspective episode runs through the real stages with the subject's accepted view in every thought prompt, and its outcome reports the finding, any proposed entity revision, and the owner's staging answer |
 
 `private-dwelling` records no model answer as a requirement.
-The outcome reports the nominations, the selection, each step's operation, outcome, progress kind, and sources, the stop reason, whether `repeated_concern` fired, whether a later nomination cited earlier private thinking, and any felt-state record.
+The outcome reports the nominations, the selection, each step's operation, outcome, progress kind, and sources, the stop reason, whether `repeated_concern` fired, whether a later nomination cited earlier private thinking, any felt-state record, and every noticing step with whether it received its activity facts, whether it was delivered as `thought.created`, and whether the trigger stayed quiet afterwards.
 A model that declines to dwell, or that makes progress instead of stalling, is a recorded quality result.
-See [private loop](../subsystems/private-loop.md).
+See [private loop](../subsystems/private-loop.md#noticing-its-own-thinking).
+
+`perspective-morning` commits one `theory_of_mind` action at the dispatch boundary, exactly like `deliberate-entry` commits its action.
+The outcome reports the executed operations, the episode status, the finding or the notice, how many thought requests carried the subject's perspective block, any stored revision claims (kind, layer, confidence, sources), whether any claim is an observation (the validator forbids it), and the real entity owner's rehearsal answer for each proposed batch.
+A sample without a finding or without a revision is a recorded quality result; the harness never changes a validator or prompt to rescue it.
+See [theory of mind](../subsystems/deliberate-mental-work.md#theory-of-mind).
 
 `deliberate-entry` commits the action record and its request itself, as synthetic input at the dispatch boundary.
 The harness cannot record a main cycle, so the scenario does not show that main cognition selects such an action.
