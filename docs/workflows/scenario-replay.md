@@ -54,8 +54,8 @@ The receipt therefore comes from [`pm.llm.stage_model.LazyStageModel.complete_ch
 ```powershell
 python -m tests.replay list
 python -m tests.replay record --scenario private-continuity --samples 3
-python -m tests.replay replay --snapshot .runtime/replay/private-continuity-20261114T064112Z
-python -m tests.replay compare --snapshot .runtime/replay/private-continuity-20261114T064112Z
+python -m tests.replay replay --snapshot .runtime/replay/private-continuity-20261114T081059Z
+python -m tests.replay compare --snapshot .runtime/replay/private-continuity-20261114T081059Z
 ```
 
 `record` spends provider money: every sample is one independent live run.

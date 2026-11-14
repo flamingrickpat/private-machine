@@ -328,7 +328,7 @@ If interruption occurs between these commits, the accepted graph remains authori
 The owner can restore the missing inner turn from its actual operation ID without another model call.
 A main turn that cites the operation does not substitute for its inner projection.
 The accepted operation remains immutable during that repair.
-[`workflows.inner_thought.graph_host.FrozenProjectionPayload`][] retains the operation's original accepted mental state before graph commit.
+[`workflows.inner_thought.graph_host.FrozenProjectionPayload`][] retains the operation's original accepted mental state and its felt-state sample before graph commit.
 Repair uses that frozen payload rather than later state.
 
 Explicit outcomes use the existing `integrate` child.
@@ -446,9 +446,12 @@ Those results do not verify connected graph generation or the unfinished lifecyc
 
 ## Felt-state channels
 
-The retained [`workflows.inner_thought.felt_state`][] mechanism projects five channels from accepted state.
-The graph request can read earlier channel samples as context.
-Graph GWT projection does not yet reproduce the linear path's channel sampling and new `QualeRecord` emission.
+A felt-state channel records how the accepted mental state moves over time, not only where it is.
+The [`workflows.inner_thought.felt_state`][] mechanism projects five channels from accepted state.
+Each accepted graph operation takes one sample.
+[`workflows.inner_thought.graph_host.capture_felt_state`][] computes it at acceptance from the operation's frozen mental state and the previous accepted sample.
+The next graph request reads the earlier samples as context.
+Sampling changes no mental state. Main appraisal remains the only owner of that state.
 
 | Channel | Units | Source |
 | --- | --- | --- |
@@ -463,10 +466,21 @@ Velocity and acceleration describe differences between accepted samples over the
 The first sample uses zero derivatives, which does not establish an absence of movement.
 A nonpositive interval also supplies no measured stillness.
 
-The legacy path stores its sample in `CycleState.qualia_channels`.
-It emits a `QualeRecord` when velocity or acceleration reaches 0.05.
-The reportable flag also requires an accepted causal or attention driver.
+The operation retains its sample in [`workflows.inner_thought.graph_host.FeltStateSample`][].
+The derived inner turn stores that sample in `CycleState.qualia_channels`.
+[`workflows.inner_thought.graph_host.stage_felt_state`][] emits a `QualeRecord` in the same turn when velocity or acceleration reaches 0.05.
+The reportable flag also requires a driver that the operation cited.
+A finding is still the operation. A `QualeRecord` is never sent to main appraisal as a finding.
+
+Example calculation: accepted joy rises from 0 to 1, which moves `affect.valence` from 0 to 0.2.
+A private operation is accepted two seconds after the previous sample.
+It measures a velocity of 0.1 per second and emits one `affect.valence` record.
+
+A repaired inner turn reuses the retained sample and the time of that sample.
+A later accepted state cannot rewrite an earlier felt state, and a late repair does not shorten the next measured interval.
+An operation accepted before the graph sampled felt state has no sample. Its repaired turn gets an empty channel map.
 An offline gap contains no invented intermediate samples.
+The retained linear path samples at its own commit, with the same threshold and gate.
 
 ## Failure modes and evidence limits
 
@@ -485,6 +499,7 @@ An offline gap contains no invented intermediate samples.
 | Broken manifest, catalogue, or internal contract | fail through the actual error path |
 
 The B05 engineering record distinguishes connected workflow evidence from generated-content review and sustained behavior.
-Deliberate-entry wiring, scoped reflection and inspection evidence, and new graph felt-state emission remain incomplete.
+Deliberate-entry wiring and scoped reflection and inspection evidence remain incomplete.
+Graph felt-state sampling ran in one recorded real scenario. The mental state did not move in that scenario, so no real run has emitted a `QualeRecord` from the graph yet.
 Displacement has actual-store and real-control checks; no recorded scenario or live gate has driven it through a model-classified Critical message yet.
 The [output recovery guide](cognitive-output-recovery.md) explains the shared error and repair boundaries.

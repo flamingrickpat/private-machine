@@ -1355,3 +1355,170 @@ noise alone.
 
 The replay harness does not record embedding requests. A scenario with several
 displaced questions would send real embedding requests during a replay.
+
+## Pass: graph felt-state emission (2026-11-14)
+
+This closes the felt-state half of remaining item 2. The graph's inner turn
+did not sample the felt-state channels and emitted no `QualeRecord`; only the
+retained linear path did.
+
+### Changed
+
+- `workflows.inner_thought.graph_host.capture_felt_state` samples the five
+  channels when an operation is accepted. It uses the operation's frozen
+  mental state, the newest accepted cycle that carries a sample, the active
+  intentions, and the acceptance time. The drivers are the sources the
+  operation cited.
+- `FrozenProjectionPayload.felt_state` retains that sample
+  (`FeltStateSample`: time and channel map) on the operation before the graph
+  commit. It is `None` only for an operation accepted before this pass.
+- `PrivateInquiryOwner.ensure_inner_turn` stores the retained sample in
+  `CycleState.qualia_channels`, gives the cycle the sample's own time, and
+  calls `stage_felt_state`. That function creates one `QualeRecord` for each
+  channel whose velocity or acceleration reaches 0.05, in the operation's
+  scope, and adds it to the inner turn. The reportable gate is the linear
+  path's gate: a driver the operation cited.
+- The graph commit stays an append-only recovery root. The records and the
+  cycle belong to the derived projection commit, like expectation effects.
+
+A repaired projection reuses the retained sample. A later accepted state
+cannot change it, and the next sample's interval is measured from the
+original sample time, not from the repair time.
+
+### Consequence for recordings
+
+The next private request reads the earlier samples as context
+(`InnerRequest.channels`). Graph cycles now carry samples, so later requests
+of a scenario changed. `private-continuity-20261114T064112Z` stops at call 8
+with a request-text difference at the `channels` field. That is the harness's
+intended stop. The replay ran on a copy, so the snapshot's earlier successful
+`replay-*.json` files are unchanged.
+
+### Verification
+
+- `tests.unit.workflows.inner_thought.test_graph_host`: **21 passed** (16
+  before). Five new actual-store checks: a first sample covers all five
+  channels and emits no record; joy 0 to 1 over two seconds emits one
+  reportable `affect.valence` record with velocity 0.1 in the inner turn;
+  the same movement without a cited driver stays unreportable; a repair after
+  a later accepted main state reuses the retained sample and its time and is
+  idempotent; an operation without a retained sample gets an empty channel
+  map. The mental states are explicit test inputs.
+- `tests/unit/workflows/inner_thought` discovery: **203 passed**.
+- Configured strict Pyright: **0 errors**. A scoped strict scan of the changed
+  test module: 0 errors.
+- Real model, OpenRouter: `python -m tests.replay record --scenario
+  private-continuity --samples 1` wrote
+  `.runtime/replay/private-continuity-20261114T081059Z`. 14 calls, 7 requests,
+  provider-reported **$0.009361**. The new recording replays exactly.
+  Inspection of the recorded store: three inner turns, each cycle carries the
+  five channels and the virtual-clock time of its sample, and calls 7, 12, 13,
+  and 14 carry the earlier samples.
+- Strict MkDocs passed in **209.26 seconds**; the four new API links on
+  `private-loop.html` resolve to existing anchors. The final build after the
+  `scenario-replay.md` snapshot name changed passed in **200.91 seconds**.
+
+Receipts: `.runtime/beta-b05/felt-state/`.
+
+### Not run and limits
+
+**NOT RUN — a `QualeRecord` from the graph in a real run.** The recorded
+scenario never changes the mental state, so every position stayed 0.0 and no
+record was due. Emission is verified only against actual stores with explicit
+states. A scenario needs a main cycle that moves the state between two private
+operations, and the harness cannot record a main cycle yet.
+
+Full suites and the integrated live gates: not run.
+
+`workflows.inner_thought.felt_state.CHANNELS` is still an untyped
+`dict[str, dict]`. It is outside the configured strict set and unchanged here.
+
+## Owner decision (2026-11-14): how deliberate mental work enters the private slot
+
+Remaining item 1 is not implemented. The wiring changes behaviour the accepted
+design did not spell out, so the choices are recorded here first.
+
+### Observed in the current source
+
+- `FocusManagement` runs one pm-coder agent session per accepted action
+  (`workflows/focus_management/steps.py`). The agent searches memory as often
+  as it wants, reads goals, and returns a `MentalPlan` with goal changes and
+  optional focus advice. The proposal and the action's lifecycle commit in one
+  batch. The session also runs during an accepted wait; only delivery waits.
+- `PrivateInquiryOwner.accept_deliberate_entry` exists and has no production
+  caller. `stage_deliberate_inquiry` refuses an occupied slot and refuses a
+  second entry for the same action.
+- A graph step commit is a recovery root, and the store rejects lifecycle
+  changes in a recovery root. The action's lifecycle therefore needs its own
+  commit after the finding.
+- A graph finding carries `GraphMentalProposal` with `focus: None`.
+- A graph `memory_search` step makes one retrieval with the origin's question.
+  For a deliberate episode that is the instruction text.
+- The private loop executes one operation per timer tick (default 30 s) and
+  does not run during an accepted wait. A spoken reply arms such a wait
+  (default 600 s).
+
+### Proposed wiring, following the accepted design
+
+1. `FocusManagement` stops running its own agent. For a new `action.request`
+   it closes superseded work through `displace_superseded`, then commits
+   `accept_deliberate_entry` through `CognitiveControl.commit_private`. The
+   first operation is `arguments.operation` when it names a delivered
+   operation, otherwise `memory_search`.
+2. The private loop executes the episode on its timer through the existing
+   child kernels. No second executor exists.
+3. `FocusManagement` keeps the action lifecycle and delivery. When the episode
+   reaches a finding, it commits `mental_result_id` and `mental_status` on the
+   action and delivers `thought.created` with the action's correlation. The
+   private loop does not deliver findings of a deliberate episode. A restart
+   reads the episode by action identity and repeats no inference.
+4. The pm-coder session files, the workflow manifest, `MentalWorkRequest`, and
+   the fake-driver tests are removed. Old standalone results stay terminal
+   proposals and still replay.
+
+### Decision 1 — focus advice
+
+The graph proposal has no focus advice. Deliberate work is today the only
+producer of `MentalPlan.focus`.
+
+- **A.** Add optional focus advice to the integration result for episodes that
+  began from a deliberate action. IDs must lie in the episode grant. Main
+  attention still accepts or rejects it. Spontaneous prompts stay unchanged.
+- **B.** Drop focus advice from deliberate work. Main cognition then receives
+  no new focus proposals until another producer exists.
+
+Recommendation: A. It keeps an implemented capability.
+
+### Decision 2 — the slot is occupied by spontaneous work
+
+- **A.** The action waits. `FocusManagement` retries on its one-second timer
+  without inference. The wait is bounded by the episode limits.
+- **B.** The deliberate action parks the spontaneous episode. This needs a new
+  receipt transition without an executed step. The parked question returns
+  through shared attention like other parked work. An in-flight spontaneous
+  step is then discarded at its commit.
+
+Recommendation: A first. It is what the accepted boundary already enforces,
+and B can be added later without a migration.
+
+### Decision 3 — recall depth and pace
+
+The agent session made several searches in one run. The graph makes one
+retrieval per `memory_search` step, always with the instruction as its query,
+and one step per 30-second tick. A deliberate task therefore recalls less per
+step and takes several ticks. It also starts only after an accepted wait ends,
+although its result could not be delivered before then in either design.
+
+- **A.** Accept this as the shared-inquiry behaviour.
+- **B.** Let a `memory_search` step use a query the previous step proposed.
+  That changes the step contract for every inquiry.
+
+Recommendation: A now. B is a separate change to the inquiry contract.
+
+Still unfinished in B05, in dependency order:
+
+1. Wire `FocusManagement` to the shared private owner, after the decisions above.
+2. Integrate scoped reflection and inspection evidence. Felt-state emission is done.
+3. Run the integrated live gates, including a real Critical displacement, two
+   waiting displaced questions, and a graph `QualeRecord`.
+

@@ -15,6 +15,12 @@ injected host commit callback.
 The slot readers separate three kinds of retained work. Active work holds the
 slot. Parked work can resume its own graph. Displaced work is closed by
 accepted Critical reconsideration; only its question returns, as a new episode.
+
+Each executed operation also retains one felt-state sample. The sample is
+computed once, when the operation is accepted, from the frozen mental state and
+the previous accepted sample. The derived inner turn stores it and emits a
+``QualeRecord`` for each notably moved channel. Repair reuses the retained
+sample, so a later accepted state never rewrites an earlier felt state.
 """
 from __future__ import annotations
 
@@ -32,6 +38,7 @@ from pm.records.cycle_state import CycleState
 from pm.records.global_workspace import GwtTurnRecord
 from pm.records.memory_records import Feature
 from pm.records.mental_state import FullMentalState
+from pm.records.qualia_records import QualeChannelState, QualeRecord
 from workflows.cognitive_control.schemas import ControlConfig
 from workflows.cognitive_control.attention import CapturedPrivateFocus, validate_private_focus
 from workflows.inner_thought.inquiry import (
@@ -48,6 +55,18 @@ from workflows.inner_thought.schemas import (
 from workflows.inner_thought.graph_outcomes import (
     GraphOutcomePayload, attach_graph_outcome, read_graph_outcome, stage_graph_outcome,
 )
+from workflows.inner_thought.felt_state import (
+    is_reportable, notable_channels, previous_cycle_sample, project_channels,
+)
+from workflows.main_cognition.cycle_commits import active_intentions
+
+
+class FeltStateSample(BaseModel):
+    """The felt-state channels sampled when one private operation was accepted."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    sampled_at_utc: datetime = Field(description="Naive UTC time of the sample. Channel derivatives use the interval from the previous accepted sample to this time.")
+    channels: dict[str, QualeChannelState] = Field(description="Position, velocity, and acceleration of every delivered channel, keyed by channel id.")
 
 
 class FrozenProjectionPayload(BaseModel):
@@ -55,6 +74,7 @@ class FrozenProjectionPayload(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
     mental_state: FullMentalState = Field(description="Original frozen mental state for this operation's inner GWT projection; repair never substitutes later state.")
+    felt_state: FeltStateSample | None = Field(default=None, description="Felt-state sample taken at acceptance. None only for an operation accepted before the graph sampled felt state; no sample is invented for it.")
 
 
 class InnerProjectionMetadata(BaseModel):
@@ -67,6 +87,49 @@ class InnerProjectionMetadata(BaseModel):
 def attach_inner_projection(operation: Feature, payload: FrozenProjectionPayload) -> None:
     """Attach the exact projection before the operation's graph-root commit."""
     operation.metadata["inquiry_projection"] = payload.model_dump(mode="json")
+
+
+def capture_felt_state(store: MemoryStore, mental_state: FullMentalState, *,
+                       driver_ids: Sequence[int], now_utc: datetime) -> FeltStateSample:
+    """Sample every felt-state channel for one operation that is being accepted.
+
+    Call while holding the store lock. ``mental_state`` is the frozen accepted
+    state the operation ran under, and ``driver_ids`` are the sources the
+    operation cited. The previous sample is the newest accepted cycle that
+    carries one, from either loop. The sample is pure math over accepted state;
+    it changes no mental state.
+    """
+    # ``store.states`` is read directly. ``read_cycles`` would record every
+    # cycle as a causal read of the surrounding invocation.
+    previous_channels, previous_time = previous_cycle_sample(list(store.states))
+    active_goals = active_intentions(store.snapshot(capture=False))
+    channels = project_channels(mental_state, active_goals=active_goals, previous=previous_channels,
+        previous_time=previous_time, now=now_utc, driver_ids=list(driver_ids))
+    return FeltStateSample(sampled_at_utc=now_utc, channels=channels)
+
+
+def stage_felt_state(batch: WriteBatch, operation: Feature, evidence_ids: Sequence[int],
+                     sample: FeltStateSample) -> list[int]:
+    """Stage one ``QualeRecord`` for each notably moved channel of a retained sample.
+
+    Returns the new record IDs in channel order. A channel below the movement
+    threshold stays in the cycle's channel map and gets no record. A record is
+    reportable only when a driver was cited by the operation, which is the same
+    causal gate the linear path applies.
+    """
+    gate_ids = {*evidence_ids, operation.id}
+    quale_ids: list[int] = []
+    for channel_id in notable_channels(sample.channels):
+        channel = sample.channels[channel_id]
+        reportable = is_reportable(channel.last_driver_ids, attention_ids=gate_ids, causal_ids=gate_ids)
+        quale = batch.create(QualeRecord(
+            content=f"{channel_id} moved to {channel.position:.3f} "
+                    f"(velocity {channel.velocity:.4f} per second).",
+            channel_id=channel_id, position=channel.position, velocity=channel.velocity,
+            acceleration=channel.acceleration, driver_ids=list(channel.last_driver_ids),
+            reportable=reportable, scope=operation.scope))
+        quale_ids.append(quale.id)
+    return quale_ids
 
 
 def _slot_heads(view: Snapshot, *, observer_entity_id: int) -> list[InquiryRecord]:
@@ -356,7 +419,8 @@ class PrivateInquiryOwner:
             operation.metadata.update({"loop": "inquiry", "control_generation": control_generation,
                 "private_inquiry_finding": step.outcome != "continue",
                 "inquiry_receipt_id": accepted.record.id})
-            attach_inner_projection(operation, FrozenProjectionPayload(mental_state=mental_state))
+            felt_state = capture_felt_state(self.store, mental_state, driver_ids=step.evidence_ids, now_utc=now_utc)
+            attach_inner_projection(operation, FrozenProjectionPayload(mental_state=mental_state, felt_state=felt_state))
             if outcome is not None:
                 attach_graph_outcome(operation, step, outcome)
             batch.revise(operation)
@@ -374,6 +438,12 @@ class PrivateInquiryOwner:
         A missing original payload fails rather than inventing historical state.
         Failure leaves the
         accepted graph intact for repair and never repeats its model call.
+
+        The retained felt-state sample becomes the cycle's channel map, and each
+        notably moved channel gets a ``QualeRecord`` in the same turn. The cycle
+        then carries the sample's own time, so a late repair does not shorten
+        the interval that the next sample measures. An operation accepted
+        before the graph sampled felt state gets an empty channel map.
         """
         with self.store.lock:
             operation_id = accepted.receipt.operation_record_id
@@ -393,7 +463,14 @@ class PrivateInquiryOwner:
             outcome = read_graph_outcome(operation)
             if outcome is not None:
                 stage_graph_outcome(batch, batch.view(), operation, step, outcome)
+            sample = projection.felt_state
+            if sample is None:
+                quale_ids: list[int] = []
+                cycle = CycleState(tick_id=batch.tick_id, mental_state=projection.mental_state)
+            else:
+                quale_ids = stage_felt_state(batch, operation, step.evidence_ids, sample)
+                cycle = CycleState(tick_id=batch.tick_id, timestamp=sample.sampled_at_utc,
+                    mental_state=projection.mental_state, qualia_channels=dict(sample.channels))
             batch.set_gwt(GwtTurnRecord(tick_id=batch.tick_id, slot_id="inner",
-                knoxel_ids=[operation_id], summary=step.thought),
-                CycleState(tick_id=batch.tick_id, mental_state=projection.mental_state))
+                knoxel_ids=[operation_id, *quale_ids], summary=step.thought), cycle)
             self.commit(batch)

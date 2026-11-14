@@ -5,7 +5,7 @@ for the separate generated workflow gate.
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Event
@@ -23,13 +23,15 @@ from pm.records.enums import EntityClass, FeatureType, SourceKind
 from pm.records.global_workspace import GwtTurnRecord
 from pm.records.memory_records import Entity, Feature
 from pm.records.mental_state import FullMentalState
+from pm.records.qualia_records import QualeRecord
 from workflows.cognitive_control.schemas import ControlConfig
 from workflows.inner_thought.graph_execution import (
     graph_thought_instruction, graph_thought_request, validate_graph_step,
 )
 from workflows.inner_thought.pipeline import ModelProposalError
 from workflows.inner_thought.graph_host import (
-    FrozenProjectionPayload, PrivateInquiryOwner, active_inquiry, attach_inner_projection, pending_findings,
+    FrozenProjectionPayload, PrivateInquiryOwner, active_inquiry, attach_inner_projection, capture_felt_state,
+    pending_findings,
 )
 from workflows.inner_thought.inquiry import InquiryRecord, inquiry_history, stage_inquiry_step
 from workflows.inner_thought.nominations import capture_inquiry_grant, stage_nominations
@@ -316,6 +318,151 @@ class GraphHostTests(unittest.TestCase):
             self.owner.ensure_inner_turn(accepted)
         self.assertEqual(self.path.read_bytes(), before)
         self.assertEqual(self.store.gwt_turns_of("inner", limit=1), [])
+
+    def comparison(self, node_ids: tuple[int, ...], *, evidence_ids: tuple[int, ...]) -> InquiryStep:
+        """Compare the generated nodes and stop at an information gap."""
+        return InquiryStep(operation="feasibility_check", thought="The report does not identify a motive.",
+            evidence_ids=evidence_ids, assumptions=(), reality="inferred", judgments=self.judgments,
+            relations=tuple(ThoughtRelation(target_record_id=node_id, kind="merges", reason="Compare uncertain causes.")
+                            for node_id in node_ids), alternatives=(),
+            progress=InquiryProgress(kind="discrimination", inspected_source_ids=(), compared_node_ids=node_ids,
+                meaningful_difference=True, reason="Each possible cause predicts a different next choice."),
+            outcome="information_gap", reason="The missing motive prevents a conclusion.",
+            information_gap="Jesse's reason for stopping.", next_operation="")
+
+    def inner_cycle(self, store: MemoryStore, operation_id: int) -> tuple[GwtTurnRecord, CycleState]:
+        """Read the one inner turn that projects an operation, with its cycle."""
+        turns = [turn for turn in store.gwt_turns.values()
+                 if turn.slot_id == "inner" and operation_id in turn.knoxel_ids]
+        self.assertEqual(len(turns), 1)
+        cycle = next(item for item in store.read_cycles() if item.tick_id == turns[0].tick_id)
+        return turns[0], cycle
+
+    def moved_state(self) -> FullMentalState:
+        """Return a state whose joy moved from 0 to 1, which moves valence by 1/5."""
+        moved = FullMentalState()
+        moved.state_emotions.joy = 1.0
+        return moved
+
+    def qualia(self, store: MemoryStore) -> list[QualeRecord]:
+        """Read every committed felt-state record."""
+        return [record for record in store.snapshot(capture=False).all_knoxels.values()
+                if isinstance(record, QualeRecord)]
+
+    def test_first_accepted_operation_samples_every_channel_without_a_quale(self) -> None:
+        generated = self.advance(self.begin(), self.generation(), "generation")
+        operation_id = generated.receipt.operation_record_id
+        assert operation_id is not None
+        turn, cycle = self.inner_cycle(self.store, operation_id)
+        self.assertEqual(set(cycle.qualia_channels), {"affect.valence", "affect.arousal",
+            "relationship.warmth", "attention.engagement", "goal.conflict"})
+        self.assertEqual(cycle.timestamp, self.now)
+        for channel in cycle.qualia_channels.values():
+            self.assertEqual((channel.velocity, channel.acceleration), (0.0, 0.0))
+            self.assertEqual(channel.last_driver_ids, [self.source.id])
+        # A first sample has no measured movement, so it emits no record.
+        self.assertEqual(turn.knoxel_ids, [operation_id])
+
+    def test_channel_movement_between_accepted_operations_emits_a_reportable_quale(self) -> None:
+        generated = self.advance(self.begin(), self.generation(), "generation")
+        final = self.owner.accept_step(generated,
+            self.comparison(generated.receipt.state.node_ids, evidence_ids=(self.source.id,)),
+            grant=self.owner.execution_grant(generated), commit_id="comparison", active_seconds=1.5,
+            now_utc=self.now + timedelta(seconds=2), mental_state=self.moved_state(), control_generation=0)
+        operation_id = final.receipt.operation_record_id
+        assert operation_id is not None
+        turn, cycle = self.inner_cycle(self.store, operation_id)
+        # Joy 0 -> 1 moves valence by 1/5 over two seconds.
+        self.assertAlmostEqual(cycle.qualia_channels["affect.valence"].position, 0.2)
+        self.assertAlmostEqual(cycle.qualia_channels["affect.valence"].velocity, 0.1)
+        self.assertEqual(cycle.timestamp, self.now + timedelta(seconds=2))
+        qualia = self.qualia(self.store)
+        self.assertEqual([quale.channel_id for quale in qualia], ["affect.valence"])
+        quale = qualia[0]
+        self.assertEqual(turn.knoxel_ids, [operation_id, quale.id])
+        self.assertAlmostEqual(quale.position, 0.2)
+        self.assertAlmostEqual(quale.velocity, 0.1)
+        self.assertEqual(quale.driver_ids, [self.source.id])
+        self.assertTrue(quale.reportable)
+        self.assertEqual(quale.scope, self.store.snapshot(capture=False).get(operation_id).scope)
+        # The finding is still the operation, never the felt-state record.
+        self.assertEqual(tuple(record.id for record in pending_findings(self.store)), (operation_id,))
+
+    def test_movement_without_a_cited_driver_stays_unreportable(self) -> None:
+        generated = self.advance(self.begin(), self.generation(), "generation")
+        self.owner.accept_step(generated, self.comparison(generated.receipt.state.node_ids, evidence_ids=()),
+            grant=self.owner.execution_grant(generated), commit_id="comparison", active_seconds=1.5,
+            now_utc=self.now + timedelta(seconds=2), mental_state=self.moved_state(), control_generation=0)
+        qualia = self.qualia(self.store)
+        self.assertEqual([quale.channel_id for quale in qualia], ["affect.valence"])
+        self.assertEqual(qualia[0].driver_ids, [])
+        self.assertFalse(qualia[0].reportable)
+
+    def test_repair_emits_the_retained_sample_after_a_later_accepted_state(self) -> None:
+        generated = self.advance(self.begin(), self.generation(), "generation")
+        moved = self.moved_state()
+        sampled_at = self.now + timedelta(seconds=2)
+        step = self.comparison(generated.receipt.state.node_ids, evidence_ids=(self.source.id,))
+        graph = self.store.begin_batch("graph-without-projection", new_tick=True, embed=False)
+        accepted = stage_inquiry_step(graph, parent_receipt_id=generated.record.id, step=step,
+            grant=self.owner.execution_grant(generated), active_seconds=1.5, now_utc=sampled_at,
+            limits=ControlConfig())
+        operation_id = accepted.receipt.operation_record_id
+        assert operation_id is not None
+        operation = graph.view().get(operation_id)
+        assert isinstance(operation, Feature)
+        retained = capture_felt_state(self.store, moved, driver_ids=step.evidence_ids, now_utc=sampled_at)
+        attach_inner_projection(operation, FrozenProjectionPayload(mental_state=moved, felt_state=retained))
+        graph.revise(operation)
+        graph.preserve_on_recovery()
+        self.commit(graph)
+        # A later accepted main state must not replace the retained sample.
+        later = FullMentalState()
+        later.state_emotions.sadness = 1.0
+        main = self.store.begin_batch("later-main-state", new_tick=True, embed=False)
+        main.depend_on([operation_id])
+        main.set_gwt(GwtTurnRecord(tick_id=main.tick_id, slot_id="main", knoxel_ids=[operation_id],
+                                  summary="A later accepted state."),
+                     CycleState(tick_id=main.tick_id, mental_state=later))
+        self.commit(main)
+        restored = MemoryStore.load(self.path)
+        history = inquiry_history(restored.snapshot(capture=False), "private-sketch")
+
+        def commit_restored(projection: WriteBatch) -> None:
+            """Persist the derived turn through the actual restored store."""
+            restored.commit(projection)
+
+        owner = PrivateInquiryOwner(restored, commit=commit_restored, cancel=Event(), limits=ControlConfig())
+        owner.ensure_inner_turn(history[-1])
+        after_repair = self.path.read_bytes()
+        owner.ensure_inner_turn(history[-1])
+        self.assertEqual(self.path.read_bytes(), after_repair)
+        turn, cycle = self.inner_cycle(restored, operation_id)
+        self.assertEqual(cycle.qualia_channels, retained.channels)
+        self.assertEqual(cycle.timestamp, sampled_at)
+        self.assertEqual(cycle.mental_state.state_emotions.joy, 1.0)
+        qualia = self.qualia(restored)
+        self.assertEqual(len(qualia), 1)
+        self.assertAlmostEqual(qualia[0].velocity, 0.1)
+        self.assertEqual(turn.knoxel_ids, [operation_id, qualia[0].id])
+
+    def test_operation_accepted_before_sampling_projects_no_invented_channels(self) -> None:
+        selected = self.begin()
+        graph = self.store.begin_batch("graph-before-sampling", new_tick=True, embed=False)
+        accepted = stage_inquiry_step(graph, parent_receipt_id=selected.record.id, step=self.generation(),
+            grant=self.owner.execution_grant(selected), active_seconds=1.5, now_utc=self.now, limits=ControlConfig())
+        operation_id = accepted.receipt.operation_record_id
+        assert operation_id is not None
+        operation = graph.view().get(operation_id)
+        assert isinstance(operation, Feature)
+        attach_inner_projection(operation, FrozenProjectionPayload(mental_state=FullMentalState()))
+        graph.revise(operation)
+        graph.preserve_on_recovery()
+        self.commit(graph)
+        self.owner.ensure_inner_turn(accepted)
+        turn, cycle = self.inner_cycle(self.store, operation_id)
+        self.assertEqual(cycle.qualia_channels, {})
+        self.assertEqual(turn.knoxel_ids, [operation_id])
 
     def test_comparison_input_keeps_original_branch_assumptions_and_judgments(self) -> None:
         generated = self.advance(self.begin(), self.generation(), "generation")
