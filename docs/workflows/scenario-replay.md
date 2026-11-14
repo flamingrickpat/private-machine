@@ -28,22 +28,34 @@ Each sample directory holds:
 
 | File | Content |
 | --- | --- |
-| `calls.jsonl` | Every model request in call order, with the exact request text and the recorded answer |
+| `calls.jsonl` | Every model request in call order, with the exact request text, the recorded answer, and the provider usage receipt of each completion |
 | `ghost.pickle` | The starting memory store, written before the run and never written again |
 | `situation.pickle` | The store at the end of the run, useful for inspection |
-| `manifest.json` | Scenario, sample, model, endpoint, revision, and whether the trace is complete |
+| `manifest.json` | Scenario, sample, model, endpoint, revision, request count, summed provider usage, and whether the trace is complete |
 | `outcome.json` | The typed scenario outcome: what the run actually did |
 | `runtime/` | The kernel artifacts: prompts, reports, and repair samples |
 
 A replay writes `replay-<sample>.json`, `replay-outcome-<sample>.json`, and `replay-<sample>.pickle` beside them and never modifies the recording.
+A later replay of the same sample replaces those three files, so copy them first when an earlier replay result must be kept.
+
+### What a recording cost
+
+The recorder keeps the usage block the provider returned with each completion.
+`tests.replay.script.ProviderUsage` holds one receipt, and `tests.replay.script.UsageTotal` in the manifest holds their sum for the sample.
+The price is the provider's own reported number, not a wallet reconciliation.
+A total is `null` when at least one completion reported no value, because a partial sum would read as a complete receipt.
+A recording made before the harness kept usage has no receipt; its manifest states only the request count.
+
+The harness turns the separate prompt log off, because that log draws identity values a replay does not draw.
+The receipt therefore comes from [`pm.llm.stage_model.LazyStageModel.complete_chat`][], which returns the provider result that `complete` reduces to text.
 
 ## Commands
 
 ```powershell
 python -m tests.replay list
 python -m tests.replay record --scenario private-continuity --samples 3
-python -m tests.replay replay --snapshot .runtime/replay/private-continuity-20261113T211905Z
-python -m tests.replay compare --snapshot .runtime/replay/private-continuity-20261113T211905Z
+python -m tests.replay replay --snapshot .runtime/replay/private-continuity-20261114T064112Z
+python -m tests.replay compare --snapshot .runtime/replay/private-continuity-20261114T064112Z
 ```
 
 `record` spends provider money: every sample is one independent live run.

@@ -8,9 +8,14 @@ first difference instead of silently borrowing an unrelated answer.
 The digest is a convenience index. The comparison that matters is on the
 request text, because it can be printed and diffed when a prompt changes.
 
+Each recorded completion also keeps the usage block its provider reported, so
+a recording states what it cost without the separate prompt log. Usage is a
+receipt only: it is never compared and never reaches a replay.
+
 Reading map: :func:`request_text` renders a request canonically,
-:class:`Recording` appends live calls, :class:`RecordingReader` serves them
-back, and :func:`open_recording` picks the writer or reader for one run.
+:class:`RecordingWriter` appends live calls, :class:`RecordingReader` serves
+them back, :func:`open_recording` picks the writer or reader for one run, and
+:func:`total_usage` sums the provider receipts of one sample.
 """
 from __future__ import annotations
 
@@ -33,6 +38,56 @@ from pm.llm.prompt_encoding import TurnInput, normalize_turns
 CallKind = Literal["completion", "measurement"]
 
 
+class ProviderUsage(BaseModel):
+    """The usage block one provider completion reported.
+
+    Providers differ in what they report, so each named field can be absent,
+    and an absent field stays absent instead of becoming zero. Fields this
+    model does not name are retained as the provider sent them.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    prompt_tokens: int | None = Field(default=None, description="Input tokens the provider billed.")
+    completion_tokens: int | None = Field(default=None, description="Output tokens the provider billed.")
+    total_tokens: int | None = Field(default=None, description="Provider's own token total.")
+    cost: float | None = Field(default=None,
+        description="Provider-reported price of this request in US dollars; not a wallet reconciliation.")
+
+
+class UsageTotal(BaseModel):
+    """Provider receipts summed over the completions of one sample.
+
+    A total is None when at least one completion did not report that field. A
+    partial sum would read as a complete receipt, so it is not reported.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    completions: int = Field(ge=0, description="Recorded completions this total covers.")
+    prompt_tokens: int | None = Field(description="Summed input tokens, or None when a completion reported none.")
+    completion_tokens: int | None = Field(description="Summed output tokens, or None when a completion reported none.")
+    reported_cost_usd: float | None = Field(
+        description="Summed provider-reported price in US dollars, or None when a completion reported none.")
+
+
+def total_usage(usages: Sequence[ProviderUsage]) -> UsageTotal:
+    """Sum the provider receipts of one sample without inventing absent values."""
+    prompt_tokens: int | None = 0
+    completion_tokens: int | None = 0
+    reported_cost_usd: float | None = 0.0
+    for usage in usages:
+        if prompt_tokens is not None:
+            prompt_tokens = None if usage.prompt_tokens is None else prompt_tokens + usage.prompt_tokens
+        if completion_tokens is not None:
+            completion_tokens = (None if usage.completion_tokens is None
+                                 else completion_tokens + usage.completion_tokens)
+        if reported_cost_usd is not None:
+            reported_cost_usd = None if usage.cost is None else reported_cost_usd + usage.cost
+    return UsageTotal(completions=len(usages), prompt_tokens=prompt_tokens,
+                      completion_tokens=completion_tokens, reported_cost_usd=reported_cost_usd)
+
+
 class RecordedCall(BaseModel):
     """One model request and the exact answer it received.
 
@@ -50,6 +105,9 @@ class RecordedCall(BaseModel):
     request: str = Field(description="Canonical request text, retained so a prompt change can be diffed.")
     response: str = Field(description="Recorded completion text or serialized measurement.")
     elapsed_seconds: float = Field(description="Real seconds the recorded request took.")
+    usage: ProviderUsage | None = Field(default=None,
+        description="Provider usage of a recorded completion. None for a measurement, and for a "
+                    "recording made before the harness retained usage.")
 
 
 class ReplayDivergence(RuntimeError):
@@ -167,15 +225,28 @@ class RecordingWriter:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._stream = path.open("w", encoding="utf-8")
         self._index = 0
+        self._usages: list[ProviderUsage] = []
 
-    def append(self, kind: CallKind, request: str, response: str, elapsed_seconds: float) -> RecordedCall:
-        """Retain one answered call and return its row."""
+    def append(self, kind: CallKind, request: str, response: str, elapsed_seconds: float,
+               *, usage: ProviderUsage | None = None) -> RecordedCall:
+        """Retain one answered call and return its row.
+
+        ``usage`` is the provider receipt of a completion. A measurement has none.
+        """
+        if (kind == "completion") != (usage is not None):
+            raise ValueError("Exactly the recorded completions carry a provider usage receipt.")
         call = RecordedCall(index=self._index, kind=kind, digest=digest_of(request),
-                            request=request, response=response, elapsed_seconds=elapsed_seconds)
+                            request=request, response=response, elapsed_seconds=elapsed_seconds, usage=usage)
         self._stream.write(call.model_dump_json() + "\n")
         self._stream.flush()
         self._index += 1
+        if usage is not None:
+            self._usages.append(usage)
         return call
+
+    def usage_total(self) -> UsageTotal:
+        """Return the summed provider receipts of every completion retained so far."""
+        return total_usage(self._usages)
 
     @property
     def count(self) -> int:
@@ -281,6 +352,9 @@ class RecordingManifest(BaseModel):
     clock_start_utc: datetime = Field(description="Virtual world time the situation started at.")
     call_count: int = Field(ge=0, description="Number of recorded model calls.")
     request_count: int = Field(ge=0, description="Real provider requests the recording cost.")
+    usage: UsageTotal | None = Field(default=None,
+        description="Summed provider receipts of the recorded completions. None for a recording made "
+                    "before the harness retained usage.")
     source_hashes: dict[str, str] = Field(description="SHA-256 of the modules the recording exercised.")
     notes: tuple[str, ...] = Field(default=(), description="Scenario-specific remarks a reviewer needs.")
     replay_blockers: tuple[str, ...] = Field(default=(),

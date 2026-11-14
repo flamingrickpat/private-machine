@@ -21,7 +21,7 @@ from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass
 from pm.llm.contracts import ContextMeasurement, ModelProtocolContext
 
-from pm.llm.activation import ChatClient, ModelActivation, OpenAICompletionBackend
+from pm.llm.activation import ChatClient, ChatResult, ModelActivation, OpenAICompletionBackend
 from pm.llm.http_client import EmptyCompletionError
 from pm.llm.config import Connection
 from pm.llm.completion import AsyncTextCompletion, Completion, ToolCompletion
@@ -29,28 +29,38 @@ from pm.llm.prompt_encoding import TurnInput
 from pm.llm.concurrency import inference_admission
 
 
-async def complete_with_retry(
+async def complete_chat_with_retry(
     client: ChatClient,
     messages: Sequence[TurnInput],
     generation: dict[str, object],
-) -> str:
-    """One completion with a bounded empty-content retry.
+) -> ChatResult:
+    """One completion with a bounded empty-content retry, as the provider returned it.
 
     An empty completion is stochastic, so one fresh sample is worth asking
     for. A second empty answer fails loudly: the prompt or the generation
-    configuration needs a human look, and no fallback text replaces it.
+    configuration needs a human look, and no fallback text replaces it. The
+    result keeps the provider usage block for a caller that retains receipts.
     """
     last: EmptyCompletionError | None = None
     for attempt in range(2):
         try:
-            result = await client.complete(messages, **generation)
+            return await client.complete(messages, **generation)
         except EmptyCompletionError as error:
             if attempt == 1:
                 raise
             last = error
             continue
-        return result.text
     raise last if last is not None else EmptyCompletionError("The model returned no content.")
+
+
+async def complete_with_retry(
+    client: ChatClient,
+    messages: Sequence[TurnInput],
+    generation: dict[str, object],
+) -> str:
+    """Return the final text of :func:`complete_chat_with_retry`."""
+    result = await complete_chat_with_retry(client, messages, generation)
+    return result.text
 
 
 class LazyStageModel:
@@ -95,12 +105,16 @@ class LazyStageModel:
         if measurement["input_tokens"] > measurement["input_budget_tokens"]:
             raise RequiredContextTooLarge(f"Rendered prompt estimate {measurement['input_tokens']} exceeds input ceiling {measurement['input_budget_tokens']}.")
 
-    async def _complete(self, messages: Sequence[TurnInput], generation: dict[str, object]) -> str:
+    async def _complete_chat(self, messages: Sequence[TurnInput], generation: dict[str, object]) -> ChatResult:
         cancel = generation.get("cancel")
         assert cancel is None or isinstance(cancel, Event)
         await self._preflight(messages, cancel, generation)
         async with self.slot(cancel):
-            return await complete_with_retry(self.ensure_client(cancel=cancel), messages, generation)
+            return await complete_chat_with_retry(self.ensure_client(cancel=cancel), messages, generation)
+
+    async def _complete(self, messages: Sequence[TurnInput], generation: dict[str, object]) -> str:
+        result = await self._complete_chat(messages, generation)
+        return result.text
 
     @property
     def activated(self) -> bool:
@@ -135,8 +149,17 @@ class LazyStageModel:
 
     def complete(self, messages: Sequence[TurnInput], **generation: object) -> str:
         """Synchronous completion for Python-role stages."""
+        return self.complete_chat(messages, **generation).text
+
+    def complete_chat(self, messages: Sequence[TurnInput], **generation: object) -> ChatResult:
+        """Run the same completion as :meth:`complete` and keep the provider result.
+
+        The result carries the provider usage block beside the final text.
+        :meth:`complete` returns only its text. A caller that retains cost
+        receipts, such as the scenario recorder, uses this method instead.
+        """
         self.ensure_client(cancel=generation.get("cancel"))
-        return asyncio.run(self._complete(messages, generation))
+        return asyncio.run(self._complete_chat(messages, generation))
 
     def complete_result(self, messages: Sequence[TurnInput], **generation: object) -> Completion:
         """Return final content and reasoning separately for an explicit caller.
@@ -210,7 +233,7 @@ class LazyStageModel:
         return complete_tool
 
 
-__all__ = ["LazyStageModel", "complete_with_retry"]
+__all__ = ["LazyStageModel", "complete_chat_with_retry", "complete_with_retry"]
 
 
 @dataclass(frozen=True)

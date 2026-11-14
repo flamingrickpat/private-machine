@@ -31,7 +31,8 @@ from pm.llm.prompt_encoding import TurnInput
 from pm.llm.stage_model import LazyStageModel
 
 from tests.replay.script import (
-    CallKind, RecordingReader, RecordingWriter, ReplayDivergence, open_recording, request_text,
+    CallKind, ProviderUsage, RecordingReader, RecordingWriter, ReplayDivergence, UsageTotal, open_recording,
+    request_text,
 )
 
 
@@ -69,6 +70,12 @@ class ScriptedModel(LazyStageModel):
             return self.recording.count
         return self.recording.position
 
+    def recorded_usage(self) -> UsageTotal | None:
+        """Return the summed provider receipts of this recording; a replay has none."""
+        if isinstance(self.recording, RecordingWriter):
+            return self.recording.usage_total()
+        return None
+
     def complete(self, messages: Sequence[TurnInput], **generation: object) -> str:
         """Return the recorded completion, or call the endpoint and retain it.
 
@@ -85,9 +92,17 @@ class ScriptedModel(LazyStageModel):
         if isinstance(self.recording, RecordingReader):
             return self.recording.next_call("completion", request).response
         started = time.monotonic()
-        response = super().complete(messages, **generation)
+        # The provider result carries the usage block that ``complete`` drops.
+        # Reading it here needs no prompt log, so it draws no identity value.
+        result = super().complete_chat(messages, **generation)
+        response = result.text
+        extras = result.model_extra or {}
+        reported: object = extras.get("usage")
+        # A provider that sends no usage block leaves an empty receipt, so the
+        # sample total reports that cost as unknown instead of zero.
+        usage = ProviderUsage() if reported is None else ProviderUsage.model_validate(reported)
         self._live_requests = super().request_count
-        self.recording.append("completion", request, response, time.monotonic() - started)
+        self.recording.append("completion", request, response, time.monotonic() - started, usage=usage)
         return response
 
     def measure_context(self, messages: Sequence[TurnInput], *, cancel: Event | None = None,

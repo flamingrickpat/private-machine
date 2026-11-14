@@ -126,9 +126,9 @@ def record(scenario: Scenario, samples: int, root: Path) -> Path:
         situation = scenario.situation(vclock.utcnow(), directory / "situation.pickle")
         situation.store.save()
         shutil.copyfile(directory / "situation.pickle", directory / "ghost.pickle")
-        # The recording already keeps every exact request and response, so the
-        # separate prompt log would only add files and draw identity values the
-        # replay does not draw. Turn it off for both sides.
+        # The recording already keeps every exact request, response, and provider
+        # usage receipt, so the separate prompt log would only add files and draw
+        # identity values the replay does not draw. Turn it off for both sides.
         OperatingSystem.environment["PM_PROMPT_LOG"] = "0"
         outcome: ScenarioOutcome | None = None
         failure: str | None = None
@@ -151,13 +151,16 @@ def record(scenario: Scenario, samples: int, root: Path) -> Path:
                 scenario=scenario.name, sample=sample, recorded_at_utc=started, revision=_revision(),
                 model=runtime.model.connection.model, endpoint=runtime.model.connection.base_url,
                 clock_start_utc=clock_start, call_count=calls, request_count=requests,
+                usage=runtime.model.recorded_usage(),
                 source_hashes=source_hashes(), notes=(scenario.description,),
                 replay_blockers=() if outcome is None else outcome.replay_blockers)
             (directory / "manifest.json").write_text(manifest.model_dump_json(indent=2), encoding="utf-8")
             runtime.close()
         if outcome is not None:
             (directory / "outcome.json").write_text(outcome.model_dump_json(indent=2), encoding="utf-8")
-            print(f"sample {sample}: {calls} calls, {requests} requests", flush=True)
+            cost = None if manifest.usage is None else manifest.usage.reported_cost_usd
+            reported = "no provider-reported cost" if cost is None else f"provider-reported ${cost:.6f}"
+            print(f"sample {sample}: {calls} calls, {requests} requests, {reported}", flush=True)
             for line in outcome.summary:
                 print(f"  {line}", flush=True)
         if failure is not None:
