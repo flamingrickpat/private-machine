@@ -356,6 +356,10 @@ After nine consecutive rejections, repair starts again with the original message
 Each reset retains the validator, validation context, and cancellation event.
 Between resets, repair retains earlier turns while the model's input budget permits another attempt.
 If each batch fits the input budget, resets can continue until cancellation without a total attempt limit.
+One case stops earlier. When one identical validation problem rejects every answer of two consecutive nine-rejection conversations, repair raises [`pm.llm.structured.RepeatedRejectionError`][] instead of starting a third.
+The second conversation began from the original messages, so the model repeated the mistake and the same correction text failed again.
+That pattern points at the prompt or the validator message, not at sampling noise.
+The error is a `ModelFormatError`, so every caller that already reports model format exhaustion reports it too.
 The budget reserves output space. Context exhaustion raises `ModelFormatError` without accepting an invalid answer.
 Cancellation and programming errors propagate.
 

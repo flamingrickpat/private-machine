@@ -10,7 +10,9 @@ from unittest.mock import patch
 from pydantic import BaseModel, Field, model_validator
 
 from pm.context_render.budget import RequiredContextTooLarge
-from pm.llm.structured import complete_json, complete_json_async, ModelFormatError, repair_agent_result
+from pm.llm.structured import (
+    complete_json, complete_json_async, ModelFormatError, RepeatedRejectionError, repair_agent_result,
+)
 from pm.memory.reconsolidation.schemas import NarrativeAnswer
 
 
@@ -63,7 +65,9 @@ class RepairPolicyTests(unittest.TestCase):
                 messages = [{"role": "system", "content": "Keep source 17."},
                             {"role": "user", "content": "Return a nonnegative value."}]
                 original = [dict(turn) for turn in messages]
-                responses = iter(['{"value": -1}'] * 19 + ['{"value": 3}'])
+                # The second conversation holds one different problem, so its
+                # failures are not one identical problem and a third starts.
+                responses = iter(['{"value": -1}'] * 9 + ['not json'] + ['{"value": -1}'] * 9 + ['{"value": 3}'])
                 calls, measured, rejected = [], [], []
 
                 def complete(turns, **settings):
@@ -84,6 +88,44 @@ class RepairPolicyTests(unittest.TestCase):
                 self.assertEqual([row[0] for row in rejected], list(range(1, 10)) * 2 + [1])
                 self.assertEqual(measured, calls)
                 self.assertEqual(messages, original)
+
+    def test_identical_problem_in_two_complete_conversations_stops_the_repair(self):
+        for run in (complete_json, complete_json_via_async):
+            with self.subTest(policy=run.__name__):
+                calls, rejected = [], []
+
+                def complete(turns, **settings):
+                    calls.append(turns)
+                    return '{"value": -1}'
+
+                with self.assertRaises(RepeatedRejectionError) as raised:
+                    run(complete, [{"role": "user", "content": "Return a nonnegative value."}], Answer,
+                        measure=measure, on_rejection=lambda *row: rejected.append(row))
+                # Nine rejections, a fresh conversation, nine more, and no third conversation.
+                self.assertEqual(len(calls), 18)
+                self.assertEqual([len(turns) for turns in calls], [1 + 2 * (i % 9) for i in range(18)])
+                self.assertEqual(raised.exception.rejected_answers, 18)
+                self.assertEqual({row[2] for row in rejected}, {raised.exception.problem})
+                self.assertIsInstance(raised.exception, ModelFormatError)
+
+    def test_context_shortened_conversation_is_not_a_complete_sample(self):
+        for run in (complete_json, complete_json_via_async):
+            with self.subTest(policy=run.__name__):
+                calls = []
+
+                def complete(turns, **settings):
+                    calls.append(turns)
+                    return '{"value": -1}' if len(calls) < 30 else '{"value": 3}'
+
+                def small_budget(turns, **settings):
+                    # Three rejected answers fill the context, so every
+                    # conversation ends early and none is a complete sample.
+                    return {"input_tokens": len(turns), "input_budget_tokens": 6}
+
+                result = run(complete, [{"role": "user", "content": "Return a nonnegative value."}], Answer,
+                             measure=small_budget)
+                self.assertEqual(result.value, 3)
+                self.assertEqual(len(calls), 30)
 
     def test_reset_keeps_validation_context(self):
         class Cited(BaseModel):

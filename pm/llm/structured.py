@@ -6,6 +6,13 @@ source ids; a rejected answer never becomes accepted state. Only syntax and
 declared validation errors receive repair turns. Completion, measurement,
 recording, and programming errors keep their original boundary and propagate.
 
+A fresh conversation is a new sample, so a stochastic mistake gets unlimited
+conversations. One case is not stochastic: when one identical problem rejects
+every answer of two consecutive complete conversations, the correction text
+itself does not lead the model to a valid answer. That raises
+:class:`RepeatedRejectionError` instead of a third conversation, because the
+prompt or the validator message needs a human look.
+
 Reading map: :func:`extract_json` reads the object, :class:`_Repair` owns the
 conversation and its rejections, :func:`complete_json` and
 :func:`complete_json_async` run the loop for synchronous and asynchronous
@@ -42,6 +49,23 @@ class JsonOutputError(ValueError):
 
 class ModelFormatError(JsonOutputError):
     """Repair history exhausted the input budget before a valid answer."""
+
+
+class RepeatedRejectionError(ModelFormatError):
+    """One identical problem rejected every answer of two complete repair conversations.
+
+    The second conversation started from the original messages, so the model
+    made the same mistake again and the same correction text failed again. A
+    further sample cannot plausibly help. The rejected answers stay where the
+    caller's ``on_rejection`` callback wrote them.
+    """
+
+    def __init__(self, problem: str, rejected_answers: int) -> None:
+        self.problem: str = problem
+        self.rejected_answers: int = rejected_answers
+        super().__init__(
+            f"The same validation problem rejected {rejected_answers} consecutive answers across a fresh "
+            f"repair conversation, so the correction text does not lead to a valid answer: {problem}")
 
 
 def extract_json(text: str) -> dict[str, object]:
@@ -99,6 +123,8 @@ class _Repair[T: BaseModel]:
         self.cancel = cancel
         self.attempt = 0
         self.last_error = ""
+        # Every rejection problem of this conversation, in answer order.
+        self.problems: list[str] = []
 
     def check_cancelled(self) -> None:
         """Stop before validation, measurement, or another completion."""
@@ -134,6 +160,7 @@ class _Repair[T: BaseModel]:
                 raise
             problem = str(error)
         self.last_error = problem
+        self.problems.append(problem)
         if self.on_rejection is not None:
             self.on_rejection(self.attempt, raw, problem)
         self.turns = [*self.turns, {"role": "assistant", "content": raw},
@@ -147,6 +174,22 @@ class _Repair[T: BaseModel]:
 RESET_STATE_LIMIT = 8
 
 
+def _conversation_problem[T: BaseModel](state: _Repair[T], previous_problem: str | None) -> str | None:
+    """Return the single problem of a finished conversation, or None when its problems differed.
+
+    ``previous_problem`` is this function's result for the conversation before
+    it. When both complete conversations failed on one identical problem, raise
+    RepeatedRejectionError instead of returning.
+    """
+    distinct_problems = set(state.problems)
+    if len(distinct_problems) != 1:
+        return None
+    problem = state.problems[0]
+    if problem == previous_problem:
+        raise RepeatedRejectionError(problem, rejected_answers=2 * len(state.problems))
+    return problem
+
+
 def complete_json(complete: Callable[..., str], messages: Sequence[TurnInput], schema: type[T], *,
                   measure: ContextMeasurer | None = None, validation_context: dict[str, object] | None = None,
                   on_rejection: Callable[[int, str, str], None] | None = None,
@@ -156,6 +199,8 @@ def complete_json(complete: Callable[..., str], messages: Sequence[TurnInput], s
 
     After nine consecutive rejections, start again with the original messages.
     Each reset retains the validator, validation context, and cancellation event.
+    Two consecutive nine-rejection conversations that fail on one identical
+    problem raise RepeatedRejectionError instead of a third conversation.
 
     ``initial`` validates an existing agent result before any new completion.
     ``measure`` returns input_tokens and input_budget_tokens with output space
@@ -168,6 +213,7 @@ def complete_json(complete: Callable[..., str], messages: Sequence[TurnInput], s
     state = _Repair(messages, schema, validation_context, on_rejection, validate, cancel)
     measure = measure or context_measure(complete)
     rejections_since_reset = 0
+    previous_problem: str | None = None
     while True:
         state.check_cancelled()
         if initial is _MISSING:
@@ -178,8 +224,10 @@ def complete_json(complete: Callable[..., str], messages: Sequence[TurnInput], s
                 if measurement["input_tokens"] > measurement["input_budget_tokens"]:
                     if state.attempt:
                         # Discard model repair chatter, retaining the original task and evidence.
+                        # A conversation cut short by its context is not a complete sample.
                         state = _Repair(messages, schema, validation_context, on_rejection, validate, cancel)
                         rejections_since_reset = 0
+                        previous_problem = None
                         continue
                     from pm.context_render.budget import RequiredContextTooLarge
                     raise RequiredContextTooLarge("The initial rendered prompt exceeds its input ceiling.")
@@ -191,6 +239,7 @@ def complete_json(complete: Callable[..., str], messages: Sequence[TurnInput], s
             return result
         rejections_since_reset += 1
         if rejections_since_reset > RESET_STATE_LIMIT:
+            previous_problem = _conversation_problem(state, previous_problem)
             state = _Repair(messages, schema, validation_context, on_rejection, validate, cancel)
             rejections_since_reset = 0
 
@@ -210,6 +259,7 @@ async def complete_json_async(complete: Callable[..., Awaitable[str]], messages:
     state = _Repair(messages, schema, validation_context, on_rejection, validate, cancel)
     measure = measure or context_measure(complete)
     rejections_since_reset = 0
+    previous_problem: str | None = None
     while True:
         state.check_cancelled()
         if initial is _MISSING:
@@ -223,8 +273,10 @@ async def complete_json_async(complete: Callable[..., Awaitable[str]], messages:
                 if measurement["input_tokens"] > measurement["input_budget_tokens"]:
                     if state.attempt:
                         # Discard model repair chatter, retaining the original task and evidence.
+                        # A conversation cut short by its context is not a complete sample.
                         state = _Repair(messages, schema, validation_context, on_rejection, validate, cancel)
                         rejections_since_reset = 0
+                        previous_problem = None
                         continue
                     from pm.context_render.budget import RequiredContextTooLarge
                     raise RequiredContextTooLarge("The initial rendered prompt exceeds its input ceiling.")
@@ -236,6 +288,7 @@ async def complete_json_async(complete: Callable[..., Awaitable[str]], messages:
             return result
         rejections_since_reset += 1
         if rejections_since_reset > RESET_STATE_LIMIT:
+            previous_problem = _conversation_problem(state, previous_problem)
             state = _Repair(messages, schema, validation_context, on_rejection, validate, cancel)
             rejections_since_reset = 0
 

@@ -20,6 +20,8 @@ After nine consecutive rejections, the loop restores the original prompt and res
 The repair instruction requests one corrected JSON object and escaped quotation marks.
 The selected model's input budget bounds the accumulated history and reserves output space.
 If each batch fits that budget, resets can continue until cancellation without a total attempt limit.
+A repeated identical rejection is the exception: when one identical problem rejects every answer of two consecutive nine-rejection conversations, [`pm.llm.structured.RepeatedRejectionError`][] stops the repair.
+A validator message that does not name the actual mistake causes exactly this pattern, so the message needs a correction and another sample does not help.
 The host never invents a valid answer.
 
 Each rejection writes its raw text, schema name, error, and attempt number to `scratch/model-output-rejection-NN.json`.
@@ -29,6 +31,7 @@ No stage report exists until validation succeeds.
 The stage owns no accepted state or external action, so repair repeats no committed effect.
 
 When repair history exhausts the input budget, [`workflows.main_cognition.model_json.ModelFormatError`][] identifies model format exhaustion.
+`RepeatedRejectionError` is a `ModelFormatError` and takes the same path.
 The private loop discards that cycle and emits `thought.rejected` telemetry.
 Its diagnostic remains beside the parent kernel artifacts.
 The next scheduled private cycle can run.
