@@ -2112,3 +2112,43 @@ No rating was invented.
 
 `private-dwelling` is in the scenario table in `docs/workflows/scenario-replay.md`. The strict
 MkDocs build passed and the page renders the new row.
+
+## Pass 4 — one integrated live gate (2026-11-14)
+
+`tests/live/test_private_integration.py` assembles the real application with `build_app`, a real
+`MemoryStore`, real OpenRouter chat and embeddings, and the real private, control, triage, and focus
+modules. Each part writes its evidence under `.runtime/beta-b05/integration/`.
+
+### Part A — a private finding reaches main cognition: passed
+
+`20261114T192729Z-99d18e27-part-a`: the private loop reached finding 19; main cognition committed a
+main turn at tick 9 whose `stimulus_ids` is `[19]`; `EpisodeIndex.cross_loop_links()` returned
+`{"main_episode_id": 9, "inner_episode_id": 8, "via_record_id": 19, "relation": "evidence"}`.
+29 provider requests. An earlier run (`20261114T184031Z-8356eb1a-part-a`) passed the same assertions
+with finding 13.
+
+### Part B — Critical input displaces private work: observed, then NOT RUN
+
+`20261114T185413Z-9cc297ec-part-b`: real triage classified the message as Critical; main accepted the
+reconsideration; the next private opportunity closed the older inquiry with
+`status = "displaced"` and `displacement.superseding_critical_epoch = 1`, matching the control's
+publication epoch. That run used the old `preemption` field in the assertion, so the test recorded a
+failure after the displacement had already happened. The evidence file `state-after-displace.json`
+records `newest_status: "displaced"`.
+
+Two later runs (`20261114T190500Z-7c2e2559-part-b`, `20261114T191124Z-cac246cd-part-b`) reported
+`NOT RUN — main committed an inference wait`: main cognition chose to wait after the reconsideration,
+and `CognitiveControl.waiting()` correctly blocks routine private inference. The gate now reports that
+as `NOT RUN` instead of a failure. It does not clear the wait to force a displacement.
+
+### Part C — main selects deliberate mental work: NOT RUN
+
+`20261114T191635Z-78411b7c-part-c`: three real inputs invited private deliberation. Main cognition
+selected no `focus_management` action in any attempt. The three decision records are in
+`attempt.json`. This is the documented fallback: `NOT RUN — main did not select a mental action`.
+The gate did not commit the action itself.
+
+### Scope
+
+The gate does not establish character quality or long-history behaviour. It shows the three
+integrated paths where the model chose them, and records the model's choices where it did not.
