@@ -104,10 +104,11 @@ class DeliberateOwnerCase(unittest.TestCase):
         return PrivateInquiryOwner(store, commit=commit_step, cancel=Event(), limits=limits or ControlConfig())
 
     def dispatch(self, instruction: str, *, operation: str = "", correlation: str = "corr-story",
-                 dispatch_status: str = "pending") -> tuple[ActionSchemaRecord, Envelope]:
+                 dispatch_status: str = "pending", workflow_name: str = "focus_management",
+                 partner_entity_id: int | None = None) -> tuple[ActionSchemaRecord, Envelope]:
         """Commit one accepted mental action and build the request main cognition publishes for it."""
-        request = ActionRequest(action_id=f"action-{correlation}", workflow_name="focus_management",
-            content="I want to think this through on my own.",
+        request = ActionRequest(action_id=f"action-{correlation}", workflow_name=workflow_name,
+            content="I want to think this through on my own.", partner_entity_id=partner_entity_id,
             arguments=ActionArguments(instruction=instruction, operation=operation) if operation
             else ActionArguments(instruction=instruction),
             stimuli=[Stimulus(knoxel_id=self.source.id, source="user_input", text=self.source.content)])
@@ -116,12 +117,12 @@ class DeliberateOwnerCase(unittest.TestCase):
             provenance=Provenance(source_kind=SourceKind.Workflow),
             lineage=RecordLineage(episode_id=f"dispatch:{correlation}", operation="action_dispatch",
                 parent_record_ids=[self.source.id]),
-            metadata={"action_id": request.action_id, "workflow_name": "focus_management",
-                      "dispatch_status": dispatch_status, "dispatch_target": "focus_management",
+            metadata={"action_id": request.action_id, "workflow_name": workflow_name,
+                      "dispatch_status": dispatch_status, "dispatch_target": workflow_name,
                       "dispatch_correlation": correlation, "evidence_ids": [self.source.id]}))
         self.commit(batch)
         payload = request.model_copy(update={"knoxel_id": action.id}).payload()
-        envelope = new_envelope("main_cog", "data", "action.request", correlation, payload, target="focus_management")
+        envelope = new_envelope("main_cog", "data", "action.request", correlation, payload, target=workflow_name)
         return action, envelope
 
     def spontaneous(self, episode_id: str = "spontaneous-story") -> InquiryRecord:
@@ -199,6 +200,46 @@ class DeliberateOwnerTests(DeliberateOwnerCase):
         self.assertEqual(self.thoughts.events, [])
         restored = MemoryStore.load(self.path)
         self.assertEqual(self.deliberate(restored, action.id).receipt, head.receipt)
+
+    def test_perspective_request_carries_the_partner_into_the_entry_receipt(self) -> None:
+        action, envelope = self.dispatch("Work out when Jesse is usually up.",
+                                         workflow_name="theory_of_mind", correlation="corr-tom",
+                                         partner_entity_id=self.partner.id)
+        self.module.handle_batch([envelope])
+        head = self.deliberate(self.store, action.id)
+        self.assertEqual(head.receipt.state.status, "active")
+        self.assertEqual(head.receipt.state.next_operation, "memory_search")
+        self.assertEqual(head.receipt.deliberate.subject_entity_id, self.partner.id)
+        self.assertEqual(inquiry_origin(self.store.snapshot(capture=False), head.receipt.state).kind,
+                         "deliberate_action")
+        # The entry receipt is the same as the head: no step ran yet.
+        self.assertEqual(self.store.gwt_turns, {})
+        self.assertEqual(self.thoughts.events, [])
+
+    def test_plain_deliberate_entry_stores_no_subject_key(self) -> None:
+        action, envelope = self.dispatch("Work out why Jesse stopped describing the story.")
+        self.module.handle_batch([envelope])
+        head = self.deliberate(self.store, action.id)
+        self.assertIsNone(head.receipt.deliberate.subject_entity_id)
+        entry = self.store.snapshot(capture=False).get(head.record.id)
+        stored = entry.metadata["inquiry_receipt"]["deliberate"]
+        self.assertNotIn("subject_entity_id", stored)
+
+    def test_perspective_subject_must_be_another_entity(self) -> None:
+        observer_action, observer_envelope = self.dispatch("Think about the observer.",
+            workflow_name="theory_of_mind", correlation="corr-observer", partner_entity_id=self.observer.id)
+        with self.assertRaises(ValueError):
+            self.module.handle_batch([observer_envelope])
+
+        not_entity_action, feature_envelope = self.dispatch("Think about a message.",
+            workflow_name="theory_of_mind", correlation="corr-feature", partner_entity_id=self.source.id)
+        with self.assertRaises(ValueError):
+            self.module.handle_batch([feature_envelope])
+
+        missing_envelope = self.dispatch("Think about an unknown entity.",
+            workflow_name="theory_of_mind", correlation="corr-missing", partner_entity_id=999_999)[1]
+        with self.assertRaises(ValueError):
+            self.module.handle_batch([missing_envelope])
 
     def test_only_a_delivered_operation_name_replaces_recall(self) -> None:
         named, named_request = self.dispatch("Compare the two endings.", operation="feasibility_check",

@@ -31,6 +31,13 @@ One action moves through these stages:
    Main cognition still accepts or rejects every proposed goal and focus
    change. A notice proposes nothing.
 
+The action catalogue also carries a second name, ``theory_of_mind``: private
+thinking about another entity that main cognition named as the action's
+partner. It is ordinary deliberate work with one extra field, the subject's
+entity id, so this module admits and delivers it exactly like any other
+deliberate action. The private loop turns that subject into perspective
+evidence; none of that happens here.
+
 Recovery: an unadmitted request is replayed by dispatch recovery, because its
 action stays pending. An admitted action is found again by its action identity,
 so a restart repeats no inference and opens no second episode. Results that
@@ -77,6 +84,14 @@ if TYPE_CHECKING:
 #: is offered to main cognition as scoped recall, so recall comes first.
 DEFAULT_FIRST_OPERATION = "memory_search"
 
+#: Second entry of the mental-action catalogue: deliberate thinking about
+#: another person or agent, named by main cognition as the action's partner.
+PERSPECTIVE_WORKFLOW = "theory_of_mind"
+
+#: Workflow names whose public ``action.request`` envelopes this module admits.
+#: Both names route to the same private slot; only the subject field differs.
+MENTAL_WORKFLOWS: frozenset[str] = frozenset({"focus_management", PERSPECTIVE_WORKFLOW})
+
 
 class MentalActionLifecycle(BaseModel):
     """The lifecycle fields of a mental action record that this module reads."""
@@ -98,6 +113,7 @@ class RequestedMentalAction:
     first_operation: str
     reason: str
     evidence_ids: tuple[int, ...]
+    subject_entity_id: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -149,8 +165,17 @@ def requested_action(request: ActionRequest, correlation: str) -> RequestedMenta
         first_operation = request.arguments.operation
     reason = request.content.strip() or "Main cognition selected this private mental work."
     evidence_ids = tuple(dict.fromkeys(stimulus.knoxel_id for stimulus in request.stimuli))
+    subject_entity_id: int | None = None
+    if request.workflow_name == PERSPECTIVE_WORKFLOW:
+        # The person or agent this part of the story is about. Main cognition
+        # names it as the action's partner; a missing partner is a broken
+        # contract, because the perspective inquiry has nothing to model.
+        subject_entity_id = request.partner_entity_id
+        if subject_entity_id is None:
+            raise ValueError("A theory-of-mind action requires the entity it is about.")
     return RequestedMentalAction(action_record_id=request.knoxel_id, correlation=correlation,
-        instruction=instruction, first_operation=first_operation, reason=reason, evidence_ids=evidence_ids)
+        instruction=instruction, first_operation=first_operation, reason=reason, evidence_ids=evidence_ids,
+        subject_entity_id=subject_entity_id)
 
 
 def mental_outcome(view: Snapshot, head: InquiryRecord) -> MentalOutcome | None:
@@ -204,6 +229,17 @@ class FocusManagement(BusModule):
 
     DATA_TOPICS = frozenset({"action.request"})
     WORKFLOW_NAME = "focus_management"
+
+    def accepts(self, envelope: Envelope) -> bool:
+        """Take ``action.request`` also when a route names the perspective workflow.
+
+        A new menu name needs its own route target (audit A1 in the B06 plan),
+        and the route target is the workflow name. Both catalogue names send
+        their requests to this one module, which owns the shared private slot.
+        """
+        if envelope.kind != "control" and envelope.topic in self.DATA_TOPICS and envelope.target in MENTAL_WORKFLOWS:
+            return True
+        return super().accepts(envelope)
 
     def __init__(self, module_id: str, bus: BusSystem, on_error: Callable[[BaseException], None],
                  clock: Callable[[], float], tick_seconds: float | None = None, *, ghost: MemoryStore) -> None:
@@ -291,7 +327,8 @@ class FocusManagement(BusModule):
                 owner = PrivateInquiryOwner(self.ghost, commit=commit_private, cancel=self.stop_event,
                                             limits=self._limits())
                 admission = DeliberateAdmission(action_record_id=action_id, instruction=requested.instruction,
-                    evidence_ids=evidence_ids, operation=requested.first_operation, reason=requested.reason)
+                    evidence_ids=evidence_ids, operation=requested.first_operation, reason=requested.reason,
+                    subject_entity_id=requested.subject_entity_id)
                 try:
                     owner.admit_deliberate_action(admission, grant=grant, now_utc=vclock.utcnow())
                 except GhostCancelled:

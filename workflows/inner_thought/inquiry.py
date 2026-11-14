@@ -41,7 +41,7 @@ from pm.memory.write_batch import WriteBatch
 from pm.records.base import Provenance
 from pm.records.enums import FeatureType, FrameEnum, InterlocusType, SourceKind
 from pm.records.lineage import RecordLineage
-from pm.records.memory_records import ActionSchemaRecord, Feature
+from pm.records.memory_records import ActionSchemaRecord, Entity, Feature
 from workflows.cognitive_control.schemas import ControlConfig
 from workflows.inner_thought.nominations import expect_inquiry_grant, read_nomination, source_roots
 from workflows.inner_thought.operations import validate_operation
@@ -898,6 +898,13 @@ def stage_deliberate_inquiry(batch: WriteBatch, *, admission: DeliberateAdmissio
         raise ValueError("Only a deliberate action released by main cognition can enter the private slot.")
     if action.metadata.get("mental_result_id") is not None:
         raise ValueError("This deliberate action already owns a mental result.")
+    if admission.subject_entity_id is not None:
+        # A perspective inquiry models another entity that main cognition named
+        # as the action's partner. It must exist in the same write view and
+        # cannot be the observer: thinking about the partner is not self-talk.
+        subject = view.get_knoxel_by_id(admission.subject_entity_id)
+        if subject is None or not isinstance(subject, Entity) or subject.id == grant.observer_entity_id:
+            raise ValueError("A perspective inquiry requires an entity other than the observer.")
     if any(record.metadata.get(DELIBERATE_ACTION_KEY) == str(action.id) for record in view.all_knoxels.values()):
         raise GhostConflict("This accepted deliberate action already owns a private inquiry.")
     validate_operation(admission.operation)

@@ -34,6 +34,17 @@ from workflows.reflection.schemas import ReflectionDecision, ReflectionContext
 REALITY_LABELS = ("observed", "remembered", "internal", "inferred", "imagined")
 
 
+def _absent(value: object) -> bool:
+    """Return True for a serialized optional field that must stay absent when unset.
+
+    Stored and replayed records fingerprint their metadata. A field that
+    serializes as null would change every old recording, so new optional
+    fields leave the JSON untouched while they are unset (rule A7 in the B06
+    plan). Graph execution uses the same helper for its optional prompt fields.
+    """
+    return value is None
+
+
 class ThoughtCandidate(BaseModel):
     """One private attention candidate the trigger policy selected.
 
@@ -570,6 +581,9 @@ class DeliberateAdmission(InquiryContract):
     evidence_ids: tuple[int, ...] = Field(description="Original sources the deliberate path named with this instruction.")
     operation: str = Field(min_length=1, description="Delivered operation admitted for the first executed step.")
     reason: str = Field(min_length=1, description="Why the deliberate path assigned this work to the private slot.")
+    subject_entity_id: int | None = Field(default=None, gt=0, exclude_if=_absent,
+        description="Identity anchor of the other entity this inquiry models. Null for deliberate work "
+                    "that is not a perspective inquiry, and for every admission stored before B06.")
 
 
 class InquiryOrigin(InquiryContract):
