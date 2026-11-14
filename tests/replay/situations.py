@@ -234,5 +234,69 @@ def private_concern(now_utc: datetime, checkpoint: Path) -> PrivateConcernSituat
                                    note_source_ids=tuple(note_ids))
 
 
-__all__ = ["CONCERN", "CONCERN_SOURCE", "JESSE_AMBIGUOUS_REPLY", "SPAMUEL_LONG_MESSAGE", "STORY_NOTES",
-           "PrivateConcernSituation", "PrivateDwellingSituation", "private_concern", "private_dwelling"]
+@dataclass(frozen=True, slots=True)
+class PerspectiveMorningSituation:
+    """The committed store and identities a morning-routine ToM scenario refers to."""
+
+    store: MemoryStore
+    companion_id: int
+    user_id: int
+    line_ids: tuple[int, ...]
+
+
+#: Synthetic Jesse dialogue lines on different world days, the SC-09 morning
+#: routine. They are engineering input, not persona history: a workday waking
+#: pattern, one weekend exception, one contact preference, and one unrelated
+#: line. A perspective inquiry may read them as its subject's original messages.
+PERSPECTIVE_LINES = (
+    ("I am usually up around six on workdays, so a morning message finds me before I get started.", 3),
+    ("Up at half past six today as usual, workday habit.", 2),
+    ("Weekends are different: I sleep in and check nothing before nine.", 1),
+    ("Nothing before coffee. Ever. Coffee first.", 1),
+    ("The library book came in, by the way.", 0),
+)
+
+
+def perspective_morning(now_utc: datetime, checkpoint: Path) -> PerspectiveMorningSituation:
+    """Commit four synthetic morning lines from Jesse on different world days.
+
+    The lines are labelled synthetic input in their provenance and are not
+    persona history; they stand in for the messages a perspective inquiry
+    reads when it works out the subject's morning routine. The oldest lines
+    moved on world days before ``now_utc``; the library note is the newest.
+    No entity claim exists yet, so the accepted model of the subject is empty
+    at the start.
+    """
+    if now_utc.tzinfo is not None:
+        raise ValueError("Record timestamps use naive UTC; pass vclock.utcnow() form.")
+    canonical = MemoryStore.from_yaml(CANON)
+    identities: list[RecordBase] = [pickle_copy(record) for record in canonical.all_entities
+                                    if record.content in {canonical.get_user_name(), canonical.get_companion_name()}]
+    for identity in identities:
+        identity.embedding = []
+    seed = CycleStateModel(knoxels=identities, cycles=[], **canonical.ghost_config.model_dump())
+    store = MemoryStore.from_state(seed, checkpoint=checkpoint)
+    companion_id = store.get_entity_id(store.get_companion_name())
+    user_id = store.get_entity_id(store.get_user_name())
+    if companion_id is None or user_id is None:
+        raise ValueError("The persona card must provide both the companion and the user identity.")
+
+    line_ids: list[int] = []
+    for index, (text, days_ago) in enumerate(PERSPECTIVE_LINES, start=1):
+        moment = now_utc - timedelta(days=days_ago, hours=6)
+        line = store.begin_batch(f"replay-morning-line-{index}", new_tick=True, embed=False)
+        record = line.create(Feature(
+            feature_type=FeatureType.Dialogue, causal=True, entity_id=user_id,
+            addressee_entity_id=companion_id, interlocus=InterlocusType.Public, content=text,
+            provenance=Provenance(source_kind=SourceKind.User, source_ref="replay-synthetic-situation"),
+            timestamp_world_begin=moment, timestamp_world_end=moment))
+        line.preserve_on_recovery()
+        store.commit(line)
+        line_ids.append(record.id)
+    return PerspectiveMorningSituation(store=store, companion_id=companion_id, user_id=user_id,
+                                       line_ids=tuple(line_ids))
+
+
+__all__ = ["CONCERN", "CONCERN_SOURCE", "JESSE_AMBIGUOUS_REPLY", "PERSPECTIVE_LINES",
+           "SPAMUEL_LONG_MESSAGE", "STORY_NOTES", "PerspectiveMorningSituation", "PrivateConcernSituation",
+           "PrivateDwellingSituation", "perspective_morning", "private_concern", "private_dwelling"]

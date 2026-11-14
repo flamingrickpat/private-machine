@@ -14,30 +14,35 @@ the private slot from spontaneous work.
 """
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
+from json import loads as load_json
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from pm.bus.envelopes import new_envelope
 from pm.records.base import Provenance, RecordLineage
-from pm.records.enums import ActionType, FeatureType, SourceKind
+from pm.records.enums import ActionType, FeatureType, InterlocusType, SourceKind
 from pm.records.memory_records import ActionSchemaRecord
 from pm.records.qualia_records import QualeRecord
 from pm.runs.workflow_runner import WorkflowStatus
 
 from tests.replay.runtime import ScenarioRuntime
 from tests.replay.situations import (
-    CONCERN_SOURCE, PrivateConcernSituation, PrivateDwellingSituation, private_concern, private_dwelling,
+    CONCERN_SOURCE, PERSPECTIVE_LINES, PerspectiveMorningSituation, PrivateConcernSituation,
+    PrivateDwellingSituation, perspective_morning, private_concern, private_dwelling,
 )
 from workflows.cognitive_control.schemas import FocusProposal, MentalPlan
+from workflows.entity_context.owner import EntityContextOwner
+from workflows.entity_context.schemas import PerspectiveRevision
 from workflows.focus_management.host import MentalActionLifecycle
 from workflows.inner_thought.graph_execution import PrivateGraphResult
 from workflows.inner_thought.graph_host import deliberate_inquiry, pending_findings
 from workflows.inner_thought.inquiry import INQUIRY_EPISODE_KEY, InquiryNodeMetadata, inquiry_history
 from workflows.inner_thought.nominations import NOMINATION_KEY, NominationMetadata
+from workflows.main_cognition.entity_updates import prepare_perspective_revisions
 from workflows.inner_thought.schemas import InnerRequest, ThoughtAttentionReceipt
 from workflows.inner_thought.triggers import evaluate_triggers
 from workflows.main_cognition.schemas import ActionArguments, ActionRequest, Stimulus
@@ -331,33 +336,43 @@ class DeliberateEntryOutcome(ScenarioOutcome):
 
 
 def _dispatch_mental_action(runtime: ScenarioRuntime, *, instruction: str, operation: str,
-                            correlation: str) -> int:
+                            correlation: str, workflow_name: str = "focus_management",
+                            partner_entity_id: int | None = None,
+                            source_ids: Sequence[int] | None = None) -> int:
     """Commit one accepted mental action and publish its request, as main cognition would.
 
     The record and the request are synthetic boundary input. Everything after
     the bus is the real deliberate owner, the real store, and the real private
-    loop.
+    loop. ``workflow_name`` is the mental-workflow catalogue name; a
+    perspective action names the entity it is about as the request's partner.
+    Without explicit ``source_ids`` the situation must hold exactly one
+    concern source, which the existing scenarios rely on.
     """
-    sources = [record.id for record in runtime.store.all_features if record.content == CONCERN_SOURCE]
-    if len(sources) != 1:
-        raise LookupError("The situation must hold exactly one concern source.")
-    request = ActionRequest(action_id="replay-mental-action", workflow_name="focus_management",
+    if source_ids is None:
+        source_ids = [record.id for record in runtime.store.all_features if record.content == CONCERN_SOURCE]
+        if len(source_ids) != 1:
+            raise LookupError("The situation must hold exactly one concern source.")
+    view = runtime.store.snapshot(capture=False)
+    source_texts = [str(view.get(source_id).content) for source_id in source_ids]
+    request = ActionRequest(action_id="replay-mental-action", workflow_name=workflow_name,
         content="I want to settle this on my own before we talk again.",
+        partner_entity_id=partner_entity_id,
         arguments=ActionArguments(instruction=instruction, operation=operation),
-        stimuli=[Stimulus(knoxel_id=sources[0], source="user_input", text=CONCERN_SOURCE)])
+        stimuli=[Stimulus(knoxel_id=source_id, source="user_input", text=text)
+                 for source_id, text in zip(source_ids, source_texts, strict=True)])
     batch = runtime.store.begin_batch("replay-mental-dispatch", embed=False)
     action = batch.create(ActionSchemaRecord(content=request.content, action_type=ActionType.Loopback,
         provenance=Provenance(source_kind=SourceKind.Workflow, source_ref="replay-synthetic-dispatch"),
         lineage=RecordLineage(episode_id="dispatch:replay-mental-action", operation="action_dispatch",
-            parent_record_ids=[sources[0]]),
-        metadata={"action_id": request.action_id, "workflow_name": "focus_management",
-                  "dispatch_status": "pending", "dispatch_target": "focus_management",
-                  "dispatch_correlation": correlation, "evidence_ids": [sources[0]]}))
+            parent_record_ids=list(source_ids)),
+        metadata={"action_id": request.action_id, "workflow_name": workflow_name,
+                  "dispatch_status": "pending", "dispatch_target": workflow_name,
+                  "dispatch_correlation": correlation, "evidence_ids": list(source_ids)}))
     batch.preserve_on_recovery()
     runtime.store.commit(batch)
     payload = request.model_copy(update={"knoxel_id": action.id}).payload()
     runtime.private.bus.put(new_envelope("main_cog", "data", "action.request", correlation, payload,
-                                         target="focus_management"))
+                                         target=workflow_name))
     return action.id
 
 
@@ -471,6 +486,78 @@ def _run_deliberate(runtime: ScenarioRuntime, *, name: str, instruction: str, op
         delivered=delivered,
         private_finding_ids=private_findings, parked_status_after=str(parked_after),
         requests=runtime.provider_requests())
+
+
+#: The ToM instruction of the morning-routine scenario (milestone 14.1). The
+#: action asks one bounded question; nothing contacts Jesse.
+PERSPECTIVE_INSTRUCTION = (
+    "Understand when Jesse usually becomes available in the morning, and how uncertain that pattern is, "
+    "so I can judge whether and when a greeting would be welcome."
+)
+
+#: First inquiry operation of the perspective scenario. Recall is the default
+#: but sends an embedding request, and the harness does not record embedding
+#: requests. Narrative stitching needs none and is generative, so a first step
+#: has material to work from without a discrimination target.
+PERSPECTIVE_FIRST_OPERATION = "narrative_stitching"
+
+#: Maximum private opportunities the perspective episode may use. The shipped
+#: episode limit is six operations, so the episode has left the slot.
+PERSPECTIVE_CYCLE_LIMIT = 8
+
+
+class RevisionClaimObservation(BaseModel):
+    """One stored perspective-revision claim, exactly as the finding kept it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    claim_key: str = Field(description="Stable proposition key of the proposed entry.")
+    statement: str = Field(description="The proposed attributed assertion.")
+    epistemic_kind: str = Field(description="report, inference, or hypothetical; thinking cannot observe.")
+    layer: str = Field(description="Entity-model layer the claim proposes.")
+    confidence: float = Field(description="Proposed support for the attributed claim.")
+    source_ids: tuple[int, ...] = Field(description="Original messages the claim cites.")
+
+
+class ClaimDispositionObservation(BaseModel):
+    """The real entity owner's answer to one proposed revision claim batch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    proposal_id: str = Field(description="Host-derived proposal identity of the staged batch.")
+    disposition: str = Field(description="staged, deferred, or rejected.")
+    reason: str = Field(description="accepted, stale_parent, changed_source, or unsupported_interpretation.")
+    staged_receipt_id: int | None = Field(description="Receipt of a staged batch, else None.")
+
+
+class PerspectiveInquiryOutcome(ScenarioOutcome):
+    """What the morning-routine theory-of-mind episode produced.
+
+    The scenario asserts no model answer. A sample without a finding or
+    without a revision is a recorded quality result, kept for review.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    cycles: tuple[CycleObservation, ...] = Field(description="Each private cycle in order.")
+    action_record_id: int = Field(description="The dispatched theory-of-mind action record.")
+    deliberate_operations: tuple[str, ...] = Field(description="Operations the episode executed, in order.")
+    deliberate_status: str = Field(description="Final status of the deliberate episode.")
+    finding_id: int | None = Field(description="The episode's finding, if it reached one.")
+    mental_result_id: int | None = Field(description="Result identity committed on the action.")
+    mental_status: str = Field(description="Mental status committed on the action; empty while it is open.")
+    result_text: str = Field(description="Text of the finding or of the unfinished-work notice.")
+    thought_requests: int = Field(ge=0, description="Thought-stage model requests the episode made.")
+    thought_requests_with_perspective: int = Field(
+        ge=0, description="Those thought requests whose instruction carried the perspective block.")
+    revision_claims: tuple[RevisionClaimObservation, ...] = Field(
+        description="Stored revision claims of the finding, if any.")
+    has_observation_claim: bool = Field(description="True when any stored claim is an observation (must stay False).")
+    dispositions: tuple[ClaimDispositionObservation, ...] = Field(
+        description="The real owner's disposition for each proposed revision batch on the final store.")
+    action_requests: int = Field(ge=0, description="action.request envelopes the session published.")
+    public_utterances: tuple[str, ...] = Field(description="Public speech the session produced; a ToM action sends none.")
+    requests: int = Field(ge=0, description="Real provider requests this session made.")
 
 
 class NominationObservation(BaseModel):
@@ -647,6 +734,148 @@ def run_private_dwelling(runtime: ScenarioRuntime) -> ScenarioOutcome:
         requests=runtime.provider_requests())
 
 
+def _thought_evidence_requests(runtime: ScenarioRuntime) -> tuple[int, int]:
+    """Count thought-stage calls and those whose instruction carried the perspective block.
+
+    The rule block is rendered into the thought instruction before the call,
+    so its first sentence is observable in the recorded request. The recording
+    flushes every call as it happens, so the journal is current during the run.
+    """
+    journal = runtime.directory / "calls.jsonl"
+    thought_calls = 0
+    with_perspective = 0
+    if not journal.exists():
+        return (0, 0)
+    for line in journal.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        request = str(load_json(line).get("request", ""))
+        if "Return one InquiryStep" not in request:
+            continue
+        thought_calls += 1
+        if "This inquiry models" in request:
+            with_perspective += 1
+    return thought_calls, with_perspective
+
+
+def _perspective_dispositions(runtime: ScenarioRuntime,
+                              finding_id: int | None) -> tuple[ClaimDispositionObservation, ...]:
+    """Ask the real entity owner how it would stage the finding's proposed revision.
+
+    This is a rehearsal on the final store, in one batch that is never
+    committed: main cognition performs the real staging at its own final
+    commit boundary (decision D2 in the B06 plan). The outcome stays factual.
+    """
+    if finding_id is None:
+        return ()
+    view = runtime.store.snapshot(capture=False)
+    record = view.get_knoxel_by_id(finding_id)
+    if record is None or "perspective_revision" not in record.metadata:
+        return ()
+    companion_id = runtime.store.get_entity_id(runtime.store.get_companion_name())
+    if companion_id is None:
+        raise ValueError("The scenario store must hold the companion identity.")
+    owner = EntityContextOwner(runtime.store)
+    updates = prepare_perspective_revisions(owner, view, [finding_id], observer_entity_id=companion_id)
+    rows: list[ClaimDispositionObservation] = []
+    if updates.proposals:
+        with runtime.store.lock:
+            batch = runtime.store.begin_batch("perspective-rehearsal", embed=False)
+            for proposal in updates.proposals:
+                outcome = owner.stage_update(batch, proposal)
+                rows.append(ClaimDispositionObservation(proposal_id=proposal.proposal_id,
+                    disposition=outcome.disposition, reason=outcome.reason,
+                    staged_receipt_id=outcome.staged_receipt_id))
+    rows.extend(ClaimDispositionObservation(proposal_id="", disposition="rejected",
+        reason=str(item["reason"]), staged_receipt_id=None) for item in updates.rejected)
+    return tuple(rows)
+
+
+def run_perspective_morning(runtime: ScenarioRuntime) -> ScenarioOutcome:
+    """Dispatch one theory-of-mind action and execute its deliberate episode.
+
+    The action is the only envelope this session publishes; Jesse is the
+    partner, and the situation's synthetic morning lines are the action's
+    evidence. The private loop executes the episode through the real thought
+    and integrate stages; the deliberate owner closes and delivers the result.
+    """
+    expected: set[str] = {text for text, _ in PERSPECTIVE_LINES}
+    source_ids = [record.id for record in runtime.store.all_features
+                  if record.content in expected and record.interlocus == InterlocusType.Public]
+    if len(source_ids) != len(PERSPECTIVE_LINES):
+        raise LookupError("The situation must hold every synthetic morning line.")
+    user_id = runtime.store.get_entity_id(runtime.store.get_user_name())
+    if user_id is None:
+        raise ValueError("The scenario store must hold the user identity.")
+    action_id = _dispatch_mental_action(runtime, instruction=PERSPECTIVE_INSTRUCTION,
+        operation=PERSPECTIVE_FIRST_OPERATION, correlation="replay-perspective-morning",
+        workflow_name="theory_of_mind", partner_entity_id=user_id, source_ids=source_ids)
+    runtime.step_named("focus_management")
+    view = runtime.store.snapshot(capture=False)
+    if deliberate_inquiry(view, action_id) is None:
+        raise RuntimeError("The deliberate owner did not admit the perspective action.")
+
+    cycles: list[CycleObservation] = []
+    for index in range(1, PERSPECTIVE_CYCLE_LIMIT + 1):
+        cycles.append(_run_private_cycle(runtime, index))
+        head = deliberate_inquiry(runtime.store.snapshot(capture=False), action_id)
+        assert head is not None  # Admitted above; an episode never disappears.
+        if head.receipt.state.status != "active":
+            break
+    else:
+        raise RuntimeError("The perspective episode still held the slot after its cycle limit.")
+    # The deliberate owner closes the action and delivers its result.
+    runtime.step_named("focus_management")
+
+    view = runtime.store.snapshot(capture=False)
+    head = deliberate_inquiry(view, action_id)
+    assert head is not None
+    history = inquiry_history(view, head.receipt.state.episode_id)
+    operations = tuple(item.receipt.step.operation for item in history if item.receipt.step is not None)
+    finding_id: int | None = next((item.receipt.operation_record_id for item in history
+                                   if item.receipt.step is not None and item.receipt.step.outcome != "continue"),
+                                  None)
+    lifecycle = MentalActionLifecycle.model_validate(view.get(action_id).metadata)
+    result_text = "" if lifecycle.mental_result_id is None else view.get(lifecycle.mental_result_id).content
+    revision_claims: list[RevisionClaimObservation] = []
+    has_observation = False
+    if finding_id is not None:
+        raw = view.get(finding_id).metadata.get("perspective_revision")
+        if raw is not None:
+            revision = PerspectiveRevision.model_validate(raw)
+            for claim in revision.claims:
+                revision_claims.append(RevisionClaimObservation(claim_key=claim.claim_key,
+                    statement=claim.statement, epistemic_kind=claim.epistemic_kind, layer=claim.layer,
+                    confidence=claim.confidence, source_ids=tuple(claim.source_ids)))
+                has_observation = has_observation or claim.epistemic_kind == "observation"
+    dispositions = _perspective_dispositions(runtime, finding_id)
+    thought_calls, thought_with_perspective = _thought_evidence_requests(runtime)
+    action_requests = len(runtime.envelopes("action.request"))
+    public_utterances = tuple(str(item.text) for item in runtime.replies)
+    summary = tuple(f"cycle {item.index}: {item.summary}" for item in cycles)
+    summary += (
+        f"deliberate operations: {list(operations)}",
+        f"deliberate status: {head.receipt.state.status}",
+        f"finding: {finding_id}",
+        f"action result: {lifecycle.mental_result_id} ({lifecycle.mental_status or 'open'}): {result_text}",
+        f"thought requests: {thought_calls}; with perspective evidence: {thought_with_perspective}",
+        f"revision claims: {[(item.claim_key, item.epistemic_kind, item.source_ids) for item in revision_claims]}",
+        f"observation claim: {has_observation}",
+        f"owner dispositions: {[(item.disposition, item.reason) for item in dispositions]}",
+        f"action requests: {action_requests}; public utterances: {list(public_utterances)}",
+    )
+    return PerspectiveInquiryOutcome(
+        scenario="perspective-morning", summary=summary, replay_blockers=(), cycles=tuple(cycles),
+        action_record_id=action_id, deliberate_operations=operations,
+        deliberate_status=str(head.receipt.state.status), finding_id=finding_id,
+        mental_result_id=lifecycle.mental_result_id, mental_status=lifecycle.mental_status,
+        result_text=result_text, thought_requests=thought_calls,
+        thought_requests_with_perspective=thought_with_perspective,
+        revision_claims=tuple(revision_claims), has_observation_claim=has_observation,
+        dispositions=tuple(dispositions), action_requests=action_requests,
+        public_utterances=public_utterances, requests=runtime.provider_requests())
+
+
 @dataclass(frozen=True, slots=True)
 class Scenario:
     """One replayable script over the real modules.
@@ -685,6 +914,10 @@ SCENARIOS: dict[str, Scenario] = {
                  description="Private cycles over one short ambiguous reply, from a committed non-neutral mental state.",
                  situation=private_dwelling, run=run_private_dwelling,
                  outcome_type=PrivateDwellingOutcome),
+        Scenario(name="perspective-morning",
+                 description="A theory-of-mind action works out when Jesse usually becomes available in the morning.",
+                 situation=perspective_morning, run=run_perspective_morning,
+                 outcome_type=PerspectiveInquiryOutcome),
     )
 }
 
@@ -698,5 +931,5 @@ def scenario_named(name: str) -> Scenario:
 
 __all__ = ["DELIBERATE_INSTRUCTION", "ORDINARY_INPUT", "SCENARIOS", "CycleObservation",
            "DeliberateEntryOutcome", "DeliveredResult", "NominationObservation",
-           "PrivateContinuityOutcome", "PrivateDwellingOutcome", "Scenario", "ScenarioOutcome",
-           "StepObservation", "scenario_named"]
+           "PerspectiveInquiryOutcome", "PrivateContinuityOutcome", "PrivateDwellingOutcome", "Scenario",
+           "ScenarioOutcome", "StepObservation", "scenario_named"]
