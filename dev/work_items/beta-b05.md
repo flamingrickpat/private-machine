@@ -2016,3 +2016,99 @@ Ran: inner-thought (221), focus-management (15), reflection (22), `test_episodes
 
 Not added to `pyrightconfig.json`: `pm/introspection/episodes.py` reports 40 strict errors,
 mostly untyped managed-run receipt fields. The configured run stays unchanged.
+
+## Pass 3 — recorded evidence and owner review (2026-11-14)
+
+Status: recorded against real OpenRouter endpoints. The review package is registered.
+
+### Re-recorded scenarios
+
+The request JSON changed in Passes 1 and 2, so the three current recordings were made again.
+Each new snapshot was copied and the copy replayed exactly (`ok`, 0 unasked calls).
+
+| Scenario | Snapshot | Requests | Provider cost |
+| --- | --- | --- | --- |
+| `private-continuity` | `private-continuity-20261114T180018Z` | 11 | $0.010687 |
+| `deliberate-entry` | `deliberate-entry-20261114T180133Z` | 12 | $0.016946 |
+| `deliberate-reflection` | `deliberate-reflection-20261114T180458Z` | 13 | $0.015769 |
+
+The first `deliberate-reflection` attempt (`deliberate-reflection-20261114T180347Z`) failed before the
+action arrived: the model completed the spontaneous inquiry in its first step, so no active episode
+remained to park. That is a model-quality sample, preserved. The retry left the inquiry active.
+Cost of the failed attempt: $0.004287.
+
+### What the reflection step received
+
+From `deliberate-reflection-20261114T180458Z/sample-01/calls.jsonl`, the reflection step's material
+held the executed operation once as an episode, with its own reasons:
+
+```
+{"episode_id":26,"kind":"inquiry_operation","loop":"inquiry","operation":"plan_next_step",
+ "outcome":"unresolved",...,"metadata":{...,"inquiry_outcome":"information_gap",
+ "reason":"The next concrete step is fixed - draft the third ending's premise and hold it against
+ the two slogans - but the inquiry stops here because certifying whether the two endings genuinely
+ diverge requires comparing the pending branches under a discriminatory operation, which this
+ generative step cannot do.",
+ "information_gap":"Whether the two endings' stated premises genuinely diverge, and whether the
+ third 'incidental' ending escapes the shared 'bond as proof' premise - needs a discriminatory
+ comparison, not more generation.",
+ "progress":{"kind":"none","reason":"This step names the concrete drafting step and its reserve
+ variant; it acquires no new original source and the comparison of branches remains uncertified
+ until a discriminatory operation runs.","meaningful_difference":false}}}
+```
+
+The inner frame row of that step is absent from the companion projection. The operation's own record
+still appears in the cited evidence, which is provenance, not a second episode row.
+
+### `private-dwelling`
+
+Added to `tests/replay/scenarios.py` and `tests/replay/situations.py`.
+The situation commits Spamuel's long message, Jesse's one-line reply, and a main cycle with a
+non-neutral mental state (`state_core.valence = -0.45`, `arousal = 0.6`, `sadness = 0.5`,
+`curiosity = 0.65`) and a subjective-experience record. The experience record is required: without
+it the host drops the main frame from the private request, and the first diagnostic run
+(`private-dwelling-20261114T180906Z`) showed the model reasoning about an empty frame. That run is
+kept as the engineering receipt for the fix.
+
+Three samples recorded in `private-dwelling-20261114T181741Z`; all three replay exactly.
+
+| Sample | Requests | Cost | Steps | `repeated_concern` | Self-observation nominated | Quale |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 12 | $0.009515 | `expectation_review` gap, `expectation_review` gap, `rumination_notice` pause | true | true | none |
+| 2 | 14 | $0.020383 | `perspective_shift` continue, `memory_search` continue (new evidence), `feasibility_check` finding (discrimination), `rumination_notice` completed | false | true | none |
+| 3 | 12 | $0.011416 | `perspective_shift` gap, `emotional_debrief` continue, `rumination_notice` pause | true | true | none |
+
+Samples 1 and 3 dwell on the short reply and stall on the same sources; D1 fires.
+Sample 2 acquires evidence and discriminates, so it correctly does not fire.
+No sample committed a `QualeRecord`: the private loop copies the previous cycle's mental state, and
+no main appraisal ran, so no channel moved. That is a recorded result, not a missing capture.
+
+### Live gate
+
+`python -m unittest tests.live.test_private_inquiry` ran three times and failed each time:
+
+- `20261114T182257Z-06dbc434`: `The real selected concern did not exercise generation.` (11 requests)
+- `20261114T182429Z-a279ee37`: `The bounded real inquiry produced no accepted outcome finding.` (6 requests)
+- `20261114T182525Z-1cfc3102`: `The real selected concern did not exercise generation.` (8 requests)
+
+Two runs failed the same criterion. This is a model-quality result with the configured
+`deepseek/deepseek-v4.1-flash-1017`; no validator or threshold was changed. All three evidence
+folders are kept under `.runtime/beta-b05/live/`. The live test does not itemize provider cost.
+
+### Owner review
+
+Registered from the replayed final store of sample 3 (the most informative: three stalled steps,
+`repeated_concern` true, a later nomination citing private thinking).
+
+- Capture tool: `dev/work_items/beta_b05_review.py`
+- Packages: `.runtime/beta-b05/review/b05-dwelling-records.json` and one `gwt` package per inner turn
+- Review URL: http://127.0.0.1:8095/#capture/b05-dwelling-20261114
+
+The package holds Jesse's reply, Spamuel's long message, every nomination, the selected attention
+decision, every executed operation and its branches, each inner turn, and the (empty) felt-state set.
+No rating was invented.
+
+### Docs
+
+`private-dwelling` is in the scenario table in `docs/workflows/scenario-replay.md`. The strict
+MkDocs build passed and the page renders the new row.

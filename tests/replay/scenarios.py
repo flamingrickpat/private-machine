@@ -23,17 +23,23 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from pm.bus.envelopes import new_envelope
 from pm.records.base import Provenance, RecordLineage
-from pm.records.enums import ActionType, SourceKind
+from pm.records.enums import ActionType, FeatureType, SourceKind
 from pm.records.memory_records import ActionSchemaRecord
+from pm.records.qualia_records import QualeRecord
 from pm.runs.workflow_runner import WorkflowStatus
 
 from tests.replay.runtime import ScenarioRuntime
-from tests.replay.situations import CONCERN_SOURCE, PrivateConcernSituation, private_concern
+from tests.replay.situations import (
+    CONCERN_SOURCE, PrivateConcernSituation, PrivateDwellingSituation, private_concern, private_dwelling,
+)
 from workflows.cognitive_control.schemas import FocusProposal, MentalPlan
 from workflows.focus_management.host import MentalActionLifecycle
 from workflows.inner_thought.graph_execution import PrivateGraphResult
 from workflows.inner_thought.graph_host import deliberate_inquiry, pending_findings
-from workflows.inner_thought.inquiry import INQUIRY_EPISODE_KEY, inquiry_history
+from workflows.inner_thought.inquiry import INQUIRY_EPISODE_KEY, InquiryNodeMetadata, inquiry_history
+from workflows.inner_thought.nominations import NOMINATION_KEY, NominationMetadata
+from workflows.inner_thought.schemas import InnerRequest, ThoughtAttentionReceipt
+from workflows.inner_thought.triggers import evaluate_triggers
 from workflows.main_cognition.schemas import ActionArguments, ActionRequest, Stimulus
 
 
@@ -467,6 +473,180 @@ def _run_deliberate(runtime: ScenarioRuntime, *, name: str, instruction: str, op
         requests=runtime.provider_requests())
 
 
+class NominationObservation(BaseModel):
+    """One retained private nomination, with the evidence it cited."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    record_id: int = Field(description="Record id of the retained nomination.")
+    text: str = Field(description="The nomination's own text.")
+    question: str = Field(description="The question the nomination proposed.")
+    suggested_operation: str = Field(description="Operation the nomination suggested.")
+    evidence_ids: tuple[int, ...] = Field(description="Records the nomination cited.")
+    cites_private_thought: bool = Field(
+        description="True when the nomination cites an earlier private thought or graph operation.")
+
+
+class StepObservation(BaseModel):
+    """One accepted inquiry operation, read from its own record."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    record_id: int = Field(description="Record id of the executed operation.")
+    operation: str = Field(description="Operation name the graph admitted.")
+    outcome: str = Field(description="The step's own stated outcome.")
+    progress_kind: str = Field(description="Accepted progress: new evidence, discrimination, or none.")
+    evidence_ids: tuple[int, ...] = Field(description="Original sources the step cited.")
+    reason: str = Field(description="Why the step continued or stopped.")
+    information_gap: str = Field(description="Evidence the step says is missing; empty when it states none.")
+
+
+class PrivateDwellingOutcome(ScenarioOutcome):
+    """What one private loop did with a short ambiguous reply.
+
+    The scenario asserts no model answer. The typed facts below are what the
+    store actually holds after the cycles, so a model that declines to dwell is
+    a recorded quality result, not a failed assertion.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    cycles: tuple[CycleObservation, ...] = Field(description="Each private cycle in order.")
+    nominations: tuple[NominationObservation, ...] = Field(description="Every retained nomination, in record order.")
+    selected_nomination_id: int | None = Field(description="Nomination shared attention selected, if any.")
+    steps: tuple[StepObservation, ...] = Field(description="Every accepted graph operation, in record order.")
+    stop_reason: str = Field(description="Stop reason on the newest inquiry receipt.")
+    repeated_concern: bool = Field(
+        description="True when the real trigger policy reports repeated_concern over the retained thoughts at the end.")
+    self_observation_nominated: bool = Field(
+        description="True when any nomination cited an earlier private thought or graph operation.")
+    quale_ids: tuple[int, ...] = Field(description="Felt-state records committed during the run.")
+    requests: int = Field(ge=0, description="Real provider requests this session made.")
+
+
+def _private_thought_ids(runtime: ScenarioRuntime) -> set[int]:
+    """Return every committed private thought or graph operation id."""
+    return {int(record.id) for record in runtime.store.all_features
+            if record.feature_type == FeatureType.InnerMonologue
+            and (record.metadata or {}).get("loop") in {"inner", "inquiry"}}
+
+
+def _nomination_observations(runtime: ScenarioRuntime) -> tuple[NominationObservation, ...]:
+    """Read every retained nomination and whether it cited private thinking."""
+    private_ids = _private_thought_ids(runtime)
+    rows: list[NominationObservation] = []
+    for record in runtime.store.all_features:
+        if NOMINATION_KEY not in record.metadata:
+            continue
+        receipt = NominationMetadata.model_validate(record.metadata).thought_nomination
+        nomination = receipt.nomination
+        rows.append(NominationObservation(
+            record_id=int(record.id), text=nomination.text, question=nomination.question,
+            suggested_operation=nomination.suggested_operation, evidence_ids=nomination.evidence_ids,
+            cites_private_thought=bool(private_ids.intersection(nomination.evidence_ids))))
+    rows.sort(key=lambda item: item.record_id)
+    return tuple(rows)
+
+
+def _selected_nomination(runtime: ScenarioRuntime) -> int | None:
+    """Return the nomination shared attention selected, or None."""
+    selected: int | None = None
+    for record in runtime.store.all_features:
+        raw = record.metadata.get("thought_attention")
+        if raw is None:
+            continue
+        receipt = ThoughtAttentionReceipt.model_validate(raw)
+        if receipt.decision.disposition == "select":
+            selected = receipt.decision.nomination_id
+    return selected
+
+
+def _step_observations(runtime: ScenarioRuntime) -> tuple[StepObservation, ...]:
+    """Read every accepted inquiry operation from its own record."""
+    rows: list[StepObservation] = []
+    for record in runtime.store.all_features:
+        if record.feature_type != FeatureType.InnerMonologue:
+            continue
+        if (record.metadata or {}).get("loop") != "inquiry":
+            continue
+        step = InquiryNodeMetadata.model_validate(record.metadata).inquiry_step
+        rows.append(StepObservation(record_id=int(record.id), operation=step.operation,
+            outcome=step.outcome, progress_kind=step.progress.kind,
+            evidence_ids=step.evidence_ids, reason=step.reason,
+            information_gap=step.information_gap))
+    rows.sort(key=lambda item: item.record_id)
+    return tuple(rows)
+
+
+def _newest_stop_reason(runtime: ScenarioRuntime) -> str:
+    """Return the newest inquiry receipt's stop reason, or an empty string."""
+    view = runtime.store.snapshot(capture=False)
+    episode_ids = sorted({str(record.metadata[INQUIRY_EPISODE_KEY]) for record in view.all_knoxels.values()
+                          if INQUIRY_EPISODE_KEY in record.metadata})
+    newest = None
+    for episode_id in episode_ids:
+        history = inquiry_history(view, episode_id)
+        if history:
+            newest = history[-1]
+    return "" if newest is None else str(newest.receipt.state.stop_reason)
+
+
+def _repeated_concern(runtime: ScenarioRuntime) -> bool:
+    """Recompute the real trigger policy over the thoughts the store retains now.
+
+    The trigger candidates of an earlier request are not persisted, so the
+    outcome reports the same policy's answer at the end rather than claiming
+    which request fired it.
+    """
+    request = InnerRequest(recent_thoughts=runtime.private._recent_private_thoughts())
+    return any(candidate.name == "repeated_concern" for candidate in evaluate_triggers(request))
+
+
+#: How many private opportunities the dwelling scenario may use before it stops
+#: waiting for the episode to leave the slot. The shipped step bound is six.
+DWELLING_CYCLE_LIMIT = 8
+
+
+def run_private_dwelling(runtime: ScenarioRuntime) -> ScenarioOutcome:
+    """Run private cycles over one short ambiguous reply until the episode stops.
+
+    Two more opportunities follow, so a parked question can be offered again.
+    The outcome records what the store holds; it asserts no model answer.
+    """
+    cycles: list[CycleObservation] = []
+    for index in range(1, DWELLING_CYCLE_LIMIT + 1):
+        cycles.append(_run_private_cycle(runtime, index))
+        status = _newest_episode_status(runtime)
+        if status is not None and status != "active":
+            break
+    for _ in range(2):
+        cycles.append(_run_private_cycle(runtime, len(cycles) + 1))
+    nominations = _nomination_observations(runtime)
+    steps = _step_observations(runtime)
+    selected = _selected_nomination(runtime)
+    stop_reason = _newest_stop_reason(runtime)
+    repeated = _repeated_concern(runtime)
+    self_observation = any(item.cites_private_thought for item in nominations)
+    qualia = tuple(int(record.id) for record in runtime.store.all_knoxels.values()
+                   if isinstance(record, QualeRecord))
+    summary = tuple(f"cycle {item.index}: {item.summary}" for item in cycles)
+    summary += (
+        f"nominations: {[(item.record_id, item.suggested_operation) for item in nominations]}",
+        f"selected: {selected}",
+        f"steps: {[(item.operation, item.outcome, item.progress_kind) for item in steps]}",
+        f"stop reason: {stop_reason}",
+        f"repeated_concern: {repeated}",
+        f"nominations citing private thinking: {self_observation}",
+        f"felt-state records: {list(qualia)}",
+    )
+    return PrivateDwellingOutcome(
+        scenario="private-dwelling", summary=summary, replay_blockers=(), cycles=tuple(cycles),
+        nominations=nominations, selected_nomination_id=selected, steps=steps,
+        stop_reason=stop_reason, repeated_concern=repeated,
+        self_observation_nominated=self_observation, quale_ids=qualia,
+        requests=runtime.provider_requests())
+
+
 @dataclass(frozen=True, slots=True)
 class Scenario:
     """One replayable script over the real modules.
@@ -477,7 +657,7 @@ class Scenario:
 
     name: str
     description: str
-    situation: Callable[[datetime, Path], PrivateConcernSituation]
+    situation: Callable[[datetime, Path], PrivateConcernSituation | PrivateDwellingSituation]
     run: Callable[[ScenarioRuntime], ScenarioOutcome]
     outcome_type: type[ScenarioOutcome]
 
@@ -501,6 +681,10 @@ SCENARIOS: dict[str, Scenario] = {
                  description="A deliberate reflection review runs in the private slot with scoped experiment and episode evidence.",
                  situation=private_concern, run=run_deliberate_reflection,
                  outcome_type=DeliberateEntryOutcome),
+        Scenario(name="private-dwelling",
+                 description="Private cycles over one short ambiguous reply, from a committed non-neutral mental state.",
+                 situation=private_dwelling, run=run_private_dwelling,
+                 outcome_type=PrivateDwellingOutcome),
     )
 }
 
@@ -513,5 +697,6 @@ def scenario_named(name: str) -> Scenario:
 
 
 __all__ = ["DELIBERATE_INSTRUCTION", "ORDINARY_INPUT", "SCENARIOS", "CycleObservation",
-           "DeliberateEntryOutcome", "DeliveredResult", "PrivateContinuityOutcome",
-           "Scenario", "ScenarioOutcome", "scenario_named"]
+           "DeliberateEntryOutcome", "DeliveredResult", "NominationObservation",
+           "PrivateContinuityOutcome", "PrivateDwellingOutcome", "Scenario", "ScenarioOutcome",
+           "StepObservation", "scenario_named"]

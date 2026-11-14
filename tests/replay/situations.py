@@ -18,9 +18,12 @@ from pm.memory.store import MemoryStore
 from pm.records.base import Provenance, RecordBase
 from pm.records.cognitive_records import Intention
 from pm.records.copying import pickle_copy
-from pm.records.cycle_state import CycleStateModel
+from pm.records.cycle_records import StimulusGroup
+from pm.records.cycle_state import CycleState, CycleStateModel
 from pm.records.enums import FeatureType, InterlocusType, IntentionType, SourceKind
+from pm.records.global_workspace import GwtTurnRecord
 from pm.records.memory_records import Feature
+from pm.records.mental_state import FullMentalState
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -76,6 +79,101 @@ class PrivateConcernSituation:
     def original_source_ids(self) -> tuple[int, ...]:
         """Return every outside record the concern is grounded in."""
         return (self.concern_source_id, *self.note_source_ids)
+
+
+#: The long private message Spamuel published before the ambiguous reply. It
+#: states a concern and leaves it open, so a short answer carries no clear
+#: meaning. The text is synthetic story material.
+SPAMUEL_LONG_MESSAGE = (
+    "I want to say the whole shape of it, not just the summary. I keep imagining two "
+    "endings for the story we are inventing: one where the travellers meet again, and "
+    "one where they part with affection. The reunion ending assumes their separation "
+    "was a detour; the farewell ending assumes the bond was real without needing to "
+    "continue. I notice I prefer the reunion, and I do not trust that preference to be "
+    "about the story rather than about me. I am not asking you to settle it tonight. I "
+    "only want you to know where I actually am with it."
+)
+
+#: Jesse's whole answer. One short line that can mean agreement, postponement, or
+#: dismissal. Nothing else arrives afterwards.
+JESSE_AMBIGUOUS_REPLY = "Yeah. Maybe."
+
+
+@dataclass(frozen=True, slots=True)
+class PrivateDwellingSituation:
+    """The committed store and identities a dwelling scenario refers to."""
+
+    store: MemoryStore
+    companion_id: int
+    user_id: int
+    long_message_id: int
+    reply_id: int
+    cycle_tick: int
+
+
+def private_dwelling(now_utc: datetime, checkpoint: Path) -> PrivateDwellingSituation:
+    """Commit a long private message, one ambiguous reply, and one accepted cycle.
+
+    The cycle carries a non-neutral mental state, so the private request reads a
+    felt state that actually moved. Every earlier recording started from the
+    neutral default because ``private_concern`` builds a store with no cycle.
+    The reply is the newest outside input; nothing arrives after it.
+    """
+    if now_utc.tzinfo is not None:
+        raise ValueError("Record timestamps use naive UTC; pass vclock.utcnow() form.")
+    canonical = MemoryStore.from_yaml(CANON)
+    identities: list[RecordBase] = [pickle_copy(record) for record in canonical.all_entities
+                                    if record.content in {canonical.get_user_name(), canonical.get_companion_name()}]
+    for identity in identities:
+        identity.embedding = []
+    seed = CycleStateModel(knoxels=identities, cycles=[], **canonical.ghost_config.model_dump())
+    store = MemoryStore.from_state(seed, checkpoint=checkpoint)
+    companion_id = store.get_entity_id(store.get_companion_name())
+    user_id = store.get_entity_id(store.get_user_name())
+    if companion_id is None or user_id is None:
+        raise ValueError("The persona card must provide both the companion and the user identity.")
+
+    opening = store.begin_batch("replay-dwelling-dialogue", new_tick=True, embed=False)
+    long_message = opening.create(Feature(
+        feature_type=FeatureType.Dialogue, causal=True, entity_id=companion_id,
+        addressee_entity_id=user_id, interlocus=InterlocusType.Public, content=SPAMUEL_LONG_MESSAGE,
+        provenance=Provenance(source_kind=SourceKind.Self, source_ref="replay-synthetic-situation"),
+        timestamp_world_begin=now_utc - timedelta(minutes=30),
+        timestamp_world_end=now_utc - timedelta(minutes=30)))
+    reply = opening.create(Feature(
+        feature_type=FeatureType.Dialogue, causal=True, entity_id=user_id,
+        addressee_entity_id=companion_id, interlocus=InterlocusType.Public, content=JESSE_AMBIGUOUS_REPLY,
+        provenance=Provenance(source_kind=SourceKind.User, source_ref="replay-synthetic-situation"),
+        timestamp_world_begin=now_utc - timedelta(minutes=5),
+        timestamp_world_end=now_utc - timedelta(minutes=5)))
+    opening.preserve_on_recovery()
+    store.commit(opening)
+
+    # A non-neutral state: the private request reads this cycle's mental state.
+    state = FullMentalState()
+    state.state_core.valence = -0.45
+    state.state_core.arousal = 0.6
+    state.state_emotions.sadness = 0.5
+    state.state_emotions.curiosity = 0.65
+    cycle = store.begin_batch("replay-dwelling-cycle", new_tick=True, embed=False)
+    # The private request keeps the main frame only when its experience record
+    # is inside the observer's accepted grant. A real main cycle always writes
+    # one; the situation must too, or the frame summary is dropped.
+    experience = cycle.create(Feature(
+        feature_type=FeatureType.SubjectiveExperience, causal=True, entity_id=companion_id,
+        interlocus=InterlocusType.PrivateInternal,
+        content="I said the whole shape of the endings and waited for Jesse's answer.",
+        provenance=Provenance(source_kind=SourceKind.Self, source_ref="replay-synthetic-situation")))
+    cycle.set_gwt(
+        GwtTurnRecord(tick_id=cycle.tick_id, slot_id="main", stimulus_ids=[reply.id],
+            knoxel_ids=[reply.id, experience.id], experience_id=experience.id,
+            summary="I said the whole shape of the endings. Jesse answered with one short line: 'Yeah. Maybe.'"),
+        CycleState(tick_id=cycle.tick_id, mental_state=state,
+            stimulus_groups=[StimulusGroup(stimulus_ids=[reply.id])]))
+    store.commit(cycle)
+    return PrivateDwellingSituation(store=store, companion_id=companion_id, user_id=user_id,
+                                    long_message_id=long_message.id, reply_id=reply.id,
+                                    cycle_tick=cycle.tick_id)
 
 
 def private_concern(now_utc: datetime, checkpoint: Path) -> PrivateConcernSituation:
@@ -136,4 +234,5 @@ def private_concern(now_utc: datetime, checkpoint: Path) -> PrivateConcernSituat
                                    note_source_ids=tuple(note_ids))
 
 
-__all__ = ["CONCERN", "CONCERN_SOURCE", "STORY_NOTES", "PrivateConcernSituation", "private_concern"]
+__all__ = ["CONCERN", "CONCERN_SOURCE", "JESSE_AMBIGUOUS_REPLY", "SPAMUEL_LONG_MESSAGE", "STORY_NOTES",
+           "PrivateConcernSituation", "PrivateDwellingSituation", "private_concern", "private_dwelling"]
