@@ -3,6 +3,12 @@
 Written 2026-11-14 after B05 close-out. **B06 has no accepted design.** This handoff starts with an
 audit and an architecture proposal. Do not write product code before the owner accepts that proposal.
 
+> **Update 2026-11-14:** Pass 0 (audit and architecture proposal) is written in
+> `dev/work_items/beta-b06-plan.md`, together with the ordered implementation steps. That file replaces
+> `beta-b06-proposal.md` and the pass sketch below. It is **proposed**: do not implement before the owner's
+> answer is recorded in its section 2. This handoff stays the authority for guard rails, known red suites,
+> and standing rules.
+
 Your task: produce the B06 architecture proposal, stop for the owner, then implement the accepted
 passes in order. Read `AGENTS.md` first. Its rules are mandatory. The ones that matter most here:
 real stores and real endpoints only, no mocks, typed contracts, fail loud on a broken internal
