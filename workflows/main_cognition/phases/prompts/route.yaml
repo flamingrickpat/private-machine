@@ -68,6 +68,10 @@ user_template: |
   - If focus_management is available, use it for deliberate recall, activity discovery, goal review, or a change of
     focus. Describe the task in arguments.instruction. Its private result returns through appraisal and attention
     before it can affect actions.
+  - If theory_of_mind is available, use it with ToolCall when {companion_name} decides to work out another
+    person's or agent's habits, knowledge, motives, or likely reaction before acting. Write one bounded question
+    into arguments.instruction. It thinks about the one this part of the story is about; it never contacts anyone.
+    Asking them is a separate Reply decision.
   - If memory_reconsolidation is available, use it with ToolCall when {companion_name} decides to sort through
     memories, to go over the past days, or to sleep on what happened. It runs slowly in the background and builds
     summaries, facts, and narratives from the stored history; it does not answer a question now. A wish to stop

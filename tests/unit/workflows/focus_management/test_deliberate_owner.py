@@ -201,6 +201,16 @@ class DeliberateOwnerTests(DeliberateOwnerCase):
         restored = MemoryStore.load(self.path)
         self.assertEqual(self.deliberate(restored, action.id).receipt, head.receipt)
 
+    def test_module_accepts_requests_for_both_catalogue_names(self) -> None:
+        """Bus routing reaches this module under both mental-workflow names (audit A1)."""
+        for workflow in ("focus_management", "theory_of_mind"):
+            envelope = new_envelope("main_cog", "data", "action.request", "corr-" + workflow,
+                {"workflow_name": workflow}, target=workflow)
+            self.assertTrue(self.module.accepts(envelope))
+        foreign = new_envelope("main_cog", "data", "action.request", "corr-other",
+            {"workflow_name": "other_workflow"}, target="other_workflow")
+        self.assertFalse(self.module.accepts(foreign))
+
     def test_perspective_request_carries_the_partner_into_the_entry_receipt(self) -> None:
         action, envelope = self.dispatch("Work out when Jesse is usually up.",
                                          workflow_name="theory_of_mind", correlation="corr-tom",

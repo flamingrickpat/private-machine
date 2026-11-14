@@ -197,6 +197,7 @@ def _cognition_workflow_options(
         {"name": "dialogue_assistant", "description": "Assistant reply with scoped tools. Inventory questions use arguments.minecraft_read=inventory; position, health, and surroundings use minecraft_read=state. Both make one live read without a managed task."},
         {"name": "self_management", "description": "Start, status, update, terminate, or explicitly resume an interrupted body run."},
         {"name": "focus_management", "description": "Private deliberate mental work: scoped recall of preferences, conversations, or goals, and a temporary focus or goal proposal. Set arguments.instruction to the mental task. Advice returns through ordinary appraisal. It commits no emotion or memory change directly."},
+        {"name": "theory_of_mind", "description": "Private thinking about another person or agent: what they usually do, what they know or believe, what they may want, and how uncertain that is. Set arguments.instruction to one bounded question. It sends no message and asks nobody. Its result returns through ordinary appraisal."},
     ]
     for name in sorted(supervisor.workflows):
         descriptions = {"local_task": "Control worker. Writes task telemetry; cannot execute arbitrary instructions or create a requested note.",
