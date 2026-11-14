@@ -85,6 +85,27 @@ class RecentThoughtView(PrivateSource):
         return self
 
 
+class RepeatedSourceActivity(BaseModel):
+    """One source that several recent private steps cited, with no judgment."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    source_id: int = Field(description="A source that several recent private steps cite.")
+    step_ids: tuple[int, ...] = Field(description="Recent private steps that cite it, newest first.")
+    stalled_step_ids: tuple[int, ...] = Field(description="Those of them that accepted no progress.")
+    episode_ids: tuple[str, ...] = Field(description="Inquiry episodes those steps belong to.")
+
+
+class ThoughtActivityView(BaseModel):
+    """Recorded facts about recent private thinking. No judgment and no cause."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    window_step_ids: tuple[int, ...] = Field(description="The recent private steps counted, newest first.")
+    repeated: tuple[RepeatedSourceActivity, ...] = Field(
+        description="Every source cited by at least two of those steps, with the steps that cite it.")
+    stalled_step_count: int = Field(ge=0, description="Inquiry steps that accepted no progress; linear thoughts carry no such judgment.")
+    new_evidence_step_count: int = Field(ge=0, description="Inquiry steps that accepted newly inspected original evidence.")
+
+
 class MainFrameView(BaseModel):
     """The last accepted main turn and its actual source classification."""
 

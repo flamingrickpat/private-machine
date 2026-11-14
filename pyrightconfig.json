@@ -27,6 +27,7 @@
     "workflows/inner_thought/graph_host.py",
     "workflows/inner_thought/graph_execution.py",
     "workflows/inner_thought/perspective.py",
+    "workflows/inner_thought/metacognition.py",
     "workflows/inner_thought/graph_outcomes.py",
     "workflows/inner_thought/stages/nominate",
     "workflows/inner_thought/stages/trigger",

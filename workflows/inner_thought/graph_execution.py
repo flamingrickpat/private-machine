@@ -47,6 +47,9 @@ from workflows.inner_thought.inquiry import (
     InquiryAlternativeMetadata, InquiryNodeMetadata, InquiryRecord, deliberate_admission, displaced_offer,
     inquiry_origin, parked_offer, read_displaced_inquiry,
 )
+from workflows.inner_thought.metacognition import (
+    METACOGNITION_OPERATIONS, activity_rule, render_thought_activity, thought_activity,
+)
 from workflows.inner_thought.nominations import NominationBatchRecord, extend_inquiry_grant, read_nomination_batch
 from workflows.inner_thought.offer_salience import RetainedQuestion, attention_cues, select_retained_offer
 from workflows.inner_thought.operations import operation_lines, validate_operation
@@ -145,6 +148,9 @@ class GraphThoughtRequest(BaseModel):
         description="Rendered perspective instruction for one theory-of-mind step: the accepted view of the "
                     "subject and the epistemic rules, built by perspective.perspective_rule. Absent for every "
                     "step that is not a perspective inquiry, so other prompts are byte-identical.")
+    activity_evidence: str | None = Field(default=None, exclude_if=_absent,
+        description="Rendered recorded activity for one noticing step, built by metacognition.activity_rule. "
+                    "Facts about the companion's own recent thinking; absent for every other step.")
 
 
 def _node_view(view: Snapshot, node_id: int) -> InquiryNodeView:
@@ -270,6 +276,7 @@ def graph_thought_instruction(request: GraphThoughtRequest) -> str:
         + _earlier_artifact_rule(request)
         + _reflection_rule(request)
         + _perspective_rule(request)
+        + _activity_rule(request)
         + _deliberate_rule(request)
         + "Return one InquiryStep. Execute only the admitted operation. Cite only supplied source or accepted node IDs. "
         "A later step must relate explicitly to accepted earlier nodes. New alternatives have no committed IDs yet. "
@@ -318,6 +325,13 @@ def _perspective_rule(request: GraphThoughtRequest) -> str:
     if not request.perspective_evidence:
         return ""
     return request.perspective_evidence + "\n"
+
+
+def _activity_rule(request: GraphThoughtRequest) -> str:
+    """Return the rendered activity block of a noticing step, or nothing otherwise."""
+    if not request.activity_evidence:
+        return ""
+    return request.activity_evidence + "\n"
 
 
 def _reflection_rule(request: GraphThoughtRequest) -> str:
@@ -760,6 +774,13 @@ def run_graph_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner,
             supplied = supplied.model_copy(update={"request": request, "grant": execution_grant,
                 "perspective_evidence": perspective_rule(perspective_text,
                     companion_name=request.companion_name, subject_name=perspective.subject_name)})
+    if parent.receipt.state.next_operation in METACOGNITION_OPERATIONS:
+        # A noticing step reads the recorded facts about the companion's own
+        # recent thinking. The facts are built without a model call; the rule
+        # block travels in the request, and no other step's prompt changes.
+        activity = thought_activity(request.recent_thoughts)
+        supplied = supplied.model_copy(update={
+            "activity_evidence": activity_rule(render_thought_activity(activity))})
     started = monotonic()
     if parent.receipt.state.next_operation == "memory_search":
         if recall_memory is None:
