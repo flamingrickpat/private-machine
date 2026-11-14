@@ -126,15 +126,23 @@ def graph_thought_instruction(request: GraphThoughtRequest) -> str:
                          "The source records you cite belong in evidence_ids only.")
     if operation.mode == "generative":
         branch_rule = "It can create zero to three new alternative branches."
+        # A generative step that surveys earlier nodes otherwise reports that
+        # survey as a comparison, which only a discriminatory operation can claim.
+        progress_rule = ("A generative operation cannot claim progress.kind='discrimination'. "
+                         "Use progress.kind='new_evidence' only when this step inspected a new original source; "
+                         "otherwise use progress.kind='none' with compared_node_ids=[].")
     else:
         branch_rule = ("It must return alternatives=[]; assess the supplied material "
                        "without generating new branch records.")
+        progress_rule = ("It can claim progress.kind='discrimination' only when it compares at least two accepted "
+                         "graph nodes, each named in compared_node_ids and in relations.")
     return (
         f"Perform {operation.name} ({operation.mode}) as {request.request.companion_name}'s private inquiry. "
         f"Purpose: {operation.description}\n"
         f"Accepted graph node IDs available for relations and comparisons: {accepted_nodes}.\n"
         + relation_rule + "\n"
         + f"This operation is {operation.mode}. " + branch_rule + "\n"
+        + progress_rule + "\n"
         + "Return one InquiryStep. Execute only the admitted operation. Cite only supplied source or accepted node IDs. "
         "A later step must relate explicitly to accepted earlier nodes. New alternatives have no committed IDs yet. "
         "Keep assumptions, evidence, plausibility, interest, desirability and action suitability separate. "
@@ -188,8 +196,18 @@ def validate_graph_step(request: GraphThoughtRequest, step: InquiryStep) -> Inqu
     compared = set(step.progress.compared_node_ids)
     if not compared.issubset(targets):
         raise ModelProposalError("Every compared node needs its explicit relation.")
-    if step.progress.kind == "discrimination" and (operation.mode != "discriminatory" or len(compared) < 2):
-        raise ModelProposalError("Discrimination progress must compare at least two accepted nodes.")
+    if step.progress.kind == "discrimination":
+        # These are two different mistakes. One shared message told a model that
+        # had already compared several nodes to compare two, and it never
+        # learned that its operation mode was the actual violation.
+        if operation.mode != "discriminatory":
+            raise ModelProposalError(
+                f"{operation.name} is a {operation.mode} operation, so it cannot claim discrimination progress. "
+                "Set progress.kind='new_evidence' if this step inspected a new original source; otherwise set "
+                "progress.kind='none' with compared_node_ids=[] and meaningful_difference=false. "
+                "A later discriminatory operation makes the comparison.")
+        if len(compared) < 2:
+            raise ModelProposalError("Discrimination progress must compare at least two accepted nodes.")
     if step.progress.kind == "new_evidence" and (not step.progress.inspected_source_ids
             or not set(step.progress.inspected_source_ids).issubset(step.evidence_ids)):
         raise ModelProposalError("Evidence acquisition must cite its inspected original source IDs.")

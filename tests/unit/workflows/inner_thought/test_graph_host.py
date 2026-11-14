@@ -24,7 +24,9 @@ from pm.records.global_workspace import GwtTurnRecord
 from pm.records.memory_records import Entity, Feature
 from pm.records.mental_state import FullMentalState
 from workflows.cognitive_control.schemas import ControlConfig
-from workflows.inner_thought.graph_execution import graph_thought_request, validate_graph_step
+from workflows.inner_thought.graph_execution import (
+    graph_thought_instruction, graph_thought_request, validate_graph_step,
+)
 from workflows.inner_thought.pipeline import ModelProposalError
 from workflows.inner_thought.graph_host import (
     FrozenProjectionPayload, PrivateInquiryOwner, active_inquiry, attach_inner_projection, pending_findings,
@@ -333,6 +335,48 @@ class GraphHostTests(unittest.TestCase):
             validate_graph_step(request, generation.model_copy(update={"evidence_ids": (999999,)}))
         with self.assertRaises(ModelProposalError):
             validate_graph_step(request, generation.model_copy(update={"outcome": "finding", "next_operation": ""}))
+
+    def test_discrimination_claim_names_the_wrong_operation_mode_separately_from_the_count(self) -> None:
+        generation = self.generation().model_copy(update={"next_operation": "counterfactual"})
+        generated = self.advance(self.begin(), generation, "generation")
+        node_ids = generated.receipt.state.node_ids
+        request = graph_thought_request(self.store.snapshot(capture=False), InnerRequest(), generated,
+                                       self.owner.execution_grant(generated))
+        instruction = graph_thought_instruction(request)
+        self.assertIn("A generative operation cannot claim progress.kind='discrimination'", instruction)
+        relations = tuple(ThoughtRelation(target_record_id=node_id, kind="notices", reason="Survey the earlier node.")
+                          for node_id in node_ids)
+        # The model compared three nodes, so a message about the count cannot help it.
+        surveyed = InquiryStep(operation="counterfactual", thought="A different path stays imaginable.",
+            evidence_ids=(self.source.id,), assumptions=(), reality="imagined", judgments=self.judgments,
+            relations=relations, alternatives=(),
+            progress=InquiryProgress(kind="discrimination", inspected_source_ids=(), compared_node_ids=node_ids,
+                meaningful_difference=True, reason="The earlier nodes differ."),
+            outcome="continue", reason="Compare next.", information_gap="Unknown motive.",
+            next_operation="feasibility_check")
+        with self.assertRaisesRegex(ModelProposalError,
+                "counterfactual is a generative operation, so it cannot claim discrimination progress") as raised:
+            validate_graph_step(request, surveyed)
+        self.assertIn("progress.kind='none'", str(raised.exception))
+        corrected = surveyed.model_copy(update={"progress": InquiryProgress(kind="none", inspected_source_ids=(),
+            compared_node_ids=(), meaningful_difference=False, reason="This step only generates.")})
+        self.assertEqual(validate_graph_step(request, corrected), corrected)
+
+    def test_discriminatory_claim_must_compare_two_accepted_nodes(self) -> None:
+        generated = self.advance(self.begin(), self.generation(), "generation")
+        node_ids = generated.receipt.state.node_ids
+        request = graph_thought_request(self.store.snapshot(capture=False), InnerRequest(), generated,
+                                       self.owner.execution_grant(generated))
+        self.assertIn("at least two accepted graph nodes", graph_thought_instruction(request))
+        single = InquiryStep(operation="feasibility_check", thought="Only one reading was weighed.",
+            evidence_ids=(self.source.id,), assumptions=(), reality="inferred", judgments=self.judgments,
+            relations=(ThoughtRelation(target_record_id=node_ids[0], kind="notices", reason="Weigh it."),),
+            alternatives=(), progress=InquiryProgress(kind="discrimination", inspected_source_ids=(),
+                compared_node_ids=(node_ids[0],), meaningful_difference=True, reason="One node only."),
+            outcome="continue", reason="Compare more.", information_gap="Unknown motive.",
+            next_operation="future_projection")
+        with self.assertRaisesRegex(ModelProposalError, "must compare at least two accepted nodes"):
+            validate_graph_step(request, single)
 
     def test_forced_stall_bound_does_not_publish_generated_possibilities_as_finding(self) -> None:
         self.owner.limits = ControlConfig(stalled_steps=1)
