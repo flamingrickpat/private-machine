@@ -41,6 +41,7 @@ from workflows.focus_management.host import MentalActionLifecycle
 from workflows.inner_thought.graph_execution import PrivateGraphResult
 from workflows.inner_thought.graph_host import deliberate_inquiry, pending_findings
 from workflows.inner_thought.inquiry import INQUIRY_EPISODE_KEY, InquiryNodeMetadata, inquiry_history
+from workflows.inner_thought.metacognition import METACOGNITION_OPERATIONS
 from workflows.inner_thought.nominations import NOMINATION_KEY, NominationMetadata
 from workflows.main_cognition.entity_updates import prepare_perspective_revisions
 from workflows.inner_thought.schemas import InnerRequest, ThoughtAttentionReceipt
@@ -588,6 +589,20 @@ class StepObservation(BaseModel):
     information_gap: str = Field(description="Evidence the step says is missing; empty when it states none.")
 
 
+class NoticingObservation(BaseModel):
+    """One accepted noticing step and how it reached main cognition."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    record_id: int = Field(description="Record id of the executed noticing step.")
+    operation: str = Field(description="rumination_notice or attention_drift_notice.")
+    outcome: str = Field(description="The step's own stated outcome, usually continue.")
+    received_activity: bool = Field(description="True when the step record keeps the recorded activity facts.")
+    delivered_thought_created: bool = Field(description="True when the session published the step as thought.created.")
+    repeated_concern_after: bool = Field(
+        description="True when the real trigger policy still reports repeated_concern for that source after the noticing.")
+
+
 class PrivateDwellingOutcome(ScenarioOutcome):
     """What one private loop did with a short ambiguous reply.
 
@@ -605,6 +620,8 @@ class PrivateDwellingOutcome(ScenarioOutcome):
     stop_reason: str = Field(description="Stop reason on the newest inquiry receipt.")
     repeated_concern: bool = Field(
         description="True when the real trigger policy reports repeated_concern over the retained thoughts at the end.")
+    noticing_steps: tuple[NoticingObservation, ...] = Field(
+        description="Every accepted noticing step and how it reached main cognition.")
     self_observation_nominated: bool = Field(
         description="True when any nomination cited an earlier private thought or graph operation.")
     quale_ids: tuple[int, ...] = Field(description="Felt-state records committed during the run.")
@@ -689,6 +706,36 @@ def _repeated_concern(runtime: ScenarioRuntime) -> bool:
     return any(candidate.name == "repeated_concern" for candidate in evaluate_triggers(request))
 
 
+def _noticing_observations(runtime: ScenarioRuntime) -> tuple[NoticingObservation, ...]:
+    """Read every accepted noticing step and how it reached main cognition.
+
+    ``received_activity`` is the step record's stored activity facts;
+    delivery is the session's own ``thought.created`` envelope naming the
+    step; the concern-after readout is the real trigger policy over the
+    thoughts the store retains now, where the next-after noticing should have
+    quieted the source.
+    """
+    view = runtime.store.snapshot(capture=False)
+    delivered_ids: set[int] = {int(item.payload["knoxel_id"])
+                               for item in runtime.envelopes("thought.created")}
+    repeated_after = _repeated_concern(runtime)
+    rows: list[NoticingObservation] = []
+    for record in runtime.store.all_features:
+        metadata = record.metadata or {}
+        if metadata.get("loop") != "inquiry":
+            continue
+        step = InquiryNodeMetadata.model_validate(metadata).inquiry_step
+        if step.operation not in METACOGNITION_OPERATIONS:
+            continue
+        rows.append(NoticingObservation(
+            record_id=int(record.id), operation=step.operation, outcome=step.outcome,
+            received_activity="thought_activity" in metadata,
+            delivered_thought_created=int(record.id) in delivered_ids,
+            repeated_concern_after=repeated_after))
+    rows.sort(key=lambda item: item.record_id)
+    return tuple(rows)
+
+
 #: How many private opportunities the dwelling scenario may use before it stops
 #: waiting for the episode to leave the slot. The shipped step bound is six.
 DWELLING_CYCLE_LIMIT = 8
@@ -713,6 +760,7 @@ def run_private_dwelling(runtime: ScenarioRuntime) -> ScenarioOutcome:
     selected = _selected_nomination(runtime)
     stop_reason = _newest_stop_reason(runtime)
     repeated = _repeated_concern(runtime)
+    noticing_steps = _noticing_observations(runtime)
     self_observation = any(item.cites_private_thought for item in nominations)
     qualia = tuple(int(record.id) for record in runtime.store.all_knoxels.values()
                    if isinstance(record, QualeRecord))
@@ -723,6 +771,7 @@ def run_private_dwelling(runtime: ScenarioRuntime) -> ScenarioOutcome:
         f"steps: {[(item.operation, item.outcome, item.progress_kind) for item in steps]}",
         f"stop reason: {stop_reason}",
         f"repeated_concern: {repeated}",
+        f"noticing steps: {[(item.operation, item.outcome, item.received_activity, item.delivered_thought_created, item.repeated_concern_after) for item in noticing_steps]}",
         f"nominations citing private thinking: {self_observation}",
         f"felt-state records: {list(qualia)}",
     )
@@ -730,7 +779,7 @@ def run_private_dwelling(runtime: ScenarioRuntime) -> ScenarioOutcome:
         scenario="private-dwelling", summary=summary, replay_blockers=(), cycles=tuple(cycles),
         nominations=nominations, selected_nomination_id=selected, steps=steps,
         stop_reason=stop_reason, repeated_concern=repeated,
-        self_observation_nominated=self_observation, quale_ids=qualia,
+        noticing_steps=noticing_steps, self_observation_nominated=self_observation, quale_ids=qualia,
         requests=runtime.provider_requests())
 
 
@@ -931,5 +980,5 @@ def scenario_named(name: str) -> Scenario:
 
 __all__ = ["DELIBERATE_INSTRUCTION", "ORDINARY_INPUT", "SCENARIOS", "CycleObservation",
            "DeliberateEntryOutcome", "DeliveredResult", "NominationObservation",
-           "PerspectiveInquiryOutcome", "PrivateContinuityOutcome", "PrivateDwellingOutcome", "Scenario",
-           "ScenarioOutcome", "StepObservation", "scenario_named"]
+           "NoticingObservation", "PerspectiveInquiryOutcome", "PrivateContinuityOutcome",
+           "PrivateDwellingOutcome", "Scenario", "ScenarioOutcome", "StepObservation", "scenario_named"]
