@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from workflows.inner_thought.metacognition import METACOGNITION_OPERATIONS
 from workflows.inner_thought.schemas import TriggerCandidate, InnerRequest
 from workflows.inner_thought.request_views import RecentThoughtView
 
@@ -171,9 +172,21 @@ def _repeated_source(recent_thoughts: Sequence[RecentThoughtView]) -> int | None
     inquiry cites the same origin sources by design, so counting a progressing
     step would report rumination inside any ordinary multi-step question. A
     linear thought keeps the existing rule.
+
+    A noticing step never counts toward the repeat count, and a source that a
+    noticing cites is not reported again while that noticing is still in the
+    window: noticing dwelling must not itself count as dwelling, and a concern
+    the companion already noticed is not flagged a second time (decision V2 in
+    the B06 plan).
     """
+    noticed: set[int] = set()
+    for thought in recent_thoughts:
+        if thought.operation in METACOGNITION_OPERATIONS:
+            noticed.update(thought.source_ids)
     counts: dict[int, int] = {}
     for thought in recent_thoughts:
+        if thought.operation in METACOGNITION_OPERATIONS:
+            continue
         if thought.loop == "inquiry":
             inquiry = thought.inquiry
             if inquiry is None:
@@ -181,6 +194,8 @@ def _repeated_source(recent_thoughts: Sequence[RecentThoughtView]) -> int | None
             if inquiry.progress_kind != "none":
                 continue
         for source_id in thought.source_ids:
+            if source_id in noticed:
+                continue
             counts[source_id] = counts.get(source_id, 0) + 1
             if counts[source_id] >= RUMINATION_REPEATS:
                 return source_id

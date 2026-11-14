@@ -78,6 +78,35 @@ class TriggerTests(unittest.TestCase):
         triggers = evaluate_triggers(request(recent_thoughts=thoughts))
         self.assertIn("repeated_concern", [item.name for item in triggers])
 
+    def test_noticing_suppresses_the_concern_it_names(self):
+        """Three stalled steps would fire; the noticing of the same source quiets it."""
+        stalled = [{"knoxel_id": index, "text": f"thought {index}", "tick_id": 98,
+                    "loop": "inquiry", "operation": "perspective_shift", "trigger": "",
+                    "continuation": "", "source_ids": [5], "revision": 1,
+                    "inquiry": {"episode_id": "ep-a", "outcome": "continue", "reason": "no gain",
+                                 "information_gap": "", "progress_kind": "none"}}
+                   for index in range(3)]
+        noticing = {"knoxel_id": 10, "text": "I keep returning to this.", "tick_id": 99,
+                    "loop": "inquiry", "operation": "rumination_notice", "trigger": "",
+                    "continuation": "", "source_ids": [5], "revision": 1,
+                    "inquiry": {"episode_id": "ep-a", "outcome": "continue", "reason": "noticed",
+                                 "information_gap": "", "progress_kind": "none"}}
+        base = evaluate_triggers(request(recent_thoughts=stalled))
+        self.assertIn("repeated_concern", [item.name for item in base])
+        with_noticing = evaluate_triggers(request(recent_thoughts=[noticing, *stalled]))
+        self.assertNotIn("repeated_concern", [item.name for item in with_noticing])
+
+    def test_only_noticing_thoughts_never_fire(self):
+        """Noticing dwelling cannot itself count as dwelling."""
+        notices = [{"knoxel_id": index, "text": f"notice {index}", "tick_id": 98,
+                    "loop": "inquiry", "operation": "rumination_notice", "trigger": "",
+                    "continuation": "", "source_ids": [5], "revision": 1,
+                    "inquiry": {"episode_id": "ep-a", "outcome": "continue", "reason": "noticed",
+                                 "information_gap": "", "progress_kind": "none"}}
+                   for index in range(3)]
+        triggers = evaluate_triggers(request(recent_thoughts=notices))
+        self.assertNotIn("repeated_concern", [item.name for item in triggers])
+
     def test_startup_gap_fires_once(self):
         triggers = evaluate_triggers(request(
             main_frame={"tick": 100, "frame_id": 3, "summary": "back", "surprise": 0.0,
