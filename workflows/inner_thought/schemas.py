@@ -22,6 +22,7 @@ from pm.records.base import RecordScope
 from pm.records.mental_state import FullMentalState
 from pm.records.qualia_records import QualeChannelState
 from workflows.cognitive_control.schemas import FocusProposal, FocusState
+from workflows.entity_context.schemas import EntityExtractionDraft
 from workflows.inner_thought.request_views import (
     ExpectationView, GoalView, MainFrameView, OperationSuggestion, PrivateInspection, RecentThoughtView,
 )
@@ -160,6 +161,9 @@ class IntegrationResult(BaseModel):
 
     goal_changes: list[GoalChange] = Field(default_factory=list[GoalChange])
     focus: FocusProposal | None = Field(default=None, description="Temporary focus advice for main attention. Only requested at the end of deliberate mental work; null otherwise.")
+    perspective_revision: EntityExtractionDraft | None = Field(default=None, exclude_if=_absent,
+        description="Proposed entries for the subject's entity model. Only requested at the outcome of a "
+                    "perspective inquiry; null otherwise.")
     expectation: ExpectationUpdate = Field(default_factory=ExpectationUpdate)
     noticing: str = ""
     disclosure: DisclosureChoice = Field(default_factory=DisclosureChoice)

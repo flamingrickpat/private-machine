@@ -16,6 +16,7 @@ main cognition writes them (decision D2 in the B06 plan).
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import datetime
 
 from pydantic import Field
@@ -26,6 +27,9 @@ from pm.records.memory_records import Entity
 from workflows.entity_context.owner import active_claims
 from workflows.entity_context.projection import project_entity_context, render_entity_context
 from workflows.entity_context.schemas import EntityContextKey, EntityContextView, EntityProjectionQuery
+from workflows.entity_context.schemas import EntityExtractionDraft
+from workflows.inner_thought.inquiry import outside_source
+from workflows.inner_thought.pipeline import IntegrationError
 from workflows.inner_thought.schemas import InquiryContract, InquiryGrant
 
 
@@ -117,6 +121,97 @@ def perspective_rule(evidence: str, *, companion_name: str, subject_name: str) -
         "Perspective material:\n" + evidence)
 
 
+class ExistingClaimRef(InquiryContract):
+    """One accepted claim the integrate stage may use for correction or challenge."""
+
+    claim_id: str = Field(min_length=1, description="Owner-assigned immutable identity of the accepted claim.")
+    claim_key: str = Field(min_length=1, description="Exact proposition key within the subject family.")
+    statement: str = Field(min_length=1, description="The accepted attributed assertion.")
+    source_ids: tuple[int, ...] = Field(description="Original sources the accepted claim already cites.")
+
+
+class PerspectiveRevisionRequest(InquiryContract):
+    """Ask the integrate stage for optional entity-model entries at the end of a perspective inquiry."""
+
+    subject_entity_id: int = Field(gt=0, description="Identity anchor of the entity this inquiry modelled.")
+    subject_name: str = Field(min_length=1, description="Canonical name of the subject entity.")
+    citable_source_ids: tuple[int, ...] = Field(
+        description="Original outside sources only; never a private thought or an identity anchor.")
+    existing_claims: tuple[ExistingClaimRef, ...] = Field(
+        description="Accepted claims of the subject that a revision may cite, correct, or challenge.")
+
+
+def revision_request(view: Snapshot, context: PerspectiveContext,
+                     grant: InquiryGrant) -> PerspectiveRevisionRequest:
+    """Build the bounded revision question from the captured context and grant.
+
+    ``citable_source_ids`` are only the grant sources that are independently
+    supplied outside material (decision D5): a private thought that the step
+    itself produced is not evidence about the subject. ``existing_claims`` are
+    the accepted claims shown to the model, with their original sources.
+    """
+    citable_source_ids = tuple(source.record_id for source in grant.sources
+                               if outside_source(view, source.record_id, grant=grant))
+    existing_claims = tuple(
+        ExistingClaimRef(claim_id=item.claim.claim_id, claim_key=item.claim.claim_key,
+            statement=item.claim.statement,
+            source_ids=tuple(evidence.source.record_id for evidence in item.claim.evidence))
+        for item in context.entity_view.claims)
+    return PerspectiveRevisionRequest(subject_entity_id=context.subject_entity_id,
+        subject_name=context.subject_name, citable_source_ids=citable_source_ids,
+        existing_claims=existing_claims)
+
+
+def _normalized(text: str) -> str:
+    """Collapse whitespace so rewritten wording cannot dodge the repeat rule."""
+    return " ".join(text.split())
+
+
+def validate_perspective_revision(draft: EntityExtractionDraft, request: PerspectiveRevisionRequest,
+                                  source_texts: Mapping[int, str]) -> None:
+    """Reject a stored perspective draft that breaks the entity model or its evidence rules.
+
+    Each message tells the model what to do instead, in one sentence. A stale
+    draft is a model-quality result against a changed world, not an internal
+    bug: the owner records the rejection and the episode continues.
+    """
+    citable = frozenset(request.citable_source_ids)
+    existing_by_id = {claim.claim_id: claim for claim in request.existing_claims}
+    for claim in draft.claims:
+        if claim.subject_entity_id != request.subject_entity_id:
+            raise IntegrationError(
+                f"A perspective claim names another subject; name entity {request.subject_entity_id}.")
+        if claim.epistemic_kind == "observation":
+            raise IntegrationError("Thinking is not observing; use inference, hypothetical, or report.")
+        if claim.interaction is not None or claim.layer == "situation":
+            raise IntegrationError(
+                "A perspective revision cannot change the receive/respond estimate or the current-situation layer.")
+        outside = [source_id for source_id in claim.source_ids if source_id not in citable]
+        if outside:
+            raise IntegrationError(
+                f"A perspective claim cites a source this inquiry cannot read: {sorted(outside)}.")
+        if claim.epistemic_kind == "report":
+            quote = claim.exact_quote or ""
+            if not any(quote in source_texts.get(source_id, "") for source_id in claim.source_ids):
+                raise IntegrationError(
+                    "A report needs its exact quote inside one of the message texts it cites.")
+        targets = set(claim.correction_target_ids + claim.challenge_target_ids)
+        if not targets.issubset(existing_by_id):
+            raise IntegrationError(
+                "Correct or challenge only the existing claim IDs supplied; write an estimate for anything new.")
+        if claim.perspective_entity_id is not None and claim.perspective_entity_id != request.subject_entity_id:
+            raise IntegrationError(
+                "Attributed knowledge belongs to the subject of this inquiry, not to another entity.")
+        for existing in request.existing_claims:
+            if (existing.claim_key == claim.claim_key
+                    and _normalized(existing.statement) == _normalized(claim.statement)):
+                if not set(claim.source_ids).difference(existing.source_ids):
+                    raise IntegrationError(
+                        "Repeating an accepted claim with no new source adds no support; "
+                        "cite a new source or drop the claim.")
+
+
 __all__ = [
-    "PerspectiveContext", "capture_perspective_context", "perspective_rule", "render_perspective_context",
+    "ExistingClaimRef", "PerspectiveContext", "PerspectiveRevisionRequest", "capture_perspective_context",
+    "perspective_rule", "render_perspective_context", "revision_request", "validate_perspective_revision",
 ]

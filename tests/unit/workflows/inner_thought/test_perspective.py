@@ -30,8 +30,8 @@ from workflows.cognitive_control.attention import captured_private_focus
 from workflows.cognitive_control.schemas import ControlConfig
 from workflows.entity_context.owner import EntityContextOwner
 from workflows.entity_context.schemas import (
-    EntityClaimEvidence, EntityClaimView, EntityContextClaim, EntityContextKey, EntityContextProposal,
-    EntityProjectionQuery,
+    EntityClaimDraft, EntityClaimEvidence, EntityContextClaim, EntityContextKey, EntityContextProposal,
+    EntityExtractionDraft, EntityProjectionQuery,
 )
 from workflows.entity_context.projection import project_entity_context
 from workflows.inner_thought.graph_execution import (
@@ -41,10 +41,13 @@ from workflows.inner_thought.graph_host import PrivateInquiryOwner, accepted_sou
 from workflows.inner_thought.inquiry import InquiryRecord
 from workflows.inner_thought.nominations import capture_inquiry_grant
 from workflows.inner_thought.perspective import (
-    PerspectiveContext, capture_perspective_context, perspective_rule, render_perspective_context,
+    ExistingClaimRef, PerspectiveContext, PerspectiveRevisionRequest, capture_perspective_context,
+    perspective_rule, render_perspective_context, revision_request, validate_perspective_revision,
 )
+from workflows.inner_thought.pipeline import IntegrationError, validate_integration
 from workflows.inner_thought.schemas import (
-    DeliberateAdmission, InnerRequest, InquiryGrant, InquiryProgress, InquiryStep, ThoughtJudgments,
+    DeliberateAdmission, InnerRequest, InquiryGrant, InquiryProgress, InquiryStep, IntegrationResult,
+    ThoughtJudgments,
 )
 from pm.memory.dependencies import capture_source
 
@@ -247,6 +250,113 @@ class PerspectiveTextTests(unittest.TestCase):
         self.assertIn("The companion's knowledge is not the subject's knowledge.", text)
         self.assertIn("This inquiry cannot contact the subject.", text)
         self.assertIn("PEGGY: ...", text)
+
+
+class PerspectiveRevisionTests(PerspectiveFixture):
+    """The nine validation rules of a proposed perspective revision, plus its request."""
+
+    SUBJECT = 3
+    CITED = (10, 11)
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.request = PerspectiveRevisionRequest(
+            subject_entity_id=self.SUBJECT, subject_name="Jesse",
+            citable_source_ids=self.CITED,
+            existing_claims=(
+                ExistingClaimRef(claim_id="c-workday", claim_key="routine.workday",
+                    statement="Jesse is usually up around six on workdays.", source_ids=(10,)),
+            ))
+        self.source_texts: dict[int, str] = {
+            10: "I am usually up around six on workdays.",
+            11: "Nothing before coffee.",
+        }
+        self.owner_validator = validate_perspective_revision
+
+    def draft(self, **overrides: object) -> EntityExtractionDraft:
+        base: dict[str, object] = dict(
+            subject_entity_id=self.SUBJECT, source_ids=[10], exact_quote=None, layer="pattern",
+            claim_key="routine.new", statement="Jesse is usually reachable after seven.",
+            epistemic_kind="inference", perspective_entity_id=None, confidence=0.6,
+            applicable_from_utc=None, review_after_utc=None, applicable_until_utc=None,
+            interaction=None, correction_target_ids=[], challenge_target_ids=[])
+        base.update(overrides)
+        return EntityExtractionDraft(claims=[EntityClaimDraft(**base)])
+
+    def test_valid_draft_passes(self) -> None:
+        self.owner_validator(self.draft(), self.request, self.source_texts)
+
+    def test_revision_without_a_request_is_rejected(self) -> None:
+        integration = IntegrationResult(perspective_revision=self.draft())
+        with self.assertRaises(IntegrationError):
+            validate_integration(integration, set(), InnerRequest(), perspective=None, source_texts=None)
+
+    def test_claim_names_the_requested_subject(self) -> None:
+        with self.assertRaises(IntegrationError):
+            self.owner_validator(self.draft(subject_entity_id=999), self.request, self.source_texts)
+
+    def test_thinking_is_not_observing(self) -> None:
+        with self.assertRaises(IntegrationError):
+            self.owner_validator(self.draft(epistemic_kind="observation"), self.request, self.source_texts)
+
+    def test_no_interaction_or_situation_layer(self) -> None:
+        from workflows.entity_context.schemas import InteractionClaim
+        interaction = InteractionClaim(dimension="receive", ability="can")
+        with self.assertRaises(IntegrationError):
+            self.owner_validator(self.draft(interaction=interaction), self.request, self.source_texts)
+        with self.assertRaises(IntegrationError):
+            self.owner_validator(self.draft(layer="situation"), self.request, self.source_texts)
+
+    def test_sources_must_be_citable(self) -> None:
+        with self.assertRaises(IntegrationError):
+            self.owner_validator(self.draft(source_ids=[99]), self.request, self.source_texts)
+
+    def test_report_needs_its_exact_quote_in_a_cited_text(self) -> None:
+        bad = self.draft(epistemic_kind="report", exact_quote="up at nine o'clock")
+        with self.assertRaises(IntegrationError):
+            self.owner_validator(bad, self.request, self.source_texts)
+        good = self.draft(epistemic_kind="report", exact_quote="Nothing before coffee.", source_ids=[11])
+        self.owner_validator(good, self.request, self.source_texts)
+
+    def test_correction_and_challenge_must_name_existing_claims(self) -> None:
+        with self.assertRaises(IntegrationError):
+            self.owner_validator(self.draft(challenge_target_ids=["c-missing"]), self.request, self.source_texts)
+        with self.assertRaises(IntegrationError):
+            self.owner_validator(self.draft(correction_target_ids=["c-missing"]), self.request, self.source_texts)
+        self.owner_validator(self.draft(challenge_target_ids=["c-workday"]), self.request, self.source_texts)
+
+    def test_attributed_knowledge_belongs_to_the_subject(self) -> None:
+        with self.assertRaises(IntegrationError):
+            self.owner_validator(self.draft(perspective_entity_id=7), self.request, self.source_texts)
+        self.owner_validator(self.draft(perspective_entity_id=self.SUBJECT), self.request, self.source_texts)
+
+    def test_repeated_claim_needs_a_new_source(self) -> None:
+        repeated = self.draft(claim_key="routine.workday",
+            statement="Jesse is usually up around six on workdays.")
+        with self.assertRaises(IntegrationError):
+            self.owner_validator(repeated, self.request, self.source_texts)
+        new_source = self.draft(claim_key="routine.workday", source_ids=[11],
+            statement="Jesse is usually up around six on workdays.")
+        self.owner_validator(new_source, self.request, self.source_texts)
+
+    def test_revision_request_lists_only_outside_sources_and_accepted_claims(self) -> None:
+        self.claim(self.workday_line, "morning-workday", claim_key="routine.workday",
+            statement="Jesse is usually up around six on workdays.")
+        self.claim(self.weekend_line, "morning-weekend", claim_key="routine.weekend",
+            statement="Weekends do not count and nothing happens before coffee.")
+        view = self.store.snapshot(capture=False)
+        grant = capture_inquiry_grant(view, observer_entity_id=self.observer.id, scope=RecordScope(),
+            source_ids=[self.workday_line.id, self.weekend_line.id], critical_epoch=0)
+        context = capture_perspective_context(view, subject_entity_id=self.partner.id, grant=grant,
+            accepted_ids=accepted_source_ids(self.store), as_of_utc=self.now)
+        request = revision_request(view, context, grant)
+        self.assertEqual(request.subject_entity_id, self.partner.id)
+        self.assertEqual(set(request.citable_source_ids),
+                         {self.workday_line.id, self.weekend_line.id})
+        keys = {item.claim_key for item in request.existing_claims}
+        self.assertEqual(keys, {"routine.workday", "routine.weekend"})
+        sources = {item.source_ids for item in request.existing_claims}
+        self.assertTrue(all(len(item) == 1 for item in sources))
 
 
 if __name__ == "__main__":

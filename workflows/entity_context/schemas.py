@@ -99,6 +99,15 @@ class EntityExtractionDraft(BaseModel):
     claims: list[EntityClaimDraft] = Field(default_factory=list[EntityClaimDraft], max_length=4)
 
 
+class PerspectiveRevision(BaseModel):
+    """Entity-model entries that a perspective inquiry proposed. Main cognition stages them."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    subject_entity_id: int = Field(gt=0, description="Identity anchor of the entity the inquiry modelled.")
+    claims: tuple[EntityClaimDraft, ...] = Field(min_length=1, max_length=4,
+        description="Model drafts. The host supplies fingerprints, claim IDs, and the family parent later.")
+
+
 class EntityContextClaim(BaseModel):
     """One attributed claim whose historical truth and current applicability differ."""
 

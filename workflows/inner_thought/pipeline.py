@@ -14,8 +14,8 @@ The parent report is data for the host. The host owns the commit boundary.
 """
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import Any
+from collections.abc import Callable, Mapping
+from typing import TYPE_CHECKING, Any
 
 from workflows.reflection.schemas import ReflectionSource
 from workflows.public_speech.public_context import EvidenceItem
@@ -29,6 +29,11 @@ from workflows.inner_thought.schemas import (
     ThoughtResult,
     TriggerChoice,
 )
+
+if TYPE_CHECKING:
+    # The perspective specialization imports IntegrationError from this module,
+    # so its types enter only for static checking and inside the function.
+    from workflows.inner_thought.perspective import PerspectiveRevisionRequest
 
 STAGE_ORDER = ("trigger", "thought", "integrate", "reflection")
 
@@ -213,15 +218,31 @@ def concrete_progress(integration: IntegrationResult, thought: ThoughtResult,
 
 
 def validate_integration(integration: IntegrationResult, known: set[int], request: InnerRequest,
-                         *, focus_requested: bool = False) -> None:
+                         *, focus_requested: bool = False,
+                         perspective: PerspectiveRevisionRequest | None = None,
+                         source_texts: Mapping[int, str] | None = None) -> None:
     """Reject unsupported expectation or focus proposals with IntegrationError. Accept no state.
 
     ``focus_requested`` is True only for the integration that ends deliberate
     mental work. Focus advice from any other integration is rejected, and
-    requested advice may only name IDs in ``known``.
+    requested advice may only name IDs in ``known``. ``perspective`` with its
+    ``source_texts`` is supplied only for the integration at the outcome of a
+    perspective inquiry; a revision that appears without that request is
+    rejected, and every rule of the proposal is checked before it can be kept.
     """
     if integration.progress not in PROGRESS_KINDS:
         raise IntegrationError(f"unknown progress kind: {integration.progress}")
+    revision = integration.perspective_revision
+    if revision is not None:
+        if perspective is None:
+            raise IntegrationError(
+                "a perspective revision was not requested for this thought; return perspective_revision as null")
+        if source_texts is None:
+            raise ValueError("Perspective revision validation requires the citable message texts.")
+        # A local import keeps the perspective specialization out of the
+        # pipeline's module-level dependencies, which would cycle.
+        from workflows.inner_thought.perspective import validate_perspective_revision
+        validate_perspective_revision(revision, perspective, source_texts)
     focus = integration.focus
     if focus is not None:
         if not focus_requested:
