@@ -5,6 +5,8 @@ graph operation stores its typed integration and original source guards before
 the recovery-root commit. A separate GWT projection applies expectation effects
 from that immutable payload. Repair does not run inference or refresh sources.
 Main appraisal still owns acceptance of proposed goals and mental-state changes.
+An outcome that ends deliberate mental work can also carry temporary focus
+advice; main attention owns its acceptance.
 """
 from __future__ import annotations
 
@@ -18,6 +20,7 @@ from pm.memory.snapshot import Snapshot
 from pm.memory.write_batch import WriteBatch
 from pm.records.cognitive_records import ExpectationRecord, Intention
 from pm.records.memory_records import Feature
+from workflows.cognitive_control.schemas import FocusProposal
 from workflows.inner_thought.expectations import open_expectation, resolve_expectation
 from workflows.inner_thought.schemas import InquiryGrant, InquiryStep, IntegrationResult
 from workflows.main_cognition.schemas import GoalChange
@@ -40,7 +43,7 @@ class GraphMentalProposal(BaseModel):
     disposition: Literal["propose"] = "propose"
     evidence_ids: tuple[int, ...]
     goal_changes: tuple[GoalChange, ...]
-    focus: None = None
+    focus: FocusProposal | None = None
 
 
 class GraphOutcomeMetadata(BaseModel):
@@ -62,6 +65,11 @@ def capture_graph_outcome(grant: InquiryGrant, step: InquiryStep,
     selected_ids = set(step.evidence_ids)
     selected_ids.update(update.goal_ids)
     selected_ids.update(update.observation_ids)
+    if integration.focus is not None:
+        # Focus advice may only steer attention toward or away from records
+        # the inquiry was granted. Main attention reads these IDs later.
+        selected_ids.update(integration.focus.promote_ids)
+        selected_ids.update(integration.focus.reduce_ids)
     if update.action == "open" and not (update.anticipation.strip() or update.expected_outcome.strip()):
         raise ValueError("An expectation needs its actual anticipation or expected outcome.")
     if update.action == "resolve":
@@ -90,7 +98,7 @@ def attach_graph_outcome(operation: Feature, step: InquiryStep, outcome: GraphOu
     integration = outcome.integration
     proposal = GraphMentalProposal(instruction=integration.noticing or step.reason,
         summary=integration.summary or step.thought, evidence_ids=step.evidence_ids,
-        goal_changes=tuple(integration.goal_changes))
+        goal_changes=tuple(integration.goal_changes), focus=integration.focus)
     operation.metadata.update({"graph_outcome": outcome.model_dump(mode="json"),
         "summary": proposal.summary, "disclosure": integration.disclosure.model_dump(mode="json"),
         "mental_plan": proposal.model_dump(mode="json")})

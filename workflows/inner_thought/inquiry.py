@@ -20,6 +20,12 @@ question. :func:`stage_inquiry_displacement` closes the episode with a terminal
 names the retained question for shared attention, and
 :func:`stage_displaced_inquiry` opens a new episode for it under the current
 grant. The earlier grant, nodes, and budgets never carry over.
+
+Accepted deliberate mental work takes the slot from spontaneous work.
+:func:`stage_inquiry_preemption` parks the active spontaneous episode with a
+receipt that names the deliberate action, and :func:`stage_deliberate_inquiry`
+then opens the deliberate episode. The parked episode keeps its graph and can
+resume through shared attention as soon as the slot is free.
 """
 from __future__ import annotations
 
@@ -41,7 +47,8 @@ from workflows.inner_thought.nominations import expect_inquiry_grant, read_nomin
 from workflows.inner_thought.operations import validate_operation
 from workflows.inner_thought.schemas import (
     DeliberateAdmission, DisplacedInquiryOffer, InquiryAlternative, InquiryDisplacement, InquiryGrant, InquiryOrigin,
-    InquiryReceipt, InquiryResumeDecision, InquiryState, InquiryStep, LegacyEpisodeState, ParkedInquiryOffer,
+    InquiryPreemption, InquiryReceipt, InquiryResumeDecision, InquiryState, InquiryStep, LegacyEpisodeState,
+    ParkedInquiryOffer,
     RetainedOfferSelection, ThoughtAttentionDecision, ThoughtAttentionReceipt,
 )
 from workflows.main_cognition.schemas import ActionMetadata
@@ -55,6 +62,7 @@ DELIBERATE_ACTION_KEY = "deliberate_inquiry_action"
 #: On the entry receipt of a new episode: the displaced receipt its question came from.
 DISPLACED_ORIGIN_KEY = "displaced_inquiry_origin"
 DISPLACED_REASON = "Accepted Critical reconsideration superseded the authority this inquiry was admitted under."
+PREEMPTED_REASON = "Accepted deliberate mental work took the private slot."
 
 
 class InquiryMetadata(BaseModel):
@@ -226,6 +234,9 @@ def inquiry_history(view: Snapshot, episode_id: str) -> tuple[InquiryRecord, ...
                 raise ValueError("A displaced inquiry accepts no further transition.")
             if receipt.displacement is not None:
                 _validate_displacement_transition(prior, receipt)
+                continue
+            if receipt.preemption is not None:
+                _validate_preemption_transition(prior, receipt)
                 continue
             if receipt.resume is not None:
                 _validate_resume_transition(prior, receipt)
@@ -400,7 +411,7 @@ def displaced_offer(view: Snapshot, displaced: InquiryRecord) -> DisplacedInquir
 def _validate_entry_transition(state: InquiryState, receipt: InquiryReceipt) -> None:
     """Accept one entry identity: a nomination, an accepted action, or a displaced question."""
     if (receipt.step is not None or receipt.operation_record_id is not None or receipt.alternative_record_ids
-            or receipt.resume is not None or receipt.displacement is not None
+            or receipt.resume is not None or receipt.displacement is not None or receipt.preemption is not None
             or state.sequence != 0 or state.node_ids):
         raise ValueError("An inquiry entry cannot claim an executed operation.")
     if receipt.deliberate is not None:
@@ -425,7 +436,8 @@ def _validate_displacement_transition(prior: InquiryState, receipt: InquiryRecei
     assert displacement is not None
     if (prior.status not in {"active", "paused"} or receipt.step is not None
             or receipt.operation_record_id is not None or receipt.alternative_record_ids
-            or receipt.attention is not None or receipt.resume is not None or receipt.deliberate is not None):
+            or receipt.attention is not None or receipt.resume is not None or receipt.deliberate is not None
+            or receipt.preemption is not None):
         raise ValueError("A displacement closes active or parked work without an executed operation or admission.")
     if displacement.superseding_critical_epoch <= prior.grant.critical_epoch:
         raise ValueError("Only a newer accepted Critical epoch can displace an inquiry.")
@@ -433,6 +445,22 @@ def _validate_displacement_transition(prior: InquiryState, receipt: InquiryRecei
         "next_operation": "", "resume_after_utc": None, "resume_source_ids": ()})
     if receipt.state != expected:
         raise ValueError("A displaced inquiry must retain its original grant, graph, operation count, and active duration.")
+
+
+def _validate_preemption_transition(prior: InquiryState, receipt: InquiryReceipt) -> None:
+    """Validate a parking preemption: no thought, no progress, no changed graph."""
+    if (prior.status != "active" or receipt.step is not None or receipt.operation_record_id is not None
+            or receipt.alternative_record_ids or receipt.attention is not None or receipt.resume is not None
+            or receipt.deliberate is not None or receipt.displacement is not None):
+        raise ValueError("A preemption parks active work without an executed operation or admission.")
+    parked_at = receipt.state.resume_after_utc
+    if parked_at is None:
+        raise ValueError("A preempted inquiry must record when it was parked.")
+    expected = prior.model_copy(update={"status": "paused", "stop_reason": PREEMPTED_REASON,
+        "resume_after_utc": parked_at, "resume_source_ids": ()})
+    if receipt.state != expected:
+        raise ValueError("A preempted inquiry must retain its original grant, graph, next operation, "
+                         "operation count, and active duration.")
 
 
 def _retains_original_grant(prior: InquiryGrant, grant: InquiryGrant) -> None:
@@ -449,7 +477,7 @@ def _validate_resume_transition(prior: InquiryState, receipt: InquiryReceipt) ->
     assert decision is not None
     attention = receipt.attention
     if (prior.status != "paused" or receipt.step is not None or receipt.operation_record_id is not None
-            or receipt.alternative_record_ids or receipt.deliberate is not None):
+            or receipt.alternative_record_ids or receipt.deliberate is not None or receipt.preemption is not None):
         raise ValueError("A parked inquiry resume cannot claim an executed operation or a deliberate entry.")
     if (attention is None or attention.disposition != "select" or attention.nomination_id is not None
             or attention.parked_receipt_id != receipt.parent_receipt_id
@@ -728,6 +756,58 @@ def stage_inquiry_displacement(batch: WriteBatch, *, parent_receipt_id: int,
     return _stage_receipt(batch, InquiryReceipt(parent_receipt_id=parent_receipt_id, state=state, attention=None,
         step=None, operation_record_id=None, alternative_record_ids=(),
         displacement=InquiryDisplacement(superseding_critical_epoch=superseding_critical_epoch)))
+
+
+def deliberate_admission(view: Snapshot, state: InquiryState) -> DeliberateAdmission | None:
+    """Read the accepted deliberate action that opened an episode, or None.
+
+    Only the episode a deliberate action entered itself returns an admission.
+    An episode that restarts a displaced question returns None, even when the
+    displaced episode began from a deliberate action: Critical reconsideration
+    superseded that action's authority.
+    """
+    return inquiry_history(view, state.episode_id)[0].receipt.deliberate
+
+
+def stage_inquiry_preemption(batch: WriteBatch, *, parent_receipt_id: int, action_record_id: int,
+                             now_utc: datetime) -> InquiryRecord:
+    """Park active spontaneous work because accepted deliberate work takes the private slot.
+
+    The receipt executes no thought and creates no GWT turn. It keeps the
+    grant, graph, next operation, operation count, and active duration, so the
+    question can resume where it stopped. Its parked deadline is ``now_utc``:
+    shared attention can reconsider it as soon as the slot is free, and still
+    decides whether it resumes. The original source fingerprints are not staged
+    as dependencies, because parking is valid whether or not they changed.
+
+    Deliberate work never preempts other deliberate work: main cognition chose
+    both, and the later action waits for the slot. The caller owns the control
+    commit and stages the deliberate entry afterwards.
+    """
+    if now_utc.tzinfo is not None:
+        raise ValueError("Internal inquiry timestamps require naive UTC.")
+    view = batch.view()
+    parent = InquiryMetadata.model_validate(view.get(parent_receipt_id).metadata).inquiry_receipt
+    prior = parent.state
+    history = inquiry_history(view, prior.episode_id)
+    if history[-1].record.id != parent_receipt_id:
+        raise GhostConflict("An inquiry preemption requires its exact current receipt parent.")
+    if prior.status != "active":
+        raise ValueError("Only active work holds the private slot and can be preempted.")
+    if history[0].receipt.deliberate is not None:
+        raise GhostConflict("Deliberate mental work already holds the private slot.")
+    action = view.get(action_record_id)
+    if not isinstance(action, ActionSchemaRecord) or action.scope != prior.grant.scope:
+        raise ValueError("A preemption requires the accepted deliberate action in the inquiry's reality.")
+    _guard_family(batch, INQUIRY_EPISODE_KEY, prior.episode_id)
+    _guard_family(batch, PRIVATE_SLOT_KEY, _slot(prior.grant))
+    batch.expect_revision(parent_receipt_id, view.revisions[parent_receipt_id])
+    batch.depend_on([parent_receipt_id, action_record_id])
+    state = prior.model_copy(update={"status": "paused", "stop_reason": PREEMPTED_REASON,
+        "resume_after_utc": now_utc, "resume_source_ids": ()})
+    return _stage_receipt(batch, InquiryReceipt(parent_receipt_id=parent_receipt_id, state=state, attention=None,
+        step=None, operation_record_id=None, alternative_record_ids=(),
+        preemption=InquiryPreemption(action_record_id=action_record_id)))
 
 
 def stage_displaced_inquiry(batch: WriteBatch, *, displaced_receipt_id: int,

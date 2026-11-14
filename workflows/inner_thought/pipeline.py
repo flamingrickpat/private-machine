@@ -212,10 +212,23 @@ def concrete_progress(integration: IntegrationResult, thought: ThoughtResult,
     return "none", (reason + " (no concrete difference from earlier episode work)").strip()
 
 
-def validate_integration(integration: IntegrationResult, known: set[int], request: InnerRequest) -> None:
-    """Reject unsupported expectation proposals with IntegrationError. Accept no state."""
+def validate_integration(integration: IntegrationResult, known: set[int], request: InnerRequest,
+                         *, focus_requested: bool = False) -> None:
+    """Reject unsupported expectation or focus proposals with IntegrationError. Accept no state.
+
+    ``focus_requested`` is True only for the integration that ends deliberate
+    mental work. Focus advice from any other integration is rejected, and
+    requested advice may only name IDs in ``known``.
+    """
     if integration.progress not in PROGRESS_KINDS:
         raise IntegrationError(f"unknown progress kind: {integration.progress}")
+    focus = integration.focus
+    if focus is not None:
+        if not focus_requested:
+            raise IntegrationError("focus advice was not requested for this thought; return focus as null")
+        outside = sorted(set(focus.promote_ids + focus.reduce_ids) - known)
+        if outside:
+            raise IntegrationError(f"focus advice named ids outside the frozen view: {outside}")
     update = integration.expectation
     if update.action == "open":
         if not (update.anticipation.strip() or update.expected_outcome.strip()):

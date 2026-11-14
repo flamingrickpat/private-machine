@@ -11,7 +11,7 @@ from pm import vclock
 
 from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
-from threading import Event
+from threading import Condition, Event
 from typing import TYPE_CHECKING, Any
 
 from pm.bus.envelopes import Envelope, new_envelope, new_id
@@ -69,6 +69,10 @@ class CognitiveControl(BusModule):
         self.input_triage_enabled: bool = False
         self._assessments: dict[int, EarlyTriageAssessment] = {}
         self._pending_triage: set[int] = set()
+        # Private acceptance waits on this condition while input is
+        # unclassified. Waiting on it releases the store lock completely, also
+        # when the caller holds that lock around its own staging.
+        self._classification_changed: Condition = Condition(ghost.lock)
         self._critical_sources: set[int] = set()
         self._reconsideration_epoch: int = 0
         self._critical_accepted_tick: int = 0
@@ -188,6 +192,7 @@ class CognitiveControl(BusModule):
                 for source_id in critical:
                     self.inference_admission.reserve(f"critical:{source_id}", role=InferenceRole.Critical)
             self._pending_triage.difference_update(source_ids)
+            self._classification_changed.notify_all()
             for source_id in source_ids:
                 self._assessments[source_id] = accepted
             if critical:
@@ -371,6 +376,10 @@ class CognitiveControl(BusModule):
 
         Waiting never consumes fresh outside input: ``observe`` ends the wait
         before delivery. Self-generated frames and old goals cannot end it.
+
+        The result of a selected mental action is kept across generations.
+        Main cognition asked for that work, and its result reached appraisal
+        after a wait before the work moved into the shared private slot.
         """
         with self.ghost.lock:
             if self.waiting():
@@ -389,7 +398,8 @@ class CognitiveControl(BusModule):
                         continue
                 if envelope.topic == "thought.created" and record is not None:
                     generation = record.metadata.get("control_generation")
-                    if generation is not None and generation != self.generation:
+                    mental_action_result = record.metadata.get("mental_action_id") is not None
+                    if generation is not None and generation != self.generation and not mental_action_result:
                         continue
                 accepted.append(envelope)
             return accepted, self.generation
@@ -475,19 +485,27 @@ class CognitiveControl(BusModule):
         replaces the sources the work captured.
 
         The store lock covers the authority check and the durable commit.
+        The hold releases that lock completely, including every level a caller
+        holds around its own staging. Otherwise the classification this hold
+        waits for could never be accepted, because acceptance needs the same
+        lock. Other writers can therefore commit during a hold. The batch's own
+        revision, source, and family guards reject it if they changed what it
+        depends on. A check that the caller made before staging and that the
+        batch does not guard is not repeated after a hold.
         """
-        while True:
-            with self.ghost.lock:
+        with self.ghost.lock:
+            while True:
                 if self.waiting() or generation != self.generation:
                     raise GhostCancelled("Private work was superseded by a wait or Critical reconsideration.")
                 if not self.reconsideration_required():
                     return self.ghost.commit(batch)
-                unclassified = bool(self._pending_triage)
-            if not unclassified:
-                raise GhostCancelled("Private work predates accepted Critical reconsideration.")
-            batch.check_cancelled()
-            if self.stop_event.wait(0.05):
-                raise GhostCancelled("Private work stopped while its input awaited classification.")
+                if not self._pending_triage:
+                    raise GhostCancelled("Private work predates accepted Critical reconsideration.")
+                batch.check_cancelled()
+                if self.stop_event.is_set():
+                    raise GhostCancelled("Private work stopped while its input awaited classification.")
+                # The timeout bounds how late a cancellation or stop is noticed.
+                self._classification_changed.wait(0.05)
 
     def _wake(self, record: Feature, reason: str, *, timeout: bool, now: datetime) -> None:
         batch = self.ghost.begin_batch("wake-" + new_id(), cancel=self.stop_event)

@@ -16,6 +16,12 @@ The slot readers separate three kinds of retained work. Active work holds the
 slot. Parked work can resume its own graph. Displaced work is closed by
 accepted Critical reconsideration; only its question returns, as a new episode.
 
+Accepted deliberate mental work enters the same slot through
+:meth:`PrivateInquiryOwner.admit_deliberate_action`. It parks spontaneous work
+that holds the slot and leaves a receipt naming the action. A finding of a
+deliberate episode carries its action identity, and the deliberate owner
+(:mod:`workflows.focus_management.host`) delivers it instead of this loop.
+
 Each executed operation also retains one felt-state sample. The sample is
 computed once, when the operation is accepted, from the frozen mental state and
 the previous accepted sample. The derived inner turn stores it and emits a
@@ -36,15 +42,17 @@ from pm.memory.store import MemoryStore
 from pm.memory.write_batch import WriteBatch
 from pm.records.cycle_state import CycleState
 from pm.records.global_workspace import GwtTurnRecord
-from pm.records.memory_records import Feature
+from pm.records.enums import EntityClass
+from pm.records.memory_records import Entity, Feature
 from pm.records.mental_state import FullMentalState
 from pm.records.qualia_records import QualeChannelState, QualeRecord
 from workflows.cognitive_control.schemas import ControlConfig
 from workflows.cognitive_control.attention import CapturedPrivateFocus, validate_private_focus
 from workflows.inner_thought.inquiry import (
     AttentionRecord, DELIBERATE_ACTION_KEY, InquiryMetadata, InquiryRecord, PRIVATE_SLOT_KEY,
-    displaced_successor, inquiry_history, stage_attention, stage_attention_outcome, stage_deliberate_inquiry,
-    stage_displaced_inquiry, stage_inquiry_displacement, stage_inquiry_resume, stage_inquiry_step,
+    deliberate_admission, displaced_successor, inquiry_history, stage_attention, stage_attention_outcome,
+    stage_deliberate_inquiry, stage_displaced_inquiry, stage_inquiry_displacement, stage_inquiry_preemption,
+    stage_inquiry_resume, stage_inquiry_step,
 )
 from workflows.inner_thought.nominations import extend_inquiry_grant
 from workflows.inner_thought.nominations import NominationBatchRecord, stage_nomination_batch
@@ -59,6 +67,13 @@ from workflows.inner_thought.felt_state import (
     is_reportable, notable_channels, previous_cycle_sample, project_channels,
 )
 from workflows.main_cognition.cycle_commits import active_intentions
+from workflows.main_cognition.schemas import ActionMetadata
+
+#: Metadata key that names the accepted mental action a result belongs to. The
+#: deliberate owner delivers every record that carries it.
+MENTAL_ACTION_KEY = "mental_action_id"
+#: Metadata key of the correlation the deliberate owner delivers that result under.
+MENTAL_CORRELATION_KEY = "mental_correlation"
 
 
 class FeltStateSample(BaseModel):
@@ -132,6 +147,33 @@ def stage_felt_state(batch: WriteBatch, operation: Feature, evidence_ids: Sequen
     return quale_ids
 
 
+def private_observer(view: Snapshot, companion_name: str) -> Entity:
+    """Read the one companion identity anchor that holds the private slot.
+
+    Zero or several matching anchors raise: a private inquiry cannot guess
+    whose slot it uses.
+    """
+    identities = [record for record in view.all_knoxels.values()
+                  if isinstance(record, Entity) and record.entity_class == EntityClass.Self
+                  and record.content == companion_name]
+    if len(identities) != 1:
+        raise ValueError("A private inquiry requires one exact companion identity anchor.")
+    return identities[0]
+
+
+def accepted_source_ids(store: MemoryStore) -> frozenset[int]:
+    """Return every record whose producing commit is accepted.
+
+    A private grant may only name these records. Every graph commit is an
+    append-only recovery root, and the store refuses a recovery root that
+    depends on an unaccepted commit. The derived inner turn is such a commit
+    until a main cycle reads it, so an expectation that a private outcome just
+    opened is not citable by the next private opportunity. It becomes citable
+    once main cognition has accepted a cycle that read it.
+    """
+    return frozenset(store.recovery_snapshot(capture=False).revisions)
+
+
 def _slot_heads(view: Snapshot, *, observer_entity_id: int) -> list[InquiryRecord]:
     """Read the current receipt head of every episode in one observer's private slot."""
     episodes = {InquiryMetadata.model_validate(record.metadata).inquiry_episode
@@ -195,12 +237,25 @@ def deliberate_inquiry(view: Snapshot, action_record_id: int) -> InquiryRecord |
     return inquiry_history(view, next(iter(episodes)))[-1]
 
 
+def deliberate_action_ids(view: Snapshot) -> tuple[int, ...]:
+    """Return every accepted action that owns a private inquiry, in ascending order."""
+    action_ids = {int(str(record.metadata[DELIBERATE_ACTION_KEY])) for record in view.all_knoxels.values()
+                  if DELIBERATE_ACTION_KEY in record.metadata}
+    return tuple(sorted(action_ids))
+
+
 def pending_findings(store: MemoryStore) -> tuple[Feature, ...]:
-    """Return accepted outcome nodes not yet claimed by actual main appraisal."""
+    """Return accepted outcome nodes of spontaneous work not yet claimed by actual main appraisal.
+
+    A finding of a deliberate episode carries its action identity. The
+    deliberate owner delivers it with the action's correlation, so it is left
+    out here and never delivered twice.
+    """
     with store.lock:
         appraised = {record_id for cycle in store.read_cycles() for record_id in cycle.claimed_ids()}
         return tuple(record for record in store.all_features
-                     if record.metadata.get("private_inquiry_finding") is True and record.id not in appraised)
+                     if record.metadata.get("private_inquiry_finding") is True
+                     and record.metadata.get(MENTAL_ACTION_KEY) is None and record.id not in appraised)
 
 
 class PrivateInquiryOwner:
@@ -397,6 +452,44 @@ class PrivateInquiryOwner:
             self.commit(batch)
             return accepted
 
+    def admit_deliberate_action(self, admission: DeliberateAdmission, *, grant: InquiryGrant,
+                                now_utc: datetime) -> InquiryRecord:
+        """Give one accepted deliberate action the private slot, parking spontaneous work.
+
+        ``grant`` is captured by the deliberate owner at the current accepted
+        Critical epoch and must contain the action. Three things happen under
+        the store lock, each as its own commit through the control fence:
+
+        1. Work from an older Critical epoch is closed as displaced, exactly as
+           on a private timer opportunity, so stale work cannot hold the slot.
+        2. An active spontaneous inquiry is parked with a receipt that names
+           this action. It keeps its graph and returns through shared attention.
+        3. The deliberate episode opens. It runs no operation here; the private
+           loop executes it on its timer.
+
+        Deliberate work never parks other deliberate work: that case raises
+        ``GhostConflict`` and the caller retries when the slot is free. An
+        interruption after step 2 leaves the spontaneous question parked and
+        the action unentered; a replayed request then enters the free slot. An
+        action that already owns an episode returns that episode's current
+        receipt and commits nothing.
+        """
+        with self.store.lock:
+            existing = deliberate_inquiry(self.store.snapshot(capture=False), admission.action_record_id)
+            if existing is not None:
+                return existing
+            self.displace_superseded(observer_entity_id=grant.observer_entity_id,
+                                     critical_epoch=grant.critical_epoch)
+            holder = active_inquiry(self.store.snapshot(capture=False), observer_entity_id=grant.observer_entity_id)
+            if holder is not None:
+                batch = self.store.begin_batch(f"inquiry-preempt:{holder.record.id}", embed=False, cancel=self.cancel)
+                stage_inquiry_preemption(batch, parent_receipt_id=holder.record.id,
+                    action_record_id=admission.action_record_id, now_utc=now_utc)
+                batch.preserve_on_recovery()
+                self.commit(batch)
+            return self.accept_deliberate_entry(admission, grant=grant,
+                commit_id=f"deliberate-entry:{admission.action_record_id}", now_utc=now_utc)
+
     def accept_step(self, parent: InquiryRecord, step: InquiryStep, *, grant: InquiryGrant,
                     commit_id: str, active_seconds: float, now_utc: datetime,
                     mental_state: FullMentalState, control_generation: int,
@@ -405,9 +498,12 @@ class PrivateInquiryOwner:
 
         Generation and comparison nodes remain internal graph events. A finding
         marker is attached only at an explicit outcome boundary. The host sends
-        that accepted identity to main after this method returns.
+        that accepted identity to main after this method returns. A finding of
+        a deliberate episode also carries its action identity and correlation,
+        and the deliberate owner sends it instead.
         """
         with self.store.lock:
+            deliberate = deliberate_admission(self.store.snapshot(capture=False), parent.receipt.state)
             batch = self.store.begin_batch(commit_id, new_tick=True, embed=False, cancel=self.cancel)
             accepted = stage_inquiry_step(batch, parent_receipt_id=parent.record.id, step=step, grant=grant,
                 active_seconds=active_seconds, now_utc=now_utc, limits=self.limits)
@@ -423,6 +519,10 @@ class PrivateInquiryOwner:
             attach_inner_projection(operation, FrozenProjectionPayload(mental_state=mental_state, felt_state=felt_state))
             if outcome is not None:
                 attach_graph_outcome(operation, step, outcome)
+            if deliberate is not None and step.outcome != "continue":
+                action = batch.view().get(deliberate.action_record_id)
+                correlation = ActionMetadata.model_validate(action.metadata).dispatch_correlation
+                operation.metadata.update({MENTAL_ACTION_KEY: action.id, MENTAL_CORRELATION_KEY: correlation})
             batch.revise(operation)
             batch.preserve_on_recovery()
             self.commit(batch)

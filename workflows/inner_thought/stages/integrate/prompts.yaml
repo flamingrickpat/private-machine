@@ -71,3 +71,27 @@ user_template: |
   {expectations}
 
   Decide the consequences.
+
+# Appended to the user turn only when the thought ends deliberate mental work
+# that main cognition selected. Spontaneous integrations never see it.
+focus_advice_template: |
+  This thought ends deliberate mental work that {companion_name} chose to do:
+  {instruction}
+
+  You can add one more field, "focus", to the JSON object. It is temporary
+  advice about what {companion_name} should attend to next. Use null when the
+  work gives no reason to steer attention.
+
+  "focus": {{"instruction": "<what to attend to, in one sentence>",
+            "promote_ids": [<int>], "reduce_ids": [<int>],
+            "strength": <0..0.5>, "seconds": <1..86400>,
+            "topic_hints": ["<short label>"], "reason": "<one sentence>"}}
+
+  - promote_ids and reduce_ids may only use these IDs: {citable_ids}
+  - Promote the memories or goals that matter for this work. Reduce a
+    distracting source when that helps. Both lists can be empty.
+  - Focus advice is a proposal. Main attention can reject it. It never erases
+    a record and it expires after "seconds".
+  - Topic hints are advisory labels, not established memory clusters.
+  - Do not force a pleasant or cooperative focus. An unwanted concern can stay
+    important.

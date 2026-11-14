@@ -2,8 +2,8 @@
 
 The host grants :func:`build_codelet_agent` as the ``codelet_agent`` tool of
 each main cognition run. The codelets phase calls it from a worker thread
-with the kernel context and an :class:`AgentCodeletJob`. The session follows
-the ``focus_management`` pattern:
+with the kernel context and an :class:`AgentCodeletJob`. The session works
+as follows:
 
 - A :class:`~pm.memory.agent_tools.MemoryReadSession` over the frozen grant
   of the run serves the memory tools through a loopback MCP server. The

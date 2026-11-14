@@ -175,7 +175,7 @@ A `chain` codelet makes two calls, as the old `AgentSimpleCodelet` did:
 ### Agent
 
 An `agent` codelet runs one pm-coder session through the `codelet_agent` tool ([`build_codelet_agent`][workflows.main_cognition.codelet_agent.build_codelet_agent]).
-The session follows the `focus_management` pattern:
+The session works as follows:
 
 - A `MemoryReadSession` over the frozen grant of the run serves the memory tools through an MCP server bound to `0.0.0.0`.
 - A second server on `0.0.0.0` offers `mind_view`, the codelet's CSM view.
@@ -186,7 +186,7 @@ The session returns the recommendation and its evidence ids.
 Call 2 then converts the recommendation into percepts, as in a chain.
 The cited memory records enter the CSM with an endorsement from the codelet.
 
-The session runs inside the codelets phase. A separate pm-coder phase was not needed: the Python phase can open a pm-coder session, as `focus_management` does.
+The session runs inside the codelets phase. A separate pm-coder phase was not needed: the Python phase can open a pm-coder session.
 Sessions of one run take turns, because they share the in-memory Bash machine of the run.
 An invalid answer starts a fresh session, up to `CODELET_AGENT_ATTEMPTS` sessions.
 Then the phase raises `ModelFormatError`, and the host retries the whole cycle.

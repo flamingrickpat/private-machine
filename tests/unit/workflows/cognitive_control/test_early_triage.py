@@ -18,14 +18,20 @@ from pm.memory.store_tools import build_tools
 from pm.memory.snapshot import GhostCancelled
 from pm.memory.snapshot import GhostConflict
 from pm.memory.checkpoint import CommitReceipt
+from pm.memory.read_scope import ReadScope
 from pm.memory.store import MemoryStore
 from pm.memory.write_batch import WriteBatch
+from pm.records.base import RecordScope
 from pm.records.cycle_records import StimulusGroup
 from pm.records.cycle_state import CycleState, PersonaConfig
 from pm.records.global_workspace import GwtTurnRecord
-from pm.records.enums import FeatureType, InterlocusType
-from pm.records.memory_records import Feature
+from pm.records.enums import EntityClass, FeatureType, InterlocusType
+from pm.records.memory_records import Entity, Feature
 from workflows.cognitive_control.host import CognitiveControl
+from workflows.cognitive_control.schemas import ControlConfig
+from workflows.inner_thought.graph_host import PrivateInquiryOwner
+from workflows.inner_thought.nominations import capture_inquiry_grant, read_nomination_batch
+from workflows.inner_thought.schemas import NominationBatch
 from workflows.input_triage.schemas import EarlyTriageAssessment, TriageEvidence
 from workflows.main_cognition.schemas import ActionRequest, TriageItem, TriageResult
 from workflows.dialogue_story.host import StoryDialogue
@@ -267,6 +273,60 @@ class EarlyTriageBoundaryTests(unittest.TestCase):
         self.assertEqual(failures, [])
         self.assertEqual(len(accepted), 1)
         self.assertIn(accepted[0].commit_id, self.store.applied_commits)
+
+    def test_owner_commit_releases_the_store_lock_while_input_awaits_classification(self) -> None:
+        """The private owner stages under the store lock, and triage acceptance needs that lock.
+
+        Before the hold released the lock, this situation never ended: the
+        owner polled with the lock held and the classification could not land.
+        """
+        anchors = self.store.begin_batch("anchors", embed=False)
+        observer = anchors.create(Entity(content="Spamuel", aliases=[], entity_class=EntityClass.Self))
+        anchors.preserve_on_recovery()
+        self.store.commit(anchors)
+        grant = capture_inquiry_grant(self.store.snapshot(capture=False), observer_entity_id=observer.id,
+            scope=RecordScope(), source_ids=[], critical_epoch=0)
+        generation = self.control.generation
+
+        def commit_private(changes: WriteBatch) -> None:
+            """Commit through the real control fence, as the private host does."""
+            with ReadScope() as reads:
+                reads.collecting = False
+                self.control.commit_private(changes, generation)
+
+        owner = PrivateInquiryOwner(self.store, commit=commit_private, cancel=Event(), limits=ControlConfig())
+        source = self.submit("Something arrived while I was thinking.")
+        failures: list[BaseException] = []
+
+        def accept_nominations() -> None:
+            """Run the owner's locked staging and commit on a worker thread."""
+            try:
+                owner.accept_nominations(NominationBatch(nominations=(), reason="Nothing attracted attention."),
+                                         grant=grant, batch_id="held-opportunity")
+            except BaseException as error:  # noqa: BLE001 - reported to the test thread
+                failures.append(error)
+
+        def assess() -> None:
+            """Accept the classification on its own thread, so a regression fails instead of hanging."""
+            try:
+                self.assess(source, "Moderate")
+            except BaseException as error:  # noqa: BLE001 - reported to the test thread
+                failures.append(error)
+
+        worker = Thread(target=accept_nominations, daemon=True)
+        worker.start()
+        worker.join(0.3)
+        self.assertTrue(worker.is_alive(), "Private acceptance must wait for the classification.")
+        triage = Thread(target=assess, daemon=True)
+        triage.start()
+        triage.join(5.0)
+        self.assertFalse(triage.is_alive(), "Triage acceptance must get the store lock during the hold.")
+        worker.join(5.0)
+        self.assertFalse(worker.is_alive(), "The ordinary assessment must release the hold.")
+        self.assertEqual(failures, [])
+        retained = read_nomination_batch(self.store.snapshot(capture=False), "held-opportunity")
+        assert retained is not None
+        self.assertEqual(retained.receipt.reason, "Nothing attracted attention.")
 
     def test_critical_assessment_rejects_private_work_from_the_older_generation(self) -> None:
         """Critical input changes what the character may do, so old work cannot land."""

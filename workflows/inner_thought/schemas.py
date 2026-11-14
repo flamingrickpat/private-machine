@@ -21,7 +21,7 @@ from pm.memory.dependencies import SourceDependency
 from pm.records.base import RecordScope
 from pm.records.mental_state import FullMentalState
 from pm.records.qualia_records import QualeChannelState
-from workflows.cognitive_control.schemas import FocusState
+from workflows.cognitive_control.schemas import FocusProposal, FocusState
 from workflows.inner_thought.request_views import (
     ExpectationView, GoalView, MainFrameView, OperationSuggestion, PrivateInspection, RecentThoughtView,
 )
@@ -131,10 +131,24 @@ class DisclosureChoice(BaseModel):
     reason: str = ""
 
 
+class FocusAdviceRequest(BaseModel):
+    """Ask the integrate stage for optional focus advice at the end of deliberate work.
+
+    Only an inquiry that main cognition selected as a mental action carries
+    this request. A spontaneous inquiry never does, so its integration prompt
+    stays unchanged.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    instruction: str = Field(min_length=1, description="The accepted mental work that this thought concludes, in its own words.")
+    citable_ids: tuple[int, ...] = Field(description="Every record ID the advice may promote or reduce: the IDs this integration can cite.")
+
+
 class IntegrationResult(BaseModel):
     """The consequences the integrate stage proposes for accepted state."""
 
     goal_changes: list[GoalChange] = Field(default_factory=list[GoalChange])
+    focus: FocusProposal | None = Field(default=None, description="Temporary focus advice for main attention. Only requested at the end of deliberate mental work; null otherwise.")
     expectation: ExpectationUpdate = Field(default_factory=ExpectationUpdate)
     noticing: str = ""
     disclosure: DisclosureChoice = Field(default_factory=DisclosureChoice)
@@ -576,6 +590,12 @@ class InquiryDisplacement(InquiryContract):
     superseding_critical_epoch: int = Field(ge=0, description="Accepted Critical epoch that replaced the epoch this inquiry was admitted under.")
 
 
+class InquiryPreemption(InquiryContract):
+    """Why an active inquiry was parked without an executed thought: deliberate work took the slot."""
+
+    action_record_id: int = Field(gt=0, description="Accepted deliberate action whose inquiry took the private slot from this episode.")
+
+
 class InquiryResumeDecision(InquiryContract):
     """Explicit attention admission for retained paused work, without progress."""
 
@@ -596,6 +616,7 @@ class InquiryReceipt(InquiryContract):
     resume: InquiryResumeDecision | None = Field(default=None, description="Explicit parked admission; it creates no executed node or progress.")
     deliberate: DeliberateAdmission | None = Field(default=None, description="Accepted deliberate action that opened this episode; null for a nomination origin.")
     displacement: InquiryDisplacement | None = Field(default=None, description="Critical reconsideration that closed this episode; it creates no executed node or progress.")
+    preemption: InquiryPreemption | None = Field(default=None, description="Deliberate action that parked this episode; it creates no executed node or progress, and the episode can resume through shared attention.")
 
 
 class LegacyEpisodeState(InquiryContract):
@@ -669,8 +690,8 @@ __all__ = [
     "ThoughtResult",
     "TriggerCandidate",
     "TriggerChoice",
-    "AttentionCandidate", "DeliberateAdmission", "DisplacedInquiryOffer", "InquiryAlternative",
-    "InquiryDisplacement", "InquiryGrant", "InquiryOrigin",
+    "AttentionCandidate", "DeliberateAdmission", "DisplacedInquiryOffer", "FocusAdviceRequest", "InquiryAlternative",
+    "InquiryDisplacement", "InquiryGrant", "InquiryOrigin", "InquiryPreemption",
     "InquiryProgress", "InquiryReceipt", "InquiryResumeDecision", "InquiryState", "InquiryStep",
     "NominationReceipt", "ParkedInquiryOffer", "PrivateAttentionContext", "RetainedOfferSelection",
     "RetainedQuestionRating", "ThoughtAttentionDecision",

@@ -1,101 +1,422 @@
-"""Commit a private agent proposal before routing it through main appraisal.
+"""Admit accepted deliberate mental actions into the shared private slot and deliver their results.
 
-The module runs one scoped pm-coder mental session, commits its proposal as a
-self-origin feature, and publishes it for ordinary appraisal. It owns no
-emotion, goal, or workspace change: main cognition still accepts or rejects
-the advice, and a source conflict discards it silently by design.
+Main cognition selects a mental action and dispatches it to this module. The
+module owns that action from then on: its admission, its lifecycle receipts,
+and the delivery of its result. It runs no model and no agent. The private
+loop executes the admitted work on its own timer, through the same inquiry
+steps as spontaneous thought. :mod:`workflows.inner_thought.host` is the
+canonical overview of that loop and of the inquiry graph.
+
+One action moves through these stages:
+
+1. **Requested.** ``action.request`` arrives with the accepted action record.
+   The request waits in memory while an accepted wait, unclassified input, or
+   required Critical reconsideration holds private work.
+2. **Admitted.** :meth:`PrivateInquiryOwner.admit_deliberate_action` opens the
+   deliberate episode. Spontaneous work that holds the slot is parked first,
+   with a receipt that names this action, so a later reader can see why that
+   question was set aside. Deliberate work never parks other deliberate work;
+   the later action waits.
+3. **Executed.** The private loop runs one operation per timer tick. Nothing
+   here executes a step.
+4. **Closed.** When the episode leaves the slot, this module commits the
+   action's result identity and status. A finding becomes the result. An
+   episode parked at a bound or displaced by Critical reconsideration has no
+   finding. The module then commits a short first-person notice that the
+   thinking stopped and why, so main cognition always hears back about an
+   action it selected.
+5. **Delivered.** A finding of a deliberate episode and a notice both carry
+   the action's identity. This module publishes them as ``thought.created``
+   under the action's correlation until an accepted main cycle claims them.
+   Main cognition still accepts or rejects every proposed goal and focus
+   change. A notice proposes nothing.
+
+Recovery: an unadmitted request is replayed by dispatch recovery, because its
+action stays pending. An admitted action is found again by its action identity,
+so a restart repeats no inference and opens no second episode. Results that
+the earlier standalone agent sessions committed are delivered the same way.
+
+Telemetry: ``action.receipt`` when an action closes, ``mental.deferred`` when
+an admission has to wait for a reason other than an accepted hold.
 """
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
-from typing import TYPE_CHECKING, Any
-from threading import Event
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Literal
 
-from pm.bus.envelopes import Envelope, new_envelope
-from pm.memory.agent_tools import MemoryReadSession, MemoryToolConfig, MemoryView
-from pm.memory.snapshot import GhostCancelled, GhostConflict
+from pydantic import BaseModel, ConfigDict, Field
+
+from pm import vclock
+from pm.bus.bus import BusSystem
+from pm.bus.envelopes import Envelope, JsonObject, new_envelope
+from pm.host.application import BusModule
+from pm.memory.read_scope import ReadScope
+from pm.memory.snapshot import GhostCancelled, GhostConflict, Snapshot
+from pm.memory.store import MemoryStore
+from pm.memory.write_batch import WriteBatch
+from pm.records.base import Provenance
 from pm.records.enums import FeatureType, InterlocusType, SourceKind
 from pm.records.lineage import RecordLineage
-from pm.records.memory_records import new_feature
-from pm.runs.workflow_module import CognitiveWorkflow
-from workflows.cognitive_control.schemas import MentalPlan
-from workflows.focus_management.schemas import MentalWorkRequest
-from workflows.main_cognition.schemas import ActionRequest
-from workflows.public_speech.shard_context import shard_story
+from pm.records.memory_records import ActionSchemaRecord, Feature
+from workflows.cognitive_control.schemas import ControlConfig
+from workflows.inner_thought.graph_host import (
+    MENTAL_ACTION_KEY, MENTAL_CORRELATION_KEY, PrivateInquiryOwner, accepted_source_ids, deliberate_action_ids,
+    deliberate_inquiry, private_observer,
+)
+from workflows.inner_thought.inquiry import InquiryRecord, inquiry_history, inquiry_origin
+from workflows.inner_thought.nominations import capture_inquiry_grant
+from workflows.inner_thought.operations import OPERATIONS
+from workflows.inner_thought.schemas import DeliberateAdmission
+from workflows.main_cognition.schemas import ActionMetadata, ActionRequest
 
 if TYPE_CHECKING:
-    from pm.memory.bash_view import MemoryBashEnvironment
-    from pm.memory.embeddings import EmbeddingService
     from workflows.cognitive_control.host import CognitiveControl
 
+#: First operation of deliberate work when the action names none. The workflow
+#: is offered to main cognition as scoped recall, so recall comes first.
+DEFAULT_FIRST_OPERATION = "memory_search"
 
-class FocusManagement(CognitiveWorkflow):
-    """Offer a deliberate mental action through a real pm-coder workflow.
 
-    The agent reads a frozen grant and proposes changes. It never owns the
-    main workspace, goals, or affect. Source conflicts discard the proposal.
+class MentalActionLifecycle(BaseModel):
+    """The lifecycle fields of a mental action record that this module reads."""
+
+    model_config = ConfigDict(extra="ignore")
+    dispatch_status: str = Field(default="", description="'pending' or 'admitted' while main cognition's dispatch stands; 'deferred' after main withdrew it.")
+    dispatch_deferred: bool = Field(default=False, description="True while main cognition holds the dispatch back.")
+    mental_result_id: int | None = Field(default=None, description="Record that closed the action: its finding, or the receipt that parked or displaced its inquiry.")
+    mental_status: str = Field(default="", description="Empty while the action is open. 'proposed' with a finding, 'parked' or 'displaced' without one, 'failed' for an earlier agent session.")
+
+
+@dataclass(frozen=True, slots=True)
+class RequestedMentalAction:
+    """One dispatched mental action that has not entered the private slot yet."""
+
+    action_record_id: int
+    correlation: str
+    instruction: str
+    first_operation: str
+    reason: str
+    evidence_ids: tuple[int, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class MentalOutcome:
+    """How a deliberate episode closes its action.
+
+    ``finding_id`` is the outcome operation, or None when the episode stopped
+    without one. ``stop_reason`` is the episode's own recorded reason.
+    """
+
+    finding_id: int | None
+    mental_status: Literal["proposed", "parked", "displaced"]
+    execution_status: Literal["completed", "parked", "cancelled"]
+    stop_reason: str
+
+
+@dataclass(frozen=True, slots=True)
+class ClosedMentalAction:
+    """The committed close of one action: its result record and how it closed."""
+
+    result_record_id: int
+    outcome: MentalOutcome
+
+
+@dataclass(frozen=True, slots=True)
+class ResultDelivery:
+    """One unappraised mental-action result that is due for publication."""
+
+    record_id: int
+    correlation: str
+    gwt_tick: int | None
+
+
+def requested_action(request: ActionRequest, correlation: str) -> RequestedMentalAction:
+    """Read the selected mental task from main cognition's action request.
+
+    The task is ``arguments.instruction``, else ``arguments.instructions``,
+    else the decision text. ``arguments.operation`` chooses the first inquiry
+    operation when it names a delivered one; any other value is model wording
+    for another workflow, and deliberate work then starts with recall.
+    """
+    if request.knoxel_id is None:
+        raise ValueError("A mental action request requires its accepted action record.")
+    instruction = request.arguments.instruction or request.arguments.instructions or request.content
+    if not instruction.strip():
+        raise ValueError("Mental work requires a nonempty instruction.")
+    first_operation = DEFAULT_FIRST_OPERATION
+    if request.arguments.operation in OPERATIONS:
+        first_operation = request.arguments.operation
+    reason = request.content.strip() or "Main cognition selected this private mental work."
+    evidence_ids = tuple(dict.fromkeys(stimulus.knoxel_id for stimulus in request.stimuli))
+    return RequestedMentalAction(action_record_id=request.knoxel_id, correlation=correlation,
+        instruction=instruction, first_operation=first_operation, reason=reason, evidence_ids=evidence_ids)
+
+
+def mental_outcome(view: Snapshot, head: InquiryRecord) -> MentalOutcome | None:
+    """Return how a deliberate episode closes its action, or None while it holds the slot.
+
+    The newest outcome operation is the result when one exists. An episode
+    parked at a step, time, or stall bound has none; neither has an episode
+    that Critical reconsideration displaced before it reached an outcome.
+    """
+    state = head.receipt.state
+    if state.status == "active":
+        return None
+    for accepted in reversed(inquiry_history(view, state.episode_id)):
+        step = accepted.receipt.step
+        if step is None or step.outcome == "continue":
+            continue
+        finding_id = accepted.receipt.operation_record_id
+        if finding_id is None:
+            raise ValueError("An executed inquiry step requires its operation record.")
+        return MentalOutcome(finding_id=finding_id, mental_status="proposed", execution_status="completed",
+                             stop_reason=state.stop_reason)
+    if state.status == "displaced":
+        return MentalOutcome(finding_id=None, mental_status="displaced", execution_status="cancelled",
+                             stop_reason=state.stop_reason)
+    if state.status == "paused":
+        return MentalOutcome(finding_id=None, mental_status="parked", execution_status="parked",
+                             stop_reason=state.stop_reason)
+    raise ValueError("A completed or abandoned inquiry must end at an outcome operation.")
+
+
+def unfinished_notice(instruction: str, outcome: MentalOutcome) -> str:
+    """Word the first-person notice for deliberate work that stopped without a finding.
+
+    The text states only recorded facts: the accepted instruction, that no
+    conclusion exists, and the episode's own stop reason. It invents no thought
+    content.
+    """
+    if outcome.mental_status == "displaced":
+        return (f"I set out to think this through: {instruction} Something critical came up before I "
+                "reached a conclusion, so that thinking was interrupted.")
+    return (f"I set out to think this through: {instruction} I stopped before I reached a conclusion "
+            f"({outcome.stop_reason}). The question is parked for now.")
+
+
+class FocusManagement(BusModule):
+    """Own selected mental actions: admission to the private slot, lifecycle, and result delivery.
+
+    The module holds no model and changes no goal, emotion, or workspace. The
+    private loop executes the work; main cognition appraises the result.
     """
 
     DATA_TOPICS = frozenset({"action.request"})
     WORKFLOW_NAME = "focus_management"
 
-    def __init__(self, *args: Any, embeddings: EmbeddingService | None = None,
-                 **kwargs: Any) -> None:
-        """Forward the module configuration and bind the tool factory."""
-        super().__init__(*args, tools_factory=self._tools, **kwargs)
-        self.embeddings = embeddings
-        self._published_results = set()
+    def __init__(self, module_id: str, bus: BusSystem, on_error: Callable[[BaseException], None],
+                 clock: Callable[[], float], tick_seconds: float | None = None, *, ghost: MemoryStore) -> None:
+        """Bind the module to the shared memory store. The timer retries admission and delivery."""
+        super().__init__(module_id, bus, on_error, clock, tick_seconds)
+        self.ghost: MemoryStore = ghost
         self.cognitive_control: CognitiveControl | None = None
-        self._critical_interrupted = Event()
-
-    def defer_for_critical(self) -> None:
-        """Cancel read-only mental calculation while preserving its selected action."""
-        self._critical_interrupted.set()
-        self.cancel_run()
+        # Results already put on the bus, so a timer tick never publishes twice.
+        self._published_results: set[int] = set()
+        # Dispatched actions that still wait for the private slot, by action ID.
+        self._requested: dict[int, RequestedMentalAction] = {}
+        # Admitted actions whose episode has not closed them yet. None until
+        # the first tick rebuilds it from memory, so a restart finds them again.
+        self._open_actions: set[int] | None = None
+        # Last reported reason an admission had to wait, by action ID.
+        self._deferral_reasons: dict[int, str] = {}
 
     def handle_batch(self, batch: list[Envelope]) -> None:
-        """Run new actions once. Timer ticks replay unappraised durable results."""
-        if not batch:
-            self.resume()
-            return
+        """Register new requests, then advance every action. A timer tick has an empty batch."""
         for envelope in batch:
-            action = self.ghost.get_knoxel_by_id(ActionRequest.model_validate(envelope.payload).knoxel_id)
-            if action.metadata.get("mental_result_id") is not None:
-                self.resume()
-                continue
-            while not self.stop_event.is_set():
-                if self.cognitive_control is not None:
-                    if not self.cognitive_control.wait_for_reconsideration(self.stop_event):
-                        return
-                self._critical_interrupted.clear()
+            request = ActionRequest.model_validate(envelope.payload)
+            requested = requested_action(request, envelope.correlation_id)
+            self._requested[requested.action_record_id] = requested
+        self._admit_requested()
+        self._close_finished_actions()
+        self.resume()
+
+    def _limits(self) -> ControlConfig:
+        """Return the operator episode limits, or the shipped defaults."""
+        control = self.cognitive_control
+        return control.config if control is not None else ControlConfig()
+
+    def _admit_requested(self) -> None:
+        """Give each requested action the private slot when current authority permits it.
+
+        An accepted wait, unclassified input, and required Critical
+        reconsideration hold every admission until a later tick. A withdrawn or
+        already answered action is dropped. Other deliberate work in the slot
+        makes the action wait, with one ``mental.deferred`` telemetry event.
+        """
+        control = self.cognitive_control
+        for action_id in sorted(self._requested):
+            requested = self._requested[action_id]
+            with self.ghost.lock:
+                if control is not None and (control.waiting() or control.reconsideration_required()):
+                    return
+                view = self.ghost.snapshot(capture=False)
+                action = view.get(action_id)
+                if not isinstance(action, ActionSchemaRecord):
+                    raise TypeError("A mental action request must name an accepted action record.")
+                lifecycle = MentalActionLifecycle.model_validate(action.metadata)
+                if lifecycle.mental_result_id is not None:
+                    del self._requested[action_id]
+                    continue
+                if deliberate_inquiry(view, action_id) is not None:
+                    # A replayed dispatch: the episode already exists.
+                    del self._requested[action_id]
+                    self._tracked_actions().add(action_id)
+                    continue
+                if lifecycle.dispatch_status not in {"pending", "admitted"} or lifecycle.dispatch_deferred:
+                    # Main cognition withdrew this dispatch for reconsideration.
+                    del self._requested[action_id]
+                    self._report_deferral(requested, "Main cognition withdrew the action before it entered the private slot.")
+                    continue
+                observer = private_observer(view, self.ghost.get_companion_name())
+                # Evidence must lie in the observer's reality and come from an
+                # accepted commit, because the entry is a recovery root.
+                accepted_ids = accepted_source_ids(self.ghost)
+                evidence_ids = tuple(source_id for source_id in requested.evidence_ids
+                                     if source_id in accepted_ids and view.get(source_id).scope == observer.scope)
+                grant = capture_inquiry_grant(view, observer_entity_id=observer.id, scope=observer.scope,
+                    source_ids=[action_id, *evidence_ids],
+                    critical_epoch=control.publication_epoch() if control is not None else 0)
+                generation = control.generation if control is not None else 0
+
+                def commit_private(changes: WriteBatch) -> None:
+                    """Commit through the control fence, with explicit graph dependencies only."""
+                    with ReadScope() as reads:
+                        reads.collecting = False
+                        if control is None:
+                            self.ghost.commit(changes)
+                        else:
+                            control.commit_private(changes, generation)
+
+                owner = PrivateInquiryOwner(self.ghost, commit=commit_private, cancel=self.stop_event,
+                                            limits=self._limits())
+                admission = DeliberateAdmission(action_record_id=action_id, instruction=requested.instruction,
+                    evidence_ids=evidence_ids, operation=requested.first_operation, reason=requested.reason)
                 try:
-                    super().handle_batch([envelope])
+                    owner.admit_deliberate_action(admission, grant=grant, now_utc=vclock.utcnow())
                 except GhostCancelled:
-                    if not self._critical_interrupted.is_set():
-                        raise
-                if not self._critical_interrupted.is_set():
-                    break
+                    # A wait or Critical reconsideration arrived during the commit.
+                    return
+                except GhostConflict as conflict:
+                    self._report_deferral(requested, str(conflict))
+                    continue
+                del self._requested[action_id]
+                self._deferral_reasons.pop(action_id, None)
+                self._tracked_actions().add(action_id)
+
+    def _report_deferral(self, requested: RequestedMentalAction, reason: str) -> None:
+        """Publish why an admission waits, once for each new reason."""
+        if self._deferral_reasons.get(requested.action_record_id) == reason:
+            return
+        self._deferral_reasons[requested.action_record_id] = reason
+        self.bus.put(new_envelope(self.module_id, "telemetry", "mental.deferred", requested.correlation,
+            {"workflow_name": self.WORKFLOW_NAME, "action_schema_id": requested.action_record_id, "reason": reason}))
+
+    def _tracked_actions(self) -> set[int]:
+        """Return the admitted actions that are not closed, rebuilding them once from memory."""
+        if self._open_actions is None:
+            with self.ghost.lock:
+                view = self.ghost.snapshot(capture=False)
+                open_actions: set[int] = set()
+                for action_id in deliberate_action_ids(view):
+                    lifecycle = MentalActionLifecycle.model_validate(view.get(action_id).metadata)
+                    if lifecycle.mental_result_id is None:
+                        open_actions.add(action_id)
+                self._open_actions = open_actions
+        return self._open_actions
+
+    def _close_finished_actions(self) -> None:
+        """Commit the result identity of every admitted action whose episode left the slot."""
+        tracked = self._tracked_actions()
+        for action_id in sorted(tracked):
+            closed = self._close_action(action_id)
+            if closed is None:
+                continue
+            tracked.discard(action_id)
+            self._receipt(action_id, closed)
+
+    def _close_action(self, action_id: int) -> ClosedMentalAction | None:
+        """Commit one action's lifecycle when its episode has an outcome, else return None.
+
+        The finding is committed by the private loop in an append-only graph
+        commit, which cannot carry a lifecycle change. This separate commit is
+        idempotent: an action that already names its result is left unchanged.
+
+        Without a finding, the same commit creates the notice record that
+        becomes the result. It links to the action and to the receipt that
+        parked or displaced the episode.
+        """
+        with self.ghost.lock:
+            view = self.ghost.snapshot(capture=False)
+            head = deliberate_inquiry(view, action_id)
+            if head is None:
+                raise RuntimeError("An admitted mental action must own its private inquiry.")
+            outcome = mental_outcome(view, head)
+            if outcome is None:
+                return None
+            action = view.get(action_id)
+            lifecycle = MentalActionLifecycle.model_validate(action.metadata)
+            if lifecycle.mental_result_id is not None:
+                return ClosedMentalAction(result_record_id=lifecycle.mental_result_id, outcome=outcome)
+            changes = self.ghost.begin_batch(f"mental-result:{action_id}", embed=False, cancel=self.stop_event)
+            if outcome.finding_id is not None:
+                result_id = outcome.finding_id
+                changes.depend_on([result_id], authority=action_id)
+            else:
+                state = head.receipt.state
+                origin = inquiry_origin(view, state)
+                correlation = ActionMetadata.model_validate(action.metadata).dispatch_correlation
+                notice = changes.create(Feature(content=unfinished_notice(origin.text, outcome),
+                    feature_type=FeatureType.Thought, entity_id=state.grant.observer_entity_id,
+                    scope=state.grant.scope, provenance=Provenance(source_kind=SourceKind.Self),
+                    interlocus=InterlocusType.PrivateInternal,
+                    lineage=RecordLineage(episode_id=state.episode_id, operation="mental_unfinished",
+                        parent_record_ids=[action_id, head.record.id]),
+                    metadata={MENTAL_ACTION_KEY: action_id, MENTAL_CORRELATION_KEY: correlation,
+                              "mental_status": outcome.mental_status, "memory_kind": "interpretation"}))
+                result_id = notice.id
+                changes.depend_on([head.record.id], authority=action_id)
+            changes.set_lifecycle(action_id, dispatch_status="admitted", mental_result_id=result_id,
+                                  mental_status=outcome.mental_status, execution_status=outcome.execution_status)
+            self.ghost.commit(changes)
+            return ClosedMentalAction(result_record_id=result_id, outcome=outcome)
 
     def resume(self) -> None:
-        """Replay results after interruption without rerunning an accepted agent.
+        """Publish every unappraised mental-action result that is not on the bus yet.
 
-        Accepted main cycles acknowledge result ids. A wait delays publication.
-        The process remembers queued ids. Restart rebuilds this set from state.
+        Accepted main cycles acknowledge result IDs. A wait delays publication.
+        The process remembers queued IDs; a restart rebuilds the set from
+        memory. A graph finding is published only after its inner turn exists,
+        which the private loop derives or repairs.
         """
-        control = getattr(self, "cognitive_control", None)
+        control = self.cognitive_control
         with self.ghost.lock:
             if control is not None and control.waiting():
                 return
             appraised = {key for cycle in self.ghost.states for key in cycle.claimed_ids()}
-            pending = [item for item in self.ghost.all_features
-                       if item.metadata.get("mental_action_id") is not None
-                       and item.id not in appraised and item.id not in self._published_results]
-        for result in pending:
+            deliveries: list[ResultDelivery] = []
+            for item in self.ghost.all_features:
+                if item.metadata.get(MENTAL_ACTION_KEY) is None:
+                    continue
+                if item.id in appraised or item.id in self._published_results:
+                    continue
+                gwt_tick: int | None = None
+                if item.metadata.get("private_inquiry_finding") is True:
+                    inner_ticks = [turn.tick_id for turn in self.ghost.gwt_turns.values()
+                                   if turn.slot_id == "inner" and item.id in turn.knoxel_ids]
+                    if not inner_ticks:
+                        continue
+                    gwt_tick = inner_ticks[0]
+                correlation = str(item.metadata[MENTAL_CORRELATION_KEY])
+                deliveries.append(ResultDelivery(record_id=item.id, correlation=correlation, gwt_tick=gwt_tick))
+        for delivery in deliveries:
             # Main can discard an event during delivery. Mark it first so
             # that immediate release cannot leave a stale publication claim.
-            self._published_results.add(result.id)
-            self.bus.put(new_envelope(self.module_id, "data", "thought.created",
-                result.metadata.get("mental_correlation", ""), {"knoxel_id": result.id}))
+            self._published_results.add(delivery.record_id)
+            payload: JsonObject = {"knoxel_id": delivery.record_id}
+            if delivery.gwt_tick is not None:
+                payload["gwt_tick"] = delivery.gwt_tick
+            self.bus.put(new_envelope(self.module_id, "data", "thought.created", delivery.correlation, payload))
 
     def release_results(self, envelopes: list[Envelope]) -> None:
         """Permit replay after main cognition discards or cancels queued work."""
@@ -103,132 +424,19 @@ class FocusManagement(CognitiveWorkflow):
             if envelope.topic == "thought.created":
                 self._published_results.discard(envelope.payload.get("knoxel_id"))
 
-    def prepare_input(self, batch: list[Envelope]) -> dict:
-        """Read the selected mental instruction and the shards of the cycle that chose it.
-
-        The instruction is ``arguments.instruction``, else
-        ``arguments.instructions``, else the decision text. The workspace is
-        the shard story of the choosing cycle, so the agent knows what was on
-        the companion's mind.
-        """
-        if self.cognitive_control is not None and self.cognitive_control.reconsideration_required():
-            self._critical_interrupted.set()
-            self.run_stop.set()
-            raise GhostCancelled("Required reconsideration defers unrelated mental work.")
-        request = ActionRequest.model_validate(batch[0].payload)
-        self._action_id = request.knoxel_id
-        self._correlation = batch[0].correlation_id
-        control = getattr(self, "cognitive_control", None)
-        instruction = request.arguments.instruction or request.arguments.instructions or request.content
-        if not instruction.strip():
-            raise ValueError("Mental work requires a nonempty instruction.")
-        companion = self.ghost.get_companion_name()
-        return MentalWorkRequest(
-            instruction=instruction, companion=companion,
-            timeout_seconds=control.config.mental_timeout_seconds if control is not None else 600,
-            character=self.ghost.ghost_config.character_card_story,
-            workspace=shard_story(self.ghost.snapshot(), request, companion),
-            experience=request.workspace, affect=request.affect,
-        ).model_dump(mode="json")
-
-    def _tools(self, environment: MemoryBashEnvironment,
-               batch: object) -> dict[str, Callable[..., object]]:
-        """Bind scoped memory, goal, and session tools to one frozen view."""
-        ids = frozenset(environment.visible_knoxels)
-        scopes = frozenset((raw["data"]["scope"]["reality_id"], raw["data"]["scope"]["frame"])
-                           for raw in environment.visible_knoxels.values())
-        memory = MemoryReadSession(MemoryToolConfig(self.ghost, MemoryView(ids, scopes),
-            semantic=self.embeddings is not None, lexical=True, graph=True,
-            embeddings=self.embeddings, cancel=self.run_stop))
-        self._goal_revisions = {}
-
-        def mental_goals(offset: int = 0, limit: int = 16) -> dict:
-            """Read a page of goals, including deferred concerns. No goal changes occur."""
-            if offset < 0 or not 1 <= limit <= 32:
-                raise ValueError("Use a nonnegative offset and a limit from 1 to 32.")
-            memory.check_cancelled()
-            goals = [memory.snapshot.get(key) for key, raw in memory.records.items() if raw["__type__"] == "Intention"]
-            goals.sort(key=lambda item: (-float(item.incentive_salience), item.id))
-            selected = goals[offset:offset + limit]
-            for goal in selected:
-                self._goal_revisions[goal.id] = memory.snapshot.revisions[goal.id]
-            return {"goals": [{"id": item.id, "text": item.content, "status": item.status,
-                               "priority": item.incentive_salience} for item in selected],
-                    "next_offset": offset + limit if offset + limit < len(goals) else None,
-                    "inspected_ids": list(self._goal_revisions)}
-
-        def inspected_goal_ids() -> list[int]:
-            """Return goal ids already read, without granting a new inspection."""
-            return list(self._goal_revisions)
-
-        return {"mental_memory": lambda: memory, "mental_goals": mental_goals,
-                "mental_inspected": inspected_goal_ids}
-
-    def publish_output(self, report: dict, batch: list[Envelope]) -> None:
-        """Commit the action receipt and private result in one durable batch.
-
-        Source conflicts retain a failed outcome. No goal or affect changes
-        occur here. Restart replays the result without another agent session.
-        """
-        if report.get("status") == "failed":
-            self._commit_failure(report)
-            return
-        plan = MentalPlan.model_validate(report["plan"])
-        changes = self.ghost.begin_batch(self.invocation_id, new_tick=True, cancel=self.run_stop)
-        for key, revision in {**report["source_revisions"], **self._goal_revisions}.items():
-            changes.expect_revision(int(key), int(revision))
-        action = changes.view().get(self._action_id).copy_for_edit()
-        changes.expect_revision(action.id, self.last_environment.ghost_view.revisions[action.id])
-        proposal = new_feature(self.ghost, plan.summary, FeatureType.Thought,
-            source=self.ghost.get_companion_name(), source_kind=SourceKind.Self,
-            interlocus=InterlocusType.PrivateInternal, changes=changes,
-            metadata={"mental_plan": plan.model_dump(mode="json"), "agent_session": report["agent_session"],
-                      "mental_action_id": action.id, "mental_correlation": self._correlation,
-                      "memory_kind": "interpretation", "source_revisions": report["source_revisions"]},
-            lineage=RecordLineage(episode_id=action.lineage.episode_id if action.lineage else self.invocation_id,
-                operation="direct_attention", parent_record_ids=[action.id], source_event_ids=plan.evidence_ids,
-                topic_hints=plan.focus.topic_hints if plan.focus else []))
-        changes.depend_on(report["source_revisions"], authority=action.id)
-        changes.set_lifecycle(action.id, dispatch_status="admitted", mental_result_id=proposal.id,
-                              mental_status="proposed", execution_status="completed")
-        try:
-            with self.ghost.lock:
-                if self.cognitive_control is not None and self.cognitive_control.reconsideration_required():
-                    self._critical_interrupted.set()
-                    self.run_stop.set()
-                    raise GhostCancelled("Required reconsideration superseded this mental proposal.")
-                self.ghost.commit(changes)
-        except GhostConflict as error:
-            self.bus.put(new_envelope(self.module_id, "telemetry", "mental.rejected", self._correlation,
-                                      {"reason": str(error)}))
-            self._commit_failure({"error_type": type(error).__name__, "reason": str(error)})
-            return
-        self._receipt(proposal.id, "proposed")
-        self.resume()
-
-    def _commit_failure(self, report: dict) -> None:
-        """Retain an expected failure without committing the rejected proposal."""
+    def _receipt(self, action_id: int, closed: ClosedMentalAction) -> None:
+        """Publish diagnostic closing evidence. This receipt requests no speech."""
         with self.ghost.lock:
-            changes = self.ghost.begin_batch(self.invocation_id + ":failure", new_tick=True, cancel=self.run_stop)
-            action = changes.view().get(self._action_id).copy_for_edit()
-            failure = new_feature(self.ghost, "Mental work failed: " + report["reason"], FeatureType.Thought,
-                source=self.ghost.get_companion_name(), source_kind=SourceKind.Self,
-                interlocus=InterlocusType.PrivateInternal, changes=changes,
-                metadata={"mental_action_id": action.id, "mental_correlation": self._correlation,
-                          "mental_status": "failed", "error_type": report["error_type"],
-                          "memory_kind": "interpretation"},
-                lineage=RecordLineage(episode_id=self.invocation_id, operation="mental_failure",
-                                     parent_record_ids=[action.id]))
-            changes.depend_on([action.id], authority=action.id)
-            changes.set_lifecycle(action.id, dispatch_status="admitted", mental_status="failed",
-                                  mental_result_id=failure.id, execution_status="failed")
-            self.ghost.commit(changes)
-        self._receipt(failure.id, "failed")
-        self.resume()
-
-    def _receipt(self, result_id: int, status: str) -> None:
-        """Publish diagnostic admission evidence. This receipt requests no speech."""
-        self.bus.put(new_envelope(self.module_id, "telemetry", "action.receipt", self._correlation,
-            {"workflow_name": self.WORKFLOW_NAME, "status": status,
-             "action_schema_id": self._action_id, "result_id": result_id,
+            action = self.ghost.snapshot(capture=False).get(action_id)
+        correlation = ActionMetadata.model_validate(action.metadata).dispatch_correlation
+        self.bus.put(new_envelope(self.module_id, "telemetry", "action.receipt", correlation,
+            {"workflow_name": self.WORKFLOW_NAME, "status": closed.outcome.mental_status,
+             "action_schema_id": action_id, "result_id": closed.result_record_id,
              "public_reply_requested": False}))
+
+
+__all__ = [
+    "DEFAULT_FIRST_OPERATION", "ClosedMentalAction", "FocusManagement", "MentalActionLifecycle",
+    "MentalOutcome", "RequestedMentalAction", "ResultDelivery", "mental_outcome", "requested_action",
+    "unfinished_notice",
+]

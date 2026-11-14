@@ -3,6 +3,12 @@
 This gate supplies a mental task at the action boundary. It does not prove
 that action selection chooses the task or that a human approves the result.
 All source snapshots, original evidence, and errors stay in a fresh run.
+
+Historical: this gate exercised the standalone pm-coder agent session of
+``focus_management``. On 2026-11-14 (B05) deliberate mental work moved into the
+shared private inquiry slot and that session was removed. The gate no longer
+runs against the current module; its recorded A18C evidence stays valid for
+the code it tested.
 """
 from __future__ import annotations
 

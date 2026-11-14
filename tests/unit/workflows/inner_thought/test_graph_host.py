@@ -17,6 +17,7 @@ from pm.memory.snapshot import GhostCancelled, GhostConflict
 from pm.memory.store import MemoryStore
 from pm.memory.write_batch import WriteBatch
 from pm.records.base import Provenance, RecordScope
+from pm.records.cognitive_records import ExpectationRecord
 from pm.records.cycle_records import StimulusGroup
 from pm.records.cycle_state import CycleState, PersonaConfig
 from pm.records.enums import EntityClass, FeatureType, SourceKind
@@ -30,14 +31,15 @@ from workflows.inner_thought.graph_execution import (
 )
 from workflows.inner_thought.pipeline import ModelProposalError
 from workflows.inner_thought.graph_host import (
-    FrozenProjectionPayload, PrivateInquiryOwner, active_inquiry, attach_inner_projection, capture_felt_state,
-    pending_findings,
+    FrozenProjectionPayload, PrivateInquiryOwner, accepted_source_ids, active_inquiry, attach_inner_projection,
+    capture_felt_state, pending_findings,
 )
+from workflows.inner_thought.graph_outcomes import capture_graph_outcome
 from workflows.inner_thought.inquiry import InquiryRecord, inquiry_history, stage_inquiry_step
 from workflows.inner_thought.nominations import capture_inquiry_grant, stage_nominations
 from workflows.inner_thought.schemas import (
-    InnerRequest, InquiryAlternative, InquiryProgress, InquiryStep, ThoughtAttentionDecision,
-    ThoughtJudgments, ThoughtNomination, ThoughtRelation,
+    ExpectationUpdate, InnerRequest, InquiryAlternative, InquiryProgress, InquiryStep, IntegrationResult,
+    NominationBatch, ThoughtAttentionDecision, ThoughtJudgments, ThoughtNomination, ThoughtRelation,
 )
 
 
@@ -463,6 +465,43 @@ class GraphHostTests(unittest.TestCase):
         turn, cycle = self.inner_cycle(self.store, operation_id)
         self.assertEqual(cycle.qualia_channels, {})
         self.assertEqual(turn.knoxel_ids, [operation_id])
+
+    def test_expectation_opened_by_an_outcome_is_not_citable_until_main_accepts_it(self) -> None:
+        generated = self.advance(self.begin(), self.generation(), "generation")
+        step = self.comparison(generated.receipt.state.node_ids, evidence_ids=(self.source.id,))
+        grant = self.owner.execution_grant(generated)
+        integration = IntegrationResult(expectation=ExpectationUpdate(action="open",
+            anticipation="Jesse explains the unfinished sketch.", expected_outcome="A reason is given."))
+        final = self.owner.accept_step(generated, step, grant=grant, commit_id="comparison", active_seconds=1.5,
+            now_utc=self.now, mental_state=FullMentalState(), control_generation=0,
+            outcome=capture_graph_outcome(grant, step, integration))
+        finding_id = final.receipt.operation_record_id
+        assert finding_id is not None
+        opened = [record for record in self.store.snapshot(capture=False).all_knoxels.values()
+                  if isinstance(record, ExpectationRecord)]
+        self.assertEqual(len(opened), 1)
+        expectation_id = opened[0].id
+        # The finding is a recovery root. The expectation lives in the derived inner-turn commit.
+        accepted = accepted_source_ids(self.store)
+        self.assertIn(finding_id, accepted)
+        self.assertNotIn(expectation_id, accepted)
+        # This is why it must stay out of a private grant: the store refuses the next graph commit.
+        unaccepted_grant = capture_inquiry_grant(self.store.snapshot(capture=False),
+            observer_entity_id=self.observer.id, scope=RecordScope(), source_ids=[expectation_id], critical_epoch=0)
+        with self.assertRaisesRegex(ValueError, "Recovery root depends on unaccepted transactions"):
+            self.owner.accept_nominations(NominationBatch(nominations=(), reason="Nothing attracted attention."),
+                                          grant=unaccepted_grant, batch_id="cites-unaccepted-expectation")
+        # A main cycle that read the expectation accepts the commit that produced it.
+        main = self.store.begin_batch("main-reads-expectation", new_tick=True, embed=False)
+        main.depend_on([finding_id, expectation_id])
+        main.set_gwt(GwtTurnRecord(tick_id=main.tick_id, slot_id="main", knoxel_ids=[finding_id],
+                                  summary="Appraise the finding and its expectation."),
+                     CycleState(tick_id=main.tick_id, mental_state=FullMentalState(),
+                                stimulus_groups=[StimulusGroup(stimulus_ids=[finding_id])]))
+        self.commit(main)
+        self.assertIn(expectation_id, accepted_source_ids(self.store))
+        self.owner.accept_nominations(NominationBatch(nominations=(), reason="Nothing attracted attention."),
+                                      grant=unaccepted_grant, batch_id="cites-accepted-expectation")
 
     def test_comparison_input_keeps_original_branch_assumptions_and_judgments(self) -> None:
         generated = self.advance(self.begin(), self.generation(), "generation")

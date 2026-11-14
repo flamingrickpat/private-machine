@@ -16,8 +16,8 @@ The <a href="../../dev/work_items/beta-b05.md">B05 engineering record</a> contai
 
 The canonical owner is [`workflows.inner_thought.host.PrivateThoughtLoop`][].
 The parent architecture is the [cognitive pipeline](cognition.md).
-[Deliberate mental work](deliberate-mental-work.md) and [private reflection experiments](reflection.md) retain separate execution paths for now.
-Their migration to shared inquiry remains designed.
+[Deliberate mental work](deliberate-mental-work.md) uses this slot and these steps; see [Deliberate entry](#deliberate-entry).
+[Private reflection experiments](reflection.md) retain a separate execution path for now. Their migration to shared inquiry remains designed.
 
 ## Where the loop runs
 
@@ -74,9 +74,8 @@ An accepted attention decision also prevents repetition of that selection call f
 
 Runtime parked re-entry is wired: a parked question competes for the slot inside the same attention
 decision as fresh nominations, and only that decision can re-open it.
-Deliberate-action admission exists at the owner boundary through
-[`workflows.inner_thought.graph_host.PrivateInquiryOwner.accept_deliberate_entry`][], while the
-deliberate path that would call it remains designed work.
+A mental action that main cognition selected enters the same slot through
+[`workflows.inner_thought.graph_host.PrivateInquiryOwner.admit_deliberate_action`][]; see [Deliberate entry](#deliberate-entry).
 Work admitted under an older Critical epoch is closed before anything else happens in the opportunity.
 The coordinator never replaces an original epoch with a newer value; see [Displacement by Critical reconsideration](#displacement-by-critical-reconsideration).
 
@@ -221,7 +220,67 @@ A deferred dispatch, an action that already owns a mental result, or an action f
 [`workflows.inner_thought.schemas.DeliberateAdmission`][] names the operation main cognition already delivered, so the first step runs the chosen work rather than a fresh suggestion.
 [`workflows.inner_thought.schemas.InquiryOrigin`][] records which route opened the episode, and [`workflows.inner_thought.inquiry.inquiry_origin`][] reads it.
 The accepted instruction stays self-origin content: it cites its evidence and never impersonates outside evidence.
-The deliberate path that would call this boundary is not wired yet.
+
+[`workflows.focus_management.host.FocusManagement`][] is the caller. It owns the selected action; this loop only executes the episode.
+[Deliberate mental work](deliberate-mental-work.md) describes the action's lifecycle and delivery.
+
+#### Deliberate work takes the slot from spontaneous work
+
+A thought the companion chose to have outranks a thought that only occurred to it.
+When a selected action arrives while a spontaneous inquiry holds the slot, the spontaneous inquiry is parked.
+[`workflows.inner_thought.inquiry.stage_inquiry_preemption`][] writes a receipt without an executed thought.
+The receipt names the action that took the slot, so a later reader can see why that question was set aside.
+The parked inquiry keeps its graph, its next operation, and its budgets.
+Its parked deadline is the moment of parking, so shared attention can reconsider it as soon as the slot is free.
+Attention still decides whether it resumes.
+
+```mermaid
+sequenceDiagram
+    participant Main as Main cognition
+    participant Focus as FocusManagement
+    participant Slot as Private slot
+    participant Private as Private loop
+    Main->>Focus: action.request
+    Focus->>Slot: close stale work
+    Focus->>Slot: park spontaneous work
+    Focus->>Slot: open deliberate episode
+    loop Each timer tick
+        Private->>Slot: execute one step
+    end
+    Private->>Slot: outcome, focus advice
+    Focus->>Main: thought.created
+```
+
+The parking receipt names the action. The result is delivered under the action's correlation.
+
+Three rules bound this.
+
+- Deliberate work never parks other deliberate work. Main cognition chose both, and the later action waits for the slot.
+- Work from an older Critical epoch is closed as `displaced`, not parked. Parking would keep a graph whose authority is gone.
+- Parking, like displacement, runs no model call.
+
+#### What a deliberate step is told
+
+A spontaneous inquiry can end unfinished without loss. A deliberate one has someone waiting for it.
+[`workflows.inner_thought.graph_execution.DeliberateBudget`][] therefore tells the thought stage three things:
+main cognition waits for the result, which operation of how many this is, and how many operations without progress are used.
+The last operation cannot continue, and neither can an operation that would use the last step without progress.
+Each must state an outcome instead. An open information gap is a valid outcome.
+The request of a spontaneous inquiry does not carry this field, so its prompt is unchanged.
+
+The thought stage also reads the text of the sources that main cognition named with the instruction
+([`workflows.inner_thought.graph_execution.with_origin_evidence`][]).
+The integration that ends deliberate work is asked for optional focus advice
+([`workflows.inner_thought.schemas.FocusAdviceRequest`][]).
+The advice may only name records that the integration can cite.
+Main attention still accepts or rejects it.
+
+#### FAQ: why does deliberate work park the daydream instead of waiting?
+
+Owner criterion, 2026-11-14: the behavior should be more human, and the companion should be able to reflect on why its focus was managed the way it was.
+Waiting leaves no trace. Parking leaves a receipt that says which question was set aside and for which chosen work.
+The owner accepted parking and kept focus advice on that basis.
+Reading those receipts in reflection is not implemented yet; the graph does not receive reflection evidence.
 
 ## Private attention
 
@@ -413,6 +472,7 @@ Three different events used to be one fence. They are now separate because they 
 | Event | Effect on private work | Why |
 | --- | --- | --- |
 | Unrelated ordinary message arrives | keeps calculating | the message has not been classified yet and may not concern the work |
+| Selected mental action arrives | an active spontaneous inquiry is parked with a receipt naming the action; other deliberate work keeps the slot | the companion chose this work; the parked question keeps its graph and can return through attention |
 | Input is classified Critical | cancelled, and its generation never commits again; after main cognition accepts the reconsideration, the next opportunity closes the inquiry as `displaced` | accepted reconsideration changes what the character may do, but it does not answer the interrupted question |
 | Input is still unclassified | acceptance waits for the assessment | an unknown message could still turn out to be Critical |
 | Accepted inference wait | no continuation and no late commit | the character chose silence, not more thinking |
@@ -423,6 +483,7 @@ Input arrival alone therefore changes no control generation.
 [`workflows.cognitive_control.host.CognitiveControl.observe`][] records the message and tracks it as pending input;
 [`workflows.cognitive_control.host.CognitiveControl.accept_triage`][] owns Critical cancellation and the generation advance;
 [`workflows.cognitive_control.host.CognitiveControl.commit_private`][] accepts independent work under the current authority and holds it, cancellably, while a classification is outstanding.
+The hold releases the store lock completely. The private owner stages its commits under that lock, and triage acceptance needs the same lock to end the hold.
 The same rule applies to a main cycle whose only stimuli are accepted private findings: ordinary input no longer supersedes it.
 
 The retirement of the old fence was verified by recording one synthetic situation, then replaying it.
@@ -494,12 +555,15 @@ The retained linear path samples at its own commit, with the same threshold and 
 | Projection fails after graph commit | preserve the graph for visible diagnosis and projection repair |
 | Active or parked inquiry belongs to an older Critical epoch | close it with a `displaced` receipt and offer its question to attention as a new episode |
 | Several displaced questions wait and the run has no embedding endpoint | raise; the questions cannot be rated |
+| A citable record comes from a derived commit that no main cycle has read | leave it out of the request and the grant ([`accepted_source_ids`][workflows.inner_thought.graph_host.accepted_source_ids]); a graph commit cannot depend on an unaccepted commit |
+| Deliberate work is parked at a bound or displaced before an outcome | the deliberate owner commits a short notice and delivers it; main cognition hears back |
 | A generative step claims discrimination progress | reject with a message that names the operation mode, separately from the two-node rule |
 | One identical rejection fills two complete repair conversations | `RepeatedRejectionError` discards the cycle with `thought.rejected` telemetry |
 | Broken manifest, catalogue, or internal contract | fail through the actual error path |
 
 The B05 engineering record distinguishes connected workflow evidence from generated-content review and sustained behavior.
-Deliberate-entry wiring and scoped reflection and inspection evidence remain incomplete.
+Scoped reflection and inspection evidence remain incomplete.
+Deliberate entry ran in recorded real scenarios with an explicit first operation. Its default first operation, recall, has not run in one: recall sends an embedding request that the harness does not record.
 Graph felt-state sampling ran in one recorded real scenario. The mental state did not move in that scenario, so no real run has emitted a `QualeRecord` from the graph yet.
 Displacement has actual-store and real-control checks; no recorded scenario or live gate has driven it through a model-classified Critical message yet.
 The [output recovery guide](cognitive-output-recovery.md) explains the shared error and repair boundaries.

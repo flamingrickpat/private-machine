@@ -38,6 +38,19 @@ Each sample directory holds:
 A replay writes `replay-<sample>.json`, `replay-outcome-<sample>.json`, and `replay-<sample>.pickle` beside them and never modifies the recording.
 A later replay of the same sample replaces those three files, so copy them first when an earlier replay result must be kept.
 
+### Current scenarios
+
+| Scenario | Situation | What it shows |
+| --- | --- | --- |
+| `private-baseline` | three private cycles, nothing competes | the uninterrupted inquiry path |
+| `private-continuity` | an unrelated ordinary message arrives while a private step is calculating | the step is accepted, not discarded |
+| `deliberate-entry` | a selected mental action arrives while a spontaneous inquiry holds the private slot | the spontaneous inquiry is parked with a receipt, the deliberate episode runs to its outcome, and the result is delivered under the action's correlation |
+
+`deliberate-entry` commits the action record and its request itself, as synthetic input at the dispatch boundary.
+The harness cannot record a main cycle, so the scenario does not show that main cognition selects such an action.
+It names an explicit first operation, because the default one, recall, sends an embedding request.
+See [deliberate mental work](../subsystems/deliberate-mental-work.md).
+
 ### What a recording cost
 
 The recorder keeps the usage block the provider returned with each completion.
@@ -56,6 +69,7 @@ python -m tests.replay list
 python -m tests.replay record --scenario private-continuity --samples 3
 python -m tests.replay replay --snapshot .runtime/replay/private-continuity-20261114T081059Z
 python -m tests.replay compare --snapshot .runtime/replay/private-continuity-20261114T081059Z
+python -m tests.replay replay --snapshot .runtime/replay/deliberate-entry-20261114T092813Z
 ```
 
 `record` spends provider money: every sample is one independent live run.
@@ -96,6 +110,9 @@ It calls `BusModule.step(block=False)` in an order the caller states and advance
 When a scenario has to deliver outside input *while a module is thinking*, it installs `ScriptedModel.call_hook`.
 That hook fires inside the model call, which is where the running application would also be.
 If such an injection cancels work, say so in the outcome's `replay_blockers`.
+
+A replay writes its result files into the snapshot directory and replaces earlier ones.
+Replay a copy of the snapshot when the result may diverge and the earlier success should stay readable.
 
 ## Related material
 

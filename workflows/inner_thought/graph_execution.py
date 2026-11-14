@@ -14,6 +14,12 @@ attention decision as a displaced offer. Admission opens a new episode; the
 earlier nodes reach its thought stage as earlier private artifacts only.
 When several displaced questions wait, :mod:`workflows.inner_thought.offer_salience`
 chooses the one to offer from what the private mind currently holds.
+
+An episode that an accepted deliberate action opened runs through the same
+steps. Its thought stage also reads the sources the action named, and the
+integration that ends it is asked for optional focus advice. The thought stage
+is told that main cognition waits for the result and how many operations are
+left, and the last operation must state an outcome.
 """
 from __future__ import annotations
 
@@ -46,7 +52,7 @@ from workflows.inner_thought.operations import operation_lines, validate_operati
 from workflows.inner_thought.graph_outcomes import capture_graph_outcome
 from workflows.inner_thought.pipeline import ModelProposalError, citable_ids, validate_integration
 from workflows.inner_thought.schemas import (
-    AttentionCandidate, DisplacedInquiryOffer, InquiryAlternative, InquiryGrant, InquiryOrigin,
+    AttentionCandidate, DisplacedInquiryOffer, FocusAdviceRequest, InquiryAlternative, InquiryGrant, InquiryOrigin,
     InquiryResumeDecision, InquiryState, InquiryStep, InnerRequest, IntegrationResult, NominationBatch,
     ParkedInquiryOffer, PrivateAttentionContext, RetainedOfferSelection, ThoughtAlternative,
     ThoughtAttentionDecision, ThoughtCandidate, ThoughtResult, TriggerChoice,
@@ -89,6 +95,21 @@ class InquiryNodeView(BaseModel):
     payload: InquiryStep | InquiryAlternative
 
 
+class DeliberateBudget(BaseModel):
+    """Where a deliberate episode stands within its operation bound."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    operation_number: int = Field(ge=1, description="One-based number of the operation that is about to run.")
+    operation_limit: int = Field(ge=1, description="Most operations the episode can execute before it is parked without an outcome.")
+    stalled_operations: int = Field(ge=0, description="Consecutive accepted operations so far without new original evidence or a meaningful comparison.")
+    stalled_limit: int = Field(ge=1, description="Consecutive operations without progress at which the episode is parked without an outcome.")
+
+
+def _absent(value: object) -> bool:
+    """Return True for a field that the serialized request leaves out."""
+    return value is None
+
+
 class GraphThoughtRequest(BaseModel):
     """Frozen current operation input, separate from legacy linear requests."""
 
@@ -103,6 +124,9 @@ class GraphThoughtRequest(BaseModel):
         description="Nodes of the closed earlier episodes behind a displaced question, oldest first. "
                     "They are private history, never graph relation targets of this episode.")
     recall: PrivateRecall | None = None
+    deliberate_budget: DeliberateBudget | None = Field(default=None, exclude_if=_absent,
+        description="Set only for deliberate mental work that main cognition selected. The serialized request "
+                    "leaves the field out otherwise, so the prompt of a spontaneous inquiry is unchanged.")
 
 
 def _node_view(view: Snapshot, node_id: int) -> InquiryNodeView:
@@ -151,6 +175,27 @@ def graph_thought_request(view: Snapshot, request: InnerRequest, parent: Inquiry
                                earlier_artifacts=earlier_artifacts(view, state))
 
 
+def with_origin_evidence(view: Snapshot, request: InnerRequest, origin: InquiryOrigin) -> InnerRequest:
+    """Return the request with the deliberate action's named sources as readable candidates.
+
+    A deliberate episode cites the sources main cognition named with the
+    instruction. The private request of a later timer tick need not contain
+    them, and the model would then see their IDs without their text. Sources
+    the request already supplies are left as they are.
+    """
+    supplied_ids = citable_ids(request)
+    extended = request.model_copy(deep=True)
+    for source_id in origin.evidence_ids:
+        if source_id in supplied_ids:
+            continue
+        record = view.get(source_id)
+        extended.candidates.append(ThoughtCandidate(knoxel_id=source_id, text=record.content,
+            revision=view.revisions[source_id], kind="deliberate_evidence",
+            reason="Named with the deliberate instruction."))
+        supplied_ids.add(source_id)
+    return extended
+
+
 def graph_thought_instruction(request: GraphThoughtRequest) -> str:
     """Explain the admitted operation and graph's epistemic acceptance rules."""
     operation = validate_operation(request.state.next_operation)
@@ -184,6 +229,7 @@ def graph_thought_instruction(request: GraphThoughtRequest) -> str:
         + f"This operation is {operation.mode}. " + branch_rule + "\n"
         + progress_rule + "\n"
         + _earlier_artifact_rule(request)
+        + _deliberate_rule(request)
         + "Return one InquiryStep. Execute only the admitted operation. Cite only supplied source or accepted node IDs. "
         "A later step must relate explicitly to accepted earlier nodes. New alternatives have no committed IDs yet. "
         "Keep assumptions, evidence, plausibility, interest, desirability and action suitability separate. "
@@ -220,6 +266,39 @@ def _earlier_artifact_rule(request: GraphThoughtRequest) -> str:
         "and never belongs in compared_node_ids.\n")
 
 
+def _deliberate_rule(request: GraphThoughtRequest) -> str:
+    """Tell deliberate mental work that its result is awaited and how much room is left.
+
+    Without this rule the model keeps choosing another operation until the
+    episode is parked at its bound, and main cognition receives no conclusion
+    for the work it selected. The last operation therefore has to state where
+    the thinking stands, even when that is an open gap.
+    """
+    budget = request.deliberate_budget
+    if budget is None:
+        return ""
+    rule = (
+        f"This inquiry is deliberate mental work that {request.request.companion_name} chose to do. "
+        "Main cognition waits for its result. "
+        f"This is operation {budget.operation_number} of at most {budget.operation_limit}. "
+        "Reach an outcome within them instead of planning further operations you cannot run. ")
+    rule += (
+        "Progress means new original evidence or a meaningful comparison of accepted graph nodes. "
+        f"{budget.stalled_operations} of {budget.stalled_limit} consecutive operations without progress are used; "
+        f"at {budget.stalled_limit} the work is parked without a result. ")
+    if budget.operation_number >= budget.operation_limit:
+        rule += (
+            "This is the last operation, so outcome='continue' is not available. State where the thinking "
+            "stands: outcome='finding' or 'completed' when an accepted comparison supports it, otherwise "
+            "outcome='information_gap' with the missing evidence, or outcome='pause'. An honest open gap is a "
+            "valid result. ")
+    elif budget.stalled_operations + 1 >= budget.stalled_limit:
+        rule += (
+            "This operation must make such progress or state an outcome. outcome='continue' together with "
+            "progress.kind='none' is not available, because it would park the work without a result. ")
+    return rule + "\n"
+
+
 def validate_graph_step(request: GraphThoughtRequest, step: InquiryStep) -> InquiryStep:
     """Reject stochastic semantic violations inside the child's repair boundary.
 
@@ -229,6 +308,19 @@ def validate_graph_step(request: GraphThoughtRequest, step: InquiryStep) -> Inqu
     state = request.state
     if step.operation != state.next_operation:
         raise ModelProposalError("Execute the admitted next operation, without replacing it.")
+    budget = request.deliberate_budget
+    if budget is not None and budget.operation_number >= budget.operation_limit and step.outcome == "continue":
+        raise ModelProposalError(
+            "This is the last operation of deliberate mental work, so it cannot continue. State an outcome: "
+            "'finding' or 'completed' when an accepted comparison supports it, otherwise 'information_gap' with "
+            "the missing evidence, or 'pause'. Leave next_operation empty.")
+    if (budget is not None and budget.stalled_operations + 1 >= budget.stalled_limit
+            and step.outcome == "continue" and step.progress.kind == "none"):
+        raise ModelProposalError(
+            "This operation makes no progress and would park the deliberate mental work without a result. "
+            "State an outcome instead: 'information_gap' with the missing evidence, or 'pause', and leave "
+            "next_operation empty. A meaningful comparison of at least two accepted nodes is the other way on, "
+            "when this operation is discriminatory.")
     operation = validate_operation(step.operation)
     if step.next_operation:
         try:
@@ -527,7 +619,16 @@ def run_graph_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner,
     dependencies = {source.record_id: source for source in grant.sources}
     dependencies.update({source.record_id: source for source in node_grant.sources})
     execution_grant = node_grant.model_copy(update={"sources": tuple(dependencies[key] for key in sorted(dependencies))})
-    supplied = graph_thought_request(owner.store.snapshot(capture=False), request, parent, execution_grant)
+    step_view = owner.store.snapshot(capture=False)
+    supplied = graph_thought_request(step_view, request, parent, execution_grant)
+    deliberate = supplied.origin.kind == "deliberate_action"
+    if deliberate:
+        request = with_origin_evidence(step_view, request, supplied.origin)
+        deliberate_state = parent.receipt.state
+        budget = DeliberateBudget(operation_number=deliberate_state.sequence + 1,
+            operation_limit=owner.limits.episode_steps, stalled_operations=deliberate_state.stalled_steps,
+            stalled_limit=owner.limits.stalled_steps)
+        supplied = supplied.model_copy(update={"request": request, "deliberate_budget": budget})
     started = monotonic()
     if parent.receipt.state.next_operation == "memory_search":
         if recall_memory is None:
@@ -568,8 +669,14 @@ def run_graph_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner,
         payload = integration_request.model_dump(mode="json")
         payload.update(thought=thought.model_dump(mode="json"), trigger=trigger.model_dump(mode="json"),
                        operation={"name": step.operation})
+        integration_ids = citable_ids(integration_request)
+        if deliberate:
+            # Deliberate mental work is the producer of focus advice. A
+            # spontaneous outcome is never asked for it.
+            payload["focus_advice"] = FocusAdviceRequest(instruction=supplied.origin.text,
+                citable_ids=tuple(sorted(integration_ids))).model_dump(mode="json")
         integration = IntegrationResult.model_validate(run_stage("integrate", payload))
-        validate_integration(integration, citable_ids(integration_request), integration_request)
+        validate_integration(integration, integration_ids, integration_request, focus_requested=deliberate)
         outcome = capture_graph_outcome(execution_grant, step, integration)
     active_seconds = monotonic() - started
     accepted = owner.accept_step(parent, step, grant=execution_grant,

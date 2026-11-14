@@ -78,6 +78,7 @@ if TYPE_CHECKING:
     from pm.llm.config import ModelConfig
     from pm.llm.stage_model import LazyStageModel
     from pm.memory.embeddings import EmbeddingService
+    from workflows.focus_management.host import FocusManagement
     from workflows.tool_call.catalogue import ToolCatalogue
 
 
@@ -244,7 +245,7 @@ class CognitionModules(NamedTuple):
     assistant: CognitiveWorkflow | None
     self_management: CognitiveWorkflow | None
     inner_thought: CognitiveWorkflow
-    focus_management: CognitiveWorkflow | None
+    focus_management: FocusManagement | None
 
 
 def _cognition_modules(
@@ -350,16 +351,11 @@ def _cognition_modules(
             ghost=ghost,
         )
         inner_thought.inference_admission = admission
-        # The deliberate mental-work agent runs one scoped pm-coder session and
-        # returns advice. Main appraisal still owns every accepted change.
+        # Deliberate mental work enters the private slot of the loop above.
+        # This module admits the selected action and delivers its result; it
+        # runs no model. Main appraisal still owns every accepted change.
         from workflows.focus_management.host import FocusManagement
-        focus_management = FocusManagement(
-            "focus_management", bus, on_error, clock, 1.0,
-            working_target=target,
-            workflow=PROJECT_ROOT / "workflows" / "focus_management" / "focus_management.workflow.md",
-            runtime_root=runtime_root, ghost=ghost, embeddings=embeddings,
-            workflow_models=workflow_models,
-        )
+        focus_management = FocusManagement("focus_management", bus, on_error, clock, 1.0, ghost=ghost)
         return CognitionModules(main_cog, story, assistant, self_management, inner_thought, focus_management)
     main_cog = DummyMainCogLoop(
         "main_cog", bus, on_error, clock, None,
@@ -606,10 +602,12 @@ def build_app(
         control.inference_admission = main_cog.inference_admission
         control.cancel_private = inner_thought.yield_run
         def cancel_critical_private() -> None:
-            """Prioritize reconsideration while preserving selected mental actions."""
+            """Prioritize reconsideration over private work that is calculating now.
+
+            Deliberate mental work runs in the same private loop. Its episode
+            is closed as displaced at the next private opportunity.
+            """
             inner_thought.cancel_run()
-            if focus_management is not None:
-                focus_management.defer_for_critical()
         control.cancel_critical_private = cancel_critical_private
         control.enable_input_triage()
         user_input.register_triage_input = control.register_input

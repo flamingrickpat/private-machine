@@ -27,8 +27,12 @@ shared attention and can start a new episode under the current grant; inquiry
 owns that staging and graph_execution the offer. When several closed questions
 wait, offer_salience chooses the one offered from what the private mind holds
 now: shared original sources, embedding similarity, and seeded chance. That
-choice is retained on the attention outcome. Deliberate mental work still
-awaits its wiring to this slot.
+choice is retained on the attention outcome.
+
+Accepted deliberate mental work uses the same slot and the same steps.
+:mod:`workflows.focus_management.host` admits the action, parks spontaneous
+work that holds the slot, and owns the action's lifecycle and the delivery of
+its finding. This loop only executes the episode on its timer.
 """
 from __future__ import annotations
 
@@ -51,13 +55,13 @@ from workflows.cognitive_control.schemas import ControlConfig
 from pm.bus.envelopes import Envelope, new_envelope, new_id
 from pm.memory.bash_view import MemoryBashEnvironment
 from pm.memory.snapshot import GhostCancelled, GhostConflict, Snapshot
-from pm.records.enums import EntityClass, FeatureType, InterlocusType, SourceKind
+from pm.records.enums import FeatureType, InterlocusType, SourceKind
 from pm.records.cognitive_records import ExpectationRecord, Intention
 from pm.records.cycle_state import CycleState
 from pm.records.global_workspace import GwtTurnRecord
 from pm.records.lineage import RecordLineage
 from pm.records.mental_state import FullMentalState
-from pm.records.memory_records import Entity, Feature, new_feature
+from pm.records.memory_records import Feature, new_feature
 from pm.records.qualia_records import QualeRecord
 from pm.runs.workflow_module import CognitiveWorkflow
 
@@ -84,7 +88,9 @@ from workflows.inner_thought.triggers import evaluate_triggers
 from workflows.inner_thought.graph_execution import PrivateGraphResult, PrivateRecall, StageRunner, run_graph_opportunity
 from pm.memory.dependencies import capture_source
 from workflows.public_speech.public_context import EvidenceItem
-from workflows.inner_thought.graph_host import PrivateInquiryOwner, pending_findings
+from workflows.inner_thought.graph_host import (
+    MENTAL_ACTION_KEY, PrivateInquiryOwner, accepted_source_ids, pending_findings, private_observer,
+)
 from workflows.inner_thought.inquiry import INQUIRY_EPISODE_KEY, inquiry_history
 from workflows.inner_thought.nominations import capture_inquiry_grant
 from workflows.inner_thought.pipeline import citable_ids
@@ -233,13 +239,13 @@ class PrivateThoughtLoop(CognitiveWorkflow):
                 raise TypeError("A private inquiry requires its actual frozen memory environment.")
             view = environment.ghost_view
             assert view is not None
-            identities = [record for record in view.all_knoxels.values()
-                          if isinstance(record, Entity) and record.entity_class == EntityClass.Self
-                          and record.content == request.companion_name]
-            if len(identities) != 1:
-                raise ValueError("A private inquiry requires one exact companion identity anchor.")
-            observer = identities[0]
-            permitted = {record_id for record_id in citable_ids(request) if view.get(record_id).scope == observer.scope}
+            observer = private_observer(view, request.companion_name)
+            # A source also needs an accepted producing commit. The graph
+            # commits are recovery roots, which cannot depend on a derived
+            # commit that no main cycle has read yet.
+            accepted_ids = accepted_source_ids(self.ghost)
+            permitted = {record_id for record_id in citable_ids(request)
+                         if view.get(record_id).scope == observer.scope and record_id in accepted_ids}
             # The request and its grant describe the same observer reality.
             # Foreign frame contents cannot remain in the model's evidence list.
             request = request.model_copy(update={
@@ -565,8 +571,17 @@ class PrivateThoughtLoop(CognitiveWorkflow):
             return
 
     def _publish_graph_finding(self, record_id: int) -> None:
-        """Deliver one accepted outcome identity; accepted internal branches stay private."""
+        """Deliver one accepted outcome identity; accepted internal branches stay private.
+
+        A finding of a deliberate episode is not delivered here. The deliberate
+        owner delivers it under the action's correlation.
+        """
         if record_id in self._published_thoughts:
+            return
+        finding = self.ghost.get_knoxel_by_id(record_id)
+        if finding is None:
+            raise ValueError("An accepted private finding must exist in memory.")
+        if finding.metadata.get(MENTAL_ACTION_KEY) is not None:
             return
         self._published_thoughts.add(record_id)
         turns = [turn for turn in self.ghost.gwt_turns.values()

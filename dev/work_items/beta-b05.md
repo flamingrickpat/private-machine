@@ -1515,10 +1515,174 @@ although its result could not be delivered before then in either design.
 
 Recommendation: A now. B is a separate change to the inquiry contract.
 
+### Owner answer (2026-11-14)
+
+The owner asked which choice gives more human behaviour, and named a second
+criterion: the companion should be able to reflect on why its focus was
+managed the way it was. On that criterion the recommendation changed to 1A, 2B,
+and 3B. The owner accepted 1A and 2B for this pass and 3B as a separate later
+pass.
+
+## Pass: deliberate mental work enters the private slot (2026-11-14)
+
+This closes remaining item 1.
+
+### Changed
+
+- `workflows/focus_management/host.py` is rewritten. `FocusManagement` is now a
+  plain bus module without a kernel, a model, or an agent. It admits the
+  selected action into the private slot, commits the action's lifecycle, and
+  delivers the result under the action's correlation. The pm-coder session
+  (`steps.py`, `agent.md`, the workflow manifest, `schemas.py`) and its
+  fake-driver tests are removed.
+- Parking (decision 2B). `inquiry.stage_inquiry_preemption` parks an active
+  spontaneous inquiry with a receipt that names the action
+  (`InquiryReceipt.preemption`). It executes no thought and keeps the graph,
+  the next operation, and the budgets. The parked deadline is the parking
+  time, so shared attention can reconsider it once the slot is free.
+  Deliberate work never parks deliberate work; the later action waits.
+  `PrivateInquiryOwner.admit_deliberate_action` first closes work from an older
+  Critical epoch, then parks, then opens the episode, each as its own commit.
+- Focus advice (decision 1A). The integration that ends deliberate work is
+  asked for optional focus advice (`FocusAdviceRequest`,
+  `IntegrationResult.focus`, a prompt block in the integrate stage). The advice
+  may only name citable IDs. `GraphMentalProposal.focus` carries it to main
+  cognition through the existing `mental_plan` contract. A spontaneous
+  integration is never asked, and its prompt is unchanged.
+- Delivery. A deliberate finding carries `mental_action_id` and
+  `mental_correlation`. `pending_findings` and the private loop leave it out;
+  `FocusManagement.resume` delivers it once its inner turn exists.
+  `CognitiveControl.admit` no longer drops a mental-action result from an older
+  control generation, as the earlier results carried no generation stamp.
+- The first operation is `arguments.operation` when it names a delivered
+  operation, else `memory_search`.
+- The thought stage of a deliberate episode reads the text of the sources the
+  action named (`with_origin_evidence`).
+- The integrate stage prompts are now a typed `IntegrationPrompts` model.
+- `pyrightconfig.json` includes `workflows/focus_management`.
+
+### Three defects found on the way
+
+1. **Deadlock, pre-existing.** While input awaited classification,
+   `CognitiveControl.commit_private` polled with the store lock held, because
+   every `PrivateInquiryOwner` method stages under that lock. Triage acceptance
+   needs the same lock, so the hold could never end. A probe with a real store
+   and real control showed another thread could not take the lock. The hold now
+   waits on a condition of the store lock, which releases every level of it.
+   Consequence: other writers can commit during a hold; the batch guards reject
+   the batch if they changed what it depends on, but a check made before
+   staging that the batch does not guard (the focus head) is not repeated.
+2. **Unaccepted source, pre-existing.** A graph outcome opens its expectation
+   in the derived inner-turn commit. The next private opportunity cited that
+   record in a recovery-root commit, and the store refused it (`Recovery root
+   depends on unaccepted transactions`). The third real run hit this.
+   `graph_host.accepted_source_ids` now limits the private request and grant,
+   and the deliberate entry's evidence, to records from accepted commits.
+3. **No answer for the selected action, introduced by the new path.** The
+   first real run parked the deliberate episode at the stall bound, and main
+   cognition would have heard nothing about the action it selected. The earlier
+   agent path always delivered a result, including failures. The module now
+   commits a short first-person notice when an episode is parked at a bound or
+   displaced before an outcome, and delivers it like a finding. This was not in
+   the proposal the owner accepted; it is reported for the owner's veto.
+
+A fourth observation led to a prompt change. In the second real run the model
+kept choosing another operation until the step limit. `DeliberateBudget` now
+tells a deliberate step that main cognition waits, which operation of how many
+this is, and how many operations without progress are used. The last operation
+cannot continue, and neither can an operation that would use the last step
+without progress. The field is left out of a spontaneous request, so that
+prompt is unchanged. This was also not in the accepted proposal.
+
+### Real model runs
+
+Scenario `deliberate-entry` (`tests/replay/scenarios.py`): one private cycle
+establishes a spontaneous inquiry; a synthetic accepted dispatch arrives; the
+real deliberate owner, store, private loop, thought stage, and integrate stage
+do the rest. OpenRouter, provider-reported cost.
+
+| Run | Code state | Deliberate operations | Result | Cost |
+| --- | --- | --- | --- | --- |
+| 1 | first wiring, first operation `feasibility_check` | 2 | parked at the stall bound; nothing delivered (defect 3) | $0.008773 |
+| 2 | with notice, first operation `future_projection` | 6 | never reached an outcome; parked at the step limit | $0.016859 |
+| 3 | with budget rule | 2 | finding with focus advice; the next cycle failed on defect 2 | $0.013101 |
+| 4 | with defect 2 fixed | 2 | parked at the stall bound; notice delivered | $0.011125 |
+| 5a | with stall wording | 3 | completed; finding with focus advice; delivered | $0.013739 |
+| 5b | same | 4 | completed; finding with focus advice; delivered | $0.011467 |
+
+Runs 5a and 5b are `.runtime/replay/deliberate-entry-20261114T092813Z`, and
+both replay exactly. In both, the spontaneous episode was parked by the
+action with its graph kept, every deliberate step saw the budget rule, the
+integrate stage saw the focus request, the action closed as `proposed`, and
+`focus_management` delivered the finding under the action's correlation.
+The next attention call saw the parked question with the preemption reason;
+the model did not re-admit it in either sample. Run 5a's focus advice:
+promote four records, reduce one, strength 0.4, one hour. The three rejected
+model answers across both samples came from rules that existed before this
+pass; neither new rule rejected an answer.
+
+`private-continuity-20261114T081059Z` still replays exactly after all changes.
+
+### Verification
+
+- `tests/unit/workflows/focus_management`: **15 passed**. Real stores, a real
+  bus, and for three cases the real `CognitiveControl`. Steps and
+  classifications are explicit inputs; no model runs.
+- `tests/unit/workflows/inner_thought` discovery: **210 passed** (203 before),
+  including six focus-advice checks and the unaccepted-expectation check.
+- `test_early_triage`, `test_architecture`, `test_shared_prefixes`: **24
+  passed**, including the new lock check. That check fails on the old hold.
+- Two deliberate mutations (delivery filter removed, parking disabled) each
+  failed the new checks.
+- Configured strict Pyright: **0 errors**. Scoped strict scan of the new
+  module and both new test modules: 0 errors.
+- Strict MkDocs passed; all local links on the three changed pages resolve.
+  Headless Chromium found a Mermaid parse error in the first version of the
+  new sequence diagram (a participant named `Loop`); it is fixed and both new
+  diagrams were inspected as rendered pictures.
+- Unchanged pre-existing red, compared with HEAD `ab9c7f3` in a worktree:
+  `test_focus` (3), `test_cognition_wiring` (11, identical set), and
+  `tests/contract/inner_thought` (1: a stale inspection fixture).
+
+Receipts: `.runtime/beta-b05/deliberate-entry/`.
+
+### Not run and limits
+
+- **NOT RUN — `test_companion_wiring`.** It waits for an embedding endpoint
+  before it reaches any assertion, also at HEAD. The assembled application
+  with the new module ran through the replay harness instead.
+- **NOT RUN — the default first operation `memory_search` in a real run.** It
+  sends an embedding request that the harness does not record.
+- **NOT RUN — main cognition.** No real run selected a mental action, appraised
+  a deliberate finding, or accepted graph focus advice. The dispatch is
+  synthetic input.
+- **NOT RUN — an accepted wait holding admission**, in a check or a real run.
+  Arming a wait needs the embedding endpoint.
+- **NOT RUN — Critical displacement of a deliberate episode in a real run.**
+- Full suites and integrated live gates: not run.
+- Three of six real runs ended without a finding. The last two did not, after
+  the budget wording. Two samples do not establish a rate.
+- Deliberate recall is one retrieval per `memory_search` step with the
+  instruction as its query (decision 3A for now; 3B is its own pass).
+- Deliberate work does not run during an accepted wait, including the quiet
+  window after a spoken reply.
+- A deliberate episode parked at a bound closes its action. If attention later
+  resumes that episode and it reaches a finding, the finding is still
+  delivered, but the action keeps its `parked` status.
+- `ControlConfig.mental_timeout_seconds` has no reader now. The field stays,
+  because the model forbids unknown keys and existing configuration may set it.
+- `dev/work_items/alpha_a18c_mental_gate.py` tested the removed agent session
+  and no longer runs. Its docstring says so.
+
 Still unfinished in B05, in dependency order:
 
-1. Wire `FocusManagement` to the shared private owner, after the decisions above.
-2. Integrate scoped reflection and inspection evidence. Felt-state emission is done.
-3. Run the integrated live gates, including a real Critical displacement, two
-   waiting displaced questions, and a graph `QualeRecord`.
+1. Integrate scoped reflection and inspection evidence into the graph. The
+   model already chooses `reflection_review` in deliberate episodes and gets no
+   reflection evidence.
+2. Run the integrated live gates, including a real Critical displacement, two
+   waiting displaced questions, a graph `QualeRecord`, deliberate recall, and a
+   main cycle that selects and appraises deliberate work.
+
+Separate accepted pass after B05 item 1: decision 3B, a recall query proposed
+by the previous step.
 
