@@ -1266,3 +1266,92 @@ Still unfinished in B05, in dependency order:
    timer opportunity.
 2. Integrate scoped reflection/inspection evidence and graph felt-state emission.
 3. Run the integrated live gates, including a real Critical displacement.
+
+## Pass: which displaced question is offered (2026-11-14)
+
+The displacement pass offered the newest displaced question first. That rule
+was copied from parked work and had no other reason. The owner asked for the
+question with the highest salience against the current workspace, with some
+random chance, and then for two signals combined into one weighted score:
+a shared source, and plain similarity, because hearing something similar or
+having an adjacent thought should also bring a question into focus.
+
+### Changed
+
+- New module `workflows/inner_thought/offer_salience.py`. It reads the frozen
+  private request as cues, rates each waiting question, and picks one. It
+  makes no model call and reads no store.
+  - Source overlap: share of the question's source roots among the cue records.
+  - Similarity: highest embedding cosine between the question and any one cue.
+  - Relevance: `0.5 * overlap + 0.5 * similarity`. The equal weights are an
+    implementation starting value, not an owner decision.
+  - Noise and selection follow `SituationalModel.snapshot_for`: jitter scaled
+    by `1 - salience_bias`, the highest rating at a bias of 0.9 or more, and
+    one weighted draw below it.
+- `displaced_candidate` uses it when two or more questions wait. One waiting
+  question is offered without measurement. The generator is seeded with the
+  opportunity's batch identity.
+- The private host passes its embedding endpoint as `embed_texts`. Rating
+  costs one embedding request per opportunity, after the check for an existing
+  attention outcome. Several waiting questions without an endpoint raise.
+- `ThoughtAttentionReceipt.displaced_selection` keeps the full
+  `RetainedOfferSelection` on every attention outcome of the opportunity. It is
+  not part of the attention prompt. An admitted displaced question must be the
+  one its selection names.
+- `pyrightconfig.json` includes the new module.
+
+Found during the pass: with very small ratings the weighted draw computed
+sample keys that all rounded to 0.0, which turned the draw into a fixed
+tie-break. The weights are now scaled so the largest is 1; the draw depends
+only on their ratios.
+
+Parked work keeps its newest-first rule. The owner has not decided whether it
+shares this rule.
+
+### Verification
+
+- `tests.unit.workflows.inner_thought.test_offer_salience`: **17 passed**.
+  These are in-process checks of the pure arithmetic with explicit vectors.
+- `tests.unit.workflows.inner_thought.test_inquiry_displacement`: **17 passed**,
+  with the retained selection, the mismatched-selection refusal, and the raise
+  without an embedding endpoint.
+- `tests/unit/workflows/inner_thought` discovery: **198 passed**.
+- Configured strict Pyright, now including `offer_salience.py`: **0 errors**.
+  A scoped strict scan of the three new or changed test modules: 0 errors.
+- The recorded `private-continuity-20261114T064112Z` samples still replay
+  exactly, so the attention prompt did not change.
+- Strict MkDocs passed in **200.20 seconds**. Headless Chromium rendered the
+  five diagrams of `docs/subsystems/private-loop.md` and found the new API
+  text, with no JavaScript or request error. The first rendering of the new
+  diagram was too wide to read; it now flows top to bottom.
+
+Real embedding endpoint, `perplexity/pplx-embed-v1-0.6b` through OpenRouter,
+`python -m unittest tests.live.test_displaced_offer_salience`, run twice with
+identical values, four embedding requests each and no chat completion:
+
+| Opportunity | Sketch question | Tap question | Offered |
+| --- | --- | --- | --- |
+| A new remark about a leaking pipe | similarity 0.06 | similarity 0.40 | tap |
+| A private thought about the harbour picture | similarity 0.45 | similarity 0.06 | sketch |
+| The tap's original report held again | overlap 0, rating 0.03 | overlap 1.0, similarity 0.62, rating 0.83 | tap |
+
+The store, both inquiries, their displacement, and the coordinator are real;
+the texts are synthetic. Evidence: `.runtime/beta-b05/offer-salience/`.
+
+### Not run and limits
+
+**NOT RUN:** the selection inside a running private loop. No scenario or live
+gate has two displaced questions, so `PrivateThoughtLoop.run_inquiry` has not
+called the embedding endpoint for this purpose yet. Full suites and the
+integrated live gates: not run.
+
+With this embedding model related text scores about 0.4 to 0.45 and unrelated
+text about 0.06. A related cue therefore adds about 0.2 to the relevance, and
+a fully held source adds 0.5. Whether that balance is right is an owner tuning
+question for the two weights.
+
+The rating has no recency term. Two questions that nothing cues are drawn by
+noise alone.
+
+The replay harness does not record embedding requests. A scenario with several
+displaced questions would send real embedding requests during a replay.
