@@ -3,6 +3,34 @@
 Written 2026-11-15 for B07 Pass 5 step 6 (owner decision D10). No code was changed for this run.
 Run 3 is **not startable today**. This file lists what is missing.
 
+## Resolved the same day (B07 Pass 8)
+
+The owner started the run the same evening. The harness supports bodies now, and the stack the run
+needs is a small local tool instead of a manual procedure. What changed:
+
+1. **Bodies are switched on per participant.** `TemplateParticipant.minecraft_mcp_url` names the one
+   body a participant holds; `RunEngine` records it in the controller document and passes it to the
+   participant at `/control/start`; the participant writes `minecraft.mcp_url` into its own model
+   configuration and starts with `enable_minecraft=True`. A participant without the field is
+   unchanged. Missing item 2 below is closed by that per-participant field: each Spamuel has his own
+   endpoint, so each has his own body lease and avatar.
+2. **World time (missing item 3) is a recorded decision, not a code change.** Bodies work on demand:
+   the participant's world poll stays off, because a virtual-clock poll would fire hundreds of times
+   inside one scene advance while the server keeps real time. Body workflows still read the world when
+   they run. See `docs/subsystems/simulation.md`, section "Minecraft bodies".
+3. **Checkpoints (missing item 5).** `RunEngine` refuses to restore a run that owns a body, and says
+   so. A failed body run needs a new run ID instead of mixed evidence.
+4. **Real services.** `dev/tools/minecraft_final_run.py up` starts one disposable server copy plus one
+   pm-minecraft process per body (different MCP, body, and viewer ports, different agent homes),
+   waits for both bodies to answer an observation, and writes a receipt with every process ID.
+   `status` and `stop` read that receipt from another process; `stop` asks the server to save and stop
+   over RCON first.
+
+Still true and reported, not fixed: missing item 4 (world effects are not part of the harness
+receipts; the pm-minecraft agent homes and logs carry them) and missing item 6
+(`MINECRAFT_REQUEST_SECONDS = 660` and the 5-second startup probe are still caps on the body path;
+no body request failed in this session).
+
 ## What the harness lacks
 
 1. **Bodies are switched off.** `simulation/participant.py::Participant._start` builds every

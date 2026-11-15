@@ -629,3 +629,92 @@ the final runs and the owner's review are its evidence, so card 7 stays `doing`.
 
 B07 provider-reported spend in this session: gates $0.113914, D7 $0.133400, comparison and check
 runs $0.437983; total about $0.69. Commits since the handoff: `d8c6444` … `ac4d115`, none pushed.
+
+## Pass 8 — start the three final runs in parallel (owner instruction, 2026-11-15)
+
+The owner started the runs and asked for changes so all three can run at the same time without
+affecting each other. Three owner decisions replaced earlier recommendations:
+
+- **D9 clarified.** Jesse is in the loop. The setup is that Jesse made a second Spamuel; she talks with
+  both, and both may also write to each other. For Spamuel 1 the other Spamuel is an ordinary entity:
+  either may stay quiet, answer later, or ignore the other, and neither is obliged to reply. The
+  two-Spamuels template now says that in its brief, director guidance, and actor guidance. The two
+  directed edges stay.
+- **D10 withdrawn.** Run 3 is startable. `C:/source/minecraft-server-real` serves the world and
+  `C:/source/pm/pm-minecraft` runs the bodies.
+- **Private churn** stays as it is for now. The unfixed run-enders stay as they are for now.
+
+### Changed
+
+- `simulation/templates.py`: `TemplateParticipant.minecraft_mcp_url` (validated HTTP endpoint, one
+  endpoint per participant); `create_run` maps template participants to the engine's selection type.
+- `simulation/engine.py`: new `ParticipantSelection(id, home, minecraft_mcp_url)` replaces the
+  untyped participant mapping in `RunEngine.create`; `participant_body_endpoint` reads the controller
+  document (an old run has no field and reads as "no body"); the body endpoint is passed to each
+  `PMProcess`; `start` and `restore` refuse to restore a run that owns a body.
+- `simulation/client.py`: `PMProcess` carries the endpoint and sends it in `/control/start`.
+- `simulation/participant.py`: `/control/start` accepts `minecraft_mcp_url`, writes it as the
+  `minecraft` section of that participant's own `runtime/model-config.yaml`, and starts the
+  application with `enable_minecraft=True`; the world poll stays off (module docstring explains the
+  virtual-clock reason). Start options are type-checked at that boundary.
+- `simulation/server.py`: the browser keeps each participant's body endpoint through template
+  validation, run forking, and raw-plan run creation.
+- `test_data/simulation/beta-final-two-spamuels.json`: brief, director guidance, actor guidance, and
+  analysis context now state the owner's premise. The plan and its 23 scenes are unchanged.
+- New `test_data/simulation/beta-final-minecraft.json`: Jesse with Spamuel 1 and Spamuel alpha, each
+  with his own body in one shared world; two days, six scenes, `minimum_turns_per_scene` 3, the same
+  two directed connections.
+- New `dev/tools/minecraft_final_run.py`: `up` copies the server template into
+  `.runtime/beta-final/minecraft/server`, patches its ports, starts the world, writes one `.env` per
+  body (MCP 6777/6778, body HTTP 6779/6780, viewer 6781/6782, separate agent homes), starts both
+  pm-minecraft processes, waits for a live observation from each, and supervises them until the
+  server ends. `status` and `stop` read its receipt; `stop` saves the world over RCON first. It uses
+  the `OperatingSystem` boundary and refuses to start beside another listener.
+- `docs/subsystems/simulation.md`: new "Minecraft bodies" section; the restore paragraph notes the
+  body exception. `simulation/__init__.py`: the canonical overview describes bodies and that limit.
+
+### Why
+
+The owner wants the three end-to-end runs going at once as the beta milestone evidence. They need a
+body path that names one endpoint per participant, a world that two bots can share, and no shared
+ports, homes, leases, or run folders between runs.
+
+### Verified
+
+- `python -m simulation.templates validate` on all three templates: valid.
+- `tests/unit/simulation` 13 OK (including the coordinated-checkpoint restore); `tests.unit.test_architecture`
+  7 OK; `npx --no-install pyright --project pyrightconfig.json`: 0 errors.
+- Real Minecraft stack, started 2026-11-15T13:17Z: `dev/tools/minecraft_final_run.py up` generated a
+  fresh world, both players joined it (`spamuel_1`, `spamuel_alpha`, entity ids 325 and 326), and both
+  MCP endpoints answered a full tool probe. Receipt: `.runtime/beta-final/minecraft/stack.json`.
+- Runs created and started in parallel at 13:21Z: `beta-final-month-20261115` (port 8098, 1
+  participant, 90 scenes), `beta-final-two-spamuels-20261115` (port 8099, 2 participants, 23 scenes,
+  recreated from the updated template), `beta-final-minecraft-20261115` (port 8100, 2 participants
+  with bodies at 6777/6778, 6 scenes). All three report `running`, each with its own dashboard and
+  monitor, and the month run had already delivered its first Jesse message at 08:00 world time.
+- The body configuration is real, not assumed: each body participant's
+  `runtime/model-config.yaml` holds its own `minecraft.mcp_url`, and those participants loaded and
+  ran real cognition afterwards, which requires the startup probe of that endpoint to have succeeded.
+
+### Not verified
+
+- No final run had reached a second scene when this record was written; the runs were still in their
+  first long main cycle at 07:00:30. Nothing here claims dialogue quality, body use, or completion.
+- The body path in a delivered scene (a companion choosing a Minecraft action and the world changing)
+  was not observed yet.
+- The restore refusal, the two-Spamuels premise in live dialogue, and the RCON stop were not exercised
+  by a real failure or by a finished run.
+- The harness still does not capture world effects in an attempt report; the body evidence is the
+  pm-minecraft agent homes, logs, and the world itself.
+
+### Documentation
+
+`docs/subsystems/simulation.md`, `simulation/__init__.py`, and this record. The Minecraft
+prerequisites file is updated with what closed and what still applies.
+
+### Open concerns
+
+- A body run cannot be resumed after a failure; the owner creates a new run ID. That is now enforced.
+- The virtual clock and real world time still disagree: a scene advance can take real minutes while
+  world time stands still, and a long body task delays the next scene.
+- The month run may reach its later scenes long after the other two finish; nothing here bounds that.

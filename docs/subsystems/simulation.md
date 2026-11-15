@@ -61,7 +61,36 @@ Each run forks its source homes before startup.
 Connected personas retain their own identities and see the partner as Other Spamuel.
 The endpoint does not announce whether that entity is human or another PM.
 The backend accepts a graph of participants; the browser currently selects two.
-Minecraft and its managed workflows remain disabled for simulation participants.
+A participant starts with a Minecraft body only when its template entry names one.
+
+## Minecraft bodies
+
+A template participant carries an optional `minecraft_mcp_url`.
+That URL is the one body the participant holds for the whole run, and the harness writes it into that
+participant's own model configuration before the application starts.
+Two participants must name two different endpoints: a body lease belongs to one avatar, and sharing an
+endpoint would put two companions in one player.
+A participant without the field starts exactly as before, with no body tools and no body route.
+
+Bodies connect to a real Minecraft server through a separate pm-minecraft process per body.
+`dev/tools/minecraft_final_run.py` prepares that stack for the owner's machine: it copies the server
+template into the ignored runtime folder, starts a fresh world, writes one `.env` per body with
+its own MCP, body, and viewer ports, starts both MCP processes, and waits until each body answers a
+live observation.
+It refuses to start beside another listener and writes a receipt with every process ID.
+The simulation harness itself never starts a body; it names an endpoint and fails loudly when nothing
+answers there.
+
+A simulated body works **on demand**.
+The harness advances a virtual clock between scenes while a Minecraft server keeps real time, so a
+world poll on the virtual clock would fire hundreds of times inside one scene advance.
+Body workflows therefore read the world when they run, and the participant's world poll stays off.
+A simulated world action still consumes real server time.
+
+The world is not part of a coordinated checkpoint.
+A body run that fails cannot be restored to an earlier attempt, because the world already moved on;
+the engine refuses that restore and reports it, so the owner creates a new run instead of recording
+mixed evidence.
 
 ## Scenario execution
 
@@ -213,6 +242,8 @@ The controller can resend an excluded delivery through its stable delivery ID.
 A failed single-participant run retains its causally accepted progress.
 A failed multi-participant run restores all participants and routing state from the latest coordinated barrier.
 Every new run records an initial barrier before any public exchange.
+A run whose participants own Minecraft bodies is never restored: the checkpoint cannot restore the world.
+That run fails visibly and needs a new run ID.
 
 A coordinated checkpoint contains every participant snapshot, the shared time, and the transit ledger.
 A participant snapshot alone cannot retract speech that another participant already accepted.
