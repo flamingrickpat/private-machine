@@ -106,7 +106,8 @@ perspective_revision_template: |
 
   One claim keeps reports, estimates, and attributed knowledge apart:
   {{"subject_entity_id": <int>, "source_ids": [<int>],
-    "exact_quote": "<verbatim quote or null>", "layer": "<layer>",
+    "exact_quote": "<verbatim quote or null>",
+    "layer": "background|relationship|pattern|perspective|open_question",
     "claim_key": "<stable proposition key>", "statement": "<short attributed assertion>",
     "epistemic_kind": "report|inference|hypothetical",
     "perspective_entity_id": <int or null>,
@@ -114,12 +115,16 @@ perspective_revision_template: |
     "correction_target_ids": [<existing id>], "challenge_target_ids": [<existing id>]}}
 
   Rules:
+  - Propose at most four claims. Keep the four that change the model most.
+  - layer is exactly one of background, relationship, pattern, perspective, or
+    open_question. No other layer name exists. The kind of claim (report,
+    inference, hypothetical) belongs in epistemic_kind, not in layer.
   - source_ids may only use these IDs: {citable_source_ids}
   - A report copies its exact_quote verbatim from one of those message texts.
     An inference is an estimate; a hypothetical is a possibility. Observation
     is impossible from thinking, so never use epistemic_kind "observation".
   - Do not use layer "situation" and do not change the receive/respond
-    estimate: ordinary message handling keeps that job.
+    estimate: ordinary message handling keeps that job. Keep interaction null.
   - correction_target_ids and challenge_target_ids may only name these
     existing claim IDs: {existing_claims}
   - perspective_entity_id, when set, is {subject} itself: attributed

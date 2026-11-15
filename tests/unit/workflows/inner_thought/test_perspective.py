@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Event
-from typing import Literal
+from typing import Literal, get_args
 import unittest
 
 from pydantic import JsonValue
@@ -30,7 +30,7 @@ from workflows.cognitive_control.attention import captured_private_focus
 from workflows.cognitive_control.schemas import ControlConfig
 from workflows.entity_context.owner import EntityContextOwner
 from workflows.entity_context.schemas import (
-    EntityClaimDraft, EntityClaimEvidence, EntityContextClaim, EntityContextKey, EntityContextProposal,
+    EntityClaimDraft, EntityClaimEvidence, EntityClaimLayer, EntityContextClaim, EntityContextKey, EntityContextProposal,
     EntityExtractionDraft, EntityProjectionQuery,
 )
 from workflows.entity_context.projection import project_entity_context
@@ -441,6 +441,20 @@ class PerspectiveFindingTests(PerspectiveFixture):
         asked_text = asked[1].content.text
         self.assertIn("perspective_revision", asked_text)
         self.assertIn("Repeating an accepted claim", asked_text)
+
+    def test_integrate_template_names_every_layer_the_claim_schema_accepts(self) -> None:
+        """The prompt and the schema must agree, or the repair loop rejects every proposed claim."""
+        prompts = load_prompts()
+        revision = PerspectiveRevisionRequest(subject_entity_id=3, subject_name="Jesse",
+            citable_source_ids=(10, 11), existing_claims=())
+        asked = build_messages({"perspective_revision": revision.model_dump(mode="json")}, prompts)
+        asked_text = asked[1].content.text
+        # "situation" is a schema layer that a perspective revision may not use (validator rule 4).
+        writable_layers = [layer for layer in get_args(EntityClaimLayer) if layer != "situation"]
+        self.assertIn('"layer": "' + "|".join(writable_layers) + '"', asked_text)
+        self.assertIn("Propose at most four claims.", asked_text)
+        draft_limit = EntityExtractionDraft.model_json_schema()["properties"]["claims"]["maxItems"]
+        self.assertEqual(draft_limit, 4)
 
 
 if __name__ == "__main__":
