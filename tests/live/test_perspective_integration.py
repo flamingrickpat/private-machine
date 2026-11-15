@@ -14,11 +14,21 @@ and entity modules. They assert on committed records, not on model prose.
 A model that does not reach one of these states is a recorded result. Part A
 reports ``NOT RUN`` when no episode produces a revision in three attempts;
 Part B reports ``NOT RUN`` when main selects another action three times; Part C
-reports ``NOT RUN`` when no noticing arises in the tick limit or main commits
-an inference wait. This gate never forces an action and never clears a wait.
+reports ``NOT RUN`` when no noticing arises in the tick limit, or when main
+commits an inference wait without claiming the noticing. This gate never
+forces an action and never clears a wait.
+
+Each Part A attempt uses its own application and store. Main cognition can
+commit a wait after it appraises a finding, and that wait holds every later
+admission, so a second attempt in the same application would never start.
+
+Part C checks the claim before the wait. A main turn that claims the noticing
+and then waits, for a reply or because it chose to stop, has appraised the
+noticing; the wait is the consequence main chose and is recorded as such.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
 from pathlib import Path
@@ -39,7 +49,7 @@ from pm.records.base import Provenance, RecordLineage
 from pm.records.enums import ActionType, FeatureType, SourceKind
 from pm.records.memory_records import ActionSchemaRecord
 from pm.utils.operating_system import OperatingSystem
-from tests.replay.situations import PERSPECTIVE_LINES, perspective_morning, private_dwelling
+from tests.replay.situations import PerspectiveMorningSituation, perspective_morning, private_dwelling
 from tests.support import ManualClock
 from workflows.companion import build_app
 from workflows.entity_context.owner import receipt_chain
@@ -69,14 +79,23 @@ def _module(app, module_id: str):
     return matches[0]
 
 
-def _source_ids(store: MemoryStore) -> list[int]:
-    """Return the synthetic morning lines the situation committed."""
-    expected = {text for text, _ in PERSPECTIVE_LINES}
-    matches = [record.id for record in store.all_features
-               if record.feature_type == FeatureType.Dialogue and record.content in expected]
-    if len(matches) != len(PERSPECTIVE_LINES):
-        raise LookupError(f"Expected every synthetic morning line, found {len(matches)}.")
-    return matches
+def _waiting_record(store: MemoryStore) -> dict[str, object] | None:
+    """Return the evidence row of the committed inference wait that is active now, if any."""
+    for record in store.all_features:
+        metadata = record.metadata or {}
+        if metadata.get("control_kind") == "inference_wait" and metadata["status"] == "waiting":
+            return {"record_id": record.id, "text": record.content, "reason": metadata["reason"]}
+    return None
+
+
+def _dispatched_actions(store: MemoryStore, *, after_record_id: int) -> list[dict[str, object]]:
+    """Return the evidence rows of every action record created after one record."""
+    rows: list[dict[str, object]] = []
+    for record in store.all_knoxels.values():
+        if isinstance(record, ActionSchemaRecord) and record.id > after_record_id:
+            rows.append({"record_id": record.id, "workflow_name": record.metadata["workflow_name"],
+                         "text": record.content})
+    return rows
 
 
 class _Gate:
@@ -89,10 +108,13 @@ class _Gate:
         self.out.mkdir(parents=True)
         self.clock = ManualClock()
         now = datetime.now(timezone.utc).replace(tzinfo=None)
+        #: The morning situation of Parts A and B. None for the dwelling situation of Part C.
+        self.perspective: PerspectiveMorningSituation | None = None
         if dwelling:
             self.store: MemoryStore = private_dwelling(now, self.out / "ghost.pickle").store
         else:
-            self.store = perspective_morning(now, self.out / "ghost.pickle").store
+            self.perspective = perspective_morning(now, self.out / "ghost.pickle")
+            self.store = self.perspective.store
         config = load_config(ROOT / "config.yaml")
         connection = resolve_connection(config)
         if (urlsplit(connection.base_url).hostname != "openrouter.ai" or connection.startup_script is not None
@@ -149,8 +171,15 @@ class _Gate:
         return matches[0]
 
     def dispatch_tom(self, correlation: str) -> int:
-        """Commit one theory-of-mind action at the dispatch boundary, as main cognition would."""
-        source_ids = _source_ids(self.store)
+        """Commit one theory-of-mind action at the dispatch boundary, as main cognition would.
+
+        The action names the four newer synthetic lines. The oldest line is
+        behind the accepted entity claim, so the inquiry reaches it through the
+        accepted model of the subject.
+        """
+        if self.perspective is None:
+            raise ValueError("A theory-of-mind dispatch requires the morning situation.")
+        source_ids = list(self.perspective.action_evidence_ids)
         view = self.store.snapshot(capture=False)
         sources = [view.get(source_id) for source_id in source_ids]
         user_id = self.store.get_entity_id(self.store.get_user_name())
@@ -194,53 +223,76 @@ class _Gate:
         raise AssertionError(f"Timed out waiting for {description}; evidence: {self.out}")
 
 
+@dataclass(frozen=True, slots=True)
+class _StoredRevision:
+    """One closed theory-of-mind action whose finding stored a perspective revision."""
+
+    action_id: int
+    finding_id: int
+
+
 class LivePerspectiveIntegrationTests(unittest.TestCase):
     """Exercise ToM selection, revision staging, and noticing on the real path."""
 
     # ---------------------------------------------------------------- part A
 
     def test_part_a_tom_finding_stages_through_the_entity_owner(self) -> None:
-        gate = _Gate("part-a")
-        try:
-            for attempt in range(1, 4):
-                gate.write("attempt.json", {"attempt": attempt})
-                action_id = gate.dispatch_tom(f"live-tom-{attempt}")
-                gate.focus_step()
-                for _ in range(GATE_TICK_LIMIT):
-                    gate.private_opportunity()
-                    view = gate.store.snapshot(capture=False)
-                    history = inquiry_history(view, f"deliberate:{action_id}")
-                    if history and history[-1].receipt.state.status != "active":
-                        break
-                gate.focus_step()
-                gate.main_opportunity()
-                view = gate.store.snapshot(capture=False)
-                action = view.get(action_id)
-                finding_id = action.metadata.get("mental_result_id")
-                gate.write("attempt-result.json", {"attempt": attempt, "action_id": action_id,
-                                                   "finding_id": finding_id,
-                                                   "mental_status": action.metadata.get("mental_status")})
-                if finding_id is None:
+        attempts: list[str] = []
+        for attempt in range(1, 4):
+            gate = _Gate(f"part-a-attempt-{attempt}")
+            try:
+                stored = self._run_tom_episode(gate, attempt)
+                if stored is None:
+                    attempts.append(str(gate.out))
                     continue
-                operation = view.get(int(finding_id))
-                revision = operation.metadata.get("perspective_revision")
-                if revision is None:
-                    continue
-                gate.write("revision.json", {"attempt": attempt, "finding_id": int(finding_id),
-                                             "revision": revision})
-                self._assert_part_a(gate, action_id, int(finding_id), revision)
+                self._assert_part_a(gate, stored)
                 return
-            self.skipTest(f"NOT RUN — no ToM episode produced a revision in three attempts; {gate.out}")
-        except BaseException as error:
-            name = "not-run.json" if isinstance(error, unittest.SkipTest) else "failure.json"
-            gate.write(name, {"part": "A", "error_type": type(error).__name__,
-                              "reason": str(error), "traceback": traceback.format_exc()})
-            raise
-        finally:
-            gate.close()
+            except BaseException as error:
+                gate.write("failure.json", {"part": "A", "attempt": attempt, "error_type": type(error).__name__,
+                                            "reason": str(error), "traceback": traceback.format_exc()})
+                raise
+            finally:
+                gate.close()
+        self.skipTest("NOT RUN — no ToM episode stored a revision in three attempts; " + "; ".join(attempts))
 
-    def _assert_part_a(self, gate: _Gate, action_id: int, finding_id: int, revision: dict) -> None:
-        """Pass assertions: a main turn claims the finding, the owner stages tom, no speech."""
+    def _run_tom_episode(self, gate: _Gate, attempt: int) -> _StoredRevision | None:
+        """Run one theory-of-mind action to its close and one main turn. Return its stored revision, if any."""
+        action_id = gate.dispatch_tom(f"live-tom-{attempt}")
+        gate.focus_step()
+        view = gate.store.snapshot(capture=False)
+        if not inquiry_history(view, f"deliberate:{action_id}"):
+            raise AssertionError(f"The deliberate owner did not admit the ToM action; {gate.out}")
+        for _ in range(GATE_TICK_LIMIT):
+            gate.private_opportunity()
+            view = gate.store.snapshot(capture=False)
+            history = inquiry_history(view, f"deliberate:{action_id}")
+            if history[-1].receipt.state.status != "active":
+                break
+        gate.focus_step()
+        gate.main_opportunity()
+        gate.app.raise_if_error()
+        view = gate.store.snapshot(capture=False)
+        history = inquiry_history(view, f"deliberate:{action_id}")
+        operations = [item.receipt.step.operation for item in history if item.receipt.step is not None]
+        action = view.get(action_id)
+        finding_id = action.metadata.get("mental_result_id")
+        revision = None
+        if finding_id is not None:
+            revision = view.get(int(finding_id)).metadata.get("perspective_revision")
+        gate.write("attempt.json", {"attempt": attempt, "action_id": action_id, "operations": operations,
+            "episode_status": history[-1].receipt.state.status, "finding_id": finding_id,
+            "mental_status": action.metadata.get("mental_status"), "revision": revision,
+            "requests": gate.model.request_count})
+        if finding_id is None or revision is None:
+            gate.write("not-run.json", {"part": "A", "attempt": attempt,
+                "reason": "the episode closed without a finding" if finding_id is None
+                          else "the finding stored no perspective revision"})
+            return None
+        return _StoredRevision(action_id=action_id, finding_id=int(finding_id))
+
+    def _assert_part_a(self, gate: _Gate, stored: _StoredRevision) -> None:
+        """Pass assertions: a main turn claims the finding, the owner stages tom, no speech from the action."""
+        finding_id = stored.finding_id
         main_turns = [turn for turn in gate.store.gwt_turns.values()
                       if turn.slot_id == "main" and finding_id in turn.stimulus_ids]
         self.assertTrue(main_turns, f"Main cognition did not claim the ToM finding; {gate.out}")
@@ -252,14 +304,22 @@ class LivePerspectiveIntegrationTests(unittest.TestCase):
         chain = receipt_chain(view, key)
         tom_receipts = [item for item in chain if item.receipt.proposal.producer == "tom"]
         self.assertTrue(tom_receipts, f"No tom receipt in the subject family after a real main turn; {gate.out}")
-        self.assertEqual(gate.replies, [], f"The ToM action must send no public reply; {gate.out}")
         speech = [item for item in gate.events
                   if item.topic in {"speech.request", "reply.ready"} and item.source == "focus_management"]
         self.assertEqual(speech, [], f"FocusManagement must publish no speech; {gate.out}")
-        gate.write("part-a.json", {"action_id": action_id, "finding_id": finding_id,
-                                   "main_tick": main_turns[0].tick_id,
-                                   "tom_receipt_ids": [item.record.id for item in tom_receipts],
-                                   "requests": gate.model.request_count})
+        # What main cognition chose after it appraised the finding is its own,
+        # separate decision. It is recorded and not asserted.
+        gate.write("part-a.json", {"action_id": stored.action_id, "finding_id": finding_id,
+            "main_tick": main_turns[0].tick_id,
+            "tom_receipt_ids": [item.record.id for item in tom_receipts],
+            "tom_claims": [{"claim_key": claim.claim_key, "epistemic_kind": claim.epistemic_kind,
+                            "layer": claim.layer, "statement": claim.statement,
+                            "source_ids": [evidence.source.record_id for evidence in claim.evidence]}
+                           for item in tom_receipts for claim in item.receipt.proposal.claims],
+            "actions_main_chose_afterwards": _dispatched_actions(gate.store, after_record_id=finding_id),
+            "wait_after_appraisal": _waiting_record(gate.store),
+            "public_replies": list(gate.replies),
+            "requests": gate.model.request_count})
 
     # ---------------------------------------------------------------- part B
 
@@ -322,21 +382,22 @@ class LivePerspectiveIntegrationTests(unittest.TestCase):
                                          "activity": noticing.metadata.get("thought_activity")})
             gate.main_opportunity()
             gate.app.raise_if_error()
-            if gate.app.cognitive_control.waiting():
-                self.skipTest(f"NOT RUN — main committed an inference wait instead of claiming the noticing; {gate.out}")
             main_turns = [turn for turn in gate.store.gwt_turns.values()
                           if turn.slot_id == "main" and noticing.id in turn.stimulus_ids]
+            if not main_turns and _waiting_record(gate.store) is not None:
+                # Main cognition waits and has not appraised the noticing. The
+                # gate does not clear the wait.
+                self.skipTest(f"NOT RUN — main committed an inference wait without claiming the noticing; {gate.out}")
             self.assertTrue(main_turns, f"Main cognition did not claim the noticing; {gate.out}")
-            actions = [record for record in gate.store.all_knoxels.values()
-                       if isinstance(record, ActionSchemaRecord)
-                       and (record.metadata or {}).get("dispatch_status") not in {None, ""}]
-            replied = list(gate.replies)
+            # A wait that main commits in the claiming turn is its chosen
+            # consequence: it spoke and waits for an answer, or it chose to stop.
             gate.write("part-c.json", {
                 "noticing_id": noticing.id,
                 "main_tick": main_turns[0].tick_id,
                 "main_summary": main_turns[0].summary,
-                "actions_main_chose": [(record.id, (record.metadata or {}).get("workflow_name")) for record in actions],
-                "replies": replied,
+                "actions_main_chose": _dispatched_actions(gate.store, after_record_id=noticing.id),
+                "wait_after_appraisal": _waiting_record(gate.store),
+                "public_replies": list(gate.replies),
                 "requests": gate.model.request_count})
         except BaseException as error:
             name = "not-run.json" if isinstance(error, unittest.SkipTest) else "failure.json"
