@@ -41,12 +41,15 @@ from threading import Event
 from pydantic import BaseModel, ConfigDict, Field
 
 from pm import vclock
+from pm.memory.dependencies import changed_dependencies
 from pm.memory.snapshot import Snapshot
 from pm.memory.store import MemoryStore
 from pm.memory.write_batch import WriteBatch
 from pm.records.cycle_state import CycleState
 from pm.records.global_workspace import GwtTurnRecord
-from pm.records.enums import EntityClass
+from pm.records.base import Provenance
+from pm.records.enums import EntityClass, FeatureType, InterlocusType, SourceKind
+from pm.records.lineage import RecordLineage
 from pm.records.memory_records import Entity, Feature
 from pm.records.mental_state import FullMentalState
 from pm.records.qualia_records import QualeChannelState, QualeRecord
@@ -56,7 +59,7 @@ from workflows.inner_thought.inquiry import (
     AttentionRecord, DELIBERATE_ACTION_KEY, InquiryMetadata, InquiryRecord, PRIVATE_SLOT_KEY,
     deliberate_admission, displaced_successor, inquiry_history, stage_attention, stage_attention_outcome,
     stage_deliberate_inquiry, stage_displaced_inquiry, stage_inquiry_displacement, stage_inquiry_preemption,
-    stage_inquiry_resume, stage_inquiry_step,
+    stage_inquiry_outdated, stage_inquiry_resume, stage_inquiry_step,
 )
 from workflows.inner_thought.metacognition import METACOGNITION_OPERATIONS
 from workflows.inner_thought.nominations import extend_inquiry_grant
@@ -151,6 +154,41 @@ def stage_felt_state(batch: WriteBatch, operation: Feature, evidence_ids: Sequen
             reportable=reportable, scope=operation.scope))
         quale_ids.append(quale.id)
     return quale_ids
+
+
+#: Metadata key of the receipt that records a graph outcome effect left unapplied.
+STALE_OUTCOME_KEY = "stale_graph_outcome"
+
+
+class StaleOutcomeNote(BaseModel):
+    """Which retained outcome effect a late inner-turn projection did not apply, and why."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    operation_id: int = Field(description="The accepted graph operation whose outcome effect was left out.")
+    expectation_action: str = Field(description="The effect that was not applied: the outcome's expectation action.")
+    changed_source_ids: tuple[int, ...] = Field(description="Outcome sources that changed after the graph root was accepted.")
+
+
+def stage_stale_outcome_note(batch: WriteBatch, operation: Feature, outcome: GraphOutcomePayload,
+                             changed_source_ids: tuple[int, ...]) -> Feature:
+    """Stage the receipt for an outcome whose expectation effect can no longer be applied.
+
+    The finding itself stays valid and reaches main cognition; only the
+    expectation effect, which depended on the changed sources, is dropped.
+    """
+    if operation.lineage is None:
+        raise ValueError("An accepted graph operation requires its episode lineage.")
+    note = StaleOutcomeNote(operation_id=operation.id, expectation_action=outcome.integration.expectation.action,
+                            changed_source_ids=changed_source_ids)
+    batch.depend_on([operation.id])
+    return batch.create(Feature(
+        content=f"The expectation effect of private step {operation.id} was not applied: "
+                f"records {list(changed_source_ids)} changed after the step was accepted.",
+        feature_type=FeatureType.StateUpdate, interlocus=InterlocusType.PrivateInternal,
+        entity_id=operation.entity_id, scope=operation.scope, provenance=Provenance(source_kind=SourceKind.Self),
+        metadata={STALE_OUTCOME_KEY: note.model_dump(mode="json"), "memory_kind": "runtime_receipt"},
+        lineage=RecordLineage(episode_id=operation.lineage.episode_id, operation="stale_graph_outcome",
+            parent_record_ids=[operation.id])))
 
 
 def private_observer(view: Snapshot, companion_name: str) -> Entity:
@@ -358,6 +396,35 @@ class PrivateInquiryOwner:
                 displaced.append(closed)
         return tuple(displaced)
 
+    def close_outdated(self, *, observer_entity_id: int) -> tuple[InquiryRecord, ...]:
+        """Close every active or parked inquiry whose retained grant names a changed source.
+
+        A continuation keeps its admission grant and may not refresh it. When
+        main cognition replaces a goal or an expectation that the grant holds
+        with current-head authority, or a source changes meaning, every later
+        step would pay for a model call and then be refused at commit. Each
+        such episode gets its own terminal receipt through the host's control
+        fence instead (:func:`~workflows.inner_thought.inquiry.stage_inquiry_outdated`),
+        so the slot is free before this opportunity nominates or admits
+        anything. No model call happens here. The question returns through
+        :func:`displaced_inquiries` as a new episode under a fresh grant.
+        """
+        closed: list[InquiryRecord] = []
+        with self.store.lock:
+            view = self.store.snapshot(capture=False)
+            for head in _slot_heads(view, observer_entity_id=observer_entity_id):
+                state = head.receipt.state
+                if state.status not in {"active", "paused"}:
+                    continue
+                if not changed_dependencies(view, state.grant.sources):
+                    continue
+                batch = self.store.begin_batch(f"inquiry-outdated:{head.record.id}", embed=False, cancel=self.cancel)
+                outdated = stage_inquiry_outdated(batch, parent_receipt_id=head.record.id)
+                batch.preserve_on_recovery()
+                self.commit(batch)
+                closed.append(outdated)
+        return tuple(closed)
+
     def displaced_grant(self, displaced: InquiryRecord, *, offered_grant: InquiryGrant) -> InquiryGrant:
         """Capture the grant a displaced question would start its new episode under.
 
@@ -468,8 +535,9 @@ class PrivateInquiryOwner:
         Critical epoch and must contain the action. Three things happen under
         the store lock, each as its own commit through the control fence:
 
-        1. Work from an older Critical epoch is closed as displaced, exactly as
-           on a private timer opportunity, so stale work cannot hold the slot.
+        1. Work from an older Critical epoch, and work whose retained grant
+           names a changed source, is closed as displaced, exactly as on a
+           private timer opportunity, so stale work cannot hold the slot.
         2. An active spontaneous inquiry is parked with a receipt that names
            this action. It keeps its graph and returns through shared attention.
         3. The deliberate episode opens. It runs no operation here; the private
@@ -488,6 +556,7 @@ class PrivateInquiryOwner:
                 return existing
             self.displace_superseded(observer_entity_id=grant.observer_entity_id,
                                      critical_epoch=grant.critical_epoch)
+            self.close_outdated(observer_entity_id=grant.observer_entity_id)
             holder = active_inquiry(self.store.snapshot(capture=False), observer_entity_id=grant.observer_entity_id)
             if holder is not None:
                 batch = self.store.begin_batch(f"inquiry-preempt:{holder.record.id}", embed=False, cancel=self.cancel)
@@ -579,8 +648,18 @@ class PrivateInquiryOwner:
                 raise TypeError("An executed inquiry operation must be a Feature.")
             projection = InnerProjectionMetadata.model_validate(operation.metadata).inquiry_projection
             outcome = read_graph_outcome(operation)
+            stale_note_ids: list[int] = []
             if outcome is not None:
-                stage_graph_outcome(batch, batch.view(), operation, step, outcome)
+                stale_ids = changed_dependencies(batch.view(), outcome.sources)
+                if stale_ids:
+                    # The graph root was accepted, then a source of its outcome
+                    # changed before this projection (a restart between the two
+                    # commits). The projection would be refused forever, so the
+                    # turn and the finding go ahead without the expectation
+                    # effect, and a receipt says which effect was not applied.
+                    stale_note_ids.append(stage_stale_outcome_note(batch, operation, outcome, stale_ids).id)
+                else:
+                    stage_graph_outcome(batch, batch.view(), operation, step, outcome)
             sample = projection.felt_state
             if sample is None:
                 quale_ids: list[int] = []
@@ -590,5 +669,5 @@ class PrivateInquiryOwner:
                 cycle = CycleState(tick_id=batch.tick_id, timestamp=sample.sampled_at_utc,
                     mental_state=projection.mental_state, qualia_channels=dict(sample.channels))
             batch.set_gwt(GwtTurnRecord(tick_id=batch.tick_id, slot_id="inner",
-                knoxel_ids=[operation_id, *quale_ids], summary=step.thought), cycle)
+                knoxel_ids=[operation_id, *quale_ids, *stale_note_ids], summary=step.thought), cycle)
             self.commit(batch)

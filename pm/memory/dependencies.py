@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Iterable
 from typing import Any, cast
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -100,3 +101,24 @@ def capture_source(view: Snapshot, record_id: int, *, current_head: bool) -> Sou
         raise ValueError("A historical source cannot require current-head authority.")
     return SourceDependency(record_id=record_id, revision=view.revisions[record_id],
                             fingerprint=source_fingerprint(record), current_head=current_head)
+
+
+def changed_dependencies(view: Snapshot, dependencies: Iterable[SourceDependency]) -> tuple[int, ...]:
+    """Return the IDs of captured dependencies that acceptance would refuse now, ascending.
+
+    This applies the commit's own source rule
+    (:meth:`pm.memory.store.MemoryStore.commit`) to a view: a dependency is
+    changed when its record is gone, when it required current-head authority
+    and has an accepted successor, or when its meaning fingerprint differs.
+    Use it before an expensive calculation whose commit would certainly be
+    refused. The commit stays authoritative; a change after this check is
+    still refused there.
+    """
+    changed: list[int] = []
+    for dependency in dependencies:
+        record_id = dependency.record_id
+        current = view.get_knoxel_by_id(record_id)
+        lost_authority = dependency.current_head and record_id not in view.all_knoxels
+        if current is None or lost_authority or source_fingerprint(current) != dependency.fingerprint:
+            changed.append(record_id)
+    return tuple(sorted(changed))

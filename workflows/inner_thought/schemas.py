@@ -622,10 +622,37 @@ class InquiryOrigin(InquiryContract):
     suggested_operation: str = Field(description="Operation its owner suggested; empty for a deliberate action and a displaced question.")
 
 
-class InquiryDisplacement(InquiryContract):
-    """Why an inquiry closed without an executed thought: its authority was superseded."""
+def _critical_cause(value: object) -> bool:
+    """Return True for the displacement cause that receipts before B07 left implicit."""
+    return value == "critical_epoch"
 
-    superseding_critical_epoch: int = Field(ge=0, description="Accepted Critical epoch that replaced the epoch this inquiry was admitted under.")
+
+def _no_sources(value: object) -> bool:
+    """Return True for an empty source list, which receipts before B07 never serialized."""
+    return value == ()
+
+
+class InquiryDisplacement(InquiryContract):
+    """Why an inquiry closed without an executed thought: its authority was superseded.
+
+    Two causes close an episode this way. Accepted Critical reconsideration
+    replaces the epoch it was admitted under (``critical_epoch``). Or a record
+    its grant depends on changed after admission (``governing_source_changed``),
+    typically a goal or an expectation that main cognition replaced; every
+    later step would then be refused at commit, so the episode closes before
+    another model call. Either way the question returns through shared
+    attention as a new episode under a fresh grant.
+    """
+
+    cause: Literal["critical_epoch", "governing_source_changed"] = Field(default="critical_epoch",
+        exclude_if=_critical_cause,
+        description="What superseded the inquiry's authority. Receipts written before B07 carry no cause; "
+                    "they were all Critical displacements, so the default is that cause, not a guess.")
+    superseding_critical_epoch: int = Field(ge=0, description="For a Critical displacement, the accepted Critical "
+        "epoch that replaced the inquiry's epoch. For a changed source, the inquiry's own epoch, unchanged.")
+    changed_source_ids: tuple[int, ...] = Field(default=(), exclude_if=_no_sources,
+        description="Sources of the inquiry's retained grant that acquired an accepted successor or changed "
+                    "meaning. Empty for a Critical displacement.")
 
 
 class InquiryPreemption(InquiryContract):
@@ -653,7 +680,7 @@ class InquiryReceipt(InquiryContract):
     alternative_record_ids: tuple[int, ...]
     resume: InquiryResumeDecision | None = Field(default=None, description="Explicit parked admission; it creates no executed node or progress.")
     deliberate: DeliberateAdmission | None = Field(default=None, description="Accepted deliberate action that opened this episode; null for a nomination origin.")
-    displacement: InquiryDisplacement | None = Field(default=None, description="Critical reconsideration that closed this episode; it creates no executed node or progress.")
+    displacement: InquiryDisplacement | None = Field(default=None, description="What closed this episode: Critical reconsideration or a changed source of its grant; it creates no executed node or progress.")
     preemption: InquiryPreemption | None = Field(default=None, description="Deliberate action that parked this episode; it creates no executed node or progress, and the episode can resume through shared attention.")
 
 

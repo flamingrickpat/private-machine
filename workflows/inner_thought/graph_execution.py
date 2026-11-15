@@ -694,8 +694,9 @@ def run_graph_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner,
     from elapsed parking or legacy episode metadata.
 
     Work admitted under an older Critical epoch is closed first, durably and
-    without a model call. The slot is then free for this same opportunity, and
-    the closed question competes in its attention decision. ``embed_texts`` is
+    without a model call, and so is work whose retained grant names a changed
+    source. The slot is then free for this same opportunity, and the closed
+    question competes in its attention decision. ``embed_texts`` is
     needed only when several displaced questions wait and one must be chosen.
 
     ``reflection`` and ``inspection`` are the scoped evidence the host read.
@@ -703,6 +704,9 @@ def run_graph_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner,
     a reflection step extends its citation grant with the reflection sources.
     """
     owner.displace_superseded(observer_entity_id=grant.observer_entity_id, critical_epoch=grant.critical_epoch)
+    # A changed goal, expectation, or source of a retained grant would refuse
+    # every later step at commit. Close such work before any model call.
+    owner.close_outdated(observer_entity_id=grant.observer_entity_id)
     view = owner.store.snapshot(capture=False)
     parent = active_inquiry(view, observer_entity_id=grant.observer_entity_id)
     if parent is not None:

@@ -21,8 +21,8 @@ One action moves through these stages:
    here executes a step.
 4. **Closed.** When the episode leaves the slot, this module commits the
    action's result identity and status. A finding becomes the result. An
-   episode parked at a bound or displaced by Critical reconsideration has no
-   finding. The module then commits a short first-person notice that the
+   episode parked at a bound, displaced by Critical reconsideration, or closed
+   because a goal or expectation it rested on changed has no finding. The module then commits a short first-person notice that the
    thinking stopped and why, so main cognition always hears back about an
    action it selected.
 5. **Delivered.** A finding of a deliberate episode and a notice both carry
@@ -128,6 +128,8 @@ class MentalOutcome:
     mental_status: Literal["proposed", "parked", "displaced"]
     execution_status: Literal["completed", "parked", "cancelled"]
     stop_reason: str
+    #: What displaced the episode; None unless ``mental_status`` is ``displaced``.
+    displacement_cause: Literal["critical_epoch", "governing_source_changed"] | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -196,13 +198,16 @@ def mental_outcome(view: Snapshot, head: InquiryRecord) -> MentalOutcome | None:
         if finding_id is None:
             raise ValueError("An executed inquiry step requires its operation record.")
         return MentalOutcome(finding_id=finding_id, mental_status="proposed", execution_status="completed",
-                             stop_reason=state.stop_reason)
+                             stop_reason=state.stop_reason, displacement_cause=None)
     if state.status == "displaced":
+        displacement = head.receipt.displacement
+        if displacement is None:
+            raise ValueError("A displaced inquiry requires its displacement receipt.")
         return MentalOutcome(finding_id=None, mental_status="displaced", execution_status="cancelled",
-                             stop_reason=state.stop_reason)
+                             stop_reason=state.stop_reason, displacement_cause=displacement.cause)
     if state.status == "paused":
         return MentalOutcome(finding_id=None, mental_status="parked", execution_status="parked",
-                             stop_reason=state.stop_reason)
+                             stop_reason=state.stop_reason, displacement_cause=None)
     raise ValueError("A completed or abandoned inquiry must end at an outcome operation.")
 
 
@@ -213,9 +218,12 @@ def unfinished_notice(instruction: str, outcome: MentalOutcome) -> str:
     conclusion exists, and the episode's own stop reason. It invents no thought
     content.
     """
-    if outcome.mental_status == "displaced":
+    if outcome.displacement_cause == "critical_epoch":
         return (f"I set out to think this through: {instruction} Something critical came up before I "
                 "reached a conclusion, so that thinking was interrupted.")
+    if outcome.displacement_cause == "governing_source_changed":
+        return (f"I set out to think this through: {instruction} A goal or expectation it rested on changed "
+                "before I reached a conclusion, so I stopped that line of thinking.")
     return (f"I set out to think this through: {instruction} I stopped before I reached a conclusion "
             f"({outcome.stop_reason}). The question is parked for now.")
 

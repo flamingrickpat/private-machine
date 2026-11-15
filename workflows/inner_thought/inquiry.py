@@ -21,6 +21,14 @@ names the retained question for shared attention, and
 :func:`stage_displaced_inquiry` opens a new episode for it under the current
 grant. The earlier grant, nodes, and budgets never carry over.
 
+A changed grant source ends an inquiry's authority the same way. Every grant
+holds the active goals and pending expectations as current-head sources, and
+a continuation may not refresh its original fingerprints. Once main cognition
+replaces one of them, every later step of that episode would be refused at
+commit. :func:`stage_inquiry_outdated` closes it first, without a model call,
+with a ``displaced`` receipt that names the changed sources; its question
+returns through the same displaced path.
+
 Accepted deliberate mental work takes the slot from spontaneous work.
 :func:`stage_inquiry_preemption` parks the active spontaneous episode with a
 receipt that names the deliberate action, and :func:`stage_deliberate_inquiry`
@@ -36,6 +44,7 @@ import math
 
 from pydantic import BaseModel, ConfigDict, JsonValue
 
+from pm.memory.dependencies import changed_dependencies
 from pm.memory.snapshot import GhostConflict, Snapshot
 from pm.memory.write_batch import WriteBatch
 from pm.records.base import Provenance
@@ -62,6 +71,8 @@ DELIBERATE_ACTION_KEY = "deliberate_inquiry_action"
 #: On the entry receipt of a new episode: the displaced receipt its question came from.
 DISPLACED_ORIGIN_KEY = "displaced_inquiry_origin"
 DISPLACED_REASON = "Accepted Critical reconsideration superseded the authority this inquiry was admitted under."
+OUTDATED_REASON = ("A goal, expectation, or source this inquiry was admitted under changed afterwards, "
+                   "so its authority is outdated.")
 PREEMPTED_REASON = "Accepted deliberate mental work took the private slot."
 
 
@@ -439,9 +450,18 @@ def _validate_displacement_transition(prior: InquiryState, receipt: InquiryRecei
             or receipt.attention is not None or receipt.resume is not None or receipt.deliberate is not None
             or receipt.preemption is not None):
         raise ValueError("A displacement closes active or parked work without an executed operation or admission.")
-    if displacement.superseding_critical_epoch <= prior.grant.critical_epoch:
-        raise ValueError("Only a newer accepted Critical epoch can displace an inquiry.")
-    expected = prior.model_copy(update={"status": "displaced", "stop_reason": DISPLACED_REASON,
+    if displacement.cause == "critical_epoch":
+        if displacement.superseding_critical_epoch <= prior.grant.critical_epoch or displacement.changed_source_ids:
+            raise ValueError("Only a newer accepted Critical epoch can displace an inquiry.")
+        reason = DISPLACED_REASON
+    else:
+        granted = {source.record_id for source in prior.grant.sources}
+        if (displacement.superseding_critical_epoch != prior.grant.critical_epoch
+                or not displacement.changed_source_ids
+                or not set(displacement.changed_source_ids).issubset(granted)):
+            raise ValueError("An outdated inquiry names changed sources of its own grant under its own epoch.")
+        reason = OUTDATED_REASON
+    expected = prior.model_copy(update={"status": "displaced", "stop_reason": reason,
         "next_operation": "", "resume_after_utc": None, "resume_source_ids": ()})
     if receipt.state != expected:
         raise ValueError("A displaced inquiry must retain its original grant, graph, operation count, and active duration.")
@@ -756,6 +776,41 @@ def stage_inquiry_displacement(batch: WriteBatch, *, parent_receipt_id: int,
     return _stage_receipt(batch, InquiryReceipt(parent_receipt_id=parent_receipt_id, state=state, attention=None,
         step=None, operation_record_id=None, alternative_record_ids=(),
         displacement=InquiryDisplacement(superseding_critical_epoch=superseding_critical_epoch)))
+
+
+def stage_inquiry_outdated(batch: WriteBatch, *, parent_receipt_id: int) -> InquiryRecord:
+    """Close active or parked work whose retained grant names a changed source.
+
+    The changed sources are read from the batch view with the commit's own rule
+    (:func:`pm.memory.dependencies.changed_dependencies`); a grant without one
+    raises ``ValueError``, because closing current work would be our bug. The
+    receipt is terminal, frees the private slot, and keeps the grant, graph,
+    operation count, and active duration as readable history, exactly like a
+    Critical displacement. The source fingerprints are not staged as
+    dependencies: the inquiry ends because they changed. The question returns
+    through :func:`displaced_offer`. The caller owns the control commit.
+    """
+    view = batch.view()
+    parent = InquiryMetadata.model_validate(view.get(parent_receipt_id).metadata).inquiry_receipt
+    prior = parent.state
+    history = inquiry_history(view, prior.episode_id)
+    if history[-1].record.id != parent_receipt_id:
+        raise GhostConflict("An outdated inquiry closure requires its exact current receipt parent.")
+    if prior.status not in {"active", "paused"}:
+        raise ValueError("Only active or parked work can be closed as outdated.")
+    changed = changed_dependencies(view, prior.grant.sources)
+    if not changed:
+        raise ValueError("An inquiry whose grant sources are all current is not outdated.")
+    _guard_family(batch, INQUIRY_EPISODE_KEY, prior.episode_id)
+    _guard_family(batch, PRIVATE_SLOT_KEY, _slot(prior.grant))
+    batch.expect_revision(parent_receipt_id, view.revisions[parent_receipt_id])
+    batch.depend_on([parent_receipt_id])
+    state = prior.model_copy(update={"status": "displaced", "stop_reason": OUTDATED_REASON,
+        "next_operation": "", "resume_after_utc": None, "resume_source_ids": ()})
+    displacement = InquiryDisplacement(cause="governing_source_changed",
+        superseding_critical_epoch=prior.grant.critical_epoch, changed_source_ids=changed)
+    return _stage_receipt(batch, InquiryReceipt(parent_receipt_id=parent_receipt_id, state=state, attention=None,
+        step=None, operation_record_id=None, alternative_record_ids=(), displacement=displacement))
 
 
 def deliberate_admission(view: Snapshot, state: InquiryState) -> DeliberateAdmission | None:
