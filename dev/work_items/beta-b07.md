@@ -695,6 +695,21 @@ ports, homes, leases, or run folders between runs.
 - The body configuration is real, not assumed: each body participant's
   `runtime/model-config.yaml` holds its own `minecraft.mcp_url`, and those participants loaded and
   ran real cognition afterwards, which requires the startup probe of that endpoint to have succeeded.
+- The main-cognition route prompt in run 3 lists `minecraft` and `minecraft_project` with their real
+  descriptions, so the body is offered as an action, not merely configured.
+- The first run-3 attempt found two real defects, both fixed in `b624684`:
+  - the participant wrote `minecraft.mcp_url` into its model configuration, but the read-only
+    capability and hook modules resolve the endpoint from `MINECRAFT_MCP_URL` in the process
+    environment, so every dialogue prompt said "Minecraft connection right now: disconnected" while
+    the body stood in the world. The participant now binds that variable from the same typed start
+    option.
+  - the stack tool's RCON client treated an empty login body as a rejected password; the protocol
+    answers a rejection with request id `-1`. `stop` now checks the id. Live: the old client raised
+    against the real server, and the new one ran `list` and returned `Stopping the server`.
+- Run 3 was then restarted: the attempt was stopped through the harness, its receipts were kept in
+  `.runtime/beta-final/restart-1/`, the disposable world was recreated, the run folder was recreated,
+  and the new attempt's dialogue prompt reads **"Minecraft connection right now: connected"**
+  (`participants/spamuel-1/logs/prompts`, attempt 1 of the second launch).
 
 ### Not verified
 
