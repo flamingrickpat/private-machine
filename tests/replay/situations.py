@@ -17,15 +17,17 @@ from pathlib import Path
 from pm.memory.dependencies import capture_source
 from pm.memory.store import MemoryStore
 from pm.records.base import Provenance, RecordBase, RecordScope
-from pm.records.cognitive_records import Intention
+from pm.records.cognitive_records import ExpectationRecord, Intention
 from pm.records.copying import pickle_copy
 from pm.records.cycle_records import StimulusGroup
 from pm.records.cycle_state import CycleState, CycleStateModel
-from pm.records.enums import FeatureType, InterlocusType, IntentionType, SourceKind
+from pm.records.enums import ActionType, FeatureType, InterlocusType, IntentionType, SourceKind
 from pm.records.global_workspace import GwtTurnRecord
-from pm.records.memory_records import Feature
+from pm.records.memory_records import ActionSchemaRecord, Feature
 from pm.records.mental_state import FullMentalState
 from workflows.entity_context.owner import EntityContextOwner
+from workflows.main_cognition.cycle_commits import apply_goal_changes
+from workflows.main_cognition.schemas import ActionRequest, GoalChange
 from workflows.entity_context.schemas import (
     EntityClaimEvidence, EntityContextClaim, EntityContextKey, EntityContextProposal,
 )
@@ -348,3 +350,139 @@ __all__ = ["CONCERN", "CONCERN_SOURCE", "JESSE_AMBIGUOUS_REPLY", "PERSPECTIVE_KN
            "PERSPECTIVE_KNOWN_LINE", "PERSPECTIVE_LINES",
            "SPAMUEL_LONG_MESSAGE", "STORY_NOTES", "PerspectiveMorningSituation", "PrivateConcernSituation",
            "PrivateDwellingSituation", "perspective_morning", "private_concern", "private_dwelling"]
+
+
+#: Synthetic Jesse lines and Spamuel goals of the B07 interval-appraisal gate.
+#: Engineering input labelled in provenance; not persona history.
+STORY_EVENING_OPENING = "Let's finish our winter-sea story together this week."
+STORY_EVENING_GOAL_V1 = "Finish the winter-sea story with Jesse this week"
+STORY_EVENING_ASK = "Which evening are you free? I could do Thursday."
+STORY_EVENING_ACTION = "Tell Jesse that Thursday works and suggest starting at eight."
+STORY_EVENING_REPLY = "Thursday works for me. Shall we start at eight?"
+STORY_EVENING_EXPECTATION = "Jesse confirms Thursday at eight for finishing the story."
+STORY_EVENING_GOAL_V2 = "Agree with Jesse on the evening for finishing the winter-sea story"
+
+
+@dataclass(frozen=True, slots=True)
+class StoryEveningSituation:
+    """Two accepted main turns, one fast-path reply under the first goal version, one open expectation."""
+
+    store: MemoryStore
+    companion_id: int
+    user_id: int
+    goal_v1_id: int
+    goal_v2_id: int
+    action_id: int
+    reply_id: int
+    expectation_id: int
+    #: The frontier the second main turn recorded. The fast-path reply has a higher id.
+    frontier: int
+
+
+def _main_turn(store: MemoryStore, name: str, *, stimulus_id: int, companion_id: int, frontier: int,
+               summary: str, goal_changes: list[GoalChange]) -> None:
+    """Commit one accepted main turn the way the main host does: goals, experience, turn, and state."""
+    turn = store.begin_batch(name, new_tick=True, embed=False)
+    apply_goal_changes(turn, turn.view(), goal_changes, evidence_ids=[stimulus_id])
+    experience = turn.create(Feature(
+        feature_type=FeatureType.SubjectiveExperience, causal=True, entity_id=companion_id,
+        interlocus=InterlocusType.PrivateInternal, content=summary,
+        provenance=Provenance(source_kind=SourceKind.Self, source_ref="replay-synthetic-situation")))
+    turn.set_gwt(
+        GwtTurnRecord(tick_id=turn.tick_id, slot_id="main", stimulus_ids=[stimulus_id],
+            knoxel_ids=[stimulus_id, experience.id], experience_id=experience.id, summary=summary),
+        CycleState(tick_id=turn.tick_id, mental_state=FullMentalState(),
+            stimulus_groups=[StimulusGroup(stimulus_ids=[stimulus_id])], interval_reviewed_through=frontier))
+    store.commit(turn)
+
+
+def story_evening(now_utc: datetime, checkpoint: Path) -> StoryEveningSituation:
+    """Commit the history the B07 gate starts from, in the order the real loops would.
+
+    1. Jesse asks to finish the story this week; a main turn takes on goal
+       version 1 and records its frontier.
+    2. Jesse asks which evening. While the next main turn calculates, the fast
+       path replies under goal version 1 and opens an expectation.
+    3. That main turn, whose view froze before the reply, completes goal
+       version 1 and adds a narrower goal. Its frontier is below the reply's id.
+
+    So the next real main turn reviews the reply under the goal text that held
+    when it was chosen, which is no longer an active goal. The pending
+    expectation and the active goal give a later Jesse message something to
+    fulfil.
+    """
+    if now_utc.tzinfo is not None:
+        raise ValueError("Record timestamps use naive UTC; pass vclock.utcnow() form.")
+    canonical = MemoryStore.from_yaml(CANON)
+    identities: list[RecordBase] = [pickle_copy(record) for record in canonical.all_entities
+                                    if record.content in {canonical.get_user_name(), canonical.get_companion_name()}]
+    for identity in identities:
+        identity.embedding = []
+    seed = CycleStateModel(knoxels=identities, cycles=[], **canonical.ghost_config.model_dump())
+    store = MemoryStore.from_state(seed, checkpoint=checkpoint)
+    companion_id = store.get_entity_id(store.get_companion_name())
+    user_id = store.get_entity_id(store.get_user_name())
+    if companion_id is None or user_id is None:
+        raise ValueError("The persona card must provide both the companion and the user identity.")
+
+    def jesse(text: str, minutes_ago: int) -> int:
+        """Commit one resolved synthetic Jesse line."""
+        batch = store.begin_batch(f"replay-story-evening-{minutes_ago}", embed=False)
+        line = batch.create(Feature(feature_type=FeatureType.Dialogue, causal=True, entity_id=user_id,
+            addressee_entity_id=companion_id, interlocus=InterlocusType.Public, content=text,
+            provenance=Provenance(source_kind=SourceKind.User, source_ref="replay-synthetic-situation"),
+            metadata={"exchange_status": "resolved"},
+            timestamp_world_begin=now_utc - timedelta(minutes=minutes_ago),
+            timestamp_world_end=now_utc - timedelta(minutes=minutes_ago)))
+        batch.preserve_on_recovery()
+        store.commit(batch)
+        return line.id
+
+    opening_id = jesse(STORY_EVENING_OPENING, 40)
+    _main_turn(store, "replay-story-evening-main-1", stimulus_id=opening_id, companion_id=companion_id,
+               frontier=opening_id, summary="Jesse wants to finish our story this week. I want that too.",
+               goal_changes=[GoalChange(change="add", goal=STORY_EVENING_GOAL_V1, goal_key="winter-sea-story",
+                                        reason="Jesse asked to finish the story together.", priority=0.7)])
+    goal_v1_id = next(record.id for record in store.all_knoxels.values() if isinstance(record, Intention))
+    ask_id = jesse(STORY_EVENING_ASK, 20)
+    # The second main turn's view freezes here, before the fast-path reply.
+    frontier = max(store.snapshot(capture=False).revisions)
+
+    fast_path = store.begin_batch("replay-story-evening-fast-path", embed=False)
+    reply = fast_path.create(Feature(feature_type=FeatureType.Dialogue, causal=True, entity_id=companion_id,
+        addressee_entity_id=user_id, interlocus=InterlocusType.Public, content=STORY_EVENING_REPLY,
+        provenance=Provenance(source_kind=SourceKind.Self, source_ref="replay-synthetic-situation"),
+        metadata={"publication_status": "published"},
+        timestamp_world_begin=now_utc - timedelta(minutes=19), timestamp_world_end=now_utc - timedelta(minutes=19)))
+    request = ActionRequest(action_id="story-evening-reply", workflow_name="dialogue_story",
+        content=STORY_EVENING_ACTION, partner_entity_id=user_id, partner_name=store.get_user_name(),
+        action_origin="interaction")
+    action = fast_path.create(ActionSchemaRecord(content=STORY_EVENING_ACTION, action_type=ActionType.Reply,
+        intention_ids=[goal_v1_id],
+        provenance=Provenance(source_kind=SourceKind.Self, source_ref="replay-synthetic-situation"),
+        metadata={"action_id": request.action_id, "workflow_name": "dialogue_story",
+                  "dispatch_status": "admitted", "dispatch_target": "dialogue_story",
+                  "dispatch_correlation": "story-evening", "evidence_ids": [ask_id],
+                  "public_reply_id": reply.id, "execution_status": "completed"}))
+    action.metadata["dispatch_payload"] = request.model_copy(update={"knoxel_id": action.id}).payload()
+    fast_path.revise(action)
+    expectation = fast_path.create(ExpectationRecord(content=STORY_EVENING_EXPECTATION,
+        anticipation=STORY_EVENING_EXPECTATION, expected_outcome=STORY_EVENING_EXPECTATION, status="pending",
+        expected_valence=0.6, urgency=0.6, about_entity_ids=[user_id], created_from_action_id=action.id,
+        goal_ids=[goal_v1_id], evidence_ids=[ask_id],
+        provenance=Provenance(source_kind=SourceKind.Self, source_ref="main_cognition")))
+    fast_path.preserve_on_recovery()
+    store.commit(fast_path)
+
+    _main_turn(store, "replay-story-evening-main-2", stimulus_id=ask_id, companion_id=companion_id,
+               frontier=frontier, summary="Jesse offered Thursday. The plan is getting concrete.",
+               goal_changes=[
+                   GoalChange(change="complete", goal=STORY_EVENING_GOAL_V1, goal_key="winter-sea-story",
+                              reason="The plan for the week became the question of one evening."),
+                   GoalChange(change="add", goal=STORY_EVENING_GOAL_V2, goal_key="winter-sea-evening",
+                              reason="Jesse offered Thursday.", priority=0.8)])
+    goal_v2_id = next(record.id for record in store.all_knoxels.values()
+                      if isinstance(record, Intention) and record.active)
+    return StoryEveningSituation(store=store, companion_id=companion_id, user_id=user_id, goal_v1_id=goal_v1_id,
+        goal_v2_id=goal_v2_id, action_id=action.id, reply_id=reply.id, expectation_id=expectation.id,
+        frontier=frontier)
