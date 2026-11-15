@@ -412,3 +412,41 @@ exact (`.runtime/beta-b07/q2/`).
 6. **Open concerns:** an action's `intention_ids` are all active goals at its commit (F1), so the
    review says "the goals that held", not "the goal it served". The status is read at review time:
    a reply committed just before the cycle can show "chosen but not out yet" and is not reviewed again.
+
+## Pass 4 — live gate (commits `test(live): add the B07 interval appraisal gate` and the review script)
+
+1. **Changed:** `tests/replay/situations.py::story_evening` (labelled synthetic history: two accepted
+   main turns with frontiers, a fast-path reply chosen under goal version 1 while the turn that
+   completed version 1 was calculating, one open main-origin expectation); new
+   `tests/live/test_interval_appraisal.py` (evidence root `.runtime/beta-b07/integration/`); new
+   `dev/work_items/beta_b07_review.py`.
+2. **Why:** handoff Pass 4. A real flow reviews an action under an older goal version only when the
+   fast path commits it while a main turn that changes the goal is calculating; the situation
+   commits that order. A synchronous gate cannot interleave the two loops.
+3. **Verified (real OpenRouter, `deepseek/deepseek-v4.1-flash-1017`):**
+   - **Part B passed**, attempt 1, `20261115T112207Z-51fc5b35-part-b-attempt-1`: main tick 3's
+     three appraise calls and its goals call contain
+     `[action 8] … goal then [4]: Finish the winter-sea story with Jesse this week (since completed)`,
+     that goal is no longer active, and the new state's `interval_reviewed_through` is 15 (> action 8).
+     21 requests.
+   - **Part C passed**, attempt 1, `20261115T113235Z-31e98205-part-c-attempt-1`: after the
+     conflicting wish the promise (goal 11) is still active. 36 requests.
+   - **Part A NOT RUN**, 0 of 3: in every attempt the real turn moved the expectation to `supported`
+     with the confirmation counted once (`counted_observation_ids: [13]`), but the goals call did not
+     complete "Agree with Jesse on the evening for finishing the winter-sea story"; it added a new
+     goal instead (attempt 1: "Keep Jesse thinking about the winter sea between now and Thursday at
+     eight"). A valid choice, not an error (failure rule 5). The second presentation was therefore
+     not run. Decision records: `part-a-first.json` and the goals prompt logs in each attempt folder.
+   - Provider-reported cost from the prompt logs' usage blocks: Part B $0.009165, Part A
+     $0.010620 + $0.011375 + $0.011314, Part C $0.018195; with the Pass 1 Part C runs ($0.029519 +
+     $0.023726) the B07 gate spend is **$0.113914**.
+   - Owner review, registered: http://127.0.0.1:8095/#capture/b07-attribution-live-20261115 and
+     http://127.0.0.1:8095/#capture/b07-promise-live-20261115. The review server was not running
+     after the restart; start it to open them.
+4. **Not verified:** a live goal completion and the live second presentation of one observation
+   (SC-13's second half). The counted-once rule is shown only by the real-store checks of Pass 2.
+5. **Documentation:** gate and review-script docstrings.
+6. **Open concerns:** `capture_gwt` cannot capture a main turn that names a superseded record (every
+   turn that checks an expectation does); the review script captures such turns as record
+   collections and names the missing ids. The model keeps adding goals instead of completing reached
+   ones; that is the D7-style selection question for the owner.
