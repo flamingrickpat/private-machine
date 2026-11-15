@@ -711,6 +711,19 @@ ports, homes, leases, or run folders between runs.
   and the new attempt's dialogue prompt reads **"Minecraft connection right now: connected"**
   (`participants/spamuel-1/logs/prompts`, attempt 1 of the second launch).
 
+### Pace (measured 13:52:53Z to 14:02:53Z, three runs at once)
+
+| Run | Virtual time gained | Delivered rows | Note |
+| --- | --- | --- | --- |
+| month | 0 min (clock held at 08:00) | 6 to 8 | inside a scene: the actor kept sending turns |
+| two Spamuels | 0.5 min | 3 to 3 | both participants in long main cycles |
+| Minecraft | 20 min | 1 to 4 | startup cycles already finished |
+
+The clock only moves while every participant is idle, so the rate is governed by how long a
+participant's main cycle runs, not by scene spacing. At the two-Spamuels rate a seven-day plan needs
+days of real time. That is the existing product pace under a virtual clock, not a regression from
+this pass, and nothing here changes it.
+
 ### Not verified
 
 - No final run had reached a second scene when this record was written; the runs were still in their
