@@ -4,6 +4,7 @@ from functools import partial
 import json
 from threading import Event
 from types import SimpleNamespace
+from typing import Literal
 import unittest
 from unittest.mock import patch
 
@@ -18,6 +19,15 @@ from pm.memory.reconsolidation.schemas import NarrativeAnswer
 
 class Answer(BaseModel):
     value: int = Field(ge=0)
+
+
+class Detail(BaseModel):
+    kind: Literal["report", "estimate"]
+
+
+class AnswerWithOptionalDetail(BaseModel):
+    value: int = Field(ge=0)
+    detail: Detail | None = None
 
 
 def measure(turns, **settings):
@@ -160,6 +170,27 @@ class RepairPolicyTests(unittest.TestCase):
                              measure=measure, validate=validate)
                 self.assertEqual(result.value, 3)
                 self.assertEqual(seen, [({"value": 2}, '{value: 2}'), ({"value": 3}, '{value: 3}')])
+
+    def test_wrong_value_in_an_optional_field_is_not_reported_as_expected_null(self):
+        """A model told "Expected null" drops the field. It must hear which value is wrong."""
+        for run in (complete_json, complete_json_via_async):
+            with self.subTest(policy=run.__name__):
+                responses = iter(['{"value": 3, "detail": {"kind": "guess"}}',
+                                  '{"value": 3, "detail": {"kind": "estimate"}}'])
+                rejected = []
+                result = run(lambda *args, **kwargs: next(responses), [], AnswerWithOptionalDetail,
+                             measure=measure, on_rejection=lambda *row: rejected.append(row))
+                self.assertEqual(result.detail, Detail(kind="estimate"))
+                self.assertEqual(len(rejected), 1)
+                self.assertNotIn("Expected null", rejected[0][2])
+                self.assertIn("$.detail.kind", rejected[0][2])
+
+    def test_null_in_an_optional_field_is_still_accepted(self):
+        for run in (complete_json, complete_json_via_async):
+            with self.subTest(policy=run.__name__):
+                result = run(lambda *args, **kwargs: '{"value": 3, "detail": null}', [],
+                             AnswerWithOptionalDetail, measure=measure)
+                self.assertIsNone(result.detail)
 
     def test_invalid_field_type_receives_another_repair_turn(self):
         for run in (complete_json, complete_json_via_async):

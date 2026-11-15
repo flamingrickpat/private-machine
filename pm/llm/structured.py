@@ -85,6 +85,61 @@ def extract_json(text: str) -> dict[str, object]:
         raise JsonOutputError(f"The model returned invalid JSON: {error}") from None
 
 
+#: JSON Schema keywords whose value is a list of alternative branches.
+_UNION_KEYWORDS = ("anyOf", "oneOf")
+
+
+def _null_branches_first(node: object) -> object:
+    """Copy a JSON Schema with the ``null`` branch first in every union.
+
+    The node is foreign JSON Schema from the repair library, so its shape is
+    read here and nowhere else.
+    """
+    if isinstance(node, list):
+        items = cast(list[object], node)
+        return [_null_branches_first(item) for item in items]
+    if not isinstance(node, dict):
+        return node
+    schema = cast(dict[str, object], node)
+    reordered: dict[str, object] = {}
+    for keyword, value in schema.items():
+        copied = _null_branches_first(value)
+        if keyword in _UNION_KEYWORDS and isinstance(copied, list):
+            branches = cast(list[object], copied)
+            null_branches = [branch for branch in branches if branch == {"type": "null"}]
+            other_branches = [branch for branch in branches if branch != {"type": "null"}]
+            copied = [*null_branches, *other_branches]
+        reordered[keyword] = copied
+    return reordered
+
+
+def _unmasked_problem(extracted: str, repair_schema: dict[str, object] | bool, problem: str) -> str:
+    """Return the rejection a model can act on when an optional field hid it.
+
+    The repair library reports the last branch of a union that matched nothing.
+    Pydantic writes an optional field as ``[value, null]``, so a wrong value in
+    an optional field is reported as "Expected null at <path>". A model that
+    reads this drops the field instead of correcting it. This function repeats
+    the check with the null branch first, so the reported branch is the value
+    branch, and returns that problem.
+
+    Only the correction text changes. The accepted payload still comes from
+    the original schema, and a rejection that no null branch hid keeps its
+    original text.
+    """
+    null_first = _null_branches_first(repair_schema)
+    if null_first == repair_schema:
+        return problem
+    try:
+        json_repair.loads(extracted, schema=null_first)
+    except SchemaDefinitionError:
+        raise
+    except ValueError as error:
+        return str(error)
+    # The reordered schema accepted the answer. Keep the original rejection.
+    return problem
+
+
 @runtime_checkable
 class MeasuredModel(Protocol):
     """A model or callable that exposes an explicit context measurement API."""
@@ -148,7 +203,7 @@ class _Repair[T: BaseModel]:
                 raise
             except ValueError as error:
                 # The library uses ValueError for malformed values and schema rejections.
-                raise JsonOutputError(str(error)) from error
+                raise JsonOutputError(_unmasked_problem(extracted, repair_schema, str(error))) from error
             return (self.validate(cast(dict[str, object], payload), raw) if self.validate is not None else
                     self.schema.model_validate(payload, context=self.validation_context))
         except (JsonOutputError, ValidationError) as error:
