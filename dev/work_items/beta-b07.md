@@ -1,6 +1,6 @@
 # B07: interval appraisal and run readiness
 
-Status: Pass 0 and Pass 1 done, 2026-11-15. Pass 2 is stopped for an owner decision (Pass 0 step 4).
+Status: Pass 0 and Pass 1 done, 2026-11-15. Pass 2 waits for an owner decision (Pass 0 step 4).
 Handoff authority: `dev/work_items/beta-handoff-b07-20261115.md` (owner decisions D1–D10 answered
 2026-11-15). Evidence root: `.runtime/beta-b07/`.
 
@@ -169,3 +169,145 @@ did not finish in 300 s (they run phases against an endpoint and retry). Public 
 4. **Not verified:** F11 (not reproduced, as instructed).
 5. **Documentation:** this record.
 6. **Open concerns:** step 4 (b) needs an owner decision before Pass 2; memory does not fit either final run.
+
+## Pass 1 — D1: close every gap between the retry loop's checks and the store owner's checks
+
+### Step 0 — rule-by-rule comparison
+
+**Pair 1: `validate_graph_step` (in the thought step's loop) against `stage_inquiry_step` (store owner).**
+`stages/thought/steps.py::run` passes `validate_graph_step` to `complete_json` as `validate`;
+`pm.llm.structured.complete_json` asks again in a `while True` loop, starts a fresh conversation
+after nine rejections, and stops only with `RepeatedRejectionError` (two complete conversations
+with one identical problem). No cap was added.
+
+| `raise` in `stage_inquiry_step` | Model answer alone? | In-loop twin |
+| --- | --- | --- |
+| non-finite `active_seconds`, aware `now_utc` | no (host timing) | none, stays hard |
+| `GhostConflict`: not the current receipt parent | no (concurrency) | none |
+| parent not `active`; step, time, or stall bound used | no (host admits only inside bounds) | none |
+| observer, reality, or Critical epoch replaced; original fingerprints refreshed | no | none |
+| `expect_inquiry_grant` scope or observer | no | none |
+| operation is not the admitted `next_operation` | yes | yes |
+| unknown `next_operation` (`validate_operation`) | yes | yes |
+| relation target not an accepted node | yes | yes |
+| continuation without a relation | yes | yes |
+| alternatives in a non-generative operation | yes | yes |
+| relation target outside the grant | no (node ids are always in the execution grant) | covered by the node rule |
+| `source_roots`: evidence outside the grant | yes | yes (evidence ⊆ grant) |
+| `source_roots`: a granted record whose parents are outside the grant | yes, only for recalled derived records (F19) | **no; reported, not closed** (the correct fix changes the grant, which the prompt serializes) |
+| `source_roots`: lineage cycle or foreign scope | no (grant capture rejects both) | none |
+| compared node without its relation | yes | yes |
+| `new_evidence` without inspected ids, or inspected ⊄ evidence | yes | yes |
+| **`new_evidence` that inspects an internal derivation** | **yes (the live crash)** | **closed** |
+| discrimination in a non-discriminatory operation, or fewer than two nodes | yes | yes |
+| finding or completion with generative mode or pending branches | yes | yes |
+
+**Pair 2: `validate_integration` (in the integrate stage's loop) against `capture_graph_outcome` and
+`stage_graph_outcome` (store owners).** `capture_graph_outcome` runs on the host after the stage,
+so its `ValueError` is not caught by `handle_batch` either. Both are listed.
+
+| `raise` | Model answer alone? | In-loop twin before | Now |
+| --- | --- | --- | --- |
+| capture: disclosure mode not `candid`/`withhold` | yes (`mode: str`) | none | closed |
+| capture: unknown expectation action | yes (`action: str`) | none | closed |
+| capture: open without anticipation or outcome | yes | yes | — |
+| capture: resolve without target or observations; unsupported status | yes | yes | — |
+| capture: `goal_ids` outside the grant | yes | none | closed (goals must be supplied goals) |
+| capture: `observation_ids` outside the grant on `open`/`none` | yes | none (checked only for `resolve`) | closed |
+| capture: focus ids, expectation id, revision sources outside the grant | yes | yes (⊆ citable ids, ∈ pending, revision rules) | — |
+| capture: resolution without current expectation authority | no (every pending expectation is a governing source) | none | — |
+| stage: retained payload differs; invalid action at projection | no | none | — |
+| stage: goal id is not an `Intention` | yes | none | closed |
+| stage: target not a pending expectation in the operation's scope | no (the request holds only pending expectations of the observer's scope) | yes (∈ pending) | — |
+| stage: target without current authority | no | none | — |
+| stage: observation in another scope or with a non-observed role | yes | none | closed |
+
+Assumption the new rules rely on, stated in code: the citable ids of the integration request are a
+subset of the execution grant. A breach is our bug and still raises in `capture_graph_outcome`.
+
+### Steps 1 to 4 — the change
+
+1. **Changed:**
+   - `pm/memory/evidence.py`: `OBSERVED_EVIDENCE_ROLES`, the one named set; `stage_graph_outcome`
+     reads it instead of its inline set (Pass 2 step 4 reuses it for main cognition).
+   - `workflows/inner_thought/nominations.py::original_source_ids`: the store owner's rule
+     (`source_roots(view, [id], ...) == (id,)`); a derived record is skipped before the walk.
+   - `GraphThoughtRequest.original_source_ids` (required). `graph_thought_request` fills it; the
+     host recomputes it against the final execution grant after perspective and recall widen it.
+     Excluded from the echoed envelope in `stages/thought/steps.py`.
+   - `validate_graph_step`: a `new_evidence` step that inspects a non-original id raises
+     `ModelProposalError` naming the wrong ids, listing the original ids, and saying to use
+     `progress.kind='none'` otherwise.
+   - `GraphOutcomeRules` (`schemas.py`): observed citable ids and supplied goal ids;
+     `graph_outcomes.graph_outcome_rules` builds it; `pipeline.validate_graph_outcome_rules`
+     checks disclosure mode, expectation action, supplied goals, citable observations, and observed
+     roles for a resolution. The graph path sends it as `graph_outcome_rules` beside the request;
+     the integrate stage applies it in its loop, and the host applies it again after the stage.
+   - Untouched: `stage_inquiry_step`, `capture_graph_outcome`, `stage_graph_outcome` checks, and
+     the `except` in `InnerThoughtLoop.handle_batch`.
+2. **Why:** D1 and the owner's answer that every escaping model mistake is closed.
+3. **Verified:**
+   - New real-store checks: `test_graph_host.GraphHostTests.test_earlier_thought_claimed_as_new_evidence_is_corrected_inside_the_loop`
+     (in-loop `ModelProposalError`; `stage_inquiry_step` still raises the original `ValueError`;
+     the original source passes), and in `test_graph_outcomes`:
+     `test_thought_cited_as_observation_is_corrected_inside_the_loop`,
+     `test_goal_that_is_not_a_supplied_intention_is_corrected_inside_the_loop`,
+     `test_unknown_disclosure_mode_and_expectation_action_are_corrected_inside_the_loop`
+     (each: in-loop `IntegrationError`, store owner still `ValueError`).
+   - inner_thought 278 OK, focus_management 19 OK, entity_context 36 OK, architecture 7 OK,
+     pyright 0 errors.
+   - Replays of fresh copies (`.runtime/replay/b07-p1-*`, output `.runtime/beta-b07/pass1/replay-*.txt`):
+     private-continuity-20261114T180018Z, deliberate-entry-20261114T180133Z,
+     deliberate-reflection-20261114T180458Z, private-dwelling-20261114T222749Z (3 samples),
+     perspective-morning-20261115T081258Z (3 samples): every sample `ok`, exact.
+   - Live Part C, real OpenRouter, run 1 at `15c270b`:
+     `.runtime/beta-b06/integration/20261115T100117Z-9a2d0d57-part-c`: **passed**. Noticing 32
+     with `thought_activity` claimed by main tick 15; main then dispatched a `dialogue_story` action
+     and committed a wait; 43 requests.
+   - Live Part C run 2: `.runtime/beta-b06/integration/20261115T100606Z-31600d42-part-c`: **passed**.
+     Noticing 26 claimed by main tick 11; then a `dialogue_story` action and a wait; 34 requests.
+   - Neither run raised `ValueError` from a store owner. Logs: `.runtime/beta-b07/pass1/live-part-c-run*.log`.
+4. **Not verified:** in neither live run did the model make one of the closed mistakes (no prompt
+   holds a new correction text), so the live correction path itself is shown by the real-store
+   checks only. F19 is open. Gate cost: 43 + 34 requests; not in a manifest. The pass-1 Part C runs
+   still write under `.runtime/beta-b06/integration/` because that is the gate's evidence root.
+5. **Documentation:** docstrings of the new functions and fields; the `stage_graph_outcome` and
+   `OBSERVED_EVIDENCE_ROLES` comments. No manual page (Pass 7).
+6. **Open concerns:**
+   - F18: the integrate loop still stops after two rejected answers. Closing it as the owner's rule
+     asks means calling `validate_integration` and `validate_graph_outcome_rules` as the `validate`
+     callback of `complete_json` (endless, with `RepeatedRejectionError`). That changes the text of
+     the correction turn ("This proposal was rejected: …" becomes the shared "The answer failed JSON
+     or schema validation: …"), so it waits for the owner.
+   - Run 1's main summary contains a leaked model token `<｜begin▁of▁sentence｜>` inside the
+     subjective-experience text. Model output, not caused by B07; reported.
+   Commit `15c270b`.
+
+## Owner decision needed before Pass 2
+
+**Q1 — an active private inquiry whose grant went stale (Pass 0 step 4 b).** Every private grant
+holds all active goals and all pending expectations as current-head sources. When main cognition
+replaces one of them, the active inquiry can never commit another step: each attempt costs a
+thought call and is refused, and the slot stays held until a Critical message. D2 makes this more
+frequent, but it already happens on any goal change or partial expectation check. Options:
+
+- **A (recommended).** Before a step's model call, the private loop compares the active
+  inquiry's current-head sources with the store. If one has a successor, it closes the inquiry with
+  a terminal receipt that names the changed sources, without a model call, and frees the slot. The
+  question returns to shared attention as a new episode under a fresh grant, exactly like the
+  `displaced` path you chose for Critical displacement. A refused step commit ends the same way at
+  the next opportunity. No refreshed fingerprint, no retry of the same refused commit.
+- **B.** A continuation may refresh only its current-head sources to their new heads and keeps
+  every historical fingerprint. The inquiry continues under the new goal or expectation version.
+  This relaxes the rule "a continuation cannot refresh its original source fingerprints".
+- Either way, the rare restart form (a graph root committed, its inner turn refused for good) needs
+  a rule too. Recommended: commit the inner turn and the finding, record the refused expectation
+  effect as stale on the turn, and do not apply it. Main cognition still hears the finding.
+
+**Q2 — F18.** May the integrate stage use the endless `complete_json` correction loop (changes the
+correction turn's wording only)?
+
+**Q3 — memory.** 9.2 GB commit is free. One participant process is about 5 GB at rest, so neither
+final run fits. A stale `unittest` process from 2026-11-13 (pids 25892/12484, 4.8 GB, retrying
+remote embeddings forever) and the 8095 review server (4.7 GB) are candidates to stop. I did not
+stop either.
