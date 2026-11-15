@@ -199,11 +199,12 @@ class RunEngine:
         stays a JSON mapping instead of a rigid typed record.
 
         The JSON round trip detaches the reader from engine-owned state. With no
-        attempt thread running, the file on disk is authoritative and is
-        reloaded first, because another browser process may have written it.
+        live attempt thread, the file on disk is authoritative and is reloaded
+        first, because another browser process may have written it. A finished
+        thread still names itself here; only ``is_alive`` proves ownership.
         """
         with self._lock:
-            if self.thread is None:
+            if self.thread is None or not self.thread.is_alive():
                 self.state = json.loads(self.state_path.read_text(encoding="utf-8"))
             return json.loads(json.dumps(self.state))
 
@@ -316,12 +317,21 @@ class RunEngine:
         atomic_json(intent_path, {**intent, "status": "completed"})
 
     def pause(self, *, stop: bool = False) -> None:
-        """Request a boundary after current work finishes. Stop also permits resume."""
+        """Request a boundary after current work finishes. Stop also permits resume.
+
+        Any dashboard may read any run, but only the process that runs an
+        attempt may pause it. When this process owns no live attempt, the
+        durable document is read first and the refusal names the real cause,
+        so a second page cannot report a stale status as if it were live.
+        """
         with self._lock:
+            if self.thread is None or not self.thread.is_alive():
+                self.state = json.loads(self.state_path.read_text(encoding="utf-8"))
             if self.state["status"] not in {"starting", "running"}:
                 raise ValueError("Only an active attempt can pause or stop.")
             if self.thread is None or not self.thread.is_alive():
-                raise ValueError("This browser process does not own the active attempt.")
+                raise ValueError(
+                    "Another dashboard process owns the active attempt. Stop it from the page that started it.")
             self.requested_status = "stopped" if stop else "paused"
             self.request.set()
             self.state["requested_status"] = self.requested_status

@@ -746,3 +746,94 @@ prerequisites file is updated with what closed and what still applies.
 - The virtual clock and real world time still disagree: a scene advance can take real minutes while
   world time stands still, and a long body task delays the next scene.
 - The month run may reach its later scenes long after the other two finish; nothing here bounds that.
+
+## Pass 9 — why the month run stopped, and the restart (2026-11-15)
+
+The owner asked why `beta-final-month-20261115` failed. There were two separate causes, and one
+operational finding.
+
+### 1. The bug: `KeyError: 11999` in `publish_output` (fixed in `5482cba`)
+
+- **Symptom.** Attempt 1 failed at 15:27:36Z, clock 09:36:30, after one delivered scene. The
+  participant crashed in `main_cog`; the engine recorded
+  `Participant primary failed: KeyError(11999)`.
+- **Record.** `11999` is `Feature("Managed run 96eed5ff19a34bda94eda1b7f97881c0 started")`. That
+  run is the `note_task` managed run that had just reported
+  `state=failed event=workflow rejected its result` at 15:24:18Z.
+- **Cause.** `prepare_input` turns a `workflow.event` or `workflow.question` envelope into a new
+  `WorldEvent` record *after* the cycle's working view froze, and says so in a comment. Two
+  publication paths then read every stimulus id from the frozen view only:
+  `publish_output` (the `entity_action_reconsideration` loop) and
+  `_terminal_reconsideration_request`. The view cannot hold a record created after it froze, so the
+  run died on a task's own progress report. The faulty line came from `e7a7ce8` (B05 entity
+  context), so this predates B07.
+- **Fix.** Both paths now share `stimulus_record(memory_view, ghost, record_id)`: the frozen view
+  first, then the store that `prepare_input` wrote to. A record in neither place still raises, with
+  its id in the message.
+- **Verified.** New real-store check
+  `tests/unit/workflows/main_cognition/test_stimulus_records.py` (a view member comes from the view,
+  a later `WorldEvent` comes from the store, an unknown id raises); main-cognition expectation and
+  interval suites 13 OK; architecture 7 OK; pyright 0 errors.
+
+### 2. Why the first restarts failed: commit-charge exhaustion
+
+Attempt 2 of the month run never reached cognition. Its participant log repeats
+`OpenBLAS error: Memory allocation still failed after 10 retries, giving up.` and exits 1. At that
+moment the machine had 6.5 GB of commit charge free:
+
+| Holder | Commit |
+| --- | --- |
+| Commit limit (no page file) | 127.9 GB |
+| `basalt.exe` (owner application) | 32.4 GB |
+| one participant process | 6.3 to 6.9 GB |
+| one dashboard process | 6.3 to 7.5 GB |
+| one monitor process | 4.7 GB |
+| Minecraft server | 2.8 GB |
+
+Four participants (two runs), four dashboards, and three monitors left no room for a fifth
+participant. The same pressure then killed `spamuel-alpha` in the Minecraft run inside a scene
+settle (`MemoryError`), and stopped that attempt. This is the Pass 0 step 6 limit: with no page
+file, the ceiling is the installed RAM, and a large application's reservation counts against it even
+when its working set is small.
+
+After Basalt released its charge, commit free rose to 57.1 GB and all three runs started. Commit
+free with all three running and no Basalt charge: 29.7 GB. Starting a fourth participant needs about
+7 GB.
+
+**Owner decision needed:** a system-managed page file raises the ceiling, or the day-to-day limit is
+two concurrent runs while Basalt is open.
+
+### 3. Operational finding: two dashboards can drive one run
+
+Run 2's attempt 2 was started from the **month run's** dashboard page (the dashboard serves any run
+id under the runs root). The page that owned the attempt was therefore 8098, while 8099 kept its
+finished attempt-1 thread and answered `/api/runs/.../stop` with "Only an active attempt can pause
+or stop" even though the durable document said `running`, attempt 2. Reading the durable document
+was correct; the in-memory copy was stale because `view` and `pause` tested `thread is None` rather
+than `thread.is_alive()`.
+
+`5482cba` also fixes that: both now reload the durable document when this process owns no live
+attempt, and the refusal says "Another dashboard process owns the active attempt. Stop it from the
+page that started it."
+
+The same episode showed that a click on a failed multi-participant run **restores the latest
+coordinated checkpoint** before starting: run 2 was rewound to its initial barrier and lost about
+2.5 hours of accepted progress. That is the documented behaviour of `start`, but it is easy to
+trigger from a page that only says "start / resume".
+
+### Where the runs stand after this pass
+
+| Run | Attempt | Frozen source | Status | Clock |
+| --- | --- | --- | --- | --- |
+| month | 3 | has the fix | running, stage 1 | 2026-05-31T09:37Z |
+| two Spamuels | 3 | has the fix | running, stage 1 | 2026-05-31T07:30Z |
+| Minecraft | 1 (recreated) | has the fix | running | 2026-06-08T07:00Z |
+
+Run 3 was recreated rather than resumed, because a failed body run refuses restore by design. Its
+previous receipts are in `.runtime/beta-final/restart-2/`; the world and both bot connections were
+kept (the bots had not acted). Each frozen `workflows/main_cognition/host.py` was checked for the
+fix, not assumed.
+
+**Not verified:** a live managed-run event reaching a fixed publication path (the fix is shown by the
+real-store check and by the source in each frozen attempt, not yet by a live cycle), and any claim
+that three concurrent runs fit the memory ceiling for 24 hours.
