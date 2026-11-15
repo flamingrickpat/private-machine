@@ -22,6 +22,7 @@ from workflows.public_speech.public_context import EvidenceItem
 
 from workflows.inner_thought.operations import validate_operation
 from workflows.inner_thought.schemas import (
+    GraphOutcomeRules,
     InnerReport,
     InnerRequest,
     IntegrationResult,
@@ -267,5 +268,51 @@ def validate_integration(integration: IntegrationResult, known: set[int], reques
             raise IntegrationError(f"unknown resolution status: {update.status}")
 
 
-__all__ = ["STAGE_ORDER", "CONTINUATIONS", "PROGRESS_KINDS", "ModelProposalError", "IntegrationError",
-           "citable_ids", "concrete_progress", "run_cycle", "validate_integration"]
+#: Disclosure modes a graph outcome may record (``capture_graph_outcome``).
+GRAPH_DISCLOSURE_MODES = ("candid", "withhold")
+#: Expectation actions a graph outcome may propose (``capture_graph_outcome``).
+GRAPH_EXPECTATION_ACTIONS = ("none", "open", "resolve")
+
+
+def validate_graph_outcome_rules(integration: IntegrationResult, rules: GraphOutcomeRules,
+                                 known: set[int]) -> None:
+    """Reject the model mistakes that a graph outcome's store owner would refuse.
+
+    Runs inside the integrate stage's correction loop after
+    :func:`validate_integration`, and again on the host. Each rule here mirrors
+    one ``raise`` in ``graph_outcomes.capture_graph_outcome`` or
+    ``graph_outcomes.stage_graph_outcome`` that a model answer alone can
+    trigger. The store owners keep their own checks unchanged; this function
+    only makes sure a wrong answer is corrected before it reaches them. Each
+    message names the wrong value and what to use instead. ``known`` is the
+    set of IDs the integration may cite.
+    """
+    mode = integration.disclosure.mode
+    if mode not in GRAPH_DISCLOSURE_MODES:
+        raise IntegrationError(f"disclosure.mode {mode!r} is not available; use 'candid' or 'withhold'")
+    update = integration.expectation
+    if update.action not in GRAPH_EXPECTATION_ACTIONS:
+        raise IntegrationError(
+            f"expectation.action {update.action!r} is not available; use 'none', 'open', or 'resolve'")
+    supplied_goals = sorted(rules.intention_ids)
+    wrong_goals = sorted(set(update.goal_ids) - set(rules.intention_ids))
+    if wrong_goals:
+        raise IntegrationError(
+            f"expectation.goal_ids {wrong_goals} are not supplied goals. Attach only the supplied goal ids "
+            f"{supplied_goals}, or leave goal_ids empty")
+    outside = sorted(set(update.observation_ids) - known)
+    if outside:
+        raise IntegrationError(f"expectation.observation_ids {outside} are outside the frozen view; cite only supplied ids")
+    if update.action == "resolve":
+        observed = sorted(rules.observed_source_ids)
+        not_observed = sorted(set(update.observation_ids) - set(rules.observed_source_ids))
+        if not_observed:
+            raise IntegrationError(
+                f"expectation.observation_ids {not_observed} are thoughts, interpretations, or other derived "
+                f"records, not observed events, so they cannot resolve an expectation. The observed records you "
+                f"may cite are {observed}. Cite one of them, or set expectation.action to 'none'")
+
+
+__all__ = ["STAGE_ORDER", "CONTINUATIONS", "GRAPH_DISCLOSURE_MODES", "GRAPH_EXPECTATION_ACTIONS", "PROGRESS_KINDS",
+           "ModelProposalError", "IntegrationError", "citable_ids", "concrete_progress", "run_cycle",
+           "validate_graph_outcome_rules", "validate_integration"]

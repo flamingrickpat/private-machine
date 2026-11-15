@@ -15,7 +15,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 from pm.memory.dependencies import SourceDependency
-from pm.memory.evidence import evidence_role
+from pm.memory.evidence import OBSERVED_EVIDENCE_ROLES, evidence_role
 from pm.memory.snapshot import Snapshot
 from pm.memory.write_batch import WriteBatch
 from pm.records.cognitive_records import ExpectationRecord, Intention
@@ -23,7 +23,7 @@ from pm.records.memory_records import Feature
 from workflows.cognitive_control.schemas import FocusProposal
 from workflows.entity_context.schemas import PerspectiveRevision
 from workflows.inner_thought.expectations import open_expectation, resolve_expectation
-from workflows.inner_thought.schemas import InquiryGrant, InquiryStep, IntegrationResult
+from workflows.inner_thought.schemas import GraphOutcomeRules, InnerRequest, InquiryGrant, InquiryStep, IntegrationResult
 from workflows.main_cognition.schemas import GoalChange
 
 
@@ -52,6 +52,27 @@ class GraphOutcomeMetadata(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
     graph_outcome: GraphOutcomePayload
+
+
+def graph_outcome_rules(view: Snapshot, request: InnerRequest, citable: set[int], *,
+                        grant: InquiryGrant) -> GraphOutcomeRules:
+    """Read the facts the integrate stage needs to check a proposal like the store owner does.
+
+    ``citable`` is every ID the integration may cite, and ``grant`` is the
+    step's execution grant; the operation is created in ``grant.scope``. A
+    citable record is observed when it lies in that scope and its evidence role
+    is in ``OBSERVED_EVIDENCE_ROLES``: exactly the rule
+    :func:`stage_graph_outcome` applies to a resolution's observations. The
+    supplied goals are the request's active goal records, which the store
+    owner requires to be intentions.
+    """
+    observed_ids: list[int] = []
+    for record_id in sorted(citable):
+        record = view.get(record_id)
+        if record.scope == grant.scope and evidence_role(view, record) in OBSERVED_EVIDENCE_ROLES:
+            observed_ids.append(record_id)
+    intention_ids = tuple(goal.knoxel_id for goal in request.active_goal_records)
+    return GraphOutcomeRules(observed_source_ids=tuple(observed_ids), intention_ids=intention_ids)
 
 
 def capture_graph_outcome(grant: InquiryGrant, step: InquiryStep,
@@ -165,8 +186,7 @@ def stage_graph_outcome(batch: WriteBatch, view: Snapshot, operation: Feature, s
         raise ValueError("An expectation resolution requires original current-authority evidence.")
     for observation_id in update.observation_ids:
         observed = view.get(observation_id)
-        if (observed.scope != operation.scope or evidence_role(view, observed) not in {
-                "user_report", "companion_utterance", "world_observation", "runtime_event", "internal_state"}):
+        if observed.scope != operation.scope or evidence_role(view, observed) not in OBSERVED_EVIDENCE_ROLES:
             raise ValueError("Generated or imagined content cannot resolve an expectation as an observed outcome.")
     resolve_expectation(batch, target, status=update.status, observation_ids=update.observation_ids,
         reason=update.reason, revision=source.revision)

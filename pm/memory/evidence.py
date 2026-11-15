@@ -12,6 +12,16 @@ from pm.records.base import Provenance, RecordBase, RecordScope
 from pm.records.enums import FeatureType, FrameEnum, SourceKind
 from pm.records.memory_records import Entity, Feature
 
+#: Evidence roles of records that report something that actually happened: a
+#: person's message, the companion's own delivered speech, a world observation,
+#: an executed runtime event, or a recorded internal state. Only these can move
+#: or resolve an expectation. A thought, an interpretation, an intent, a derived
+#: summary, and imagined content cannot, because they restate or predict events.
+#: The private graph's store owner (``stage_graph_outcome``) and the integrate
+#: stage's in-loop check read this one set, so they cannot disagree.
+OBSERVED_EVIDENCE_ROLES: frozenset[str] = frozenset({
+    "user_report", "companion_utterance", "world_observation", "runtime_event", "internal_state"})
+
 
 class EvidenceMetadata(BaseModel):
     """The declared classification fields in heterogeneous stored metadata."""

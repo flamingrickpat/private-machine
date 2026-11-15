@@ -135,6 +135,29 @@ def source_roots(view: Snapshot, source_ids: Sequence[int], *, scope: RecordScop
     return tuple(sorted(roots))
 
 
+def original_source_ids(view: Snapshot, grant: InquiryGrant) -> tuple[int, ...]:
+    """Return the granted sources that count as acquired original evidence, ascending.
+
+    This is the rule ``inquiry.stage_inquiry_step`` applies to a
+    ``new_evidence`` step: a source is original when
+    ``source_roots(view, [source_id], ...) == (source_id,)``. A derived record
+    (one with internal derivation parents, such as an earlier thought or a
+    summary) never roots in itself, so it is skipped before the traversal; the
+    traversal would only walk its parents, which a recall grant need not hold.
+    The host supplies the result to the thought step's in-loop check, so a
+    wrong claim is corrected before it reaches the store owner.
+    """
+    permitted = frozenset(source.record_id for source in grant.sources)
+    originals: list[int] = []
+    for source in grant.sources:
+        record = view.get(source.record_id)
+        if _source_parents(record) is not None:
+            continue
+        if source_roots(view, [source.record_id], scope=grant.scope, permitted_ids=permitted) == (source.record_id,):
+            originals.append(source.record_id)
+    return tuple(sorted(originals))
+
+
 def capture_inquiry_grant(view: Snapshot, *, observer_entity_id: int, scope: RecordScope,
                           source_ids: Sequence[int], governing_ids: Sequence[int] = (),
                           critical_epoch: int) -> InquiryGrant:

@@ -24,9 +24,11 @@ from pm.context_render.turns import Role, Turn, format_content
 
 from workflows.inner_thought.perspective import PerspectiveRevisionRequest
 from workflows.inner_thought.schemas import (
-    FocusAdviceRequest, InnerRequest, IntegrationResult, ThoughtResult, TriggerChoice,
+    FocusAdviceRequest, GraphOutcomeRules, InnerRequest, IntegrationResult, ThoughtResult, TriggerChoice,
 )
-from workflows.inner_thought.pipeline import IntegrationError, citable_ids, validate_integration
+from workflows.inner_thought.pipeline import (
+    IntegrationError, citable_ids, validate_graph_outcome_rules, validate_integration,
+)
 from workflows.main_cognition.model_json import complete_json, load_yaml, read_request, write_report
 
 WORKFLOW_DIR = Path(__file__).resolve().parent
@@ -106,12 +108,18 @@ def run(context: RoleContext) -> dict[str, str]:
     if revision_data is not None:
         perspective = PerspectiveRevisionRequest.model_validate(revision_data)
     source_texts = {int(item.knoxel_id): item.text for item in parsed.candidates}
+    # The graph path supplies the facts its store owner checks; the linear
+    # pipeline has another store owner and sends none.
+    rules_data = request.get("graph_outcome_rules")
+    rules = GraphOutcomeRules.model_validate(rules_data) if rules_data is not None else None
     for attempt in range(2):
         result = complete_json(context, messages, IntegrationResult, temperature=Sampler.TempInstruct, enable_thinking=False)
         try:
             validate_integration(result, known, parsed, focus_requested=focus_requested,
                                  perspective=perspective,
                                  source_texts=source_texts if perspective is not None else None)
+            if rules is not None:
+                validate_graph_outcome_rules(result, rules, known)
             break
         except IntegrationError as error:
             # Keep the invalid model proposal. Only the model can correct it.

@@ -570,6 +570,40 @@ class GraphHostTests(unittest.TestCase):
         with self.assertRaisesRegex(ModelProposalError, "must compare at least two accepted nodes"):
             validate_graph_step(request, single)
 
+    def test_earlier_thought_claimed_as_new_evidence_is_corrected_inside_the_loop(self) -> None:
+        # B07 D1: the 2026-11-15 live crash. The model claimed new evidence for
+        # an earlier thought of the same episode.
+        generated = self.advance(self.begin(), self.generation(), "generation")
+        earlier_thought = generated.receipt.state.node_ids[0]
+        grant = self.owner.execution_grant(generated)
+        request = graph_thought_request(self.store.snapshot(capture=False), InnerRequest(), generated, grant)
+        self.assertIn(self.source.id, request.original_source_ids)
+        self.assertNotIn(earlier_thought, request.original_source_ids)
+        relations = tuple(ThoughtRelation(target_record_id=node_id, kind="merges", reason="Compare the causes.")
+                          for node_id in generated.receipt.state.node_ids)
+        claim = InquiryStep(operation="feasibility_check", thought="My earlier thought shows the cause.",
+            evidence_ids=(self.source.id, earlier_thought), assumptions=(), reality="inferred",
+            judgments=self.judgments, relations=relations, alternatives=(),
+            progress=InquiryProgress(kind="new_evidence", inspected_source_ids=(earlier_thought,),
+                compared_node_ids=(), meaningful_difference=False, reason="I read my earlier thought."),
+            outcome="continue", reason="Look further.", information_gap="Unknown motive.",
+            next_operation="future_projection")
+        with self.assertRaisesRegex(ModelProposalError, rf"names \[{earlier_thought}\], which are earlier thoughts") as raised:
+            validate_graph_step(request, claim)
+        self.assertIn(f"The original source IDs of this step are {sorted(request.original_source_ids)}",
+                      str(raised.exception))
+        self.assertIn("progress.kind='none'", str(raised.exception))
+        # The store owner keeps its own check, unchanged.
+        batch = self.store.begin_batch("store-owner-direct", new_tick=True, embed=False)
+        with self.assertRaisesRegex(ValueError, "Internal derivations cannot count as acquired original evidence"):
+            stage_inquiry_step(batch, parent_receipt_id=generated.record.id, step=claim, grant=grant,
+                active_seconds=1.0, now_utc=self.now, limits=ControlConfig())
+        # The original source itself is accepted by both.
+        original = claim.model_copy(update={"progress": InquiryProgress(kind="new_evidence",
+            inspected_source_ids=(self.source.id,), compared_node_ids=(), meaningful_difference=False,
+            reason="I read the message again.")})
+        self.assertEqual(validate_graph_step(request, original), original)
+
     def test_forced_stall_bound_does_not_publish_generated_possibilities_as_finding(self) -> None:
         self.owner.limits = ControlConfig(stalled_steps=1)
         generated = self.advance(self.begin(), self.generation(), "generation-at-bound")

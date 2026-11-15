@@ -15,11 +15,13 @@ from pm.records.memory_records import Entity, Feature
 from pm.records.lineage import RecordLineage
 from workflows.inner_thought.expectations import open_expectation
 from workflows.inner_thought.graph_outcomes import (
-    attach_graph_outcome, capture_graph_outcome, read_graph_outcome, stage_graph_outcome,
+    attach_graph_outcome, capture_graph_outcome, graph_outcome_rules, read_graph_outcome, stage_graph_outcome,
 )
+from workflows.inner_thought.pipeline import IntegrationError, validate_graph_outcome_rules
 from workflows.inner_thought.nominations import capture_inquiry_grant, extend_inquiry_grant
 from workflows.inner_thought.schemas import (
-    DisclosureChoice, ExpectationUpdate, InquiryProgress, InquiryStep, IntegrationResult, ThoughtJudgments,
+    DisclosureChoice, ExpectationUpdate, InnerRequest, InquiryProgress, InquiryStep, IntegrationResult,
+    ThoughtJudgments,
 )
 
 
@@ -158,6 +160,70 @@ class GraphOutcomeTests(unittest.TestCase):
         batch = self.store.begin_batch("invalid-imagined-resolution", embed=False)
         with self.assertRaisesRegex(ValueError, "Generated or imagined content"):
             stage_graph_outcome(batch, self.store.snapshot(), operation, self.step, outcome)
+
+
+    def imagined_thought(self) -> Feature:
+        """Retain one generated possibility that restates the reply."""
+        imagined = self.store.begin_batch("imagined-option", embed=False)
+        thought = imagined.create(Feature(content="Perhaps Jesse will enjoy the session.",
+            feature_type=FeatureType.Thought, entity_id=self.observer.id,
+            provenance=Provenance(source_kind=SourceKind.Self), interlocus=InterlocusType.PrivateInternal,
+            lineage=RecordLineage(episode_id="earlier", operation="future_projection",
+                source_event_ids=[self.source.id], reality="imagined")))
+        imagined.preserve_on_recovery()
+        self.store.commit(imagined)
+        self.grant = extend_inquiry_grant(self.store.snapshot(), self.grant, [thought.id])
+        return thought
+
+    def test_thought_cited_as_observation_is_corrected_inside_the_loop(self) -> None:
+        # B07 F17: the loop's check knew only that the id was citable.
+        thought = self.imagined_thought()
+        citable = {self.source.id, self.expectation.id, thought.id}
+        rules = graph_outcome_rules(self.store.snapshot(), InnerRequest(), citable, grant=self.grant)
+        self.assertEqual(rules.observed_source_ids, (self.source.id,))
+        integration = self.resolution()
+        integration.expectation.observation_ids = [thought.id]
+        with self.assertRaisesRegex(IntegrationError, rf"observation_ids \[{thought.id}\] are thoughts") as raised:
+            validate_graph_outcome_rules(integration, rules, citable)
+        self.assertIn(f"The observed records you may cite are [{self.source.id}]", str(raised.exception))
+        validate_graph_outcome_rules(self.resolution(), rules, citable)
+        # The store owner keeps its own check, unchanged.
+        operation = self.retain(integration)
+        outcome = read_graph_outcome(operation)
+        assert outcome is not None
+        batch = self.store.begin_batch("store-owner-direct", embed=False)
+        with self.assertRaisesRegex(ValueError, "Generated or imagined content"):
+            stage_graph_outcome(batch, self.store.snapshot(), operation, self.step, outcome)
+
+    def test_goal_that_is_not_a_supplied_intention_is_corrected_inside_the_loop(self) -> None:
+        citable = {self.source.id, self.expectation.id}
+        rules = graph_outcome_rules(self.store.snapshot(), InnerRequest(), citable, grant=self.grant)
+        self.assertEqual(rules.intention_ids, ())
+        integration = IntegrationResult(summary="A new anticipation tied to a goal.",
+            expectation=ExpectationUpdate(action="open", anticipation="The story session feels collaborative.",
+                expected_outcome="A shared session", uncertainty=0.6, goal_ids=[self.source.id]))
+        with self.assertRaisesRegex(IntegrationError, rf"goal_ids \[{self.source.id}\] are not supplied goals"):
+            validate_graph_outcome_rules(integration, rules, citable)
+        operation = self.retain(integration)
+        outcome = read_graph_outcome(operation)
+        assert outcome is not None
+        batch = self.store.begin_batch("store-owner-direct", embed=False)
+        with self.assertRaisesRegex(ValueError, "actual supplied intention"):
+            stage_graph_outcome(batch, self.store.snapshot(), operation, self.step, outcome)
+
+    def test_unknown_disclosure_mode_and_expectation_action_are_corrected_inside_the_loop(self) -> None:
+        citable = {self.source.id, self.expectation.id}
+        rules = graph_outcome_rules(self.store.snapshot(), InnerRequest(), citable, grant=self.grant)
+        deceptive = IntegrationResult(summary="Hide it.", disclosure=DisclosureChoice(mode="deceive"))
+        with self.assertRaisesRegex(IntegrationError, "disclosure.mode 'deceive' is not available"):
+            validate_graph_outcome_rules(deceptive, rules, citable)
+        with self.assertRaisesRegex(ValueError, "candid or withhold"):
+            capture_graph_outcome(self.grant, self.step, deceptive)
+        closing = IntegrationResult(summary="Close it.", expectation=ExpectationUpdate(action="close"))
+        with self.assertRaisesRegex(IntegrationError, "expectation.action 'close' is not available"):
+            validate_graph_outcome_rules(closing, rules, citable)
+        with self.assertRaisesRegex(ValueError, "unknown expectation action"):
+            capture_graph_outcome(self.grant, self.step, closing)
 
 
 if __name__ == "__main__":

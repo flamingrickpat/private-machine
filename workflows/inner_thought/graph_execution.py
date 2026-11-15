@@ -50,7 +50,9 @@ from workflows.inner_thought.inquiry import (
 from workflows.inner_thought.metacognition import (
     METACOGNITION_OPERATIONS, activity_rule, render_thought_activity, thought_activity,
 )
-from workflows.inner_thought.nominations import NominationBatchRecord, extend_inquiry_grant, read_nomination_batch
+from workflows.inner_thought.nominations import (
+    NominationBatchRecord, extend_inquiry_grant, original_source_ids, read_nomination_batch,
+)
 from workflows.inner_thought.offer_salience import RetainedQuestion, attention_cues, select_retained_offer
 from workflows.inner_thought.operations import operation_lines, validate_operation
 from workflows.inner_thought.perspective import (
@@ -60,8 +62,10 @@ from workflows.inner_thought.perspective import (
 from workflows.inner_thought.rendering import inspection as inspection_material
 from workflows.reflection.rendering import private_material
 from workflows.reflection.schemas import ReflectionContext
-from workflows.inner_thought.graph_outcomes import capture_graph_outcome
-from workflows.inner_thought.pipeline import ModelProposalError, citable_ids, validate_integration
+from workflows.inner_thought.graph_outcomes import capture_graph_outcome, graph_outcome_rules
+from workflows.inner_thought.pipeline import (
+    ModelProposalError, citable_ids, validate_graph_outcome_rules, validate_integration,
+)
 from workflows.inner_thought.schemas import (
     AttentionCandidate, DisplacedInquiryOffer, FocusAdviceRequest, InquiryAlternative, InquiryGrant, InquiryOrigin,
     InquiryResumeDecision, InquiryState, InquiryStep, InnerRequest, IntegrationResult, NominationBatch,
@@ -151,6 +155,10 @@ class GraphThoughtRequest(BaseModel):
     activity_evidence: str | None = Field(default=None, exclude_if=_absent,
         description="Rendered recorded activity for one noticing step, built by metacognition.activity_rule. "
                     "Facts about the companion's own recent thinking; absent for every other step.")
+    original_source_ids: tuple[int, ...] = Field(
+        description="Granted sources that count as acquired original evidence, by the store owner's rule "
+                    "(nominations.original_source_ids). Read only by validate_graph_step and never echoed "
+                    "into the prompt.")
 
 
 def _node_view(view: Snapshot, node_id: int) -> InquiryNodeView:
@@ -217,7 +225,8 @@ def graph_thought_request(view: Snapshot, request: InnerRequest, parent: Inquiry
     return GraphThoughtRequest(request=request, state=state, grant=grant, origin=origin, nodes=nodes,
                                earlier_artifacts=earlier_artifacts(view, state),
                                reflection_evidence=reflection_evidence,
-                               inspection_evidence=inspection_evidence)
+                               inspection_evidence=inspection_evidence,
+                               original_source_ids=original_source_ids(view, grant))
 
 
 def with_origin_evidence(view: Snapshot, request: InnerRequest, origin: InquiryOrigin) -> InnerRequest:
@@ -457,6 +466,16 @@ def validate_graph_step(request: GraphThoughtRequest, step: InquiryStep) -> Inqu
     if step.progress.kind == "new_evidence" and (not step.progress.inspected_source_ids
             or not set(step.progress.inspected_source_ids).issubset(step.evidence_ids)):
         raise ModelProposalError("Evidence acquisition must cite its inspected original source IDs.")
+    if step.progress.kind == "new_evidence":
+        # The store owner counts only an original record as acquired evidence.
+        # An earlier thought or a summary restates evidence; it is not new.
+        derived = sorted(set(step.progress.inspected_source_ids) - set(request.original_source_ids))
+        if derived:
+            raise ModelProposalError(
+                f"progress.inspected_source_ids names {derived}, which are earlier thoughts, summaries, or other "
+                "internal derivations, not original sources, so inspecting them is not new evidence. The original "
+                f"source IDs of this step are {sorted(request.original_source_ids)}. Name only those, or set "
+                "progress.kind='none' with inspected_source_ids=[] when this step inspected no original source.")
     pending = set(state.pending_generation_ids)
     if operation.mode == "discriminatory":
         pending.difference_update(compared)
@@ -801,6 +820,9 @@ def run_graph_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner,
                     revision=match.revision, kind="recalled_memory"))
                 existing_ids.add(match.knoxel_id)
         supplied = supplied.model_copy(update={"request": request})
+    # The grant may have grown above (perspective, recall). The in-loop check
+    # must judge original evidence against the grant the store owner receives.
+    supplied = supplied.model_copy(update={"original_source_ids": original_source_ids(step_view, execution_grant)})
     # The rendered evidence fields carry the prompt material. The raw typed
     # collections behind them stay out of the serialized request, so no store
     # record reaches the prompt without its renderer.
@@ -837,9 +859,14 @@ def run_graph_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner,
             # Only a perspective inquiry is asked for an entity-model revision,
             # and only at its outcome.
             payload["perspective_revision"] = revision.model_dump(mode="json")
+        # The store owner's facts travel beside the request so the stage can
+        # correct a wrong proposal inside its loop. The prompt never reads them.
+        rules = graph_outcome_rules(step_view, integration_request, integration_ids, grant=execution_grant)
+        payload["graph_outcome_rules"] = rules.model_dump(mode="json")
         integration = IntegrationResult.model_validate(run_stage("integrate", payload))
         validate_integration(integration, integration_ids, integration_request, focus_requested=deliberate,
                              perspective=revision, source_texts=revision_texts if revision is not None else None)
+        validate_graph_outcome_rules(integration, rules, integration_ids)
         outcome = capture_graph_outcome(execution_grant, step, integration)
     active_seconds = monotonic() - started
     accepted = owner.accept_step(parent, step, grant=execution_grant,

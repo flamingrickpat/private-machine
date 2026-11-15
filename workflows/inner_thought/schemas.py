@@ -156,6 +156,26 @@ class FocusAdviceRequest(BaseModel):
     citable_ids: tuple[int, ...] = Field(description="Every record ID the advice may promote or reduce: the IDs this integration can cite.")
 
 
+class GraphOutcomeRules(BaseModel):
+    """Facts that the store owner of a graph outcome checks, supplied beside the integration request.
+
+    The host builds this from its view for the integration at the end of one
+    inquiry graph step (:func:`workflows.inner_thought.graph_outcomes.graph_outcome_rules`).
+    The integrate stage checks a proposal against it inside its correction
+    loop, so a model mistake that ``capture_graph_outcome`` or
+    ``stage_graph_outcome`` would refuse is asked again instead of reaching the
+    store owner. It is never rendered into a prompt. A linear-pipeline
+    integration carries no rules; its store owner is a different function.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    observed_source_ids: tuple[int, ...] = Field(
+        description="Citable IDs in the operation's reality and frame whose evidence role is observed "
+                    "(pm.memory.evidence.OBSERVED_EVIDENCE_ROLES). Only these can resolve an expectation.")
+    intention_ids: tuple[int, ...] = Field(
+        description="IDs of the supplied active goals. An expectation may attach only these goals.")
+
+
 class IntegrationResult(BaseModel):
     """The consequences the integrate stage proposes for accepted state."""
 
@@ -700,6 +720,7 @@ __all__ = [
     "REALITY_LABELS",
     "DisclosureChoice",
     "ExpectationUpdate",
+    "GraphOutcomeRules",
     "InnerReport",
     "InnerRequest",
     "IntegrationResult",
