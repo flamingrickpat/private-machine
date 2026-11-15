@@ -1300,7 +1300,7 @@ class MainCogLoop(CognitiveWorkflow):
                 if outcome.staged_receipt_id is not None and outcome.staged_receipt_id not in turn.knoxel_ids:
                     turn.knoxel_ids.append(outcome.staged_receipt_id)
             for source_id in self._stimulus_ids:
-                source = self._memory_view.get(source_id)
+                source = stimulus_record(self._memory_view, self.ghost, source_id)
                 if "entity_action_reconsideration" in source.metadata:
                     payload = EntityActionMetadata.model_validate(source.metadata).entity_action_reconsideration
                     changes.set_lifecycle(source_id, entity_reconsideration_status="accepted", accepted_by=changes.commit_id)
@@ -1352,7 +1352,7 @@ class MainCogLoop(CognitiveWorkflow):
         terminal: dict[int, ActionRequest] = {}
         fresh_input = False
         for source_id in dispatch.stimulus_ids:
-            source = self._memory_view.get(source_id)
+            source = stimulus_record(self._memory_view, self.ghost, source_id)
             if "entity_action_reconsideration" not in source.metadata:
                 if (isinstance(source, Feature) and source.feature_type == FeatureType.Dialogue
                         and source.provenance is not None and source.provenance.source_kind in {SourceKind.User, SourceKind.Agent}):
@@ -1749,6 +1749,23 @@ def stage_expectations(changes: WriteBatch, view: Snapshot, work: CycleWork, dis
             changes.expect_revision(old_id, by_id[old_id].revision)
             changes.replace(old)
     return created
+
+
+def stimulus_record(memory_view: Snapshot, ghost: MemoryStore, record_id: int) -> RecordBase:
+    """Read one stimulus record from the frozen view, then from the store.
+
+    ``prepare_input`` materializes a workflow event or question as a new record
+    after the working view froze, so that stimulus id is absent from the view by
+    design. The store always owns it. A record in neither place is our own
+    broken invariant and raises.
+    """
+    record = memory_view.get_knoxel_by_id(record_id)
+    if record is not None:
+        return record
+    stored = ghost.get_knoxel_by_id(record_id)
+    if stored is None:
+        raise RuntimeError(f"Stimulus record {record_id} is in neither the frozen view nor the store.")
+    return stored
 
 
 def apply_expectation_outcomes(changes: WriteBatch, view: Snapshot, work: CycleWork) -> None:
