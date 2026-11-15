@@ -1,6 +1,6 @@
 # B07: interval appraisal and run readiness
 
-Status: Passes 0 to 3 done, 2026-11-15; the owner answered Q1 to Q3 the same day (section "Owner answers").
+Status: Passes 0 to 5 and 7 done, 2026-11-15; Pass 6 partly. See "Status" at the end. The owner answered Q1 to Q3 the same day (section "Owner answers").
 Handoff authority: `dev/work_items/beta-handoff-b07-20261115.md` (owner decisions D1–D10 answered
 2026-11-15). Evidence root: `.runtime/beta-b07/`.
 
@@ -450,3 +450,182 @@ exact (`.runtime/beta-b07/q2/`).
    turn that checks an expectation does); the review script captures such turns as record
    collections and names the missing ids. The model keeps adding goals instead of completing reached
    ones; that is the D7-style selection question for the owner.
+
+## Pass 5 — run readiness
+
+### Step 1 — short comparison (paused at my 45-minute limit)
+
+Template `test_data/simulation/b07-sleep-comparison.json` (commit `7c1d833`): the preserved Spamuel
+home, one evening scene at 2026-06-02 22:30 (Jesse chats and says good night, at least three turns)
+and one morning scene at 2026-06-03 07:30. Run `b07-sleep-comparison-20261115`, real harness on
+port 8097 bound to `0.0.0.0`, `--openrouter-only`, `PM_COMPLETION_CACHE=0`. Started 11:41:13Z,
+paused through the harness's own `/api/runs/<id>/pause` at 12:25:40Z, state `paused`.
+
+| Measure | Comparison run (at pause) | Baseline `20261104-eventful-month` |
+| --- | --- | --- |
+| Scenes done | 1 of 2 (the night scene) | 4 of 90 |
+| Jesse messages | 3 | 16 |
+| Spamuel messages | 6 | 115 |
+| Unsolicited messages during announced absence | none yet: the run was paused at 22:35, five minutes after the good night | 14 after Jesse's last message, every 10 world-minutes |
+| Main cycles (goals calls) | 7 | — |
+| Logged model calls / provider-reported cost | 526 / $0.242412 | — |
+
+Observed: before Jesse's first message the preserved history was mid-exchange, and Spamuel sent
+three unsolicited messages at 22:00:30, 22:10:30, and 22:20:30, each a new variant of the same bit
+("one dish from the finish line…", "six minutes of silence…", "court adjourned, i'm going dark").
+That is the baseline's 10-minute pattern (SC-18 failure condition), seen before any sleep
+announcement. After Jesse's good night Spamuel answered once ("go sleep. and don't dream about the
+sink"). The night itself, which SC-01 and SC-18 are about, was not reached.
+
+Summary: `.runtime/beta-b07/pass5/run-summaries.txt`. Resume from the dashboard
+(http://127.0.0.1:8097/#run/b07-sleep-comparison-20261115) or with
+`POST /api/runs/b07-sleep-comparison-20261115/resume`; attempt 2 freezes the current source tree.
+
+### Step 2 — which beta modules ran (prompt logs of the comparison participant)
+
+| Module | Evidence | Ran |
+| --- | --- | --- |
+| Early triage | 20 triage prompts | yes |
+| Ordinary interaction (fast path) | 3 prompts with `guidance_disposition` | yes |
+| Entity context | 6 prompts with `entity_extraction` | yes |
+| Private inquiry | 46 nomination prompts, 2 inquiry-operation steps | yes |
+| Interval review | 17 prompts contain "since last taking stock" | yes |
+
+### Step 3 — run 1 (D8)
+
+Run `beta-final-month-20261115` created from `test_data/simulation/eventful-month.json`
+(the exact 90-scene plan of the interrupted baseline), state `ready`, 0 attempts. Launcher and
+monitor copied to `.runtime/beta-final/` and changed: `final-run.py` takes run id, template, and port,
+writes `<run-id>-status.json` every 30 s and `<run-id>-exit.json` on every exit (normal end,
+exception with traceback, console close or Ctrl+C via `SIGBREAK`/`SIGINT`/`SIGTERM`, interpreter
+exit); `launch-final.ps1` writes `<run-id>-launcher-exit.json` with the exit code and uses
+`$ErrorActionPreference = "Continue"` so a stderr line cannot stop it. No automatic restart.
+
+### Step 4 — caps that end a long run on an external failure
+
+Changed, one commit each:
+
+| Finding | Commit | Now |
+| --- | --- | --- |
+| A1 scenario agents | `d92edfc` | a `ModelError` keeps a `retrying` receipt and asks again, 30 s doubling to 300 s, no cap, until it works or the run is paused |
+| A3 private loop | `ce038d2` | a `ModelError` is a `thought.rejected` diagnostic; the next timer opportunity asks again from accepted state |
+| A4 public speech | `2a4d158` | any `ModelError` takes the existing reply deferral; no crash, no repeated tool action |
+| A2 director and actor | `3898294` | a blank actor message and a judgment that cites unknown or out-of-stage facts, missing deliveries, or wrong times are re-asked inside the call with a message that names the wrong value |
+
+Reported, not changed: A5 reconsolidation (4 calls, only when routed there), A6 websocket open
+timeout (10 s, no reconnect), A7 no retry on a transport error to a local participant process
+(a local process fault; loud failure kept), A8 permanent provider rejection (correctly not
+retried), A9 five tries on a Windows file lock, the main-cycle `GhostConflict` cap of 3, the codelet
+agent's 600 s × 3 sessions, `generate_reviewed`'s two generations, and
+`MINECRAFT_REQUEST_SECONDS = 660` (body path; see the Minecraft prerequisites). None of the changed
+paths was exercised by a real failure in this session; they are verified by reading, import, the
+simulation unit suite (13 OK), the inner-thought suite, three public-speech modules, and pyright.
+
+### Step 5 — run 2 (D9): Jesse with Spamuel 1 and Spamuel alpha
+
+**What Jesse's actor sees** (`RunEngine._stage`): for a scene that targets one participant, the
+actor's conversation is every timeline row whose `target` or `source` is that participant. So in a
+Spamuel 1 scene Jesse sees her own messages to Spamuel 1 and everything Spamuel 1 said, including
+what Spamuel 1 said that was routed to Spamuel alpha; she does not see Spamuel alpha's messages. The
+speech rows carry `speaker` from the participant's own store, which is "Spamuel" for both; the
+actor profile is per participant (`actors/<id>.json`) and both are forked from the same home. So the
+harness gives Jesse both conversations, each in its own scenes. A cross-participant message is
+routed only while a stage settles (`collect(route=True)`).
+
+Generator `dev/work_items/beta_final_two_spamuels.py` (commit `af161c9`) writes
+`test_data/simulation/b07-two-spamuels-check.json` (the two naming scenes) and
+`beta-final-two-spamuels.json` (the naming scenes plus the first seven days of the month plan, 21
+scenes, targets alternating, "Spamuel" in scene text replaced by the target's name). Both
+participants fork `~/.pm/private-machine/spamuel-simulation-a`; neither store is renamed. Jesse's
+naming intent asks her to treat both as equally real and to speak of each only by his name. The
+connections are `spamuel-1 → spamuel-alpha` named "Spamuel 1" and the reverse named "Spamuel
+alpha". The generator refuses any template that contains the four words the owner ruled out; none
+appears in either file.
+
+Check run `b07-two-spamuels-check-20261115`, started 11:49:50Z, paused 12:25:40Z at 07:20:30
+world time, before the first scene (07:30). Both participants spoke on their own from the
+preserved history (Spamuel alpha 2, Spamuel 1 3 messages). Three messages are queued in transit
+between them (`pending`); none crossed, because no stage has settled yet. Whether Jesse's naming
+lands and whether a message crosses is **not observed**. Logged calls: 249 + 260, provider-reported
+$0.093995 + $0.101576.
+
+Run `beta-final-two-spamuels-20261115` created, state `ready`, 0 attempts. The assumption that the
+two Spamuels speak to each other is still the owner's to confirm; without it, remove the two
+`edges` from the template and recreate the run.
+
+### Step 6 — run 3 (D10)
+
+`dev/work_items/beta-final-minecraft-prerequisites.md` (commit `58b7503`). Not startable.
+
+### Step 7 — start commands, dashboards, memory
+
+Start in a hidden window, so closing a console cannot end the monitor:
+
+```powershell
+Start-Process powershell -WindowStyle Hidden -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File C:\source\pm\private-machine\.runtime\beta-final\launch-final.ps1 -RunId beta-final-month-20261115 -Template C:\source\pm\private-machine\test_data\simulation\eventful-month.json -Port 8098'
+Start-Process powershell -WindowStyle Hidden -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File C:\source\pm\private-machine\.runtime\beta-final\launch-final.ps1 -RunId beta-final-two-spamuels-20261115 -Template C:\source\pm\private-machine\test_data\simulation\beta-final-two-spamuels.json -Port 8099'
+```
+
+| Run | Dashboard | Processes | Memory |
+| --- | --- | --- | --- |
+| 1, month | http://127.0.0.1:8098/#run/beta-final-month-20261115 | monitor, dashboard, 1 participant | dashboard 6.8 GB commit measured with two paused runs loaded; one participant about 5 GB at start, growing with its store (the baseline's pickle reached 1.3 GB) |
+| 2, two Spamuels | http://127.0.0.1:8099/#run/beta-final-two-spamuels-20261115 | monitor, dashboard, 2 participants | dashboard about 7 GB plus about 5 GB per participant at start |
+
+Free commit at 12:31Z: 100.0 GB (Basalt not running after the restart). Receipts:
+`.runtime/beta-final/<run-id>-status.json`, `-exit.json`, `-launcher-exit.json`, `-launch.log`,
+`-dashboard.log`. The 8097 dashboard is still running and owns the two paused check runs.
+
+1. **Changed:** see the steps.
+2. **Why:** handoff Pass 5.
+3. **Verified:** templates validate; runs 1 and 2 are `ready` with 0 attempts; the comparison and
+   check runs ran on the real harness until paused.
+4. **Not verified:** the night of the comparison (SC-01, SC-18), a message crossing between the
+   two Spamuels, Jesse's naming, the launcher (not executed, because it starts a final run), and
+   every changed retry path under a real failure.
+5. **Documentation:** this record.
+6. **Open concerns:** the 10-minute unsolicited pattern appeared again before the sleep scene; the
+   two Spamuels may answer each other without end when routing is on (each speech is routed to the
+   other); the final runs freeze the source at their first attempt.
+
+## Pass 6 — optional
+
+- **D7, selection of mental work.** Decision records of the six failed attempts: in every one the
+  decide call chose to answer Jesse publicly from memory (for example "answer the test in one cold,
+  exact breath … workday six … weekends not before nine"), so the route had no mental choice to map;
+  the route answers were `dialogue_story` replies. The decide prompt lists real choices (silence,
+  waiting, a refusal, a joke …) and names no private thinking. One prompt change (`19fc954`) added
+  "thinking something through privately before saying anything" to that list. Measured: ToM Part B
+  0 of 3 messages (`.runtime/beta-b06/integration/20261115T120519Z-e3fb900c-part-b`, $0.062038) and
+  private Part C 0 of 3 (`.runtime/beta-b05/integration/20261115T121440Z-c5bfa192-part-c`,
+  $0.071362); the decide answers still answered publicly. The line had no measured effect and was
+  removed again (`ac4d115`). A model that declines is a recorded result. Likely cause (inferred): the
+  situation's memories already hold the answer, so the character has nothing to work out.
+- **D5, resume:** not done (time).
+- **Early-triage rejected answer:** not investigated (time).
+
+## Pass 7 — documentation and close-out (commit `e05b169`)
+
+1. **Changed:** `docs/subsystems/cognition-state.md` (new "Interval review" with a data-flow diagram,
+   frontier, attribution, and the Part B observation); `decisions-and-routing.md` (the check owner,
+   observed stimuli only, counted observations, limits now true); `private-loop.md` (expectation
+   ownership, "A changed grant source", failure table rows); glossary entries interval review, review
+   frontier, observed evidence, counted observation. Project-documentation skill read first.
+2. **Why:** the manual must describe what Passes 4 and 5 observed, with status labels.
+3. **Verified:** `uv run --locked --with-requirements requirements-docs.txt mkdocs build --strict`
+   exit 0 in 290.36 s (`.runtime/beta-b07/mkdocs-build.log`). In `site/`: the cognition-state page
+   renders the section and the mermaid block; its API links resolve to
+   `reference/workflows/main_cognition/interval_review.html` (generated); the private-loop anchor
+   `#a-changed-grant-source` resolves; the glossary holds the four entries.
+4. **Not verified:** none for documentation.
+5. **Documentation:** as above.
+6. **Open concerns:** none beyond the passes.
+
+## Status
+
+B07 Passes 0 to 5 and 7 are done and reported; Pass 6 D7 was measured and reverted, D5 and the
+triage item were not done. Live results: Pass 1 Part C passed twice; Pass 4 Part B and Part C
+passed, Part A NOT RUN (0 of 3: the goal was never completed). The beta milestone is not finished:
+the final runs and the owner's review are its evidence, so card 7 stays `doing`.
+
+B07 provider-reported spend in this session: gates $0.113914, D7 $0.133400, comparison and check
+runs $0.437983; total about $0.69. Commits since the handoff: `d8c6444` … `ac4d115`, none pushed.
