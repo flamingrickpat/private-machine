@@ -68,6 +68,7 @@ from pm.runs.workflow_module import CognitiveWorkflow
 from workflows.main_cognition.host import seconds_since_user_input
 from workflows.main_cognition.model_json import ModelFormatError
 from pm.llm.concurrency import InferenceAdmission, background_inference
+from pm.llm.http_client import ModelError
 from pm.llm.structured import context_measure
 from workflows.main_cognition.cycle_commits import active_intentions
 from workflows.inner_thought.expectations import open_expectation, pending_expectations, resolve_expectation
@@ -388,11 +389,17 @@ class PrivateThoughtLoop(CognitiveWorkflow):
                 self._published_thoughts.discard(envelope.payload.get("knoxel_id"))
 
     def handle_batch(self, batch: list[Envelope]) -> None:
-        """Run one cycle and discard an explicitly rejected model proposal.
+        """Run one cycle and discard an explicitly rejected model proposal or a failed completion.
 
         The rejected proposal changes no committed private state. A rejection
         retains its diagnostic beside the parent kernel artifacts and emits
-        telemetry only. It is not an idle cycle. Other errors propagate.
+        telemetry only. It is not an idle cycle. A ``ModelError`` (the provider
+        failed, filtered, or cut off a completion, or returned nothing, after
+        the client's transport retries) is outside our control and is handled
+        the same way: every graph boundary already accepted stays durable, and
+        the next timer opportunity asks again from that state, so the timer
+        period is the retry delay and there is no attempt cap. Other errors
+        propagate.
         """
         self.yield_requested.clear()
         control = self.cognitive_control
@@ -406,7 +413,7 @@ class PrivateThoughtLoop(CognitiveWorkflow):
         try:
             with background_inference():
                 super().handle_batch(batch)
-        except (ModelProposalError, ModelFormatError) as error:
+        except (ModelProposalError, ModelFormatError, ModelError) as error:
             diagnostic = {
                 "invocation_id": self.invocation_id,
                 "error_type": type(error).__name__,
