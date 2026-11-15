@@ -118,6 +118,12 @@ flowchart LR
 - The revision is validated in the private loop (see [entity context](entity-context.md#deliberate-tom-as-a-producer)) and kept on the finding. Main cognition writes it through `EntityContextOwner` with `producer="tom"` at its final commit; each outcome, staged, deferred, or rejected, is recorded on the decision record.
 - A perspective inquiry sends no message and asks nobody. If asking the subject is the best way to learn something, the finding states it as an information gap, and main cognition decides whether to ask.
 
+Status of this path:
+
+- **Implemented, observed in the real application:** from a dispatched `theory_of_mind` action to the entity receipt. A real main turn appraised the finding, and the entity owner staged the proposed entries with `producer="tom"`.
+- **Implemented, not yet observed:** main cognition selecting `theory_of_mind` by itself from a real message. The catalogue entry and the route rule exist. In the observed runs the action was committed at the dispatch boundary as synthetic input.
+- **Separate decision:** what main cognition does after it appraises the finding. It can ask the subject, and it did so in the observed run. The perspective inquiry itself sends nothing.
+
 The first recorded scenario is `perspective-morning` ([recorded scenario replay](../workflows/scenario-replay.md)); the recorded and live evidence is in the <a href="../../dev/work_items/beta-b06.md">B06 engineering record</a>.
 
 ## Holds, failures, and restart

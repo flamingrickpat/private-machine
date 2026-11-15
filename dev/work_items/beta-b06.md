@@ -1,6 +1,7 @@
 # B06: theory of mind and metacognition
 
-Status: in progress, 2026-11-14. Plan (owner-accepted `accept all`):
+Status: implemented and corrected, 2026-11-15. Read "Audit and corrections" near the end first: three statements in the pass sections are wrong.
+Plan (owner-accepted `accept all`):
 `dev/work_items/beta-b06-plan.md`. Handoff authority:
 `dev/work_items/beta-handoff-b06-20261114.md`.
 
@@ -165,6 +166,63 @@ Status: in progress, 2026-11-14. Plan (owner-accepted `accept all`):
 5. **Documentation:** the five pages above.
 6. **Open concerns:** none.
 
+## Audit and corrections — 2026-11-15
+
+An audit of the delivery above found three wrong statements in "Not verified" and one real defect behind them. This section corrects the record. The pass sections above are kept as written; where they disagree with this section, this section is right.
+
+### What the audit found
+
+1. **"The integrate stage honestly declined" was false.** In all 8 real outcomes (6 recorded samples, 2 live Part A episodes) the model proposed 3 to 5 claims. Each time the repair boundary answered `Expected null at $.perspective_revision`, and the model then returned null.
+   - Cause 1: `perspective_revision_template` showed `"layer": "<layer>"` and never named the allowed layers. The model invented `disposition`, `preference`, `habit`, `report`, `trait`. The template also did not state the four-claim limit; 2 of 8 answers held five claims.
+   - Cause 2: the repair library reports the last branch of a union. Pydantic writes an optional field as `[value, null]`, so a wrong value inside an optional object was reported as "Expected null".
+   - Reproduction without an endpoint: `.runtime/beta-b06/audit/repro_union_message.py`. A recorded rejected answer is accepted with four claims when only its layer names change.
+   - Consequence: the nine-rule validator, the stored revision, `prepare_perspective_revisions`, and a `tom` receipt had never run on real model output.
+2. **Part A was one attempt, not three.** Main cognition committed a wait after it appraised the first finding. Actions 47 and 48 stayed `dispatch_status="pending"` with no episode. "Attempts 2-3 also admitted cleanly" was false.
+3. **Part C was under-reported.** In both runs that reached a noticing, a real main turn had claimed it (tick 9 with stimuli `[12, 19]`; tick 7 with `[13]`). The wait came afterwards. The gate checked the wait before the claim and reported "wait instead of claiming".
+4. **The perspective evidence was empty in every real run.** The situation held no entity claim, so every thought prompt read "No accepted entry exists for this subject" and carried no entity-evidence candidate.
+5. **The manual described the revision path without a status label**, although no real run had produced a `tom` entry.
+6. `prepare_perspective_revisions` caught `KeyError` and `TypeError` as well. The plan and its own docstring allow only `ModelFormatError`.
+
+### Corrections
+
+1. **Changed:**
+   - `pm/llm/structured.py`: `_unmasked_problem` and `_null_branches_first`. When the schema check rejects an answer, the boundary repeats the check with the null branch first and uses that problem as the correction text. Accepted payloads still come from the original schema.
+   - `workflows/inner_thought/stages/integrate/prompts.yaml`: the template lists the five layers a revision may use, states the four-claim limit, and says to keep `interaction` null.
+   - `workflows/main_cognition/entity_updates.py`: only `ModelFormatError` is caught; the unreachable empty-citation branch is removed.
+   - `tests/replay/situations.py`, `tests/replay/scenarios.py`: `perspective_morning` stages one accepted report about Jesse through the real `EntityContextOwner` (producer `immediate`, source: the oldest line). The action names only the four newer lines. The outcome counts thought completions only and reports accepted-entry and entity-evidence counts.
+   - `tests/live/test_perspective_integration.py`: each Part A attempt has its own application, store, and evidence folder, and a refused admission raises. Part C checks the claim first. Both parts record what main cognition did after the appraisal.
+   - `dev/work_items/beta_b06_review.py`: the recorded package includes the accepted entity receipts; `--live-part-a` and `--live-part-c` capture from a copy of a passed gate run's final store.
+2. **Why:** decision D2 (private thinking proposes, main cognition writes with `producer="tom"`) had no real evidence, and the stated reason for that was wrong.
+3. **Verified:**
+   - Unit and static checks: inner_thought 273, focus_management 19, entity_context 36, `tests.unit.pm.llm.test_structured` 22, architecture 7, pyright 0 errors.
+   - Replays from fresh copies, all exact: `private-continuity-20261114T180018Z`, `deliberate-entry-20261114T180133Z`, `deliberate-reflection-20261114T180458Z`, `private-dwelling-20261114T222749Z`, and the new `perspective-morning-20261115T081258Z` (3 samples).
+   - Recording `perspective-morning-20261115T081258Z` at revision `e3d3182` (clean tree), provider-reported cost $0.001665 + $0.007078 + $0.002057 = **$0.010799**. All 3 samples completed with a finding and a stored revision (3, 1, and 4 claims). Every thought request carried an accepted entry and an entity-evidence candidate (2/2, 3/3, 2/2). The real owner staged every proposed batch in rehearsal (`staged`, `accepted`). No observation claim, no speech, one action request (the script's own). No sample received an "Expected null" correction.
+   - Live gate Part A, real OpenRouter, `.runtime/beta-b06/integration/20261115T083307Z-e590778f-part-a-attempt-1`: **passed on attempt 1.** Operations `narrative_stitching, feasibility_check, plan_next_step, feasibility_check`; main tick 14 claimed finding 19; the entity owner staged receipt 46 with `producer="tom"` (two reports, one inference); `FocusManagement` published no speech; 30 requests. Afterwards main cognition dispatched a `dialogue_story` action to ask Jesse when his coffee is finished, and committed a wait for the answer. That is its own separate decision; the gate runs no dialogue module, so no reply was sent.
+   - Live gate Part C, `.runtime/beta-b06/integration/20261115T083806Z-358898db-part-c`: **passed.** Noticing 21 with `thought_activity` (window `[12, 10]`, two stalled steps, repeated sources 4 and 5) was claimed by main tick 9. Main cognition chose to stop and committed a wait; 29 requests.
+   - Owner review, registered: http://127.0.0.1:8095/#capture/b06-tom-live-20261115 (the live run with the staged `tom` entry and the main turn), http://127.0.0.1:8095/#capture/b06-metacognition-live-20261115 (the live noticing and the main turn), http://127.0.0.1:8095/#capture/b06-tom-20261115 (recorded sample 3). `b06-metacognition-20261114` is still current. `b06-tom-20261114` is superseded: it shows the empty model and the nulled revision.
+4. **Not verified:**
+   - Part B was not run again. Nothing it exercises changed. Its 2026-11-14 result stands: main cognition did not select `theory_of_mind` in three attempts.
+   - Part C run `20261115T083614Z-62e8fc86-part-c` failed with `ValueError: Internal derivations cannot count as acquired original evidence.` This is the defect reported in Pass 4, now seen in 2 of 5 Part C runs. Its `failure.json` is kept. It is not patched here: the fix changes where a model claim about new evidence is validated, and the plan names no such change.
+   - Provider cost of the gate runs is not in a manifest. The gate records request counts only.
+   - The five-claim correction text was not seen live. Offline, the boundary now reports the raw library text `[...] is too long` for that case, which is true but long.
+5. **Documentation:** `docs/subsystems/deliberate-mental-work.md` now states which part of the theory-of-mind path was observed and which was not; `docs/workflows/scenario-replay.md` describes the accepted claim in the situation and the new outcome counts. The strict MkDocs build passed after these edits.
+6. **Open concerns:**
+   - The `stage_inquiry_step` crash needs an owner decision. A model answer is a trust boundary; in the dwelling situation it stopped a private opportunity with a traceback in 2 of 5 runs.
+   - Main cognition never selected `theory_of_mind` or `focus_management` by itself in six attempts across B05 and B06. The route rule or the menu text needs its own look.
+   - Difference from the plan: step 4.3 says Part C is `NOT RUN` when "main commits an inference wait". The gate now applies that only when the wait comes without a claim. A turn that claims the noticing and then waits meets the pass condition of the same row.
+   - Environment, not a code defect: recording needed `PYTHONHASHSEED=0` set in the shell on 2026-11-15. The harness restarts itself in a child process when the variable is absent; both processes together need about 11 GB of commit charge, and the machine had 10.7 GB free (a process named `basalt` held 69.6 GB). The child failed with `MemoryError` while loading `canon.yaml`.
+
+Commits of this section, on `beta`, none pushed: `1302e29`, `b60e564`, `cb5da64`, `e3d3182`, `ac89871`, `49edfd2`, and the commit that holds this text.
+
 ## Status
 
-B06 is implemented across all five passes: a `theory_of_mind` mental action enters the private slot with a subject (11), reads the subject's accepted model and original messages (12), validates a proposed perspective revision (21), retains it on the finding (22), and main cognition stages it through `EntityContextOwner` with `producer="tom"` (23), selectable from the action menu (24); noticing steps read recorded activity facts (31), are delivered to main cognition while the episode continues (32), and never count as the concern they notice (33); two recorded scenarios (perspective-morning, re-recorded private-dwelling) and one integrated live gate carry the evidence (4); the manual pages and module headers describe only what was verified (5). Owner review: http://127.0.0.1:8095/#capture/b06-tom-20261114 and http://127.0.0.1:8095/#capture/b06-metacognition-20261114. Left unverified by design (all plan-approved NOT RUN): main selecting `theory_of_mind` (B05's focus_management gate had the same 0-of-3 result), any entity revision produced by the model (recorded quality result), and main claiming a noticing without committing an inference wait. One pre-existing defect surfaced in the live gate and is reported, not patched: an unsupported model `new_evidence` claim citing an internal derivation hard-crashes in `stage_inquiry_step` (the child validator cannot check root-ness); see Pass 4. B07 is not part of this plan.
+B06 is implemented, and its two main paths are observed in the real application.
+
+- Theory of mind: a dispatched `theory_of_mind` action entered the private slot with its subject, read the accepted model of Jesse and the line behind it, and proposed entries. A real main turn staged them through `EntityContextOwner` with `producer="tom"` (live gate Part A, 2026-11-15).
+- Metacognition: a noticing step read recorded activity facts and was delivered, and a real main turn appraised it (live gate Part C, 2026-11-15). A noticing never counts as the concern it notices.
+- Recordings `perspective-morning-20261115T081258Z` and `private-dwelling-20261114T222749Z` replay exactly.
+- Owner review: http://127.0.0.1:8095/#capture/b06-tom-live-20261115, http://127.0.0.1:8095/#capture/b06-metacognition-live-20261115, http://127.0.0.1:8095/#capture/b06-tom-20261115, http://127.0.0.1:8095/#capture/b06-metacognition-20261114.
+- Not observed: main cognition selecting `theory_of_mind` by itself (Part B, 0 of 3).
+- Open defect, reported and not patched: an unsupported model `new_evidence` claim that cites an internal derivation crashes `stage_inquiry_step` (2 of 5 Part C runs).
+
+B07 is not part of this plan.
