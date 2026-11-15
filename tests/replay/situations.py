@@ -14,8 +14,9 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from pm.memory.dependencies import capture_source
 from pm.memory.store import MemoryStore
-from pm.records.base import Provenance, RecordBase
+from pm.records.base import Provenance, RecordBase, RecordScope
 from pm.records.cognitive_records import Intention
 from pm.records.copying import pickle_copy
 from pm.records.cycle_records import StimulusGroup
@@ -24,6 +25,10 @@ from pm.records.enums import FeatureType, InterlocusType, IntentionType, SourceK
 from pm.records.global_workspace import GwtTurnRecord
 from pm.records.memory_records import Feature
 from pm.records.mental_state import FullMentalState
+from workflows.entity_context.owner import EntityContextOwner
+from workflows.entity_context.schemas import (
+    EntityClaimEvidence, EntityContextClaim, EntityContextKey, EntityContextProposal,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -242,6 +247,12 @@ class PerspectiveMorningSituation:
     companion_id: int
     user_id: int
     line_ids: tuple[int, ...]
+    #: The line behind the accepted entity claim. The action does not name it.
+    known_line_id: int
+    #: The lines the theory-of-mind action names as its evidence.
+    action_evidence_ids: tuple[int, ...]
+    #: Receipt of the accepted entity claim about the user.
+    entity_receipt_id: int
 
 
 #: Synthetic Jesse dialogue lines on different world days, the SC-09 morning
@@ -256,16 +267,28 @@ PERSPECTIVE_LINES = (
     ("The library book came in, by the way.", 0),
 )
 
+#: The oldest line. The companion already holds it as one accepted entity claim
+#: about Jesse, and the theory-of-mind action does not name it as evidence. A
+#: perspective inquiry therefore reaches it only through the accepted model.
+PERSPECTIVE_KNOWN_LINE = PERSPECTIVE_LINES[0][0]
+
+#: Proposition key of that accepted claim.
+PERSPECTIVE_KNOWN_CLAIM_KEY = "routine.workday_wake"
+
 
 def perspective_morning(now_utc: datetime, checkpoint: Path) -> PerspectiveMorningSituation:
-    """Commit four synthetic morning lines from Jesse on different world days.
+    """Commit five synthetic lines from Jesse and one accepted claim about Jesse.
 
     The lines are labelled synthetic input in their provenance and are not
     persona history; they stand in for the messages a perspective inquiry
     reads when it works out the subject's morning routine. The oldest lines
     moved on world days before ``now_utc``; the library note is the newest.
-    No entity claim exists yet, so the accepted model of the subject is empty
-    at the start.
+
+    The oldest line is also held as one accepted entity claim, a report in the
+    ``pattern`` layer, staged through the real ``EntityContextOwner``. It
+    stands for what ordinary message handling accepted when that line arrived.
+    The action names only the four newer lines, so the oldest line reaches the
+    inquiry through the accepted model and not through the action.
     """
     if now_utc.tzinfo is not None:
         raise ValueError("Record timestamps use naive UTC; pass vclock.utcnow() form.")
@@ -293,10 +316,35 @@ def perspective_morning(now_utc: datetime, checkpoint: Path) -> PerspectiveMorni
         line.preserve_on_recovery()
         store.commit(line)
         line_ids.append(record.id)
+    known_line_id = line_ids[0]
+    action_evidence_ids = tuple(line_ids[1:])
+
+    owner = EntityContextOwner(store)
+    key = EntityContextKey(subject_entity_id=user_id, observer_entity_id=companion_id, scope=RecordScope())
+    with store.lock:
+        view = store.snapshot(capture=False)
+        known_line = view.get(known_line_id)
+        evidence = EntityClaimEvidence(source=capture_source(view, known_line_id, current_head=True),
+                                       exact_quote=PERSPECTIVE_KNOWN_LINE)
+        claim = EntityContextClaim(layer="pattern", claim_key=PERSPECTIVE_KNOWN_CLAIM_KEY,
+            statement="Jesse reports being usually up around six on workdays.", epistemic_kind="report",
+            confidence=0.9, evidence=[evidence], observed_at_utc=known_line.timestamp_world_begin,
+            applicable_from_utc=known_line.timestamp_world_begin)
+        proposal = EntityContextProposal(proposal_id="replay-synthetic-entity-claim", key=key,
+            parent_receipt_id=owner.current_head(view, key), producer="immediate",
+            input_commit_ids=sorted(view.commit_ids), claims=[claim])
+        changes = store.begin_batch("replay-morning-entity-claim", embed=False)
+        staged = owner.stage_update(changes, proposal)
+        if staged.disposition != "staged" or staged.staged_receipt_id is None:
+            raise RuntimeError(f"The entity owner refused the synthetic claim: {staged.reason}.")
+        changes.preserve_on_recovery()
+        store.commit(changes)
     return PerspectiveMorningSituation(store=store, companion_id=companion_id, user_id=user_id,
-                                       line_ids=tuple(line_ids))
+        line_ids=tuple(line_ids), known_line_id=known_line_id, action_evidence_ids=action_evidence_ids,
+        entity_receipt_id=staged.staged_receipt_id)
 
 
-__all__ = ["CONCERN", "CONCERN_SOURCE", "JESSE_AMBIGUOUS_REPLY", "PERSPECTIVE_LINES",
+__all__ = ["CONCERN", "CONCERN_SOURCE", "JESSE_AMBIGUOUS_REPLY", "PERSPECTIVE_KNOWN_CLAIM_KEY",
+           "PERSPECTIVE_KNOWN_LINE", "PERSPECTIVE_LINES",
            "SPAMUEL_LONG_MESSAGE", "STORY_NOTES", "PerspectiveMorningSituation", "PrivateConcernSituation",
            "PrivateDwellingSituation", "perspective_morning", "private_concern", "private_dwelling"]

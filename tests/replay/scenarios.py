@@ -31,7 +31,7 @@ from pm.runs.workflow_runner import WorkflowStatus
 
 from tests.replay.runtime import ScenarioRuntime
 from tests.replay.situations import (
-    CONCERN_SOURCE, PERSPECTIVE_LINES, PerspectiveMorningSituation, PrivateConcernSituation,
+    CONCERN_SOURCE, PERSPECTIVE_KNOWN_LINE, PERSPECTIVE_LINES, PerspectiveMorningSituation, PrivateConcernSituation,
     PrivateDwellingSituation, perspective_morning, private_concern, private_dwelling,
 )
 from workflows.cognitive_control.schemas import FocusProposal, MentalPlan
@@ -551,6 +551,11 @@ class PerspectiveInquiryOutcome(ScenarioOutcome):
     thought_requests: int = Field(ge=0, description="Thought-stage model requests the episode made.")
     thought_requests_with_perspective: int = Field(
         ge=0, description="Those thought requests whose instruction carried the perspective block.")
+    thought_requests_with_accepted_entries: int = Field(
+        ge=0, description="Those whose perspective block showed at least one accepted entry about the subject.")
+    thought_requests_with_entity_evidence: int = Field(
+        ge=0, description="Those that carried an original message as an entity-evidence candidate, "
+                          "supplied by the accepted model and not by the action.")
     revision_claims: tuple[RevisionClaimObservation, ...] = Field(
         description="Stored revision claims of the finding, if any.")
     has_observation_claim: bool = Field(description="True when any stored claim is an observation (must stay False).")
@@ -783,28 +788,52 @@ def run_private_dwelling(runtime: ScenarioRuntime) -> ScenarioOutcome:
         requests=runtime.provider_requests())
 
 
-def _thought_evidence_requests(runtime: ScenarioRuntime) -> tuple[int, int]:
-    """Count thought-stage calls and those whose instruction carried the perspective block.
+@dataclass(frozen=True, slots=True)
+class ThoughtEvidenceCounts:
+    """How many thought-stage completions carried which perspective material."""
+
+    thought_requests: int
+    with_perspective_block: int
+    with_accepted_entries: int
+    with_entity_evidence: int
+
+
+def _thought_evidence_requests(runtime: ScenarioRuntime) -> ThoughtEvidenceCounts:
+    """Count thought-stage completions and what perspective material each one carried.
 
     The rule block is rendered into the thought instruction before the call,
-    so its first sentence is observable in the recorded request. The recording
-    flushes every call as it happens, so the journal is current during the run.
+    so its text is observable in the recorded request. The recording flushes
+    every call as it happens, so the journal is current during the run. Each
+    completion also has a measurement row with the same request; only the
+    completion is a model request, so only it is counted.
     """
     journal = runtime.directory / "calls.jsonl"
-    thought_calls = 0
-    with_perspective = 0
+    thought_requests = 0
+    with_perspective_block = 0
+    with_accepted_entries = 0
+    with_entity_evidence = 0
     if not journal.exists():
-        return (0, 0)
+        return ThoughtEvidenceCounts(0, 0, 0, 0)
     for line in journal.read_text(encoding="utf-8").splitlines():
         if not line.strip():
             continue
-        request = str(load_json(line).get("request", ""))
+        row = load_json(line)
+        if row["kind"] != "completion":
+            continue
+        request = str(row["request"])
         if "Return one InquiryStep" not in request:
             continue
-        thought_calls += 1
-        if "This inquiry models" in request:
-            with_perspective += 1
-    return thought_calls, with_perspective
+        thought_requests += 1
+        if "This inquiry models" not in request:
+            continue
+        with_perspective_block += 1
+        if "No accepted entry exists for this subject." not in request:
+            with_accepted_entries += 1
+        if "entity_evidence" in request:
+            with_entity_evidence += 1
+    return ThoughtEvidenceCounts(thought_requests=thought_requests,
+        with_perspective_block=with_perspective_block, with_accepted_entries=with_accepted_entries,
+        with_entity_evidence=with_entity_evidence)
 
 
 def _perspective_dispositions(runtime: ScenarioRuntime,
@@ -844,15 +873,19 @@ def run_perspective_morning(runtime: ScenarioRuntime) -> ScenarioOutcome:
     """Dispatch one theory-of-mind action and execute its deliberate episode.
 
     The action is the only envelope this session publishes; Jesse is the
-    partner, and the situation's synthetic morning lines are the action's
-    evidence. The private loop executes the episode through the real thought
-    and integrate stages; the deliberate owner closes and delivers the result.
+    partner. The action names the four newer synthetic lines as its evidence.
+    The oldest line is behind the one accepted entity claim about Jesse, so the
+    inquiry can reach it only through the accepted model. The private loop
+    executes the episode through the real thought and integrate stages; the
+    deliberate owner closes and delivers the result.
     """
     expected: set[str] = {text for text, _ in PERSPECTIVE_LINES}
-    source_ids = [record.id for record in runtime.store.all_features
-                  if record.content in expected and record.interlocus == InterlocusType.Public]
-    if len(source_ids) != len(PERSPECTIVE_LINES):
+    line_ids = [record.id for record in runtime.store.all_features
+                if record.content in expected and record.interlocus == InterlocusType.Public]
+    if len(line_ids) != len(PERSPECTIVE_LINES):
         raise LookupError("The situation must hold every synthetic morning line.")
+    view = runtime.store.snapshot(capture=False)
+    source_ids = [line_id for line_id in line_ids if view.get(line_id).content != PERSPECTIVE_KNOWN_LINE]
     user_id = runtime.store.get_entity_id(runtime.store.get_user_name())
     if user_id is None:
         raise ValueError("The scenario store must hold the user identity.")
@@ -898,7 +931,7 @@ def run_perspective_morning(runtime: ScenarioRuntime) -> ScenarioOutcome:
                     confidence=claim.confidence, source_ids=tuple(claim.source_ids)))
                 has_observation = has_observation or claim.epistemic_kind == "observation"
     dispositions = _perspective_dispositions(runtime, finding_id)
-    thought_calls, thought_with_perspective = _thought_evidence_requests(runtime)
+    evidence_counts = _thought_evidence_requests(runtime)
     action_requests = len(runtime.envelopes("action.request"))
     public_utterances = tuple(str(item.text) for item in runtime.replies)
     summary = tuple(f"cycle {item.index}: {item.summary}" for item in cycles)
@@ -907,7 +940,10 @@ def run_perspective_morning(runtime: ScenarioRuntime) -> ScenarioOutcome:
         f"deliberate status: {head.receipt.state.status}",
         f"finding: {finding_id}",
         f"action result: {lifecycle.mental_result_id} ({lifecycle.mental_status or 'open'}): {result_text}",
-        f"thought requests: {thought_calls}; with perspective evidence: {thought_with_perspective}",
+        f"thought requests: {evidence_counts.thought_requests}; "
+        f"with perspective block: {evidence_counts.with_perspective_block}; "
+        f"with accepted entries: {evidence_counts.with_accepted_entries}; "
+        f"with entity-evidence candidates: {evidence_counts.with_entity_evidence}",
         f"revision claims: {[(item.claim_key, item.epistemic_kind, item.source_ids) for item in revision_claims]}",
         f"observation claim: {has_observation}",
         f"owner dispositions: {[(item.disposition, item.reason) for item in dispositions]}",
@@ -918,8 +954,10 @@ def run_perspective_morning(runtime: ScenarioRuntime) -> ScenarioOutcome:
         action_record_id=action_id, deliberate_operations=operations,
         deliberate_status=str(head.receipt.state.status), finding_id=finding_id,
         mental_result_id=lifecycle.mental_result_id, mental_status=lifecycle.mental_status,
-        result_text=result_text, thought_requests=thought_calls,
-        thought_requests_with_perspective=thought_with_perspective,
+        result_text=result_text, thought_requests=evidence_counts.thought_requests,
+        thought_requests_with_perspective=evidence_counts.with_perspective_block,
+        thought_requests_with_accepted_entries=evidence_counts.with_accepted_entries,
+        thought_requests_with_entity_evidence=evidence_counts.with_entity_evidence,
         revision_claims=tuple(revision_claims), has_observation_claim=has_observation,
         dispositions=tuple(dispositions), action_requests=action_requests,
         public_utterances=public_utterances, requests=runtime.provider_requests())
