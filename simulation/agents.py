@@ -130,7 +130,9 @@ class Agents:
         provider failure, filtered or cut-off completion, empty answer, HTTP
         error) is retained as ``retrying`` and asked again without a cap, after
         a delay that doubles up to ``AGENT_RETRY_MAX_DELAY_SECONDS``.
-        ``prepare`` may pin fields the model must not choose.
+        ``prepare`` may pin fields the model must not choose, or check the
+        answer against run facts; a ``ValueError`` it raises is a rejection
+        and is re-asked with its message.
         ``role`` and the generated call ID name the two prompt log scopes.
         Cancellation pauses the run through the model's own cancel path.
         """
@@ -157,7 +159,13 @@ class Agents:
                     output = self.model.complete(turns, cancel=self.cancel)
                 result = schema.model_validate(extract_json(output))
                 if prepare is not None:
-                    result = prepare(result)
+                    try:
+                        result = prepare(result)
+                    except ValueError as error:
+                        # ``prepare`` checks the answer against facts the schema
+                        # cannot hold (known fact IDs, recorded deliveries). A
+                        # broken rule is a model mistake and is asked again.
+                        raise JsonOutputError(str(error)) from error
             except CancelledError:
                 atomic_json(path, {"id": call_id, "status": "cancelled", "request": request, "output": output})
                 raise
@@ -290,8 +298,13 @@ class Agents:
                 return plan
             correction = review.reason
 
-    def judge(self, context: StageContext) -> StageJudgment:
-        """Judge semantic facts against recorded public deliveries and their times."""
+    def judge(self, context: StageContext, *,
+              check: Callable[[StageJudgment], StageJudgment] | None = None) -> StageJudgment:
+        """Judge semantic facts against recorded public deliveries and their times.
+
+        ``check`` validates the cited facts and deliveries against the run; a
+        rule it breaks is re-asked inside the call.
+        """
         return self.call("stage_director", "Review this stage against the actual delivered messages and PM replies. "
             "Return {step_complete:boolean,supported_fact_ids:[string],fact_evidence:{fact_id:[delivery_id]},reason:string,failure:string|null}. "
             "Facts need semantic evidence in delivered conversation. Time is delivery metadata, not required spoken wording. "
@@ -304,4 +317,4 @@ class Agents:
             "Failure means the actor contradicts the required facts or an engineering failure prevents execution. "
             "A timed future event must not be introduced before its stage time. "
             "Do not rate companion quality; human review remains separate.",
-            context, schema=StageJudgment)
+            context, schema=StageJudgment, prepare=check)

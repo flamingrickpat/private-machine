@@ -17,7 +17,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Self
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class FactKind(StrEnum):
@@ -137,6 +137,14 @@ class ExtractedFacts(BaseModel):
 class ActorTurn(BaseModel):
     """One simulated participant message. It cannot control PM behavior."""
     content: str = Field(min_length=1)
+
+    @field_validator("content")
+    @classmethod
+    def not_blank(cls, value: str) -> str:
+        """Reject a message of only whitespace, so the actor is asked again instead of ending the run."""
+        if not value.strip():
+            raise ValueError("The message is empty. Write the user's next message.")
+        return value
 
 
 class ActorDraftReview(BaseModel):
