@@ -17,8 +17,10 @@ from pm.records.memory_records import Entity, Feature
 #: an executed runtime event, or a recorded internal state. Only these can move
 #: or resolve an expectation. A thought, an interpretation, an intent, a derived
 #: summary, and imagined content cannot, because they restate or predict events.
-#: The private graph's store owner (``stage_graph_outcome``) and the integrate
-#: stage's in-loop check read this one set, so they cannot disagree.
+#: The private graph's store owner (``stage_graph_outcome``), the integrate
+#: stage's in-loop check, and main cognition's expectation check
+#: (``workflows.main_cognition.expectations.is_observed``) read this one set,
+#: so they cannot disagree.
 OBSERVED_EVIDENCE_ROLES: frozenset[str] = frozenset({
     "user_report", "companion_utterance", "world_observation", "runtime_event", "internal_state"})
 

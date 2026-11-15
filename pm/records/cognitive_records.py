@@ -157,6 +157,11 @@ class ExpectationRecord(RecordBase):
     observation_ids
         The accepted records that resolved it. Empty while pending.
 
+    counted_observation_ids
+        The observed records that main cognition already rated against it,
+        whether or not the rating moved it. A later check skips them, so one
+        observation moves an expectation at most once.
+
     fulfillment
         How far the observed stimuli satisfied the expectation so far, 0..1.
         Main cognition moves it toward each new check result, weighted by
@@ -178,6 +183,10 @@ class ExpectationRecord(RecordBase):
     created_from_action_id: int | None = Field(default=None, description="ActionSchemaRecord id that created this expectation, when an action motivated it.")
     evidence_ids: list[int] = Field(default_factory=list, description="Accepted records that motivated the anticipation.")
     observation_ids: list[int] = Field(default_factory=list, description="Accepted records that resolved the expectation.")
+    counted_observation_ids: list[int] = Field(default_factory=list,
+        description="Observed records that main cognition already rated against this expectation, in check order. "
+                    "The same observation never moves the expectation again. Empty on a record written before B07 "
+                    "means no check history was recorded, not that no check happened.")
     resolved_tick_id: int | None = Field(default=None, description="The tick whose observation resolved this expectation.")
     fulfillment: float = Field(default=0.0, ge=0.0, le=1.0, description="How far observations satisfied the expectation so far.")
     urgency: float = Field(default=0.3, ge=0.0, le=1.0, description="How soon the outcome is due.")

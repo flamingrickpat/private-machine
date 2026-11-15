@@ -18,13 +18,26 @@ Port of three functions of ``private-machine-head/pm/ghosts/ghost_lida.py``
   port closes the similar ones (``EXPECTATION_SAME_SIMILARITY``).
 
 The store holds the expectations as ``ExpectationRecord`` records. The host
-offers the pending ones that main cognition recorded
-(``CycleRequest.open_expectations``). The private loop keeps its own
-expectation lifecycle (``workflows.inner_thought.expectations``) until A19G
-moves it onto this cycle. No function here writes the store. The host
-stages the records and the updates at commit.
+offers every pending expectation of the real, in-world reality, whichever
+loop recorded it (``CycleRequest.open_expectations``, B07 decision D2). The
+private loop still opens expectations and may resolve one with observed
+evidence (``workflows.inner_thought.expectations``); a second resolution of
+the same record is refused by the head guard at commit.
+
+Two rules keep one observation from counting twice (B07 decision D3). Only
+observed stimuli are rated (``CycleRequest.observed_stimulus_ids``): a thought
+that restates an event is not new evidence. And each expectation keeps the
+observations it was already rated against (``counted_observation_ids``); the
+check rates it only against observed stimuli not in that list, and an
+expectation with none is not checked. Expectations with the same remaining
+stimuli share one check call, so a normal cycle still makes one call.
+
+No function here writes the store. The host stages the records and the
+updates at commit.
 """
 from __future__ import annotations
+
+from typing import Literal
 
 from pm.constants import (
     EXPECTATION_ANXIETY_MULT,
@@ -38,6 +51,7 @@ from pm.constants import (
     EXPECTATION_MIN_CHANGE,
     EXPECTATION_MIN_RECENCY,
     EXPECTATION_MIN_RELEVANCE,
+    EXPECTATION_OPEN_LIMIT,
     EXPECTATION_RELEVANCE_DECAY,
     EXPECTATION_SAME_SIMILARITY,
     EXPECTATION_STRONG_VALENCE,
@@ -47,9 +61,13 @@ from pm.constants import (
 from pm_workflows.python_role import RoleContext
 
 from pm.context_render.turns import format_content
+from pm.memory.evidence import OBSERVED_EVIDENCE_ROLES, evidence_role
+from pm.memory.snapshot import Snapshot
+from pm.records.base import RecordBase, RecordScope
 from pm.records.situational_model import cosine
 from pydantic import create_model, model_validator
 
+from workflows.inner_thought.expectations import PRIVATE_SOURCE_REF, pending_expectations
 from workflows.main_cognition.csm_view import EXPECTATION, Embedder
 from workflows.main_cognition.cycle_work import CycleWork, provisional_tick
 from workflows.main_cognition.model_json import PhasePrompts
@@ -60,11 +78,57 @@ from workflows.main_cognition.schemas import (
     ExpectationDraft,
     ExpectationOutcome,
     OpenExpectation,
+    Stimulus,
 )
 from workflows.main_cognition.story_prefix import StoryPrefix
 
 #: The provenance reference of the expectations that main cognition records.
 SOURCE_REF = "main_cognition"
+
+
+#: The scope main cognition checks expectations in: the real world, in-world frame.
+ACCEPTED_REALITY = RecordScope()
+
+
+def offered_expectations(view: Snapshot) -> list[OpenExpectation]:
+    """Return the newest pending expectations of the real, in-world reality, oldest first.
+
+    Main cognition checks every such expectation, whichever loop recorded it
+    (B07 decision D2). The private loop still opens expectations and may
+    resolve one with observed evidence; whichever commit comes second is
+    refused by the head guard, so one expectation is resolved once. An
+    expectation in an imagined frame or another reality is not offered, and
+    an expectation with an unknown producer raises. At most
+    ``EXPECTATION_OPEN_LIMIT`` are offered.
+    """
+    offered: list[OpenExpectation] = []
+    records = [record for record in pending_expectations(view) if record.scope == ACCEPTED_REALITY]
+    for record in records[-EXPECTATION_OPEN_LIMIT:]:
+        producer = record.provenance.source_ref if record.provenance is not None else None
+        if producer == SOURCE_REF:
+            origin: Literal["main_cognition", "private_loop"] = "main_cognition"
+        elif producer == PRIVATE_SOURCE_REF:
+            origin = "private_loop"
+        else:
+            raise ValueError(f"Expectation {record.id} has no known producer: {producer!r}.")
+        offered.append(OpenExpectation(record_id=record.id, content=record.content,
+            expected_valence=record.expected_valence, urgency=record.urgency, fulfillment=record.fulfillment,
+            tick_id=record.tick_id, revision=view.revisions[record.id],
+            about_entity_ids=list(record.about_entity_ids), origin=origin,
+            counted_observation_ids=list(record.counted_observation_ids)))
+    return offered
+
+
+def is_observed(view: Snapshot, record: RecordBase) -> bool:
+    """Return whether a stimulus record reports an observed event in the accepted reality.
+
+    The rule is the private store owner's (``OBSERVED_EVIDENCE_ROLES``): a
+    person's message, the companion's delivered speech, a world observation,
+    an executed runtime event, or a recorded internal state. A thought, an
+    interpretation, a reconsideration marker, or a summary restates an event
+    and moves no expectation (B07 decision D3 a).
+    """
+    return record.scope == ACCEPTED_REALITY and evidence_role(view, record) in OBSERVED_EVIDENCE_ROLES
 
 
 def recency(work: CycleWork, expectation: OpenExpectation) -> float:
@@ -88,26 +152,40 @@ def salience(expectation: OpenExpectation) -> float:
     return max(0.1, min(0.9, abs(expectation.expected_valence) * 0.5 + expectation.urgency * 0.5))
 
 
+def uncounted_stimuli(work: CycleWork, expectation: OpenExpectation) -> list[Stimulus]:
+    """Return the observed stimuli of this cycle not yet rated against the expectation, in stimulus order."""
+    observed = set(work.request.observed_stimulus_ids)
+    counted = set(expectation.counted_observation_ids)
+    return [item for item in work.request.stimuli if item.knoxel_id in observed and item.knoxel_id not in counted]
+
+
 def relevant_expectations(work: CycleWork, embedder: Embedder) -> list[OpenExpectation]:
     """Return the open expectations that the new stimuli can affect, most relevant first.
 
     Port of ``_retrieve_active_expectations``. With ``r`` the recency
     factor and ``s`` the best cosine similarity between the expectation and
-    one stimulus, the relevance is
-    ``(0.5 r + 0.5 s) * (0.5 + 0.25 urgency + 0.25 salience)``, clamped to
-    [0, 1]. Expectations above ``EXPECTATION_MIN_RELEVANCE`` count. At most
-    ``EXPECTATION_CHECK_LIMIT`` are returned. A cycle without stimuli
-    checks nothing.
+    one of its uncounted observed stimuli (:func:`uncounted_stimuli`), the
+    relevance is ``(0.5 r + 0.5 s) * (0.5 + 0.25 urgency + 0.25 salience)``,
+    clamped to [0, 1]. Expectations above ``EXPECTATION_MIN_RELEVANCE``
+    count. At most ``EXPECTATION_CHECK_LIMIT`` are returned. An expectation
+    without an uncounted observed stimulus is not checked, so a cycle with
+    only thoughts, or only observations already counted, checks nothing and
+    makes no embedding request.
     """
-    stimuli = [item.text for item in work.request.stimuli]
-    candidates = recent_expectations(work)
-    if not stimuli or not candidates:
+    remaining: dict[int, list[Stimulus]] = {}
+    for item in recent_expectations(work):
+        stimuli = uncounted_stimuli(work, item)
+        if stimuli:
+            remaining[item.record_id] = stimuli
+    candidates = [item for item in recent_expectations(work) if item.record_id in remaining]
+    if not candidates:
         return []
-    vectors = embedder.prefetch([*stimuli, *(item.content for item in candidates)])
+    texts = list(dict.fromkeys(stimulus.text for stimuli in remaining.values() for stimulus in stimuli))
+    vectors = embedder.prefetch([*texts, *(item.content for item in candidates)])
     scored = []
     for item in candidates:
-        similarity = max(max(0.0, min(1.0, cosine(vectors[text], vectors[item.content])))
-                         for text in stimuli)
+        similarity = max(max(0.0, min(1.0, cosine(vectors[stimulus.text], vectors[item.content])))
+                         for stimulus in remaining[item.record_id])
         score = (recency(work, item) * 0.5 + similarity * 0.5) * (0.5 + item.urgency * 0.25 + salience(item) * 0.25)
         score = max(0.0, min(1.0, score))
         if score > EXPECTATION_MIN_RELEVANCE:
@@ -168,14 +246,40 @@ def outcome_of(expectation: OpenExpectation, fulfillment_score: float, directnes
 
 def check(context: RoleContext, work: CycleWork, prefix: StoryPrefix, prompts: PhasePrompts,
           expectations: list[OpenExpectation]) -> list[ExpectationOutcome]:
-    """Check the relevant expectations against the new stimuli. Return one outcome for each.
+    """Check the relevant expectations against their uncounted observed stimuli. Return one outcome for each.
 
-    One story-framed call rates every expectation. An answer that misses an
-    id, repeats one, or names an unknown one is invalid and gets a repair
-    turn. Without expectations the function makes no call.
+    Expectations are grouped by the stimuli they still have to be rated
+    against (:func:`uncounted_stimuli`), and each group gets one story-framed
+    call; in the normal case every expectation has the same stimuli and the
+    cycle makes one call. Outcomes keep the order of ``expectations``.
+    Without expectations the function makes no call. An expectation without
+    an uncounted observed stimulus is a caller bug: :func:`relevant_expectations`
+    never returns one.
     """
-    if not expectations:
-        return []
+    groups: dict[tuple[int, ...], list[OpenExpectation]] = {}
+    group_stimuli: dict[tuple[int, ...], list[Stimulus]] = {}
+    for item in expectations:
+        stimuli = uncounted_stimuli(work, item)
+        if not stimuli:
+            raise ValueError(f"Expectation {item.record_id} has no uncounted observed stimulus to be checked against.")
+        key = tuple(stimulus.knoxel_id for stimulus in stimuli)
+        groups.setdefault(key, []).append(item)
+        group_stimuli[key] = stimuli
+    outcomes: dict[int, ExpectationOutcome] = {}
+    for key, members in groups.items():
+        for outcome in _check_group(context, work, prefix, prompts, members, group_stimuli[key]):
+            outcomes[outcome.record_id] = outcome
+    return [outcomes[item.record_id] for item in expectations]
+
+
+def _check_group(context: RoleContext, work: CycleWork, prefix: StoryPrefix, prompts: PhasePrompts,
+                 expectations: list[OpenExpectation], stimuli: list[Stimulus]) -> list[ExpectationOutcome]:
+    """Rate one group of expectations against the same stimuli in one call.
+
+    An answer that misses an id, repeats one, or names an unknown one is
+    invalid and gets a repair turn. Each outcome's ``observation_ids`` are
+    exactly the rated stimuli, which the commit adds to the counted list.
+    """
     wanted = sorted(item.record_id for item in expectations)
 
     def exact(answer: ExpectationCheckAnswer) -> ExpectationCheckAnswer:
@@ -188,11 +292,11 @@ def check(context: RoleContext, work: CycleWork, prefix: StoryPrefix, prompts: P
                           __validators__={"exact": model_validator(mode="after")(exact)})
     instruction = format_content(prefix.fill(prompts.check_template),
         expectations="\n".join(f"[id {item.record_id}] {item.content}" for item in expectations),
-        stimuli="\n".join(f"- {item.text}" for item in work.request.stimuli),
+        stimuli="\n".join(f"- {item.text}" for item in stimuli),
     ).text
     answer = complete(context, work, prefix.ask(instruction), schema)
     by_id = {item.expectation_id: item for item in answer.fulfillments}
-    observed = [item.knoxel_id for item in work.request.stimuli]
+    observed = [item.knoxel_id for item in stimuli]
     return [outcome_of(item, by_id[item.record_id].fulfillment_score, by_id[item.record_id].directness_score,
                        observed) for item in expectations]
 
@@ -254,5 +358,6 @@ def anticipate(context: RoleContext, work: CycleWork, prefix: StoryPrefix, promp
     return drafts
 
 
-__all__ = ["EXPECTATION", "SOURCE_REF", "anticipate", "check", "csm_expectation_ids", "effect", "outcome_of", "recency",
-           "recent_expectations", "relevant_expectations", "render_outcomes", "salience"]
+__all__ = ["ACCEPTED_REALITY", "EXPECTATION", "SOURCE_REF", "anticipate", "check", "is_observed",
+           "offered_expectations", "csm_expectation_ids", "effect", "outcome_of", "recency",
+           "recent_expectations", "relevant_expectations", "render_outcomes", "salience", "uncounted_stimuli"]

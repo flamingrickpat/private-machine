@@ -82,7 +82,7 @@ from pm.bus.envelopes import Envelope, new_envelope, new_id
 from pm.constants import (
     WORKSPACE_TAIL_TOKENS,
     CCQ_LENGTH, CSM_RECENT_DIALOGUE_TURNS, CYCLE_RETRY_DELAY_SECONDS, CYCLE_RETRY_MAX_DELAY_SECONDS,
-    EXPECTATION_OPEN_LIMIT, WORKSPACE_TAIL_CANDIDATES,
+    WORKSPACE_TAIL_CANDIDATES,
 )
 from pm.llm.completion import TextCompletion
 from pm.llm.concurrency import InferenceRole, inference_role
@@ -121,6 +121,7 @@ from workflows.entity_context.owner import EntityContextOwner, active_claims
 from workflows.entity_context.projection import EntityContextChanged, project_entity_context, validate_entity_context
 from workflows.entity_context.schemas import EntityProjectionQuery, EntityUpdateResult
 from workflows.main_cognition.expectations import SOURCE_REF as EXPECTATION_SOURCE
+from workflows.main_cognition.expectations import is_observed, offered_expectations
 from workflows.main_cognition.model_json import ModelFormatError
 from workflows.main_cognition.phases.codelets import RECOMMENDATION
 from workflows.main_cognition.phases.intake import group_key
@@ -144,7 +145,6 @@ from workflows.main_cognition.story_prefix import shard_label
 from workflows.main_cognition.cycle_commits import (
     active_goal_texts, active_intentions, apply_appraisal, apply_goal_changes,
 )
-from workflows.inner_thought.expectations import pending_expectations
 from workflows.public_speech.public_context import build_public_context
 from workflows.public_speech.situational_guidance import build_situational_guidance
 
@@ -680,6 +680,7 @@ class MainCogLoop(CognitiveWorkflow):
                          if stimulus.entity_id == entity_id) or (RecordScope(),))
             for entity_id in guidance_partners]
         open_expectations = self._open_expectations(memory_view)
+        observed_stimulus_ids = self._observed_stimulus_ids(memory_view, stimuli, sources)
         narrative_ids = self._narrative_ids(memory_view, [*([self_entity_id] if self_entity_id else []),
                                                           *group_entities])
         known = [shard.key for shard in previous.workspace.all_shards()] if previous is not None else [SELF_SHARD]
@@ -761,6 +762,7 @@ class MainCogLoop(CognitiveWorkflow):
             narrative_ids=narrative_ids,
             streams=streams,
             open_expectations=open_expectations,
+            observed_stimulus_ids=observed_stimulus_ids,
         )
         return request.model_dump(mode="json")
 
@@ -785,19 +787,23 @@ class MainCogLoop(CognitiveWorkflow):
         return None if entity_id is None or entity_id == self_entity_id else int(entity_id)
 
     def _open_expectations(self, memory_view: Snapshot) -> list[OpenExpectation]:
-        """Return the newest pending expectations that main cognition recorded, oldest first.
+        """Return the expectations this cycle checks (:func:`~workflows.main_cognition.expectations.offered_expectations`)."""
+        return offered_expectations(memory_view)
 
-        The private loop keeps its own expectations. It resolves them itself
-        until A19G moves it onto this cycle. At most
-        ``EXPECTATION_OPEN_LIMIT`` are offered.
+    def _observed_stimulus_ids(self, memory_view: Snapshot, stimuli: list[Stimulus],
+                               sources: list[RecordBase]) -> list[int]:
+        """Return the stimuli that report an observed event (B07 decision D3 a).
+
+        A host event created after the view froze is classified with a view
+        of its own record.
         """
-        records = [record for record in pending_expectations(memory_view)
-                   if record.provenance is not None and record.provenance.source_ref == EXPECTATION_SOURCE]
-        return [OpenExpectation(record_id=record.id, content=record.content, expected_valence=record.expected_valence,
-                                urgency=record.urgency, fulfillment=record.fulfillment, tick_id=record.tick_id,
-                                revision=memory_view.revisions[record.id],
-                                about_entity_ids=list(record.about_entity_ids))
-                for record in records[-EXPECTATION_OPEN_LIMIT:]]
+        observed: list[int] = []
+        for stimulus, source in zip(stimuli, sources, strict=True):
+            in_view = stimulus.knoxel_id in memory_view.revisions
+            role_view = memory_view if in_view else self.ghost.snapshot({stimulus.knoxel_id}, capture=False)
+            if is_observed(role_view, source):
+                observed.append(stimulus.knoxel_id)
+        return observed
 
     def _narrative_ids(self, memory_view: Snapshot, entity_ids: list[int]) -> list[int]:
         """Return the newest narrative of each type for each entity in ``entity_ids``.
@@ -1688,7 +1694,8 @@ def stage_expectations(changes: WriteBatch, view: Snapshot, work: CycleWork, dis
     """Stage the expected reactions of one published action. Return the new record ids.
 
     Port of the record part of ``_generate_expectations_for_action``. Each
-    record links the action and the group's stimuli. An open expectation
+    record links the action, the group's stimuli, and the intention versions
+    that governed the action (``goal_ids``, the action's ``intention_ids``). An open expectation
     that a new one supersedes gets the status ``superseded``, with the new
     record as its observation, unless the check of this cycle already
     resolved it. The cycle read its revision; the commit rejects a
@@ -1697,11 +1704,15 @@ def stage_expectations(changes: WriteBatch, view: Snapshot, work: CycleWork, dis
     created = []
     by_id = {item.record_id: item for item in work.request.open_expectations}
     checked = {item.record_id: item for item in work.expectations}
+    action = view.get(action_id)
+    if not isinstance(action, ActionSchemaRecord):
+        raise TypeError(f"Expectation source {action_id} is not the staged action record.")
     for draft in dispatch.expectations:
         record = changes.create(ExpectationRecord(
             content=draft.content, anticipation=draft.content, expected_outcome=draft.content,
             status="pending", expected_valence=draft.expected_valence, urgency=draft.urgency,
             about_entity_ids=list(draft.about_entity_ids), created_from_action_id=action_id,
+            goal_ids=list(action.intention_ids),
             evidence_ids=list(dispatch.stimulus_ids),
             provenance=Provenance(source_kind=SourceKind.Self, source_ref=EXPECTATION_SOURCE),
             metadata={"decision": dispatch.content, "action_id": dispatch.action_id}))
@@ -1710,8 +1721,14 @@ def stage_expectations(changes: WriteBatch, view: Snapshot, work: CycleWork, dis
             if old_id in checked and checked[old_id].status != "pending":
                 continue
             old = view.get(old_id).model_copy(deep=False)
+            if not isinstance(old, ExpectationRecord):
+                raise TypeError(f"Superseded record {old_id} is not an expectation.")
             if old_id in checked:
+                # This view reads the payload before this cycle's check, so the
+                # successor would lose the check. Carry its fulfillment and its
+                # counted observations over.
                 old.fulfillment = checked[old_id].fulfillment
+                old.counted_observation_ids = [*old.counted_observation_ids, *checked[old_id].observation_ids]
             old.status = "superseded"
             old.observation_ids = [record.id]
             old.resolved_tick_id = changes.tick_id
@@ -1725,15 +1742,25 @@ def stage_expectations(changes: WriteBatch, view: Snapshot, work: CycleWork, dis
 def apply_expectation_outcomes(changes: WriteBatch, view: Snapshot, work: CycleWork) -> None:
     """Stage the check results of the appraise phase on the checked expectations.
 
-    Each checked record gets its new fulfillment. A supported or
-    contradicted record also gets its status, its observations (the stimuli
-    of the check), and the resolution tick. The metadata keeps the impacts of
-    the check. An outcome with no change and no new status changes nothing.
+    Every checked record gets its new fulfillment and adds the rated stimuli
+    to ``counted_observation_ids``, also when it stays pending and did not
+    move: a later cycle that presents the same observation again does not
+    rate it again (B07 decision D3 b). A supported or contradicted record
+    also gets its status, its observations (the stimuli of the check), and the
+    resolution tick. The metadata keeps the impacts of the check. The cycle
+    read each record's revision; a concurrent replacement by the private loop
+    refuses the whole commit, and the retried cycle reads fresh state.
     """
     for outcome in work.expectations:
-        if outcome.status == "pending" and outcome.change == 0.0:
-            continue
         record = view.get(outcome.record_id).model_copy(deep=False)
+        if not isinstance(record, ExpectationRecord):
+            raise TypeError(f"Checked record {outcome.record_id} is not an expectation.")
+        counted = list(record.counted_observation_ids)
+        for observation_id in outcome.observation_ids:
+            if observation_id in counted:
+                raise ValueError(f"Observation {observation_id} was already counted for expectation {record.id}.")
+            counted.append(observation_id)
+        record.counted_observation_ids = counted
         record.fulfillment = outcome.fulfillment
         if outcome.status != "pending":
             record.status = outcome.status

@@ -91,8 +91,11 @@ class CycleRequest(BaseModel):
     ``narrative_ids`` are the newest narrative records of the self and of the
     group entities. The retrieve phase puts them into the CSM. ``streams``
     hold the newest stream records of each shard, for the shard tails.
-    ``open_expectations`` are the newest pending expectations that main
-    cognition recorded earlier, with the revisions that the cycle read.
+    ``open_expectations`` are the newest pending expectations of the real,
+    in-world reality, recorded by either loop, with the revisions that the
+    cycle read. ``observed_stimulus_ids`` are the stimuli whose evidence role is
+    observed (``pm.memory.evidence.OBSERVED_EVIDENCE_ROLES``); only they can
+    move an expectation.
     """
 
     run_id: str = ""
@@ -133,6 +136,9 @@ class CycleRequest(BaseModel):
     narrative_ids: list[int] = Field(default_factory=list)
     streams: list[ShardStream] = Field(default_factory=list)
     open_expectations: list[OpenExpectation] = Field(default_factory=list)
+    #: Stimuli that report an observed event. A thought, a reconsideration
+    #: marker, or another derived stimulus is left out and moves no expectation.
+    observed_stimulus_ids: list[int] = Field(default_factory=list)
     active_focus: FocusState | None = None
     focus_proposals: list[FocusProposalRef] = Field(default_factory=list)
     mental_proposals: list[MentalProposal] = Field(default_factory=list)

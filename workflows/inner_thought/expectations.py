@@ -18,6 +18,9 @@ from pm.records.cognitive_records import ExpectationRecord
 from pm.records.base import Provenance
 from pm.records.enums import SourceKind
 
+#: The provenance reference of the expectations the private loop records.
+PRIVATE_SOURCE_REF = "private_loop"
+
 
 def pending_expectations(record_source: RecordView) -> list[ExpectationRecord]:
     """Return all unresolved expectations, oldest first.
@@ -48,7 +51,7 @@ def open_expectation(batch: WriteBatch, *, anticipation: str, expected_outcome: 
         evidence_ids=list(evidence_ids),
     )
     record.tick_id = tick_id or batch.tick_id
-    record.provenance = Provenance(source_kind=SourceKind.Self, source_ref="private_loop")
+    record.provenance = Provenance(source_kind=SourceKind.Self, source_ref=PRIVATE_SOURCE_REF)
     return batch.create(record)
 
 
@@ -78,9 +81,9 @@ def resolve_expectation(batch: WriteBatch, record: ExpectationRecord, *, status:
     updated.resolved_tick_id = batch.tick_id
     metadata = dict(updated.metadata or {})
     metadata["resolution_reason"] = reason
-    metadata["resolved_by"] = "private_loop"
+    metadata["resolved_by"] = PRIVATE_SOURCE_REF
     updated.metadata = metadata
     return batch.replace(updated)
 
 
-__all__ = ["open_expectation", "pending_expectations", "resolve_expectation"]
+__all__ = ["PRIVATE_SOURCE_REF", "open_expectation", "pending_expectations", "resolve_expectation"]

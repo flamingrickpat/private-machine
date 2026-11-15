@@ -972,7 +972,8 @@ class OpenExpectation(BaseModel):
 
     The fields copy the ``ExpectationRecord``. ``revision`` is the revision
     that the cycle read, so the commit can reject a concurrent change.
-    ``tick_id`` is the tick that recorded it.
+    ``tick_id`` is the tick that recorded it. ``origin`` and
+    ``counted_observation_ids`` have no default: the host always knows them.
     """
 
     record_id: int = 0
@@ -983,6 +984,10 @@ class OpenExpectation(BaseModel):
     tick_id: int = 0
     revision: int = 1
     about_entity_ids: list[int] = Field(default_factory=list)
+    origin: Literal["main_cognition", "private_loop"] = Field(
+        description="Which loop recorded the expectation. Main cognition checks both kinds.")
+    counted_observation_ids: list[int] = Field(
+        description="Observed records already rated against this expectation; the check skips them.")
 
 
 class ExpectationFulfillment(BaseModel):

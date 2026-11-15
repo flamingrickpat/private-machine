@@ -372,7 +372,8 @@ class ExpectationTests(unittest.TestCase):
         self.assertEqual(records[0].observation_ids, [records[1].id])
 
     def test_outcome_rules(self):
-        wanted = OpenExpectation(record_id=1, content="a yes", expected_valence=0.8)
+        wanted = OpenExpectation(record_id=1, content="a yes", expected_valence=0.8, origin="main_cognition",
+                                 counted_observation_ids=[])
         supported = outcome_of(wanted, 1.0, 1.0, [5])
         self.assertEqual((supported.status, supported.fulfillment), ("supported", 1.0))
         self.assertGreater(supported.valence_impact, 0.0)
