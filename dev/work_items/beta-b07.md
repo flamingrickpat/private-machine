@@ -1,6 +1,6 @@
 # B07: interval appraisal and run readiness
 
-Status: Pass 0 and Pass 1 done, 2026-11-15. Pass 2 waits for an owner decision (Pass 0 step 4).
+Status: Passes 0 to 3 done, 2026-11-15; the owner answered Q1 to Q3 the same day (section "Owner answers").
 Handoff authority: `dev/work_items/beta-handoff-b07-20261115.md` (owner decisions D1–D10 answered
 2026-11-15). Evidence root: `.runtime/beta-b07/`.
 
@@ -311,3 +311,104 @@ correction turn's wording only)?
 final run fits. A stale `unittest` process from 2026-11-13 (pids 25892/12484, 4.8 GB, retrying
 remote embeddings forever) and the 8095 review server (4.7 GB) are candidates to stop. I did not
 stop either.
+
+## Owner answers, 2026-11-15
+
+> continue with your recommendation and dont worry about memory
+
+Read as: Q1 option A with the recommended restart rule; Q2 yes (it follows the owner's own failure
+rule); Q3 memory is not a blocker. The owner stopped the stale `unittest` processes himself.
+
+On memory, for the record: "commit free" is the reservation headroom Windows gives programs (RAM
+plus page file). Without a page file the limit is the 128 GB of RAM, and Basalt reserves 69.6 GB it
+mostly does not touch, so a `MemoryError` can appear with 60 GB of RAM physically free. A
+system-managed page file would raise that limit. Nothing was changed.
+
+## Q1 — close an inquiry whose grant went stale (commit `5ff50b8`)
+
+1. **Changed:** `pm/memory/dependencies.py::changed_dependencies` (the commit's source rule applied
+   to a view); `InquiryDisplacement.cause` (`critical_epoch` or `governing_source_changed`, default
+   the old meaning, not serialized when default) and `changed_source_ids`;
+   `inquiry.stage_inquiry_outdated` and `OUTDATED_REASON`; history validation for both causes;
+   `PrivateInquiryOwner.close_outdated`, called by `run_graph_opportunity` after
+   `displace_superseded` and by `admit_deliberate_action`; `ensure_inner_turn` projects a graph
+   root whose outcome sources changed after acceptance without the expectation effect and stages a
+   `stale_graph_outcome` receipt in the turn; `focus_management` words the notice per cause
+   (`MentalOutcome.displacement_cause`).
+2. **Why:** Pass 0 step 4 (b): every later step paid for a model call and was refused.
+3. **Verified:** `tests/unit/workflows/inner_thought/test_outdated_inquiry.py`, 6 real-store checks
+   (closed before any model call, question restarts under a fresh grant and executes, current work
+   untouched, parked work closed, notice wording, late projection keeps the finding without the
+   effect and is idempotent). inner_thought 284, focus_management 19, architecture 7, pyright 0.
+   Five recordings replay exactly (`.runtime/beta-b07/q1/`).
+4. **Not verified:** the closure in a live run.
+5. **Documentation:** module docstrings of `inquiry.py`, `graph_host.py`, `focus_management/host.py`.
+6. **Open concerns:** see Pass 2 point 6.
+
+## Q2 — the integrate stage asks again without a cap (commit `3f07013`)
+
+`validate_integration` and `validate_graph_outcome_rules` run as the `validate` callback of
+`complete_json`. The contract test that encoded the old two-answer cap now checks three wrong
+answers followed by a valid one. inner_thought 284 OK, contract inner_thought 4 OK, five recordings
+exact (`.runtime/beta-b07/q2/`).
+
+## Pass 2 — D2 and D3 (commit `7430cc2`)
+
+1. **Changed:**
+   - `ExpectationRecord.counted_observation_ids` (default empty, described as "no history recorded").
+   - `OpenExpectation.origin` and `counted_observation_ids` (required).
+   - `main_cognition/expectations.py`: `offered_expectations` (every pending expectation of the real,
+     in-world scope; unknown producer raises; private ones are scoped to the observer, which is that
+     scope), `is_observed` (shared `OBSERVED_EVIDENCE_ROLES` plus the scope), `uncounted_stimuli`;
+     `relevant_expectations` and `check` rate each expectation only against its uncounted observed
+     stimuli, grouped, one call per group; the A19G docstrings are replaced.
+   - `CycleRequest.observed_stimulus_ids`, filled by the host.
+   - `apply_expectation_outcomes` stages every checked record, appends the rated ids (also when
+     nothing moved), and raises on a repeated count; `stage_expectations` carries counted ids to a
+     superseded successor and sets `goal_ids` from the action's `intention_ids` (F8).
+   - `inner_thought/expectations.PRIVATE_SOURCE_REF` names the private producer.
+2. **Why:** D2, D3.
+3. **Verified:** `tests/unit/workflows/main_cognition/test_expectation_ownership.py`, 7 real-store
+   checks: both origins offered, the imagined/meta-frame one not; a thought stimulus moves nothing
+   and asks for no embedding; the same observation moves once and the second pass needs no call; an
+   unmoved rating still counts; a private expectation resolved by main once, the late private
+   resolution refused by the head guard and reported by `changed_dependencies`; an old record reads
+   as no history; complete twice gives `completed`, `missing`. inner_thought, focus_management,
+   entity_context, interaction suites OK; the main-cognition modules green at `cd641e3` still green,
+   the red ones red with the same causes; architecture OK; pyright 0. Five recordings exact.
+   `workflows/main_cognition/expectations.py` has 24 strict errors (mostly older), so it is not
+   added to `pyrightconfig.json`.
+4. **Not verified:** a live main cycle (Pass 4).
+5. **Documentation:** module docstring of `main_cognition/expectations.py`, field docs.
+6. **Open concerns:** every main check now replaces each checked expectation (to record the count).
+   Every pending expectation is a governing source of every private grant, so after each checked
+   observation an active private inquiry is closed by Q1 and its question re-enters attention. This
+   is correct by the current grant rule but may churn private thinking. A narrower grant (govern only
+   what a step cites) is a design change for the owner.
+
+## Pass 3 — D4, the interval review (commit `32e2d08`)
+
+1. **Changed:** new `workflows/main_cognition/interval_review.py` (`GoverningIntention`,
+   `IntervalMove` holding the shared `RecentMove`, `GuidanceSuspension`, `IntervalReview`,
+   `goal_family_heads`, `build_interval_review`, `render_interval_review`);
+   `situational_guidance.recent_move` extracted from `build_situational_guidance` (one projection,
+   two readers); `GuidanceDisposition` moved to `situational_guidance.py` (an import cycle
+   `cycle_work → interval_review → interaction.schemas → cycle_work` otherwise);
+   `CycleState.interval_reviewed_through` (None, not serialized while unset);
+   `CycleRequest.interval_review`; the host builds it from the previous accepted main state's
+   frontier and `_accepted_state` stores the new frontier; appraise and goals render it, with the
+   three section-16 rules in `appraise.yaml` and `goals.yaml`. Names checked against the glossary
+   and naming rules: no conflicts.
+2. **Why:** D4.
+3. **Verified:** `tests/unit/workflows/main_cognition/test_interval_review.py`, 6 real-store checks
+   (version 1 text after a goal change, frontier moves and no repeat, refused cycle keeps the
+   frontier, suspension once with its reason, a state without a frontier reviews nothing, clean
+   restart keeps it). The entity-context fixture that drives `publish_output` now supplies a review.
+   Suites as in Pass 2, pyright 0 with `interval_review.py` added, five recordings exact.
+4. **Not verified:** live (Pass 4). The token budget rule relies on the existing measurement in
+   `complete_json`: an oversized initial prompt raises `RequiredContextTooLarge`, which ends the cycle
+   visibly. No live sample was large enough to trigger it.
+5. **Documentation:** module docstring of `interval_review.py`; prompt file headers.
+6. **Open concerns:** an action's `intention_ids` are all active goals at its commit (F1), so the
+   review says "the goals that held", not "the goal it served". The status is read at review time:
+   a reply committed just before the cycle can show "chosen but not out yet" and is not reviewed again.
