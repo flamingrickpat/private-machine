@@ -287,12 +287,13 @@ class Rcon:
         self.password = password
         self.request_id = 0
 
-    def _packet(self, kind: int, body: str) -> bytes:
-        self.request_id += 1
-        payload = struct.pack("<ii", self.request_id, kind) + body.encode("utf-8") + b"\x00\x00"
+    def _packet(self, request_id: int, kind: int, body: str) -> bytes:
+        payload = struct.pack("<ii", request_id, kind) + body.encode("utf-8") + b"\x00\x00"
         return struct.pack("<i", len(payload)) + payload
 
-    def _read(self, connection: socket.socket) -> str:
+    @staticmethod
+    def _read(connection: socket.socket) -> tuple[int, int, str]:
+        """Return one answer as (request id, packet type, body text)."""
         raw = connection.recv(4)
         if len(raw) < 4:
             raise RuntimeError("The RCON connection closed before it answered.")
@@ -303,17 +304,24 @@ class Rcon:
             if not chunk:
                 raise RuntimeError("The RCON connection closed during one packet.")
             data += chunk
-        _, _, body = struct.unpack("<ii", data[:8]) + (data[8:],)
-        return body.rstrip(b"\x00").decode("utf-8", errors="replace")
+        request_id, kind = struct.unpack("<ii", data[:8])
+        return request_id, kind, data[8:].rstrip(b"\x00").decode("utf-8", errors="replace")
 
     def command(self, text: str) -> str:
-        """Authenticate and run one command on the server console."""
+        """Authenticate and run one command on the server console.
+
+        A rejected password is answered with request id -1, not with text, so the
+        id is what this client checks.
+        """
         with socket.create_connection((self.host, self.port), timeout=15) as connection:
-            connection.sendall(self._packet(3, self.password))
-            if self._read(connection) == "":
+            self.request_id += 1
+            connection.sendall(self._packet(self.request_id, 3, self.password))
+            answer_id, _, _ = self._read(connection)
+            if answer_id == -1:
                 raise RuntimeError("The RCON password was rejected.")
-            connection.sendall(self._packet(2, text))
-            return self._read(connection)
+            self.request_id += 1
+            connection.sendall(self._packet(self.request_id, 2, text))
+            return self._read(connection)[2]
 
 
 def terminate(pid: int) -> None:
