@@ -68,7 +68,9 @@ def prepare_perspective_revisions(owner: EntityContextOwner, view: Snapshot, sti
     A stored draft that no longer fits the model is a recorded rejection, not
     an error: the entity family can change between thinking and appraisal
     (risk R2 in the B06 plan), and hydrating a stale draft against a changed
-    world is a model-quality result. Nothing else is caught here.
+    world is a model-quality result. Nothing else is caught here. The cited
+    messages are retained guards of the finding, so a cited message that the
+    view does not hold is a broken invariant and raises.
     """
     result = MainEntityUpdates()
     for finding_id in stimulus_ids:
@@ -76,16 +78,15 @@ def prepare_perspective_revisions(owner: EntityContextOwner, view: Snapshot, sti
         if record is None or not isinstance(record, Feature) or "perspective_revision" not in record.metadata:
             continue
         revision = PerspectiveRevisionMetadata.model_validate(record.metadata).perspective_revision
-        cited_ids = list(dict.fromkeys(source_id for claim in revision.claims for source_id in claim.source_ids))
-        if not cited_ids:
-            result.rejected.append({"source_id": finding_id, "reason": "a perspective revision requires cited messages"})
-            continue
-        try:
-            as_of_utc = max(view.get(source_id).timestamp_world_begin for source_id in cited_ids)
-        except (KeyError, TypeError) as error:
-            result.rejected.append({"source_id": finding_id,
-                "reason": f"a perspective revision cites a message outside the current view: {error}"})
-            continue
+        # The stored contract requires at least one claim, and each claim at
+        # least one source, so the cited list is never empty.
+        cited_ids: list[int] = []
+        for claim in revision.claims:
+            for source_id in claim.source_ids:
+                if source_id not in cited_ids:
+                    cited_ids.append(source_id)
+        cited_times = [view.get(source_id).timestamp_world_begin for source_id in cited_ids]
+        as_of_utc = max(cited_times)
         extraction = capture_entity_extraction(owner, view, subject_ids=[revision.subject_entity_id],
             observer_entity_id=observer_entity_id, source_ids=cited_ids, evidence_ids=cited_ids,
             as_of_utc=as_of_utc, token_budget=WORKSPACE_TAIL_TOKENS)
