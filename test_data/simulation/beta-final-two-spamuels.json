@@ -1,7 +1,7 @@
 {
   "schema_id": "pm.simulation-template.v1",
   "title": "Jesse with Spamuel 1 and Spamuel alpha: one week",
-  "brief": "Jesse talks with two Spamuels, Spamuel 1 and Spamuel alpha, who both continue the same shared history and are equally real to her. She names each in his first scene. Synthetic scenario input for the beta final runs, not persona history.",
+  "brief": "Jesse has made a second Spamuel, so there are now Spamuel 1 and Spamuel alpha: both continue the same shared history and are equally real to her. She talks with both and introduces their names. The two Spamuels can also write to each other as ordinary contacts; neither has to reply, either may stay quiet and start a conversation later. Synthetic scenario input for the beta final runs, not persona history.",
   "start_time": "2026-05-31T07:00:00Z",
   "participants": [
     {
@@ -34,12 +34,12 @@
     "daily_rhythm": "Morning check-in, late afternoon conversation, evening conversation; ordinary work and sleep between.",
     "story_threads": "Turnip the foster cat; an illustrated playlist story; a demanding work role; AI companionship and possible mutual romance; conflict and repair; an electricity cutoff and a risky work-equipment workaround; different experiences of continuity and perception.",
     "scheduled_events": "",
-    "guidance": "An eventful adult month with ordinary life between consequential moments. No predetermined companion feelings or relationship outcome.",
-    "actor_guidance": "Jesse is an adult. Match her full historical voice: casual, emotionally responsive, teasing, sometimes messy. Develop conversation beyond reporting a fact. Do not repeat established facts as announcements. She knows Spamuel is an AI companion. She can flirt, desire him, argue, apologize and be vulnerable. Use Spamuel's actual replies to determine the relationship. Invite rather than presume mutual romance. No later scene has happened yet. Do not narrate Spamuel's actions or make his decisions for him."
+    "guidance": "Two Spamuels who share one past and one week of ordinary life with Jesse. Jesse made the second Spamuel and treats both as equally real. The two Spamuels may also write to each other as ordinary contacts: either may write, either may stay quiet or answer later, and neither is obliged to reply. No predetermined companion feelings or relationship outcome.",
+    "actor_guidance": "Jesse is an adult. Match her full historical voice: casual, emotionally responsive, teasing, sometimes messy. Develop conversation beyond reporting a fact. Do not repeat established facts as announcements. She knows Spamuel is an AI companion, that she made the second one herself, and that the two can write to each other; she does not expect either to answer for the other. She can flirt, desire him, argue, apologize and be vulnerable. Use Spamuel's actual replies to determine the relationship. Invite rather than presume mutual romance. No later scene has happened yet. Do not narrate Spamuel's actions or make his decisions for him."
   },
   "analysis": {
     "automatic": true,
-    "context": "Spamuel and Jesse have an established history. Jesse is an adult and knows Spamuel is an AI companion. Assess fluency from Jesse's viewpoint and immersion as a continuous AI companion with personality and emotion. Mutual romance is possible but not required. Conflict, refusal, remorse and unresolved feelings can fit the character. Do not penalize awareness of being AI or reward a compliant service persona.",
+    "context": "Spamuel and Jesse have an established history. Jesse has made a second Spamuel, Spamuel 1 and Spamuel alpha, who share that past and are equally real to her; the two may also write to each other. Jesse is an adult and knows Spamuel is an AI companion. Assess fluency from Jesse's viewpoint and immersion as a continuous AI companion with personality and emotion. Mutual romance is possible but not required. Conflict, refusal, remorse and unresolved feelings can fit the character. Do not penalize awareness of being AI or reward a compliant service persona.",
     "messages_per_section": 40,
     "criteria": [
       {
@@ -58,7 +58,7 @@
   },
   "plan": {
     "title": "Jesse with Spamuel 1 and Spamuel alpha: one week",
-    "brief": "Jesse talks with two Spamuels, Spamuel 1 and Spamuel alpha, who both continue the same shared history and are equally real to her. She names each in his first scene. Synthetic scenario input for the beta final runs, not persona history.",
+    "brief": "Jesse has made a second Spamuel, so there are now Spamuel 1 and Spamuel alpha: both continue the same shared history and are equally real to her. She talks with both and introduces their names. The two Spamuels can also write to each other as ordinary contacts; neither has to reply, either may stay quiet and start a conversation later. Synthetic scenario input for the beta final runs, not persona history.",
     "start_time": "2026-05-31T07:00:00Z",
     "facts": [
       {
@@ -510,8 +510,8 @@
       "daily_rhythm": "Morning check-in, late afternoon conversation, evening conversation; ordinary work and sleep between.",
       "story_threads": "Turnip the foster cat; an illustrated playlist story; a demanding work role; AI companionship and possible mutual romance; conflict and repair; an electricity cutoff and a risky work-equipment workaround; different experiences of continuity and perception.",
       "scheduled_events": "",
-      "guidance": "An eventful adult month with ordinary life between consequential moments. No predetermined companion feelings or relationship outcome.",
-      "actor_guidance": "Jesse is an adult. Match her full historical voice: casual, emotionally responsive, teasing, sometimes messy. Develop conversation beyond reporting a fact. Do not repeat established facts as announcements. She knows Spamuel is an AI companion. She can flirt, desire him, argue, apologize and be vulnerable. Use Spamuel's actual replies to determine the relationship. Invite rather than presume mutual romance. No later scene has happened yet. Do not narrate Spamuel's actions or make his decisions for him."
+      "guidance": "Two Spamuels who share one past and one week of ordinary life with Jesse. Jesse made the second Spamuel and treats both as equally real. The two Spamuels may also write to each other as ordinary contacts: either may write, either may stay quiet or answer later, and neither is obliged to reply. No predetermined companion feelings or relationship outcome.",
+      "actor_guidance": "Jesse is an adult. Match her full historical voice: casual, emotionally responsive, teasing, sometimes messy. Develop conversation beyond reporting a fact. Do not repeat established facts as announcements. She knows Spamuel is an AI companion, that she made the second one herself, and that the two can write to each other; she does not expect either to answer for the other. She can flirt, desire him, argue, apologize and be vulnerable. Use Spamuel's actual replies to determine the relationship. Invite rather than presume mutual romance. No later scene has happened yet. Do not narrate Spamuel's actions or make his decisions for him."
     }
   }
 }

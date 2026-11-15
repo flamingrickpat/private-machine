@@ -39,12 +39,14 @@ class PMProcess:
     """
 
     def __init__(self, participant_id: str, home: Path, config: str, endpoint_file: Path,
-                 *, source_root: Path = REPO_ROOT) -> None:
+                 *, source_root: Path = REPO_ROOT, minecraft_mcp_url: str | None = None) -> None:
         self.id: str = participant_id
         self.home: Path = home
         self.config: str = config
         self.endpoint_file: Path = endpoint_file
         self.source_root: Path = source_root
+        # The one Minecraft body this participant holds for the run, or None.
+        self.minecraft_mcp_url: str | None = minecraft_mcp_url
         self.process: subprocess.Popen[bytes] | None = None
         self.url: str = ""
         # Public speech, already decoded. The engine drains this queue and owns
@@ -79,7 +81,8 @@ class PMProcess:
             self.check_process()
             time.sleep(.05)
         self.url = json.loads(self.endpoint_file.read_text(encoding="utf-8"))["url"].rstrip("/")
-        self.post("/control/start", {"clock_start": clock, "cognition": "real", "character": str(self.home)})
+        self.post("/control/start", {"clock_start": clock, "cognition": "real", "character": str(self.home),
+                                     "minecraft_mcp_url": self.minecraft_mcp_url})
         while self.state()["status"] == "starting":
             self.check_process()
             time.sleep(.1)

@@ -12,25 +12,48 @@ from datetime import datetime, timedelta
 import json
 from pathlib import Path
 from typing import Literal, Self
+from urllib.parse import urlsplit
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from pm.host.durable_files import atomic_json
 from pm.llm.structured import JsonOutputError
 from simulation.agents import Agents
 from simulation.analysis import AnalysisSettings, analyze_run
 from simulation.actors import ActorProfile, load_profile, suggested_start
-from simulation.engine import RunEngine
+from simulation.engine import ParticipantSelection, RunEngine
 from simulation.personas import DEFAULT_RUNS
 from simulation.plans import DirectorSettings, Fact, ScenarioPlan, Step
 
 
 class TemplateParticipant(BaseModel):
-    """One source character home. Run creation forks it without changing it."""
+    """One source character home and the body endpoint it may hold.
+
+    A participant without ``minecraft_mcp_url`` starts with no Minecraft body:
+    no body tools, no body route, and no world reads. A participant with one
+    holds that endpoint for the whole run, so two participants must name two
+    different endpoints; body leases are keyed by endpoint and one avatar has
+    exactly one owner.
+    """
 
     model_config = ConfigDict(extra="forbid")
     id: str = Field(pattern=r"^[A-Za-z0-9_-]+$")
     home: str = Field(min_length=1)
+    minecraft_mcp_url: str | None = Field(
+        default=None,
+        description="MCP endpoint of the body this participant holds, such as http://127.0.0.1:6777/mcp.",
+    )
+
+    @field_validator("minecraft_mcp_url")
+    @classmethod
+    def _body_endpoint(cls, value: str | None) -> str | None:
+        """Reject a body endpoint that no MCP client could connect to."""
+        if value is None:
+            return None
+        parts = urlsplit(value)
+        if parts.scheme not in {"http", "https"} or not parts.hostname:
+            raise ValueError("minecraft_mcp_url must be an HTTP or HTTPS endpoint.")
+        return value
 
 
 class TemplateConnection(BaseModel):
@@ -62,6 +85,10 @@ class SimulationTemplate(BaseModel):
         ids = {participant.id for participant in self.participants}
         if len(ids) != len(self.participants):
             raise ValueError("Template participant IDs must be unique.")
+        bodies = [participant.minecraft_mcp_url for participant in self.participants
+                  if participant.minecraft_mcp_url is not None]
+        if len(bodies) != len(set(bodies)):
+            raise ValueError("Each participant needs its own Minecraft body endpoint.")
         for edge in self.edges:
             if edge.source not in ids or edge.target not in ids or edge.source == edge.target:
                 raise ValueError("Connections must join distinct template participants.")
@@ -148,13 +175,15 @@ def generate_plan(template: SimulationTemplate, agents: Agents, profile: ActorPr
 def create_run(template: SimulationTemplate, root: Path, config: str) -> RunEngine:
     """Create a run from an exact plan or real daily planner calls."""
     template = template.model_copy(update={"participants": [
-        TemplateParticipant(id=item.id, home=str(Path(item.home).expanduser().resolve()))
+        TemplateParticipant(id=item.id, home=str(Path(item.home).expanduser().resolve()),
+                            minecraft_mcp_url=item.minecraft_mcp_url)
         for item in template.participants]})
     profile = load_profile(Path(template.participants[0].home))
     plan = template.plan
     if plan is None:
         plan = generate_plan(template, Agents(config, root.parent / "planning" / root.name), profile)
-    participants = [{"id": item.id, "home": item.home} for item in template.participants]
+    participants = [ParticipantSelection(id=item.id, home=item.home, minecraft_mcp_url=item.minecraft_mcp_url)
+                    for item in template.participants]
     edges = [{"source": item.source, "target": item.target, "name": item.name} for item in template.edges]
     engine = RunEngine.create(root, plan, participants, edges, config)
     atomic_json(root / "template.json", template.model_copy(update={"plan": plan}).model_dump(mode="json"))

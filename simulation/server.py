@@ -35,7 +35,7 @@ from pm.memory.store import MemoryStore
 from pm.llm.config import load_config
 from simulation.agents import Agents
 from simulation.actors import load_profile, suggested_start, summarize
-from simulation.engine import RunEngine
+from simulation.engine import ParticipantSelection, RunEngine, participant_body_endpoint
 from simulation.personas import DEFAULT_HOMES, DEFAULT_RUNS, canon_home, fork_home, homes
 from simulation.plans import ScenarioPlan
 from simulation.templates import SimulationTemplate, TemplateParticipant, create_run, generate_plan
@@ -48,6 +48,15 @@ from pm.introspection.record_format import present_packages, record_links, visib
 
 
 STATIC = Path(__file__).parent / "static"
+
+
+def _body_endpoint(value: JsonValue) -> str | None:
+    """Read one optional Minecraft body endpoint from a browser request."""
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value:
+        raise ValueError("A participant body endpoint must be non-empty text or null.")
+    return value
 
 
 class BrowserPlanRequest(BaseModel):
@@ -108,7 +117,8 @@ class Simulation:
     def template(self, body: dict[str, JsonValue]) -> SimulationTemplate:
         """Validate and resolve template homes at the browser boundary."""
         template = SimulationTemplate.model_validate(body)
-        template.participants = [TemplateParticipant(id=item.id, home=str(self.home(item.home)))
+        template.participants = [TemplateParticipant(id=item.id, home=str(self.home(item.home)),
+                                                     minecraft_mcp_url=item.minecraft_mcp_url)
                                  for item in template.participants]
         return template
 
@@ -280,7 +290,9 @@ def handler(application: Simulation) -> type[BaseHTTPRequestHandler]:
                     value = engine.view()
                     template = SimulationTemplate.model_validate({"title": engine.plan.title, "brief": engine.plan.brief,
                         "start_time": engine.plan.start_time, "director": engine.plan.director,
-                        "participants": [{"id": item["id"], "home": item["source_home"]} for item in value["participants"]],
+                        "participants": [{"id": item["id"], "home": item["source_home"],
+                                          "minecraft_mcp_url": participant_body_endpoint(item)}
+                                         for item in value["participants"]],
                         "edges": value["edges"], "plan": engine.plan})
                     return self.output(template.model_dump(mode="json"))
                 if parts[3] == "analysis":
@@ -369,7 +381,9 @@ def handler(application: Simulation) -> type[BaseHTTPRequestHandler]:
                     application.engines[run_id] = engine
                     return self.output({"run_id": run_id}, 201)
                 plan = ScenarioPlan.model_validate(body["plan"])
-                participants = [{**item, "home": str(application.home(item["home"]))} for item in body["participants"]]
+                participants = [ParticipantSelection(id=item["id"], home=str(application.home(item["home"])),
+                                                    minecraft_mcp_url=_body_endpoint(item.get("minecraft_mcp_url")))
+                                for item in body["participants"]]
                 run_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-") + uuid4().hex[:8]
                 engine = RunEngine.create(application.run_root(run_id), plan, participants, body.get("edges", []), application.config)
                 application.engines[run_id] = engine

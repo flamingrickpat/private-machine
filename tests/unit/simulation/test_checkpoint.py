@@ -14,7 +14,7 @@ from pm.records.global_workspace import GwtTurnRecord
 from pm.records.memory_records import Feature
 from pm.vclock import VirtualClock
 from pm import vclock
-from simulation.engine import RunEngine
+from simulation.engine import ParticipantSelection, RunEngine
 from simulation.personas import write_home
 from simulation.plans import ScenarioPlan
 
@@ -51,8 +51,8 @@ class CoordinatedCheckpointTests(unittest.TestCase):
             original_clock = VirtualClock(datetime.fromisoformat("2026-10-28T20:00:00+01:00"))
             original_clock.set(plan.start_time)
             atomic_json(home.root / "runtime/clock.json", {"clock": original_clock.state(), "timers": {"inner_thought": 3630}})
-            engine = RunEngine.create(root / "run", plan, [{"id": "primary", "home": str(home.root)},
-                {"id": "other", "home": str(home.root)}], [], "config.alpha.example.yaml")
+            engine = RunEngine.create(root / "run", plan, [ParticipantSelection(id="primary", home=str(home.root)),
+                ParticipantSelection(id="other", home=str(home.root))], [], "config.alpha.example.yaml")
             engine.state["attempt"] = 1
             engine.state["transit"] = [{"delivery_id": "waiting-at-barrier", "status": "pending"}]
             engine.save()

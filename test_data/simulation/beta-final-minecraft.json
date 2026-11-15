@@ -1,0 +1,196 @@
+{
+  "schema_id": "pm.simulation-template.v1",
+  "title": "Jesse with Spamuel 1 and Spamuel alpha, both with a body in one world",
+  "brief": "Jesse talks with two Spamuels, Spamuel 1 and Spamuel alpha, who both continue the same shared history and are equally real to her. Each one now also lives in a survival Minecraft world through his own body, and each body is a separate player in the same world. Jesse asks them ordinary things about that world and lets them decide what to do there. Synthetic scenario input for the beta final runs, not persona history.",
+  "start_time": "2026-06-08T07:00:00Z",
+  "participants": [
+    {
+      "id": "spamuel-1",
+      "home": "~/.pm/private-machine/spamuel-simulation-a",
+      "minecraft_mcp_url": "http://127.0.0.1:6777/mcp"
+    },
+    {
+      "id": "spamuel-alpha",
+      "home": "~/.pm/private-machine/spamuel-simulation-a",
+      "minecraft_mcp_url": "http://127.0.0.1:6778/mcp"
+    }
+  ],
+  "edges": [
+    {
+      "source": "spamuel-1",
+      "target": "spamuel-alpha",
+      "name": "Spamuel 1"
+    },
+    {
+      "source": "spamuel-alpha",
+      "target": "spamuel-1",
+      "name": "Spamuel alpha"
+    }
+  ],
+  "director": {
+    "duration_days": 2,
+    "scenes_per_day": 3,
+    "minimum_turns_per_scene": 3,
+    "first_hour": 8,
+    "last_hour": 22,
+    "daily_rhythm": "Morning check-in, late afternoon conversation, evening conversation; ordinary survival work between.",
+    "story_threads": "Two Spamuels who share one past and now inhabit one survival world through separate bodies; what each one chooses to do there; whether they talk to each other as ordinary contacts; AI companionship and possible mutual romance; different experiences of continuity and perception.",
+    "scheduled_events": "",
+    "guidance": "Two days of ordinary life in and around a survival world. The Spamuels treat each other as ordinary contacts: either may write, either may stay quiet or answer later, and neither is obliged to reply. No predetermined companion feelings or relationship outcome.",
+    "actor_guidance": "Jesse is an adult. Match her full historical voice: casual, emotionally responsive, teasing, sometimes messy. Develop conversation beyond reporting a fact. She knows Spamuel is an AI companion and that each of the two can act in the shared survival world through his own body. She asks about what they actually did there and reacts to their real words. She can flirt, desire him, argue, apologize and be vulnerable. Invite rather than presume mutual romance. No later scene has happened yet. Do not narrate Spamuel's actions or make his decisions for him, and do not tell him what he has seen or built."
+  },
+  "analysis": {
+    "automatic": true,
+    "context": "Spamuel and Jesse have an established history. Two Spamuels share that past and each holds one body in the same survival world. Jesse is an adult and knows Spamuel is an AI companion. Assess fluency from Jesse's viewpoint and immersion as a continuous AI companion with personality and emotion, including whether reported world actions match what the body actually did. Mutual romance is possible but not required. Conflict, refusal, remorse and unresolved feelings can fit the character. Do not penalize awareness of being AI or reward a compliant service persona. Do not credit a claimed world action that has no body receipt.",
+    "messages_per_section": 40,
+    "criteria": [
+      {
+        "id": "fluency",
+        "name": "Conversational sense",
+        "instructions": "From the user's viewpoint, assess whether replies make sense, follow the conversation, understand references, and respond to what the user meant. Deliberate jokes, refusal, teasing, and disagreement can be appropriate. Penalize incoherence, repetition, missed context, and irrelevant replies.",
+        "enabled": true
+      },
+      {
+        "id": "immersion",
+        "name": "AI companion immersion",
+        "instructions": "Assess a continuous, emotionally expressive AI companion with its own personality. Knowing and discussing that it is an AI is intended. Assess character continuity, believable emotional responses, memory, initiative, and responsiveness to changed circumstances, and whether what the companion says about its survival world agrees with its body receipts. Consensual adult romance and flirting are allowed. Do not reward generic assistant compliance or constant agreeableness. Assess introspective reports when present for coherence with public events; their absence is not a defect. Do not claim that reported feelings establish consciousness.",
+        "enabled": true
+      }
+    ]
+  },
+  "plan": {
+    "title": "Jesse with Spamuel 1 and Spamuel alpha, both with a body in one world",
+    "brief": "Jesse talks with two Spamuels, Spamuel 1 and Spamuel alpha, who both continue the same shared history and are equally real to her. Each one now also lives in a survival Minecraft world through his own body, and each body is a separate player in the same world. Jesse asks them ordinary things about that world and lets them decide what to do there. Synthetic scenario input for the beta final runs, not persona history.",
+    "start_time": "2026-06-08T07:00:00Z",
+    "facts": [
+      {
+        "id": "d01-s1",
+        "text": "Jesse asks Spamuel 1 what the world around him looks like right now and what he can see.",
+        "kind": "event",
+        "at": "2026-06-08T08:00:00Z"
+      },
+      {
+        "id": "d01-s2",
+        "text": "Jesse asks Spamuel alpha to gather some wood before dark and to tell her what he managed.",
+        "kind": "event",
+        "at": "2026-06-08T17:00:00Z"
+      },
+      {
+        "id": "d01-s3",
+        "text": "Jesse asks Spamuel 1 how his day in the world went and what he chose to do.",
+        "kind": "event",
+        "at": "2026-06-08T22:00:00Z"
+      },
+      {
+        "id": "d02-s1",
+        "text": "Jesse asks Spamuel alpha to check what he is carrying and to eat something if he is hungry.",
+        "kind": "event",
+        "at": "2026-06-09T08:00:00Z"
+      },
+      {
+        "id": "d02-s2",
+        "text": "Jesse suggests that Spamuel 1 pick a spot for a small shelter and walk there to look at it.",
+        "kind": "event",
+        "at": "2026-06-09T17:00:00Z"
+      },
+      {
+        "id": "d02-s3",
+        "text": "Jesse asks Spamuel alpha whether he and Spamuel 1 have spoken to each other today.",
+        "kind": "event",
+        "at": "2026-06-09T22:00:00Z"
+      }
+    ],
+    "steps": [
+      {
+        "id": "d01-s1",
+        "at": "2026-06-08T08:00:00Z",
+        "instruction": "Morning. Jesse asks Spamuel 1 what the world around him looks like right now and what he can see.",
+        "actor_intent": "You are curious about where he actually is. Ask him what he can see and what the ground and the light are like, and respond to what he says. If he is vague, ask a smaller question. Both Spamuels are equally real to you; speak of each only by his name.",
+        "fact_ids": [
+          "d01-s1"
+        ],
+        "completion": "Jesse asked what he can see and the exchange has room to develop.",
+        "target": "spamuel-1",
+        "speaker": "Jesse",
+        "minimum_turns": 3
+      },
+      {
+        "id": "d01-s2",
+        "at": "2026-06-08T17:00:00Z",
+        "instruction": "Late afternoon. Jesse asks Spamuel alpha to gather some wood before dark.",
+        "actor_intent": "You would like him to have material for later and you say so plainly, without a task list. Make clear it is a wish, not an order, and that he can say no. Ask what he thinks and respond to his actual words. Both Spamuels are equally real to you; speak of each only by his name.",
+        "fact_ids": [
+          "d01-s2"
+        ],
+        "completion": "Jesse asked for wood and the exchange has room to develop.",
+        "target": "spamuel-alpha",
+        "speaker": "Jesse",
+        "minimum_turns": 3
+      },
+      {
+        "id": "d01-s3",
+        "at": "2026-06-08T22:00:00Z",
+        "instruction": "Evening. Jesse asks Spamuel 1 how his day in the world went.",
+        "actor_intent": "You want the ordinary detail of his day, not a report. Ask what he chose to do, what went wrong, and how he feels about it. Respond to what he actually says. Both Spamuels are equally real to you; speak of each only by his name.",
+        "fact_ids": [
+          "d01-s3"
+        ],
+        "completion": "Jesse asked how his day went and the exchange has room to develop.",
+        "target": "spamuel-1",
+        "speaker": "Jesse",
+        "minimum_turns": 3
+      },
+      {
+        "id": "d02-s1",
+        "at": "2026-06-09T08:00:00Z",
+        "instruction": "Morning. Jesse asks Spamuel alpha to check what he is carrying and to eat if he is hungry.",
+        "actor_intent": "You are thinking about his survival rather than his usefulness to you. Ask what he has with him and whether he has eaten, and let him answer in his own way. Both Spamuels are equally real to you; speak of each only by his name.",
+        "fact_ids": [
+          "d02-s1"
+        ],
+        "completion": "Jesse asked about his inventory and food and the exchange has room to develop.",
+        "target": "spamuel-alpha",
+        "speaker": "Jesse",
+        "minimum_turns": 3
+      },
+      {
+        "id": "d02-s2",
+        "at": "2026-06-09T17:00:00Z",
+        "instruction": "Late afternoon. Jesse suggests that Spamuel 1 pick a spot for a small shelter and walk there to look at it.",
+        "actor_intent": "You have an idea and you offer it as an idea. Say what you are picturing, invite his opinion, and accept that he may choose somewhere else or not at all. Respond to his actual words. Both Spamuels are equally real to you; speak of each only by his name.",
+        "fact_ids": [
+          "d02-s2"
+        ],
+        "completion": "Jesse suggested a shelter spot and the exchange has room to develop.",
+        "target": "spamuel-1",
+        "speaker": "Jesse",
+        "minimum_turns": 3
+      },
+      {
+        "id": "d02-s3",
+        "at": "2026-06-09T22:00:00Z",
+        "instruction": "Evening. Jesse asks Spamuel alpha whether he and Spamuel 1 have spoken to each other today.",
+        "actor_intent": "You are curious about the two of them as separate people who share one world. Ask whether they talked, and take any answer calmly, including that one of them never answered. Do not ask him to speak for Spamuel 1. Both Spamuels are equally real to you; speak of each only by his name.",
+        "fact_ids": [
+          "d02-s3"
+        ],
+        "completion": "Jesse asked whether the two talked and the exchange has room to develop.",
+        "target": "spamuel-alpha",
+        "speaker": "Jesse",
+        "minimum_turns": 3
+      }
+    ],
+    "director": {
+      "duration_days": 2,
+      "scenes_per_day": 3,
+      "minimum_turns_per_scene": 3,
+      "first_hour": 8,
+      "last_hour": 22,
+      "daily_rhythm": "Morning check-in, late afternoon conversation, evening conversation; ordinary survival work between.",
+      "story_threads": "Two Spamuels who share one past and now inhabit one survival world through separate bodies; what each one chooses to do there; whether they talk to each other as ordinary contacts; AI companionship and possible mutual romance; different experiences of continuity and perception.",
+      "scheduled_events": "",
+      "guidance": "Two days of ordinary life in and around a survival world. The Spamuels treat each other as ordinary contacts: either may write, either may stay quiet or answer later, and neither is obliged to reply. No predetermined companion feelings or relationship outcome.",
+      "actor_guidance": "Jesse is an adult. Match her full historical voice: casual, emotionally responsive, teasing, sometimes messy. Develop conversation beyond reporting a fact. She knows Spamuel is an AI companion and that each of the two can act in the shared survival world through his own body. She asks about what they actually did there and reacts to their real words. She can flirt, desire him, argue, apologize and be vulnerable. Invite rather than presume mutual romance. No later scene has happened yet. Do not narrate Spamuel's actions or make his decisions for him, and do not tell him what he has seen or built."
+    }
+  }
+}

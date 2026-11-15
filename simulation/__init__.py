@@ -24,6 +24,14 @@ Durable run artifacts (``state.json``, ``plan.json``, ``attempts/<n>/``,
 fixed across attempts. Browser views are detached copies.
 Owner feedback is stored beside captured evidence, never inside it.
 
+A participant may hold one Minecraft body. The template names that body's MCP
+endpoint, the participant writes it into its own model configuration, and the
+application runs with the body workflows enabled. The body works on demand:
+the simulation's virtual clock and the server's real clock do not share a rate,
+so no world poll runs during a scenario (see ``participant``). A body run cannot
+be restored from a coordinated checkpoint, because the world keeps its later
+state; ``engine`` refuses that restore instead of producing mixed evidence.
+
 ``templates`` owns the versioned browser and CLI input. Daily planning turns
 director guidance into an editable exact plan. ``analysis`` rates completed
 public conversation through independent evaluator calls and retains citations.

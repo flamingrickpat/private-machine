@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from asyncio import CancelledError
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
 from pathlib import Path
@@ -43,6 +44,38 @@ from simulation.source import freeze_source
 from simulation.analysis import AnalysisSettings, analyze_run
 
 
+@dataclass(frozen=True, slots=True)
+class ParticipantSelection:
+    """One run-local participant and the body endpoint it may hold.
+
+    ``home`` is the source character home that run creation forks. The source
+    is never changed. ``minecraft_mcp_url`` names the one Minecraft body this
+    participant owns for the whole run, or ``None`` for a participant that
+    starts without a body. Two participants never share one endpoint, because
+    a body lease belongs to exactly one avatar.
+    """
+
+    id: str
+    home: str
+    minecraft_mcp_url: str | None = None
+
+
+def participant_body_endpoint(participant: Mapping[str, JsonValue]) -> str | None:
+    """Return the body endpoint a controller participant declares.
+
+    A run created before harness bodies existed has no such field, and a
+    participant without a body keeps it null. Both read as "no body", so an old
+    run folder still starts and resumes. A field that is present but not text is
+    our own broken storage, and raises.
+    """
+    value = participant.get("minecraft_mcp_url")
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError("A controller participant body endpoint must be text or null.")
+    return value
+
+
 class RunEngine:
     """Run an editable scenario with real participants and a durable transit queue.
 
@@ -66,48 +99,53 @@ class RunEngine:
         self._run_lock: ProcessLock | None = None
 
     @classmethod
-    def create(cls, root: Path, plan: ScenarioPlan, participants: Sequence[Mapping[str, str]],
+    def create(cls, root: Path, plan: ScenarioPlan, participants: Sequence[ParticipantSelection],
                edges: Sequence[Mapping[str, str]], config: str) -> RunEngine:
         """Fork every source home, then publish the new run as ready.
 
-        ``participants`` are selections that each name run-local ``id`` and the
-        ``home`` folder to fork from. ``edges`` are directed speech connections
-        with ``source`` and ``target`` participant IDs and an optional ``name``
-        that the receiver shows as the speaker. ``config`` names the model
-        configuration the participants start with.
+        ``participants`` are selections that each name run-local ``id``, the
+        ``home`` folder to fork from, and an optional ``minecraft_mcp_url`` for
+        the one body that participant holds during the run. ``edges`` are
+        directed speech connections with ``source`` and ``target`` participant
+        IDs and an optional ``name`` that the receiver shows as the speaker.
+        ``config`` names the model configuration the participants start with.
 
         The run folder, ``plan.json``, ``state.json``, and the coordinated
         baseline are all durable before this returns, so no caller sees a half
         created run. Raises ``ValueError`` for duplicate or malformed selections
         and ``FileExistsError`` when the run folder already exists.
         """
-        if not participants or len({item["id"] for item in participants}) != len(participants):
+        if not participants or len({item.id for item in participants}) != len(participants):
             raise ValueError("A run needs participants with unique IDs.")
-        ids = {item["id"] for item in participants}
+        body_endpoints = [item.minecraft_mcp_url for item in participants if item.minecraft_mcp_url is not None]
+        if len(body_endpoints) != len(set(body_endpoints)):
+            raise ValueError("Each participant needs its own Minecraft body endpoint.")
+        ids = {item.id for item in participants}
         if any(step.target not in ids for step in plan.steps):
             raise ValueError("Every scenario target must name a participant.")
         if any(edge["source"] not in ids or edge["target"] not in ids or edge["source"] == edge["target"] for edge in edges):
             raise ValueError("Each connection must join distinct registered participants.")
-        if any(not item["id"].replace("-", "").replace("_", "").isalnum() for item in participants):
+        if any(not item.id.replace("-", "").replace("_", "").isalnum() for item in participants):
             raise ValueError("Participant IDs must contain letters, numbers, underscores, or hyphens.")
         profiles: dict[str, ActorProfile] = {}
         for item in participants:
-            profile = load_profile(Path(item["home"]))
+            profile = load_profile(Path(item.home))
             if plan.start_time < profile.continuity_at:
                 raise ValueError("The scenario starts before the selected character's saved history ends.")
-            if any(step.speaker != profile.speaker_name for step in plan.steps if step.target == item["id"]):
+            if any(step.speaker != profile.speaker_name for step in plan.steps if step.target == item.id):
                 raise ValueError("The scenario speaker must match the selected character's user name.")
-            profiles[item["id"]] = profile
+            profiles[item.id] = profile
         root.mkdir(parents=True, exist_ok=False)
         prepared: list[dict[str, JsonValue]] = []
         for item in participants:
-            home = fork_home(Path(item["home"]), root / "participants" / item["id"])
-            atomic_json(root / "actors" / f"{item['id']}.json", profiles[item["id"]].model_dump(mode="json"))
+            home = fork_home(Path(item.home), root / "participants" / item.id)
+            atomic_json(root / "actors" / f"{item.id}.json", profiles[item.id].model_dump(mode="json"))
             data = read_checkpoint(home.ghost_pickle)
             history = data.causal_history
             last = max(history.transactions.values(), key=lambda row: row.sequence, default=None) if history else None
             cursor = f"{last.sequence}:{len(last.created_ids)}" if last else f"0:{len(data.state.knoxels)}"
-            prepared.append({"id": item["id"], "source_home": item["home"], "home": str(home.root.resolve()),
+            prepared.append({"id": item.id, "source_home": item.home, "home": str(home.root.resolve()),
+                             "minecraft_mcp_url": item.minecraft_mcp_url,
                              "first_record_id": data.current_knoxel_id + 1, "cursor": cursor})
         atomic_json(root / "plan.json", plan.model_dump(mode="json"))
         atomic_json(root / "analysis-settings.json", AnalysisSettings().model_dump(mode="json"))
@@ -169,6 +207,23 @@ class RunEngine:
                 self.state = json.loads(self.state_path.read_text(encoding="utf-8"))
             return json.loads(json.dumps(self.state))
 
+    def has_body(self) -> bool:
+        """Return whether any participant of this run owns a Minecraft body."""
+        return any(participant_body_endpoint(item) is not None for item in self.state["participants"])
+
+    def _refuse_body_restore(self) -> None:
+        """Refuse to restore a run whose Minecraft world kept its later state.
+
+        A coordinated checkpoint restores stores, clocks, and the transit
+        ledger. It cannot restore a live Minecraft world, so replaying a failed
+        attempt would put both characters into a world that already advanced
+        past that attempt. A body run that fails needs a new run id.
+        """
+        if self.has_body():
+            raise ValueError(
+                "This run owns a Minecraft body, so its world cannot be restored with the other state. "
+                "Create a new run instead of resuming this one.")
+
     def start(self) -> None:
         """Start or resume in the background. A duplicate start raises ValueError."""
         with self._lock:
@@ -179,6 +234,7 @@ class RunEngine:
                 self.state = json.loads(self.state_path.read_text(encoding="utf-8"))
                 self._finish_restore()
                 if self.state["status"] == "failed" and len(self.state["participants"]) > 1:
+                    self._refuse_body_restore()
                     barriers = list((self.root / "attempts").glob("*/coordinated-checkpoint.json"))
                     checkpoint = (max(barriers, key=lambda path: int(path.parent.name)) if barriers
                                   else self.root / "checkpoints/initial.json")
@@ -204,6 +260,8 @@ class RunEngine:
         with self._lock, closing(ProcessLock(self.root / ".run.lock").acquire()):
             if self.thread is not None and self.thread.is_alive():
                 raise ValueError("Pause the run before restoring a coordinated checkpoint.")
+            self.state = json.loads(self.state_path.read_text(encoding="utf-8"))
+            self._refuse_body_restore()
             checkpoint = (self.root / "checkpoints/initial.json" if attempt == 0 else
                           self.root / "attempts" / str(int(attempt)) / "coordinated-checkpoint.json")
             self._prepare_restore(checkpoint)
@@ -463,7 +521,8 @@ class RunEngine:
                 source = freeze_source(attempt / "source", Path(self.state["config"]))
                 for item in self.state["participants"]:
                     process = PMProcess(item["id"], Path(item["home"]), source["config"],
-                                        attempt / f"{item['id']}-endpoint.json", source_root=Path(source["source"]))
+                                        attempt / f"{item['id']}-endpoint.json", source_root=Path(source["source"]),
+                                        minecraft_mcp_url=participant_body_endpoint(item))
                     self.processes[item["id"]] = process
                     process.launch(self.state["clock"])
                     process.listen(item["cursor"])

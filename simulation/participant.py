@@ -11,6 +11,14 @@ has both the ghost and the timer deadlines of one instant. An environment event
 waits in this process until its world time arrives and is then delivered as
 ordinary cognition input. This module supplies no simulated cognition and no
 fixed replies; the package overview is in ``simulation/__init__.py``.
+
+A participant may hold one Minecraft body. ``/control/start`` names its MCP
+endpoint, and this process writes that endpoint into its own model configuration
+before the application starts, so the body section is typed and validated like
+any other operator configuration. The body works on demand: the simulation
+advances a virtual clock between scenes while a Minecraft server keeps real
+time, so a world poll on the virtual clock would fire hundreds of times inside
+one scene advance. Body workflows therefore read the world when they run.
 """
 from __future__ import annotations
 
@@ -56,6 +64,8 @@ class Participant:
         self._home_lock.acquire()
         self.server: WebChatServer = WebChatServer(None, self.submit, port=port, on_error=self.fail, control=self.control)
         self.clock_start: str | None = None
+        # The one Minecraft body this participant holds, or None for no body.
+        self.minecraft_mcp_url: str | None = None
         self.ready: threading.Event = threading.Event()
         # Observations whose virtual world time has not arrived yet.
         self.env_pending: list[dict[str, JsonValue]] = []
@@ -130,9 +140,13 @@ class Participant:
             configure_root(self.home / "logs" / "prompts")
             configure_logging(self.home)
             store = CharacterHome(self.home).open_store()
+            # A body starts only when this participant declared its endpoint, and
+            # then the configuration names it and the application probes it
+            # before the first cycle. The world poll stays off (module docstring).
             app = build_app(None, self.home / "runtime", ghost=store, cognition="real",
-                            config_path=self.config, enable_minecraft=False, world_poll_seconds=None,
-                            emit_reply=lambda text: None, bus_observer=self.observe, record_lifecycle=False)
+                            config_path=self.config, enable_minecraft=self.minecraft_mcp_url is not None,
+                            world_poll_seconds=None, emit_reply=lambda text: None,
+                            bus_observer=self.observe, record_lifecycle=False)
             self.app = app
             self.server.store = store
             from pm.app.transport import event_cursor
@@ -170,14 +184,23 @@ class Participant:
                     raise ValueError("Simulation participants require real cognition.")
                 if self.app is not None or self.starting:
                     return self.control("/control/state", {})
-                if body.get("base_url"):
+                base_url = self._text_option(body, "base_url")
+                minecraft_mcp_url = self._text_option(body, "minecraft_mcp_url")
+                if base_url is not None or minecraft_mcp_url is not None:
                     from pm.utils import yaml_util
                     config = yaml_util.safe_load(Path(self.config).read_text(encoding="utf-8"))
-                    config["chat"]["Default"]["base_url"] = body["base_url"].rstrip("/")
+                    if base_url is not None:
+                        config["chat"]["Default"]["base_url"] = base_url.rstrip("/")
+                    if minecraft_mcp_url is not None:
+                        # One body endpoint for this participant. The model
+                        # configuration is the normal source for it, so the rest
+                        # of the application reads one typed section.
+                        config["minecraft"] = {"mcp_url": minecraft_mcp_url}
                     selected = self.home / "runtime" / "model-config.yaml"
                     selected.parent.mkdir(parents=True, exist_ok=True)
                     selected.write_text(yaml_util.safe_dump(config), encoding="utf-8")
                     self.config = str(selected)
+                self.minecraft_mcp_url = minecraft_mcp_url
                 self.starting = True
                 threading.Thread(target=self._start, args=(body,), name="participant-start", daemon=False).start()
                 return {"status": "starting", "home": str(self.home)}
@@ -265,6 +288,20 @@ class Participant:
                     mental_state=self.app.ghost.states[-1].mental_state.model_dump(mode="json") if self.app.ghost.states else {},
                     module_errors_total=int(self.app.error is not None))
             return result
+
+    @staticmethod
+    def _text_option(body: dict[str, JsonValue], key: str) -> str | None:
+        """Read one optional start option that must be text when it is present.
+
+        The harness sends these values, and a wrong type would otherwise reach
+        the model configuration builder as an unnamed object.
+        """
+        value = body.get(key)
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise ValueError(f"The start option {key} must be text or null.")
+        return value
 
     def quiet(self) -> None:
         """Wait for runnable work. Parked workflows do not block the controller."""
