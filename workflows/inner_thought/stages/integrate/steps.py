@@ -27,7 +27,7 @@ from workflows.inner_thought.schemas import (
     FocusAdviceRequest, GraphOutcomeRules, InnerRequest, IntegrationResult, ThoughtResult, TriggerChoice,
 )
 from workflows.inner_thought.pipeline import (
-    IntegrationError, citable_ids, validate_graph_outcome_rules, validate_integration,
+    citable_ids, validate_graph_outcome_rules, validate_integration,
 )
 from workflows.main_cognition.model_json import complete_json, load_yaml, read_request, write_report
 
@@ -112,24 +112,23 @@ def run(context: RoleContext) -> dict[str, str]:
     # pipeline has another store owner and sends none.
     rules_data = request.get("graph_outcome_rules")
     rules = GraphOutcomeRules.model_validate(rules_data) if rules_data is not None else None
-    for attempt in range(2):
-        result = complete_json(context, messages, IntegrationResult, temperature=Sampler.TempInstruct, enable_thinking=False)
-        try:
-            validate_integration(result, known, parsed, focus_requested=focus_requested,
-                                 perspective=perspective,
-                                 source_texts=source_texts if perspective is not None else None)
-            if rules is not None:
-                validate_graph_outcome_rules(result, rules, known)
-            break
-        except IntegrationError as error:
-            # Keep the invalid model proposal. Only the model can correct it.
-            (context.kernel_data / f"integration-rejection-{attempt + 1}.json").write_text(
-                json.dumps({"error": str(error), "proposal": result.model_dump(mode="json")}, indent=2), encoding="utf-8")
-            if attempt:
-                raise
-            messages.extend([Turn(Role.Assistant, result.model_dump_json()),
-                Turn(Role.User, f"This proposal was rejected: {error}. Correct it using only the supplied evidence. "
-                     "Leave expectation.action as none when no observed outcome is available. Return the complete JSON object.")])
+
+    def validate(payload: dict[str, object], raw: str) -> IntegrationResult:
+        """Apply the evidence rules inside the correction loop; a broken rule is asked again."""
+        proposal = IntegrationResult.model_validate(payload)
+        validate_integration(proposal, known, parsed, focus_requested=focus_requested,
+                             perspective=perspective,
+                             source_texts=source_texts if perspective is not None else None)
+        if rules is not None:
+            validate_graph_outcome_rules(proposal, rules, known)
+        return proposal
+
+    # IntegrationError is a ValueError, so complete_json keeps the rejected
+    # answer, sends the rule's message, and asks again without an attempt cap.
+    # Only RepeatedRejectionError (one identical problem through two complete
+    # conversations) stops it, because then the message itself is defective.
+    result = complete_json(context, messages, IntegrationResult, temperature=Sampler.TempInstruct,
+                           enable_thinking=False, validate=validate)
     write_report(context.runtime.environment, result)
     return {
         "status": "done",

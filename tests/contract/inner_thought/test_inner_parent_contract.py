@@ -249,26 +249,26 @@ class ModelProposalBoundaryTests(unittest.TestCase):
                 self.assertEqual(events.events, [])
                 self.assertEqual(list(module.runtime_root.rglob("model-proposal-rejection.json")), [])
 
-    def test_integration_keeps_one_repair_then_rejects_the_cycle(self):
-        completions = [
-            '{"operation": "curiosity_spark"}',
-            '{"thought": "I want to reread the draft.", "reality": "internal", "evidence_ids": [5]}',
-            '{"expectation": {"action": "resolve", "expectation_id": 999, "observation_ids": [5]}}',
-            '{"expectation": {"action": "resolve", "expectation_id": 999, "observation_ids": [5]}}',
-        ]
-        with TemporaryDirectory() as tmp:
-            module, ghost, events, errors = self._module(
-                tmp, request().model_dump(mode="json"), deterministic_llm(completions))
-            before = ghost.state_dict()
-            module.handle_batch([])
-            self.assertEqual(completions, [])
-            self.assertEqual(ghost.state_dict(), before)
-            self.assertEqual([(item.kind, item.topic) for item in events.events],
-                             [("telemetry", "thought.rejected")])
-            self.assertEqual(events.events[0].payload["error_type"], "IntegrationError")
-            self.assertEqual(len(list(module.runtime_root.rglob("integration-rejection-*.json"))), 2)
-            self.assertEqual(errors, [])
-
+    def test_integration_asks_again_until_the_proposal_is_valid(self):
+        # B07 Q2: a rejected integration is a model mistake. The integrate
+        # stage keeps correcting it without an attempt cap; it no longer gives
+        # up after two answers and drops the whole private cycle.
+        from workflows.inner_thought.stage_runner import build_inner_stage_runner
+        from workflows.inner_thought.schemas import IntegrationResult, ThoughtResult, TriggerChoice
+        wrong = '{"expectation": {"action": "resolve", "expectation_id": 999, "observation_ids": [5]}}'
+        completions = [wrong, wrong, wrong,
+                       '{"expectation": {"action": "none"}, "summary": "No outcome is observed yet."}']
+        run_stage = build_inner_stage_runner(small_ghost(), deterministic_llm(completions), ROOT)
+        payload = request().model_dump(mode="json")
+        payload.update(
+            thought=ThoughtResult(thought="I want to reread the draft.", reality="internal",
+                                  evidence_ids=[5]).model_dump(mode="json"),
+            trigger=TriggerChoice(operation="curiosity_spark", candidate_ids=[5],
+                                  reason="the quiet invites a plan").model_dump(mode="json"),
+            operation={"name": "curiosity_spark"})
+        report = IntegrationResult.model_validate(run_stage("integrate", payload))
+        self.assertEqual(completions, [])
+        self.assertEqual(report.expectation.action, "none")
 
 if __name__ == "__main__":
     unittest.main()
