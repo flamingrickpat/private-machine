@@ -24,12 +24,18 @@ from typing import TypeVar
 from pydantic import BaseModel, Field, JsonValue, ValidationError
 
 from pm.llm.activation import ModelActivation
+from pm.llm.http_client import ModelError
 from pm.llm.config import LlmPreset, load_config, resolve_connection
 from pm.llm.stage_model import LazyStageModel
 from pm.host.durable_files import atomic_json
 from simulation.plans import ScenarioPlan, ExtractedFacts, ActorTurn, ActorDraftReview, Fact, Step, StageJudgment
 from simulation.actors import ActorProfile, ConversationTurn, DeliveryEvidence
 from pm.llm.prompt_log import log_scope
+
+#: First delay before a failed scenario-agent completion is asked again, in seconds.
+AGENT_RETRY_DELAY_SECONDS = 30.0
+#: Longest delay between two attempts of one failed completion, in seconds.
+AGENT_RETRY_MAX_DELAY_SECONDS = 300.0
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -120,6 +126,10 @@ class Agents:
 
         ``schema`` is the accepted contract; an unparsable or invalid answer is
         retained as ``rejected`` and re-asked with the exact validation error.
+        A model failure after the client's transport retries (``ModelError``:
+        provider failure, filtered or cut-off completion, empty answer, HTTP
+        error) is retained as ``retrying`` and asked again without a cap, after
+        a delay that doubles up to ``AGENT_RETRY_MAX_DELAY_SECONDS``.
         ``prepare`` may pin fields the model must not choose.
         ``role`` and the generated call ID name the two prompt log scopes.
         Cancellation pauses the run through the model's own cancel path.
@@ -130,6 +140,7 @@ class Agents:
             " Return a JSON data instance matching the schema. Do not return the schema itself." + required},
                                      {"role": "user", "content": payload.model_dump_json()}]
         turns = original
+        failure_delay = AGENT_RETRY_DELAY_SECONDS
         while True:
             call_id = uuid4().hex
             request: dict[str, JsonValue] = {"role": role, "messages": [
@@ -150,6 +161,21 @@ class Agents:
             except CancelledError:
                 atomic_json(path, {"id": call_id, "status": "cancelled", "request": request, "output": output})
                 raise
+            except ModelError as error:
+                # The provider failed, filtered, cut off, or returned nothing
+                # after the client's own transport retries. That is outside
+                # our control: ask again with the same turns, without a cap,
+                # after a growing delay, until it works or the run is paused.
+                atomic_json(path, {"id": call_id, "status": "retrying", "request": request, "output": output,
+                                   "error": repr(error), "retry_after_seconds": failure_delay})
+                print(f"Scenario agent {role}: model failure, asking again in {failure_delay:.0f}s: {error!r}",
+                      flush=True)
+                if self.cancel is not None and self.cancel.wait(failure_delay):
+                    raise CancelledError() from error
+                if self.cancel is None:
+                    threading.Event().wait(failure_delay)
+                failure_delay = min(failure_delay * 2, AGENT_RETRY_MAX_DELAY_SECONDS)
+                continue
             except (JsonOutputError, ValidationError) as error:
                 atomic_json(path, {"id": call_id, "status": "rejected", "request": request,
                                    "output": output, "error": str(error)})
