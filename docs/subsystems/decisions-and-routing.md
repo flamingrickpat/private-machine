@@ -9,7 +9,8 @@ Main cognition decides in character and routes in a separate step (decision D28)
 3. The decide phase makes zero or one decision for each other group. A decision is a recommendation to the character, in the character's voice.
 4. The route phase maps each decision to an action type, a workflow, arguments, and a presentation. It holds all capability and workflow rules.
 5. A deterministic conflict check rejects a second action for one group and a second claim on one body lease.
-6. Each released action records the reaction that the companion expects. A later appraisal checks that expectation against new stimuli.
+6. Each released action records the reaction that the companion expects. A later appraisal checks that expectation against new observed stimuli, once per observation.
+7. Appraisal and goals also read an interval review: what the companion did since its last accepted cycle, under the goal versions that held then (see [interval review](cognition-state.md#interval-review)).
 
 The decision text goes to the target workflow unchanged. So the dialogue prompt reads the character's own choice as its intent.
 
@@ -137,13 +138,13 @@ So the next cycle puts the reply into the tail of the partner's shard ([`dialogu
 
 ## Expectations
 
-[`workflows.main_cognition.expectations`][] ports three old functions. The store holds the expectations as [`ExpectationRecord`][pm.records.cognitive_records.ExpectationRecord] records with the provenance reference `main_cognition`.
+[`workflows.main_cognition.expectations`][] ports three old functions. The store holds the expectations as [`ExpectationRecord`][pm.records.cognitive_records.ExpectationRecord] records. Main cognition records its own with the provenance reference `main_cognition`; the private loop records its own with `private_loop`. Main cognition checks both.
 
 ### Record
 
 For each released dispatch, one story-framed anticipation call writes between 1 and `EXPECTATION_COUNT` expected reactions ([`anticipate`][workflows.main_cognition.expectations.anticipate]).
 Each has a content, a wanted valence (-1..1), and an urgency.
-The commit stores each with the action id, the group's stimuli, and the entities whose reaction is expected ([`stage_expectations`][workflows.main_cognition.host.stage_expectations]).
+The commit stores each with the action id, the group's stimuli, the entities whose reaction is expected, and the intention versions that governed the action as `goal_ids` ([`stage_expectations`][workflows.main_cognition.host.stage_expectations]).
 
 A new expectation supersedes an open one when the cosine similarity of their embeddings is at least `EXPECTATION_SAME_SIMILARITY`.
 The old record gets the status `superseded` and the new record as its observation.
@@ -151,9 +152,17 @@ The old code tested `similarity < threshold` and so closed the unrelated expecta
 
 ### Check
 
-The host offers the newest `EXPECTATION_OPEN_LIMIT` pending expectations of main cognition (`CycleRequest.open_expectations`).
-The appraise phase selects the relevant ones ([`relevant_expectations`][workflows.main_cognition.expectations.relevant_expectations]): recency (`EXPECTATION_RELEVANCE_DECAY` per tick) and similarity to a stimulus, weighted by urgency and salience.
-One story-framed call rates each one for directness and fulfillment ([`check`][workflows.main_cognition.expectations.check]).
+**Implemented (B07), checked on a real store and in one real main turn.**
+The host offers the newest `EXPECTATION_OPEN_LIMIT` pending expectations of the real, in-world reality, whichever loop recorded them ([`offered_expectations`][workflows.main_cognition.expectations.offered_expectations]).
+An expectation in an imagined frame or another reality is not offered; one with an unknown producer raises.
+
+Two rules keep one observation from counting twice.
+
+- Only observed stimuli move an expectation ([`is_observed`][workflows.main_cognition.expectations.is_observed]): a person's message, the companion's delivered speech, a world observation, an executed runtime event, or a recorded internal state ([`OBSERVED_EVIDENCE_ROLES`][pm.memory.evidence.OBSERVED_EVIDENCE_ROLES]). A thought that restates an event, an interaction receipt, or a reconsideration marker moves nothing. The private store owner uses the same set.
+- Each record keeps the observations it was already rated against (`counted_observation_ids`). The check rates an expectation only against the observed stimuli not in that list ([`uncounted_stimuli`][workflows.main_cognition.expectations.uncounted_stimuli]), and an expectation with none is not checked. A Critical requeue, a wait flush, or a restart that presents the same record again therefore costs no call and moves nothing.
+
+The appraise phase selects the relevant ones ([`relevant_expectations`][workflows.main_cognition.expectations.relevant_expectations]): recency (`EXPECTATION_RELEVANCE_DECAY` per tick) and similarity to an uncounted observed stimulus, weighted by urgency and salience.
+Expectations with the same remaining stimuli share one story-framed call that rates each for directness and fulfillment ([`check`][workflows.main_cognition.expectations.check]); in the normal case that is one call.
 
 [`outcome_of`][workflows.main_cognition.expectations.outcome_of] then computes the outcome:
 
@@ -163,7 +172,9 @@ One story-framed call rates each one for directness and fulfillment ([`check`][w
 - The status is `supported` at a fulfillment of `EXPECTATION_SUPPORTED`, `contradicted` for a direct stimulus that scores at or below `EXPECTATION_CONTRADICTED`, and else `pending`.
 
 The appraisal prompt reads the outcomes in story words.
-The commit stores the new fulfillment, the status, and the check on each record ([`apply_expectation_outcomes`][workflows.main_cognition.host.apply_expectation_outcomes]). A concurrent change of a checked record aborts the cycle.
+The commit stores the new fulfillment, the status, the check, and the rated stimulus ids on each checked record, also when nothing moved ([`apply_expectation_outcomes`][workflows.main_cognition.host.apply_expectation_outcomes]). A concurrent change of a checked record aborts the cycle; the retried cycle reads fresh state, so an expectation the private loop resolved meanwhile is not offered again.
+
+One limit remains: a task event that is sent again arrives as a new record with the same meaning, so the counted list does not recognize it.
 
 ### In the CSM
 
@@ -179,7 +190,8 @@ Attention can then move it into a shard. The entity requirement `interpersonal_e
 
 ## Limits
 
-- The private loop keeps its own expectations. Main cognition does not check them.
+- Every checked expectation is replaced by a successor to record its count. Every pending expectation is a governing source of a private grant, so an active private inquiry is closed after such a check and its question returns to private attention (see [private loop](private-loop.md#a-changed-grant-source)).
+- In the B07 live gate the model moved an expectation from a real confirmation in three of three attempts, but completed the matching goal in none: it added a new goal instead.
 - `DECISION_VARIANTS` is 1. No selection among several variants exists yet.
 - A dispatch that depends on another dispatch of the same cycle is possible only across groups. The route answer has no `depends_on` field.
 

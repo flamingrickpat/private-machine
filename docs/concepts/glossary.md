@@ -234,6 +234,28 @@ A rename changes Python identifiers only.
 - Relations: a noticing step (`rumination_notice`, `attention_drift_notice`) reads these facts, keeps them on its record, and is delivered to main cognition while the episode continues. The `repeated_concern` trigger stays quiet for a source the noticing named while the noticing is in the window.
 - Boundary: the facts carry no cause and no judgment; the step's reading of why it returns to a source can be wrong.
 
+### interval review
+
+- Definition: the read-only view, built for each main cycle, of what the companion did since its last accepted cycle: each action with its delivery status, the intention versions that held when it was chosen and how those goals stand now, the expectations it opened, and the fast-path exchanges that set accepted guidance aside.
+- Owner: `workflows/main_cognition/interval_review.py`.
+- Relations: the appraise and goals phases read it. Its frontier is `CycleState.interval_reviewed_through`.
+- Not: a summary or a memory record. It writes nothing.
+
+### review frontier
+
+- Definition: the highest record id that the last accepted main cycle's interval review read (`CycleState.interval_reviewed_through`). The next review reads only higher ids.
+- Relations: an accepted cycle moves it; a refused cycle does not.
+
+### observed evidence
+
+- Definition: a record whose evidence role reports something that happened: a person's message, the companion's delivered speech, a world observation, an executed runtime event, or a recorded internal state (`pm.memory.evidence.OBSERVED_EVIDENCE_ROLES`).
+- Relations: only observed evidence moves or resolves an expectation, in both loops.
+- Not: a thought, an interpretation, an intent, a derived summary, or imagined content.
+
+### counted observation
+
+- Definition: an observed record that main cognition already rated against one expectation (`ExpectationRecord.counted_observation_ids`). The same observation never moves that expectation again.
+
 ### situational guidance
 
 - Definition: a read-only projection of relevant partner evidence, current purposes, capabilities, and previous moves for character decisions and speech.

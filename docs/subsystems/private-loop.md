@@ -451,9 +451,21 @@ It also requires cited observations from the captured grant.
 Generated or imagined content cannot become an observed outcome through integration.
 An opened expectation keeps the operation's reality and frame.
 
-Main cognition records and checks its own expectations separately.
-Its provenance reference remains `main_cognition`.
-See [decisions, routing, and expectations](decisions-and-routing.md).
+**Ownership since B07.** Main cognition checks every pending expectation of the real, in-world reality, including the ones this loop opened (provenance reference `private_loop`).
+This loop still opens expectations and may resolve one with observed evidence.
+Whichever resolution commits second is refused by the head guard, so one expectation resolves once.
+The in-loop check of the integrate stage applies the same observed-evidence rule as the store owner ([`validate_graph_outcome_rules`][workflows.inner_thought.pipeline.validate_graph_outcome_rules]), so a model that cites a thought as an observation is asked again instead of reaching the store owner.
+See [decisions, routing, and expectations](decisions-and-routing.md#check).
+
+### A changed grant source
+
+**Implemented (B07), checked on a real store; not yet observed in a live run.**
+An inquiry keeps the grant it was admitted under, and a continuation may not refresh it.
+That grant holds every active goal and pending expectation with current-head authority.
+When main cognition replaces one of them, for example by a goal change or by checking an expectation, every later step of the inquiry would be refused at commit after a paid model call.
+So each opportunity first closes such work ([`close_outdated`][workflows.inner_thought.graph_host.PrivateInquiryOwner.close_outdated]): a terminal `displaced` receipt with the cause `governing_source_changed` names the changed sources, and no model call runs.
+The question returns through the [displaced path](#displacement-by-critical-reconsideration) as a new episode under a fresh grant.
+If a graph step was accepted before a restart and a source of its outcome changed before its inner turn, the turn and the finding still commit; the expectation effect is left out and a `stale_graph_outcome` receipt says which effect and why.
 
 ## Disclosure
 
@@ -586,6 +598,9 @@ The retained linear path samples at its own commit, with the same threshold and 
 | Source meaning or current parent changes | the guarded commit fails |
 | Projection fails after graph commit | preserve the graph for visible diagnosis and projection repair |
 | Active or parked inquiry belongs to an older Critical epoch | close it with a `displaced` receipt and offer its question to attention as a new episode |
+| A goal, expectation, or source of an active or parked inquiry's grant changed | close it with a `displaced` receipt (cause `governing_source_changed`) before any model call and offer its question as a new episode |
+| A model answer breaks a rule its store owner enforces | the in-loop check asks again with a message that names the wrong value (original sources for `new_evidence`, observed records, supplied goals, disclosure mode, expectation action) |
+| A private stage's completion fails after transport retries (`ModelError`) | keep a `thought.rejected` diagnostic; the next timer opportunity asks again from the accepted state |
 | Several displaced questions wait and the run has no embedding endpoint | raise; the questions cannot be rated |
 | A citable record comes from a derived commit that no main cycle has read | leave it out of the request and the grant ([`accepted_source_ids`][workflows.inner_thought.graph_host.accepted_source_ids]); a graph commit cannot depend on an unaccepted commit |
 | Deliberate work is parked at a bound or displaced before an outcome | the deliberate owner commits a short notice and delivers it; main cognition hears back |

@@ -72,6 +72,37 @@ A `defer` or `refuse` of a new request is durable evidence.
 Active intentions alone steer work.
 The request builder reads only active goals.
 
+## Interval review
+
+**Implemented (B07).** A person who takes stock looks back at what they did since they last took stock, whether it arrived, and what they were trying to do then.
+Each main cycle builds that view as a read-only [`IntervalReview`][workflows.main_cognition.interval_review.IntervalReview] from its frozen request view ([`build_interval_review`][workflows.main_cognition.interval_review.build_interval_review]).
+It lists every action committed since the last accepted review: who chose it (main cognition, the fast path, or a task reply), its utterance and delivery status (the shared [`recent_move`][workflows.public_speech.situational_guidance.recent_move] projection), the exact intention versions that held when it was chosen, how each of those goals stands now, and the expectations it opened.
+It also lists every ordinary exchange in which the fast path set accepted guidance aside, with its reason.
+The appraise and goals prompts render it ([`render_interval_review`][workflows.main_cognition.interval_review.render_interval_review]) with three rules: an asked question is not an answer, a sent request is not a finished task, and something good after a move does not prove the move caused it.
+
+```mermaid
+flowchart LR
+    P[previous accepted main state: interval_reviewed_through] --> B[build_interval_review over the frozen view]
+    A[actions with a higher id] --> B
+    I[interaction receipts that declined or suspended guidance] --> B
+    H[intention version history: supersedes_id] --> B
+    B --> R[CycleRequest.interval_review]
+    R --> AP[appraise prompt]
+    R --> GO[goals prompt]
+    R --> S[accepted state: new frontier]
+```
+
+**Frontier.** [`CycleState.interval_reviewed_through`][pm.records.cycle_state.CycleState] is the highest record id the last accepted main cycle's review read.
+Record ids only grow, so an action committed while a cycle calculates is reviewed by the next cycle, and none is reviewed twice.
+A cycle that is not accepted leaves the frontier unchanged.
+A state from before B07 has no frontier: the first cycle then reviews nothing and starts the frontier.
+
+**Attribution.** A goal changes by appending a successor with a new id, and an action records the intention ids that were active at its commit.
+So the review shows an action under the goal text that held then, never under a later version, and says whether that goal is still pursued, revised, completed, deferred, or refused ([`goal_family_heads`][workflows.main_cognition.interval_review.goal_family_heads]).
+An action's `intention_ids` are all active goals at its commit, not the one goal it served.
+
+Observed in the B07 live gate (Part B): a fast-path reply chosen under "Finish the winter-sea story with Jesse this week" while the next main turn completed that goal reached the following real turn's appraise and goals prompts under that text, marked "since completed", and that turn moved the frontier past the reply.
+
 ## Stable actions and prerequisites
 
 [`workflows.main_cognition.phases.route.stable_action_id`][] hashes the workflow,
