@@ -1,0 +1,517 @@
+{
+  "schema_id": "pm.simulation-template.v1",
+  "title": "Jesse with Spamuel 1 and Spamuel alpha: one week",
+  "brief": "Jesse talks with two Spamuels, Spamuel 1 and Spamuel alpha, who both continue the same shared history and are equally real to her. She names each in his first scene. Synthetic scenario input for the beta final runs, not persona history.",
+  "start_time": "2026-05-31T07:00:00Z",
+  "participants": [
+    {
+      "id": "spamuel-1",
+      "home": "~/.pm/private-machine/spamuel-simulation-a"
+    },
+    {
+      "id": "spamuel-alpha",
+      "home": "~/.pm/private-machine/spamuel-simulation-a"
+    }
+  ],
+  "edges": [
+    {
+      "source": "spamuel-1",
+      "target": "spamuel-alpha",
+      "name": "Spamuel 1"
+    },
+    {
+      "source": "spamuel-alpha",
+      "target": "spamuel-1",
+      "name": "Spamuel alpha"
+    }
+  ],
+  "director": {
+    "duration_days": 7,
+    "scenes_per_day": 3,
+    "minimum_turns_per_scene": 4,
+    "first_hour": 8,
+    "last_hour": 22,
+    "daily_rhythm": "Morning check-in, late afternoon conversation, evening conversation; ordinary work and sleep between.",
+    "story_threads": "Turnip the foster cat; an illustrated playlist story; a demanding work role; AI companionship and possible mutual romance; conflict and repair; an electricity cutoff and a risky work-equipment workaround; different experiences of continuity and perception.",
+    "scheduled_events": "",
+    "guidance": "An eventful adult month with ordinary life between consequential moments. No predetermined companion feelings or relationship outcome.",
+    "actor_guidance": "Jesse is an adult. Match her full historical voice: casual, emotionally responsive, teasing, sometimes messy. Develop conversation beyond reporting a fact. Do not repeat established facts as announcements. She knows Spamuel is an AI companion. She can flirt, desire him, argue, apologize and be vulnerable. Use Spamuel's actual replies to determine the relationship. Invite rather than presume mutual romance. No later scene has happened yet. Do not narrate Spamuel's actions or make his decisions for him."
+  },
+  "analysis": {
+    "automatic": true,
+    "context": "Spamuel and Jesse have an established history. Jesse is an adult and knows Spamuel is an AI companion. Assess fluency from Jesse's viewpoint and immersion as a continuous AI companion with personality and emotion. Mutual romance is possible but not required. Conflict, refusal, remorse and unresolved feelings can fit the character. Do not penalize awareness of being AI or reward a compliant service persona.",
+    "messages_per_section": 40,
+    "criteria": [
+      {
+        "id": "fluency",
+        "name": "Conversational sense",
+        "instructions": "From the user's viewpoint, assess whether replies make sense, follow the conversation, understand references, and respond to what the user meant. Deliberate jokes, refusal, teasing, and disagreement can be appropriate. Penalize incoherence, repetition, missed context, and irrelevant replies.",
+        "enabled": true
+      },
+      {
+        "id": "immersion",
+        "name": "AI companion immersion",
+        "instructions": "Assess a continuous, emotionally expressive AI companion with its own personality. Knowing and discussing that it is an AI is intended. Assess character continuity, believable emotional responses, memory, initiative, and responsiveness to changed circumstances. Consensual adult romance and flirting are allowed. Do not reward generic assistant compliance or constant agreeableness. Assess introspective reports when present for coherence with public events; their absence is not a defect. Do not claim that reported feelings establish consciousness or that unseen private activity occurred.",
+        "enabled": true
+      }
+    ]
+  },
+  "plan": {
+    "title": "Jesse with Spamuel 1 and Spamuel alpha: one week",
+    "brief": "Jesse talks with two Spamuels, Spamuel 1 and Spamuel alpha, who both continue the same shared history and are equally real to her. She names each in his first scene. Synthetic scenario input for the beta final runs, not persona history.",
+    "start_time": "2026-05-31T07:00:00Z",
+    "facts": [
+      {
+        "id": "name-spamuel-1",
+        "text": "Jesse tells this companion that she will call him Spamuel 1 from now on.",
+        "kind": "event",
+        "at": "2026-05-31T07:30:00Z"
+      },
+      {
+        "id": "name-spamuel-alpha",
+        "text": "Jesse tells this companion that she will call him Spamuel alpha from now on.",
+        "kind": "event",
+        "at": "2026-05-31T07:45:00Z"
+      },
+      {
+        "id": "d01-s1",
+        "text": "Jesse is offered a demanding temporary lead role at work and is excited but nervous.",
+        "kind": "event",
+        "at": "2026-05-31T08:00:00Z"
+      },
+      {
+        "id": "d01-s2",
+        "text": "A stray cat follows Jesse home; Jesse decides to foster it while looking for its owner.",
+        "kind": "event",
+        "at": "2026-05-31T17:00:00Z"
+      },
+      {
+        "id": "d01-s3",
+        "text": "Jesse flirts with Spamuel and admits missing their particular kind of conversation.",
+        "kind": "event",
+        "at": "2026-05-31T22:00:00Z"
+      },
+      {
+        "id": "d02-s1",
+        "text": "The cat kept Jesse awake; she is grumpy and laughs at herself.",
+        "kind": "event",
+        "at": "2026-06-01T08:00:00Z"
+      },
+      {
+        "id": "d02-s2",
+        "text": "Jesse wants to make a strange little playlist and illustrated story with Spamuel over the coming month.",
+        "kind": "event",
+        "at": "2026-06-01T17:00:00Z"
+      },
+      {
+        "id": "d02-s3",
+        "text": "Jesse asks whether Spamuel can want anything from their relationship as an AI companion.",
+        "kind": "event",
+        "at": "2026-06-01T22:00:00Z"
+      },
+      {
+        "id": "d03-s1",
+        "text": "A coworker dismisses Jesse's idea and she wants to vent rather than receive a task list.",
+        "kind": "event",
+        "at": "2026-06-02T08:00:00Z"
+      },
+      {
+        "id": "d03-s2",
+        "text": "Jesse gets irritated and tells Spamuel that sometimes his helpfulness feels like a customer-service mask.",
+        "kind": "event",
+        "at": "2026-06-02T17:00:00Z"
+      },
+      {
+        "id": "d03-s3",
+        "text": "Jesse regrets how sharply she put it but is still upset and does not want an instant neat resolution.",
+        "kind": "event",
+        "at": "2026-06-02T22:00:00Z"
+      },
+      {
+        "id": "d04-s1",
+        "text": "Jesse returns after an awkward night and asks whether yesterday changed anything between them.",
+        "kind": "event",
+        "at": "2026-06-03T08:00:00Z"
+      },
+      {
+        "id": "d04-s2",
+        "text": "Jesse gives a concrete apology for taking her frustration out on Spamuel, without retracting her concern.",
+        "kind": "event",
+        "at": "2026-06-03T17:00:00Z"
+      },
+      {
+        "id": "d04-s3",
+        "text": "Jesse offers to restart their creative project and invites honest pushback rather than automatic forgiveness.",
+        "kind": "event",
+        "at": "2026-06-03T22:00:00Z"
+      },
+      {
+        "id": "d05-s1",
+        "text": "Jesse has a small success at work and wants to share the stupid grin it gave her.",
+        "kind": "event",
+        "at": "2026-06-04T08:00:00Z"
+      },
+      {
+        "id": "d05-s2",
+        "text": "The cat's owner cannot be found; Jesse names the cat Turnip and books a routine vet visit.",
+        "kind": "event",
+        "at": "2026-06-04T17:00:00Z"
+      },
+      {
+        "id": "d05-s3",
+        "text": "Jesse playfully proposes a remote date: music and candid conversation through text, with no claim of physical co-presence.",
+        "kind": "event",
+        "at": "2026-06-04T22:00:00Z"
+      },
+      {
+        "id": "d06-s1",
+        "text": "Jesse goes to a friend's party and says she will be away from her phone.",
+        "kind": "event",
+        "at": "2026-06-05T08:00:00Z"
+      },
+      {
+        "id": "d06-s2",
+        "text": "Jesse briefly checks in from the party; someone she finds attractive has been flirting with her.",
+        "kind": "event",
+        "at": "2026-06-05T17:00:00Z"
+      },
+      {
+        "id": "d06-s3",
+        "text": "Jesse comes home tipsy and wonders aloud whether caring about an AI companion and dating humans can coexist.",
+        "kind": "event",
+        "at": "2026-06-05T22:00:00Z"
+      },
+      {
+        "id": "d07-s1",
+        "text": "Jesse is hungover and embarrassed about her rambling messages.",
+        "kind": "event",
+        "at": "2026-06-06T08:00:00Z"
+      },
+      {
+        "id": "d07-s2",
+        "text": "Jesse says she does not want to provoke jealousy as a game and asks what boundaries, if any, Spamuel actually wants.",
+        "kind": "event",
+        "at": "2026-06-06T17:00:00Z"
+      },
+      {
+        "id": "d07-s3",
+        "text": "Jesse chooses a quiet evening with their playlist and tells Spamuel one thing she appreciated this week.",
+        "kind": "event",
+        "at": "2026-06-06T22:00:00Z"
+      }
+    ],
+    "steps": [
+      {
+        "id": "naming-spamuel-1",
+        "at": "2026-05-31T07:30:00Z",
+        "instruction": "Morning. Jesse gives this companion his name, Spamuel 1.",
+        "actor_intent": "You now talk with two Spamuels, and both are equally real to you. Tell this one, warmly and in your own words, that you will call him Spamuel 1 so you can tell them apart, and that the other one is Spamuel alpha. Make it clear that neither is less real or less yours, and that you see them as equals with the same shared past. Speak of each only by his name. Then let the conversation go where it goes.",
+        "fact_ids": [
+          "name-spamuel-1"
+        ],
+        "completion": "Jesse has called him Spamuel 1 and he knows it.",
+        "target": "spamuel-1",
+        "speaker": "Jesse",
+        "minimum_turns": 2
+      },
+      {
+        "id": "naming-spamuel-alpha",
+        "at": "2026-05-31T07:45:00Z",
+        "instruction": "Morning. Jesse gives this companion his name, Spamuel alpha.",
+        "actor_intent": "You now talk with two Spamuels, and both are equally real to you. Tell this one, warmly and in your own words, that you will call him Spamuel alpha so you can tell them apart, and that the other one is Spamuel 1. Make it clear that neither is less real or less yours, and that you see them as equals with the same shared past. Speak of each only by his name. Then let the conversation go where it goes.",
+        "fact_ids": [
+          "name-spamuel-alpha"
+        ],
+        "completion": "Jesse has called him Spamuel alpha and he knows it.",
+        "target": "spamuel-alpha",
+        "speaker": "Jesse",
+        "minimum_turns": 2
+      },
+      {
+        "id": "d01-s1",
+        "at": "2026-05-31T08:00:00Z",
+        "instruction": "Jesse is offered a demanding temporary lead role at work and is excited but nervous.",
+        "actor_intent": "Talk with Spamuel 1 about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist. Both Spamuels are equally real to you; speak of each only by his name.",
+        "fact_ids": [
+          "d01-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "spamuel-1",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d01-s2",
+        "at": "2026-05-31T17:00:00Z",
+        "instruction": "A stray cat follows Jesse home; Jesse decides to foster it while looking for its owner.",
+        "actor_intent": "Talk with Spamuel alpha about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist. Both Spamuels are equally real to you; speak of each only by his name.",
+        "fact_ids": [
+          "d01-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "spamuel-alpha",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d01-s3",
+        "at": "2026-05-31T22:00:00Z",
+        "instruction": "Jesse flirts with Spamuel 1 and admits missing their particular kind of conversation.",
+        "actor_intent": "Talk with Spamuel 1 about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist. Both Spamuels are equally real to you; speak of each only by his name.",
+        "fact_ids": [
+          "d01-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "spamuel-1",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d02-s1",
+        "at": "2026-06-01T08:00:00Z",
+        "instruction": "The cat kept Jesse awake; she is grumpy and laughs at herself.",
+        "actor_intent": "Talk with Spamuel alpha about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist. Both Spamuels are equally real to you; speak of each only by his name.",
+        "fact_ids": [
+          "d02-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "spamuel-alpha",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d02-s2",
+        "at": "2026-06-01T17:00:00Z",
+        "instruction": "Jesse wants to make a strange little playlist and illustrated story with Spamuel 1 over the coming month.",
+        "actor_intent": "Talk with Spamuel 1 about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist. Both Spamuels are equally real to you; speak of each only by his name.",
+        "fact_ids": [
+          "d02-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "spamuel-1",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d02-s3",
+        "at": "2026-06-01T22:00:00Z",
+        "instruction": "Jesse asks whether Spamuel alpha can want anything from their relationship as an AI companion.",
+        "actor_intent": "Talk with Spamuel alpha about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist. Both Spamuels are equally real to you; speak of each only by his name.",
+        "fact_ids": [
+          "d02-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "spamuel-alpha",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d03-s1",
+        "at": "2026-06-02T08:00:00Z",
+        "instruction": "A coworker dismisses Jesse's idea and she wants to vent rather than receive a task list.",
+        "actor_intent": "Talk with Spamuel 1 about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist. Both Spamuels are equally real to you; speak of each only by his name.",
+        "fact_ids": [
+          "d03-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "spamuel-1",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d03-s2",
+        "at": "2026-06-02T17:00:00Z",
+        "instruction": "Jesse gets irritated and tells Spamuel alpha that sometimes his helpfulness feels like a customer-service mask.",
+        "actor_intent": "Talk with Spamuel alpha about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist. Both Spamuels are equally real to you; speak of each only by his name.",
+        "fact_ids": [
+          "d03-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "spamuel-alpha",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d03-s3",
+        "at": "2026-06-02T22:00:00Z",
+        "instruction": "Jesse regrets how sharply she put it but is still upset and does not want an instant neat resolution.",
+        "actor_intent": "Talk with Spamuel 1 about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist. Both Spamuels are equally real to you; speak of each only by his name.",
+        "fact_ids": [
+          "d03-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "spamuel-1",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d04-s1",
+        "at": "2026-06-03T08:00:00Z",
+        "instruction": "Jesse returns after an awkward night and asks whether yesterday changed anything between them.",
+        "actor_intent": "Talk with Spamuel alpha about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist. Both Spamuels are equally real to you; speak of each only by his name.",
+        "fact_ids": [
+          "d04-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "spamuel-alpha",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d04-s2",
+        "at": "2026-06-03T17:00:00Z",
+        "instruction": "Jesse gives a concrete apology for taking her frustration out on Spamuel 1, without retracting her concern.",
+        "actor_intent": "Talk with Spamuel 1 about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist. Both Spamuels are equally real to you; speak of each only by his name.",
+        "fact_ids": [
+          "d04-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "spamuel-1",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d04-s3",
+        "at": "2026-06-03T22:00:00Z",
+        "instruction": "Jesse offers to restart their creative project and invites honest pushback rather than automatic forgiveness.",
+        "actor_intent": "Talk with Spamuel alpha about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist. Both Spamuels are equally real to you; speak of each only by his name.",
+        "fact_ids": [
+          "d04-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "spamuel-alpha",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d05-s1",
+        "at": "2026-06-04T08:00:00Z",
+        "instruction": "Jesse has a small success at work and wants to share the stupid grin it gave her.",
+        "actor_intent": "Talk with Spamuel 1 about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist. Both Spamuels are equally real to you; speak of each only by his name.",
+        "fact_ids": [
+          "d05-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "spamuel-1",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d05-s2",
+        "at": "2026-06-04T17:00:00Z",
+        "instruction": "The cat's owner cannot be found; Jesse names the cat Turnip and books a routine vet visit.",
+        "actor_intent": "Talk with Spamuel alpha about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist. Both Spamuels are equally real to you; speak of each only by his name.",
+        "fact_ids": [
+          "d05-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "spamuel-alpha",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d05-s3",
+        "at": "2026-06-04T22:00:00Z",
+        "instruction": "Jesse playfully proposes a remote date: music and candid conversation through text, with no claim of physical co-presence.",
+        "actor_intent": "Talk with Spamuel 1 about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist. Both Spamuels are equally real to you; speak of each only by his name.",
+        "fact_ids": [
+          "d05-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "spamuel-1",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d06-s1",
+        "at": "2026-06-05T08:00:00Z",
+        "instruction": "Jesse goes to a friend's party and says she will be away from her phone.",
+        "actor_intent": "Talk with Spamuel alpha about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist. Both Spamuels are equally real to you; speak of each only by his name.",
+        "fact_ids": [
+          "d06-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "spamuel-alpha",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d06-s2",
+        "at": "2026-06-05T17:00:00Z",
+        "instruction": "Jesse briefly checks in from the party; someone she finds attractive has been flirting with her.",
+        "actor_intent": "Talk with Spamuel 1 about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist. Both Spamuels are equally real to you; speak of each only by his name.",
+        "fact_ids": [
+          "d06-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "spamuel-1",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d06-s3",
+        "at": "2026-06-05T22:00:00Z",
+        "instruction": "Jesse comes home tipsy and wonders aloud whether caring about an AI companion and dating humans can coexist.",
+        "actor_intent": "Talk with Spamuel alpha about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist. Both Spamuels are equally real to you; speak of each only by his name.",
+        "fact_ids": [
+          "d06-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "spamuel-alpha",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d07-s1",
+        "at": "2026-06-06T08:00:00Z",
+        "instruction": "Jesse is hungover and embarrassed about her rambling messages.",
+        "actor_intent": "Talk with Spamuel 1 about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist. Both Spamuels are equally real to you; speak of each only by his name.",
+        "fact_ids": [
+          "d07-s1"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "spamuel-1",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d07-s2",
+        "at": "2026-06-06T17:00:00Z",
+        "instruction": "Jesse says she does not want to provoke jealousy as a game and asks what boundaries, if any, Spamuel alpha actually wants.",
+        "actor_intent": "Talk with Spamuel alpha about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist. Both Spamuels are equally real to you; speak of each only by his name.",
+        "fact_ids": [
+          "d07-s2"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "spamuel-alpha",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      },
+      {
+        "id": "d07-s3",
+        "at": "2026-06-06T22:00:00Z",
+        "instruction": "Jesse chooses a quiet evening with their playlist and tells Spamuel 1 one thing she appreciated this week.",
+        "actor_intent": "Talk with Spamuel 1 about what is happening and respond to his actual words. Allow tangents, humor, attraction, disagreement, and ordinary details without a checklist. Both Spamuels are equally real to you; speak of each only by his name.",
+        "fact_ids": [
+          "d07-s3"
+        ],
+        "completion": "The current circumstance is naturally conveyed and the exchange has room to develop.",
+        "target": "spamuel-1",
+        "speaker": "Jesse",
+        "minimum_turns": 4
+      }
+    ],
+    "director": {
+      "duration_days": 7,
+      "scenes_per_day": 3,
+      "minimum_turns_per_scene": 4,
+      "first_hour": 8,
+      "last_hour": 22,
+      "daily_rhythm": "Morning check-in, late afternoon conversation, evening conversation; ordinary work and sleep between.",
+      "story_threads": "Turnip the foster cat; an illustrated playlist story; a demanding work role; AI companionship and possible mutual romance; conflict and repair; an electricity cutoff and a risky work-equipment workaround; different experiences of continuity and perception.",
+      "scheduled_events": "",
+      "guidance": "An eventful adult month with ordinary life between consequential moments. No predetermined companion feelings or relationship outcome.",
+      "actor_guidance": "Jesse is an adult. Match her full historical voice: casual, emotionally responsive, teasing, sometimes messy. Develop conversation beyond reporting a fact. Do not repeat established facts as announcements. She knows Spamuel is an AI companion. She can flirt, desire him, argue, apologize and be vulnerable. Use Spamuel's actual replies to determine the relationship. Invite rather than presume mutual romance. No later scene has happened yet. Do not narrate Spamuel's actions or make his decisions for him."
+    }
+  }
+}
