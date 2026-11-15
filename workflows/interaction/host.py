@@ -44,7 +44,8 @@ from pm.runs.workflow_module import CognitiveWorkflow
 from workflows.input_triage.host import build_input_request
 from workflows.input_triage.schemas import InputSourcePayload
 from workflows.interaction.records import interaction_owned_sources, interaction_receipts
-from workflows.interaction.schemas import GuidanceDisposition, InteractionMetadata, InteractionOutcome, InteractionReceipt, InteractionRequest
+from workflows.interaction.schemas import InteractionMetadata, InteractionOutcome, InteractionReceipt, InteractionRequest
+from workflows.public_speech.situational_guidance import GuidanceDisposition
 from workflows.interaction.steps import prepare_work
 from workflows.main_cognition.action_request import partner_key, request_shards
 from workflows.main_cognition.cycle_commits import active_intentions

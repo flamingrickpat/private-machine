@@ -50,6 +50,7 @@ from workflows.main_cognition import expectations
 from workflows.main_cognition.affect import appraise_state, describe_mental_state, regulation_mode
 from workflows.main_cognition.csm_view import Embedder
 from workflows.main_cognition.cycle_work import CycleWork, primary_group
+from workflows.main_cognition.interval_review import render_interval_review
 from workflows.main_cognition.model_json import PhasePrompts
 from workflows.main_cognition.phases.model import complete, phase_prompts
 from workflows.main_cognition.schemas import AppraisalAffect, AppraisalResult, ExpectationOutcome
@@ -74,7 +75,11 @@ def render_triage(work: CycleWork) -> str:
 def build_messages(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix) -> list[Turn]:
     """Return the shared story prefix and then the appraisal instruction as the last turn."""
     request = work.request
+    review = request.interval_review
+    if review is None:
+        raise ValueError("The appraise phase requires the cycle's interval review.")
     user = format_content(prefix.fill(prompts.user_template),
+        interval_review=render_interval_review(review, companion_name=request.companion_name),
         state_summary=work.state_summary or "(no feeling recorded yet)",
         active_goals="; ".join(request.active_goals) or "(nothing in particular)",
         triage=render_triage(work),

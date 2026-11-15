@@ -5,6 +5,8 @@
 # how the new events land for the character. The axis names drive the
 # mental state through fixed Python math, so they must be exact. The
 # expectation outcomes come from the expectation check of the same phase.
+# The interval review (B07) lists what the character did since the last
+# accepted cycle, under the goal versions that held then.
 user_template: |
   The new events of this moment, with their triage:
   {triage}
@@ -14,6 +16,13 @@ user_template: |
 
   What {companion_name} expected, and how the new events turned out against it:
   {expectations}
+
+  What {companion_name} did since last taking stock, each move with the goal that held when it was chosen:
+  {interval_review}
+
+  Three things hold when you judge those moves. A question that {companion_name} asked is not yet an answer. A
+  request that {companion_name} sent is not yet a finished task. Something good that came after a move does not
+  prove that the move caused it.
 
   Your task: act as the appraisal mechanism of {companion_name}'s mind. Judge how these events land for
   {companion_name} right now, through {companion_name}'s character, history, and mood, not through a neutral or polite

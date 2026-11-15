@@ -26,6 +26,7 @@ from pm.records.enums import EntityClass
 from pm.records.global_workspace import GwtTurnRecord
 from pm.records.memory_records import ActionSchemaRecord, Entity
 from pm.records.workspace import ShardKey
+from workflows.main_cognition.interval_review import build_interval_review
 from workflows.cognitive_control.host import CognitiveControl
 from workflows.entity_context.owner import EntityContextOwner, active_claims
 from workflows.entity_context.schemas import EntityClaimDraft, EntityExtractionDraft, InteractionClaim
@@ -136,7 +137,8 @@ class MainAndReselectTests(unittest.TestCase):
             stimuli=[Stimulus(knoxel_id=source_id, source="user_input", text=source.content,
                               correlation_id=envelope.correlation_id, entity_id=self.partner_id)],
             records={source_id: record_view(source)}, situational_guidance=[build_situational_guidance(view,
-                as_of_utc=vclock.utcnow(), companion_name="Spamuel", user_name="Jesse")])
+                as_of_utc=vclock.utcnow(), companion_name="Spamuel", user_name="Jesse")],
+            interval_review=build_interval_review(view, after_record_id=None))
         work = CycleWork(request=request, state=state)
         work.affect.felt = "The report matters."
         work.experience.text = "The character considers the new report."

@@ -62,6 +62,7 @@ from workflows.main_cognition.schemas import (
     WorkflowOption,
 )
 from workflows.public_speech.public_context import PublicContext
+from workflows.main_cognition.interval_review import IntervalReview
 from workflows.public_speech.situational_guidance import SituationalGuidance
 
 #: Path of the shared phase state in the working target.
@@ -139,6 +140,11 @@ class CycleRequest(BaseModel):
     #: Stimuli that report an observed event. A thought, a reconsideration
     #: marker, or another derived stimulus is left out and moves no expectation.
     observed_stimulus_ids: list[int] = Field(default_factory=list)
+    #: What the companion did since the last accepted review. The main host
+    #: always sets it; None only in a request that never reaches the appraise
+    #: or goals phase (grouping helpers, triage, the interaction fast path),
+    #: and those phases raise when it is missing.
+    interval_review: IntervalReview | None = None
     active_focus: FocusState | None = None
     focus_proposals: list[FocusProposalRef] = Field(default_factory=list)
     mental_proposals: list[MentalProposal] = Field(default_factory=list)

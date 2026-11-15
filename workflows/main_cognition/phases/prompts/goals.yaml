@@ -4,7 +4,8 @@
 # already shows the workspace shards that attention updated, the subjective
 # experience in the self tail, and the new events. The instruction comes
 # last. Goals is the unconscious mechanism that decides what the character
-# wants to pursue. No capability or routing rules belong here.
+# wants to pursue. No capability or routing rules belong here. The interval
+# review (B07) shows what the character did under which goal version.
 user_template: |
   {companion_name} feels: {affect}
   {companion_name} is {regulation_words}.
@@ -24,6 +25,9 @@ user_template: |
   {deliberate_proposals}
 
   How earlier tasks ended, from their receipts: {managed_runs}
+
+  What {companion_name} did since last taking stock, each move with the goal that held when it was chosen:
+  {interval_review}
 
   Your task: act as the goal mechanism of {companion_name}'s mind. Decide what {companion_name} now wants to pursue,
   from {companion_name}'s character, feelings, and relationships, not from politeness. Anger, resentment, jealousy,
@@ -46,6 +50,9 @@ user_template: |
     reprioritize it. Use at most one change for each goal.
   - A goal or a shared plan is not a finished result. Close a task goal only from a receipt that shows the result.
     A remembered request does not revive a completed goal.
+  - A question that {companion_name} asked is not an answer, and a request that {companion_name} sent is not a
+    finished task. Neither completes a goal. Something good that came after a move does not prove that the move
+    caused it.
   - A finished one-turn request is not a lasting goal. A lasting preference needs a source that states one.
   - A concrete request in a game can be refused before it becomes work: use "refuse". A spoken refusal alone is not a
     lasting goal decision.

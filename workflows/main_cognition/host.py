@@ -122,6 +122,7 @@ from workflows.entity_context.projection import EntityContextChanged, project_en
 from workflows.entity_context.schemas import EntityProjectionQuery, EntityUpdateResult
 from workflows.main_cognition.expectations import SOURCE_REF as EXPECTATION_SOURCE
 from workflows.main_cognition.expectations import is_observed, offered_expectations
+from workflows.main_cognition.interval_review import build_interval_review
 from workflows.main_cognition.model_json import ModelFormatError
 from workflows.main_cognition.phases.codelets import RECOMMENDATION
 from workflows.main_cognition.phases.intake import group_key
@@ -680,6 +681,11 @@ class MainCogLoop(CognitiveWorkflow):
                          if stimulus.entity_id == entity_id) or (RecordScope(),))
             for entity_id in guidance_partners]
         open_expectations = self._open_expectations(memory_view)
+        # The previous accepted main state holds the review frontier. A cycle
+        # that is not accepted leaves it unchanged, so the next one re-reads
+        # the same interval.
+        interval_review = build_interval_review(memory_view,
+            after_record_id=previous.interval_reviewed_through if previous is not None else None)
         observed_stimulus_ids = self._observed_stimulus_ids(memory_view, stimuli, sources)
         narrative_ids = self._narrative_ids(memory_view, [*([self_entity_id] if self_entity_id else []),
                                                           *group_entities])
@@ -763,6 +769,7 @@ class MainCogLoop(CognitiveWorkflow):
             streams=streams,
             open_expectations=open_expectations,
             observed_stimulus_ids=observed_stimulus_ids,
+            interval_review=interval_review,
         )
         return request.model_dump(mode="json")
 
@@ -1470,6 +1477,11 @@ class MainCogLoop(CognitiveWorkflow):
         state.tick_id = tick
         state.timestamp = vclock.utcnow()
         state.control_generation = self._control_generation
+        review = work.request.interval_review
+        if review is None:
+            raise ValueError("An accepted main cycle requires the interval review it was built with.")
+        # The next accepted cycle reviews only what came after this view.
+        state.interval_reviewed_through = review.through_record_id
         state.dispatches = [ActionDispatchRef(
             action_id=created_id, group=dispatch.group, correlation_id=dispatch.correlation_id,
             workflow=dispatch.workflow_name, action_type=dispatch.action_type,

@@ -12,8 +12,9 @@ from pm.records.copying import pickle_copy
 from pm.records.cycle_records import ActionDecision
 from pm.utils import yaml_util
 from workflows.interaction.schemas import (
-    GuidanceDisposition, InteractionDecision, InteractionOutcome, InteractionReceipt, InteractionRequest,
+    InteractionDecision, InteractionOutcome, InteractionReceipt, InteractionRequest,
 )
+from workflows.public_speech.situational_guidance import GuidanceDisposition
 from workflows.main_cognition.affect import describe_mental_state, regulation_mode
 from workflows.main_cognition.cycle_work import CycleWork
 from workflows.main_cognition.model_json import write_report

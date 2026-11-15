@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import datetime
+from enum import StrEnum
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -28,6 +29,18 @@ from pm.constants import WORKSPACE_TAIL_TOKENS
 from workflows.entity_context.schemas import EntityContextKey, EntityContextView, EntityProjectionQuery
 from workflows.entity_context.projection import project_entity_context, render_entity_context
 from workflows.entity_context.owner import active_claims
+
+
+class GuidanceDisposition(StrEnum):
+    """How one ordinary exchange uses the accepted direction, without revising it.
+
+    The interaction workflow records it on each local selection; main
+    cognition's interval review reads the ones that set the direction aside.
+    """
+
+    Follow = "follow"
+    Decline = "decline"
+    Suspend = "suspend"
 
 
 class SituationSource(BaseModel):
@@ -219,28 +232,40 @@ def build_situational_guidance(view: Snapshot, *, as_of_utc: datetime, companion
         if action_partner == target_id:
             actions.append(record)
     actions.sort(key=lambda record: (record.timestamp_world_begin, record.id))
-    moves: list[RecentMove] = []
-    for action in actions[-4:]:
-        metadata = _MoveMetadata.model_validate(action.metadata)
-        utterance: SituationSource | None = None
-        status: Literal["unknown", "selected", "committed", "delivered", "failed"] = "unknown"
-        if metadata.dispatch_status in {"pending", "admitted"} or action.status == ActionSchemaStatus.Selected:
-            status = "selected"
-        if metadata.execution_status in {"failed", "cancelled", "rejected"}:
-            status = "failed"
-        if metadata.public_reply_id is not None:
-            reply = view.get(metadata.public_reply_id)
-            if not isinstance(reply, Feature) or reply.feature_type != FeatureType.Dialogue:
-                raise TypeError(f"Action {action.id} public reply is not dialogue.")
-            if reply.scope not in scopes or reply.interlocus != InterlocusType.Public:
-                raise ValueError(f"Action {action.id} public reply contradicts its interaction scope.")
-            utterance = _source(view, reply)
-            delivery = _MoveMetadata.model_validate(reply.metadata)
-            status = "delivered" if delivery.publication_status == "published" else "committed"
-        moves.append(RecentMove(action=_source(view, action), utterance=utterance, status=status))
+    moves = [recent_move(view, action, scopes=scopes) for action in actions[-4:]]
     return SituationalGuidance(as_of_utc=as_of_utc, companion_name=companion_name,
         supported_capabilities=list(supported_capabilities), partner=partner,
         intentions=[_source(view, record) for record in intentions[:8]], recent_moves=moves)
+
+
+def recent_move(view: Snapshot, action: ActionSchemaRecord, *, scopes: Sequence[RecordScope]) -> RecentMove:
+    """Project one selected action with its actual utterance and delivery status.
+
+    ``selected`` means admitted for dispatch, ``failed`` means its execution
+    failed, was cancelled, or was rejected, ``committed`` means a reply was
+    committed but not yet published, and ``delivered`` means it was published.
+    ``scopes`` are the interaction scopes the reply must lie in; a reply outside
+    them, or one that is not public dialogue, is a broken record and raises.
+    The situational guidance and main cognition's interval review both read
+    actions through this one projection.
+    """
+    metadata = _MoveMetadata.model_validate(action.metadata)
+    utterance: SituationSource | None = None
+    status: Literal["unknown", "selected", "committed", "delivered", "failed"] = "unknown"
+    if metadata.dispatch_status in {"pending", "admitted"} or action.status == ActionSchemaStatus.Selected:
+        status = "selected"
+    if metadata.execution_status in {"failed", "cancelled", "rejected"}:
+        status = "failed"
+    if metadata.public_reply_id is not None:
+        reply = view.get(metadata.public_reply_id)
+        if not isinstance(reply, Feature) or reply.feature_type != FeatureType.Dialogue:
+            raise TypeError(f"Action {action.id} public reply is not dialogue.")
+        if reply.scope not in scopes or reply.interlocus != InterlocusType.Public:
+            raise ValueError(f"Action {action.id} public reply contradicts its interaction scope.")
+        utterance = _source(view, reply)
+        delivery = _MoveMetadata.model_validate(reply.metadata)
+        status = "delivered" if delivery.publication_status == "published" else "committed"
+    return RecentMove(action=_source(view, action), utterance=utterance, status=status)
 
 
 def _render_source(source: SituationSource) -> str:

@@ -26,6 +26,11 @@ from pm.records.situational_model import SituationalModel
 from pm.records.workspace import GlobalWorkspace
 
 
+def _unset(value: object) -> bool:
+    """Return True for an optional field that a state from before its introduction never carried."""
+    return value is None
+
+
 class CycleState(BaseModel):
     """The typed state of one accepted cycle.
 
@@ -59,6 +64,11 @@ class CycleState(BaseModel):
 
     control_generation: int = Field(default=0, description="Cognitive control generation that admitted this cycle. It survives restarts.")
     qualia_channels: dict[str, QualeChannelState] = Field(default_factory=dict, description="Qualia channel states of a private cycle, keyed by channel id.")
+    interval_reviewed_through: int | None = Field(default=None, exclude_if=_unset,
+        description="Highest record id that this main cycle's interval review read: the next main cycle reviews "
+                    "only actions and guidance receipts with a higher id. None means no accepted main cycle recorded "
+                    "a review (a state from before B07, or a private cycle). Absent from the serialized state while "
+                    "unset, so older checkpoints load and save unchanged.")
 
     def claimed_ids(self) -> list[int]:
         """Return the ids of the stimuli that this cycle claimed, in group order."""

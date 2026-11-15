@@ -38,7 +38,8 @@
     "workflows/inner_thought/stages/reflection/steps.py",
     "workflows/main_cognition/model_json.py",
     "pm/memory/evidence.py",
-    "pm/memory/store_tools.py"
+    "pm/memory/store_tools.py",
+    "workflows/main_cognition/interval_review.py"
   ],
   "typeCheckingMode": "strict",
   "pythonVersion": "3.12",

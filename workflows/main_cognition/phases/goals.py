@@ -19,6 +19,7 @@ from pm.context_render import render_context
 from pm.context_render.turns import Turn, format_content
 
 from workflows.main_cognition.cycle_work import CycleWork
+from workflows.main_cognition.interval_review import render_interval_review
 from workflows.main_cognition.model_json import PhasePrompts
 from workflows.main_cognition.phases.model import complete, phase_prompts
 from workflows.main_cognition.schemas import GoalsResult, MentalProposal
@@ -60,7 +61,11 @@ def render_goals(goals: list[str]) -> str:
 def build_messages(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix) -> list[Turn]:
     """Return the shared story prefix and then the goal instruction as the last turn."""
     request = work.request
+    review = request.interval_review
+    if review is None:
+        raise ValueError("The goals phase requires the cycle's interval review.")
     user = format_content(prefix.fill(prompts.user_template),
+        interval_review=render_interval_review(review, companion_name=request.companion_name),
         affect=work.affect.felt or work.state_summary or "(no feeling recorded)",
         regulation_words=prompts.regulation_words[work.affect.regulation],
         current_goals=render_goals(request.active_goals),

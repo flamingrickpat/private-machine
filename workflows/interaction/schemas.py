@@ -12,14 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from workflows.main_cognition.cycle_work import CycleRequest
 from workflows.main_cognition.schemas import ActionDispatch, ActionRequest, DecisionAnswer, RouteChoice
 from workflows.public_speech.dependencies import WorkDependencies
-
-
-class GuidanceDisposition(StrEnum):
-    """How this exchange uses the accepted direction, without revising it."""
-
-    Follow = "follow"
-    Decline = "decline"
-    Suspend = "suspend"
+from workflows.public_speech.situational_guidance import GuidanceDisposition
 
 
 class InteractionOutcome(StrEnum):
