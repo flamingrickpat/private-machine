@@ -101,6 +101,15 @@ They exclude narrator lines, stage directions, and raw thought transcripts.
 The companion can disagree, refuse, tease, express affection, or choose privacy.
 The prompts do not require a repeated disclaimer about the companion's nature.
 
+## Complete prompt fitting
+
+Generation and review use the serving-window input budget.
+Optional retrieval and older dialogue use the shared 40% recency, 40% salience, and 20% randomness ranking.
+The current message, newest four dialogue lines, required purpose, and mandatory evidence remain intact.
+The review retains every evidence record supplied to the generated reply, including its supplied source support.
+Correction requests can displace optional conversation history; they do not erase the review's factual evidence.
+Original dialogue and full source records remain in the Ghost.
+
 ## Domain capabilities and private ontology
 
 [`workflows.minecraft_body.capabilities.capability_snapshot`][] reads configured workflows and current Minecraft transport availability.

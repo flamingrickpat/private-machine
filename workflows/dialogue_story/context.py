@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING, Any
 
 from pm.memory.embeddings import EmbeddingService
 from pm.memory.retrieval import distinctive_terms
-from pm.context_render.budget import ContextGroup, PromptSelection, TokenEstimator, select_rendered_context
+from pm.context_render.budget import ContextGroup, PromptSelection, TokenEstimator, context_recency, select_rendered_context
 from pm.context_render.turns import Content, Turn
 
 from workflows.dialogue_story.schemas import DialogueTurn, StoryPrompts, StoryRequest
@@ -67,7 +67,8 @@ def select_story_prompt(
     optional = [item for item in evidence if item.knoxel_id != 0 and item.lane in retrieval_lanes]
     optional_ids = {item.knoxel_id for item in optional}
     required_ids = {item.knoxel_id for item in evidence if item.knoxel_id not in optional_ids}
-    required_ids.update(turn.knoxel_id for turn in request.prior_dialogue if turn.knoxel_id is not None)
+    required_ids.update(request.required_evidence_ids)
+    required_ids.update(turn.knoxel_id for turn in request.prior_dialogue[-4:] if turn.knoxel_id is not None)
     if request.current_message_id is not None:
         required_ids.add(request.current_message_id)
     pending_required = [record_id for record_id in required_ids if record_id in by_id]
@@ -91,18 +92,29 @@ def select_story_prompt(
                     support_ids.add(source_id)
                     pending.append(source_id)
         groups.append(ContextGroup(name=f"memory:{item.knoxel_id}", content=Content(item.text),
-                                   salience=item.score, source_ids=tuple(sorted(support_ids))))
+                                   salience=item.score, source_ids=tuple(sorted(support_ids)),
+                                   recency=context_recency(item.timestamp)))
+    for index, turn in enumerate(request.prior_dialogue[:-4]):
+        if turn.knoxel_id in required_ids:
+            continue
+        groups.append(ContextGroup(name=f"dialogue:{index}", content=Content(turn.text), salience=0,
+                                   source_ids=(turn.knoxel_id,) if turn.knoxel_id is not None else (),
+                                   recency=context_recency(turn.timestamp)))
 
     def selected_request(chosen: Sequence[ContextGroup]) -> StoryRequest:
-        if context is None:
-            return request
         selected_ids: set[int] = set()
         for group in chosen:
             selected_ids.update(group.source_ids)
-        selected_evidence = [item for item in evidence
-                             if item.knoxel_id not in optional_ids or item.knoxel_id in selected_ids]
-        selected_context = context.model_copy(update={"evidence": selected_evidence})
-        return request.model_copy(update={"public_context": selected_context})
+        selected_names = {group.name for group in chosen}
+        dialogue = [turn for index, turn in enumerate(request.prior_dialogue)
+                    if index >= len(request.prior_dialogue) - 4 or f"dialogue:{index}" in selected_names
+                    or turn.knoxel_id in selected_ids]
+        selected_context = context
+        if context is not None:
+            selected_evidence = [item for item in evidence
+                                 if item.knoxel_id not in optional_ids or item.knoxel_id in selected_ids]
+            selected_context = context.model_copy(update={"evidence": selected_evidence})
+        return request.model_copy(update={"public_context": selected_context, "prior_dialogue": dialogue})
 
     def assemble(chosen: Sequence[ContextGroup], omitted: Sequence[str]) -> Sequence[Turn]:
         selected = selected_request(chosen)

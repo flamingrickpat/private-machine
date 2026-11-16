@@ -1,4 +1,11 @@
-"""Render typed context as composable text and media for model turns."""
+"""Render typed context as composable text and media for model turns.
+
+Type owners supply source projections and relevance signals. Content preserves
+optional record annotations until budget.fit_turns selects a complete prompt.
+budget.batch_prompt keeps every independent task under one shared context.
+Both return selection receipts and leave original records unchanged. Provider
+encoding belongs to pm.llm.prompt_encoding; this package performs no model I/O.
+"""
 from __future__ import annotations
 
 from pm.records.copying import pickle_copy

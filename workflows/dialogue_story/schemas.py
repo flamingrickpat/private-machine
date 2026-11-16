@@ -87,6 +87,7 @@ class StoryRequest(BaseModel):
     selected_action: str = ""
     public_context: PublicContext | None = None
     input_budget_tokens: int | None = Field(default=None, gt=0, description="Conservative ceiling for the complete rendered prompt, when supplied by the runtime.")
+    required_evidence_ids: tuple[int, ...] = Field(default=(), description="Evidence the reviewer must retain because it was supplied to speech generation.")
 
 
 class OntologyViolation(BaseModel):

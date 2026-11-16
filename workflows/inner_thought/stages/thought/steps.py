@@ -9,6 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 import json
 from workflows.inner_thought.rendering import candidates as render_candidates, inspection as render_inspection, sources as render_sources
+from workflows.inner_thought.rendering import request_content
 
 from pm.constants import Sampler
 from pm_workflows.python_role import RoleContext
@@ -72,9 +73,11 @@ def run(context: RoleContext) -> dict[str, str]:
         # is a fact for the in-loop check only, so no prompt byte changes.
         graph_messages = [Turn(Role.System, graph_thought_instruction(parsed_graph)),
                           Turn(Role.User, parsed_graph.model_dump_json(
-                                   exclude={"reflection_evidence", "inspection_evidence",
+                                   exclude={"request", "reflection_evidence", "inspection_evidence",
                                             "perspective_evidence", "activity_evidence",
                                             "original_source_ids"}) +
+                               "\nFrozen request:\n" + request_content(parsed_graph.request,
+                                   frozenset(parsed_graph.state.root_source_ids)) +
                                "\nReturn only an object conforming to this output schema. "
                                "Do not echo the input envelope or add run_id/stage_kind:\n" +
                                json.dumps(InquiryStep.model_json_schema(), ensure_ascii=False))]

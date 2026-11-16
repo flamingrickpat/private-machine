@@ -3,6 +3,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping, Sequence
+from pydantic import JsonValue
+from pm.context_render.turns import Content, ContextTag, Text
+from pm.context_render.budget import optional_content
+from pm.llm.contracts import ContextMeasurement
+from pm.llm.prompt_encoding import TurnInput
+from pm.llm.prompt_fitting import fit_measured_prompt
 
 from pm_workflows.python_role import RoleContext
 from pydantic import BaseModel
@@ -16,6 +23,19 @@ from workflows.minecraft_project.schemas import Node, TaskTree
 from workflows.minecraft_project.tree_store import TreeStore, digest
 from workflows.minecraft_project.evidence_selection import catalog, read_source
 from workflows.minecraft_project.planning.run_context import Decision, RESOURCES
+
+
+def render_decision_context(payload: Mapping[str, JsonValue]) -> Content:
+    """Select recoverable archived history while retaining task and fresh world evidence."""
+    profile = RESOURCES / "llm_context.json"
+    history_fields = ("gameplay_history", "previous_site_survey")
+    required = {key: value for key, value in payload.items() if key not in history_fields}
+    result = render_context(required, schema_path=profile)
+    for key in history_fields:
+        if key in payload:
+            result += "\n" + optional_content(render_context({key: payload[key]}, schema_path=profile),
+                ContextTag("project-history:" + key, 0))
+    return result
 
 
 def decision_schema(contract: type[BaseModel]) -> dict:
@@ -104,7 +124,7 @@ def reason_once(context: RoleContext, store: TreeStore, role: str, contract: typ
               "After retrieval, return your final decision with evidence_requests empty."
               + "\nThe response_format defines the output schema.")
     messages = [Turn(Role.System, system),
-                Turn(Role.User, render_context(payload, schema_path=RESOURCES / "llm_context.json"))]
+                Turn(Role.User, render_decision_context(payload))]
     generation = {"enable_thinking": False, "temperature": Sampler.TempInstruct,
                   "response_format": {"type": "json_schema", "json_schema": {
                       "name": contract.__name__, "strict": True, "schema": schema}}}
@@ -116,11 +136,20 @@ def reason_once(context: RoleContext, store: TreeStore, role: str, contract: typ
         if not isinstance(settings, dict) or set(settings) & {"model", "messages", "stream", "response_format"}:
             raise ValueError("Decision generation settings cannot change routing, messages, or the result schema.")
         generation.update(settings)
-    measure = context.runtime.tools.get("minecraft_context_measure")
-    if measure is None:
+    provider_measure = context.runtime.tools.get("minecraft_context_measure")
+    if provider_measure is None:
         raise ValueError("Project decisions need serving-context measurement from the configured model.")
+    def measure(turns: Sequence[TurnInput], **settings: object) -> ContextMeasurement:
+        capacity = provider_measure(turns, **settings)
+        window = min(capacity["context_window"], capacity["cognition_context_window"])
+        return {**capacity, "context_window": window, "input_budget_tokens": int(window * capacity["input_fraction"])}
     measurement = measure(messages, cancel=context.runtime.stop_event, **generation)
-    if measurement.get("measurement_complete") is False:
+    selection = fit_measured_prompt(messages, measurement)
+    messages = list(selection.turns)
+    measurement = measure(messages, cancel=context.runtime.stop_event, **generation)
+    store.write(name + "/context-selection.json", selection.receipt().model_dump(mode="json"))
+    has_media = any(not isinstance(part, Text) for row in messages for part in row.content.parts)
+    if has_media and not measurement["measurement_complete"]:
         raise ValueError("The project input contains unmeasured media. Its text estimate cannot establish the complete input budget.")
     input_characters = sum(len(row.content.text) for row in messages)
     store.write(name + "/input.json", {"identity": payload["identity"], "messages": OpenAIChatEncoder().encode(messages)["messages"], "context": payload,

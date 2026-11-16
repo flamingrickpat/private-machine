@@ -24,6 +24,7 @@ from workflows.main_cognition.model_json import PhasePrompts
 from workflows.main_cognition.phases.model import complete, phase_prompts
 from workflows.main_cognition.schemas import GoalsResult, MentalProposal
 from workflows.main_cognition.story_prefix import StoryPrefix, conscious_percepts
+from workflows.main_cognition.phases.retrieve import render_memories
 
 ALLOWED_CHANGES = ("retain", "add", "complete", "reprioritize", "defer", "refuse")
 
@@ -70,12 +71,12 @@ def build_messages(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix) 
         regulation_words=prompts.regulation_words[work.affect.regulation],
         current_goals=render_goals(request.active_goals),
         appraisal=work.appraisal.feeling or "(no judgement recorded)",
-        context=render_goals(work.context.memories),
+        context=render_memories(work.selected_memories),
         managed_runs=render_context(request.managed_runs) if request.managed_runs else "(none)",
         inner_proposals=render_inner_proposals(conscious_percepts(work)),
         deliberate_proposals=render_deliberate_proposals(request.mental_proposals),
     )
-    return prefix.ask(user.text)
+    return prefix.ask(user)
 
 
 def validate_changes(result: GoalsResult) -> GoalsResult:

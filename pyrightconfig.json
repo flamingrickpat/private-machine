@@ -1,5 +1,11 @@
 {
   "include": [
+    "pm/llm/prompt_fitting.py",
+    "workflows/main_cognition/prompt_context.py",
+    "workflows/main_cognition/structure_context.py",
+    "workflows/main_cognition/phases/model.py",
+    "workflows/main_cognition/phases/triage.py",
+    "simulation/agents.py",
     "pm/llm/concurrency.py",
     "pm/memory/dependencies.py",
     "workflows/public_speech/dependencies.py",

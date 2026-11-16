@@ -17,19 +17,15 @@ from threading import Event
 from typing import Literal
 
 import tiktoken
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
-from pm.context_render.budget import TokenEstimator
+from pm.context_render.budget import ContextGroup, TokenEstimator, context_recency, rank_context
+from pm.context_render.turns import Content
 from pm.llm.config import load_config
 from pm.memory.embeddings import EmbeddingService, run_embedding_work
 from pm.memory.store import MemoryStore
 from pm.memory.vector_index import VectorIndex
 from simulation.actors import ActorProfile, ConversationTurn, HistoricalTurn
-
-#: Historical turns always kept for continuity, regardless of similarity.
-RECENT_HISTORY_TURNS = 20
-#: Speaker turns spread across history to preserve voice.
-VOICE_SAMPLE_TURNS = 8
 
 #: The same encoders the shared estimator uses, so per-turn costs match it.
 _ENCODERS = (tiktoken.get_encoding("o200k_base"), tiktoken.get_encoding("cl100k_base"))
@@ -52,6 +48,7 @@ class HistorySelection(BaseModel):
     omitted_turns: int
     estimated_tokens: int
     method: Literal["embedding"] = "embedding"
+    salience: dict[int, float] = Field(default_factory=dict[int, float], description="Embedding similarity by original record ID.")
 
 
 def _turn_cost(turn: BaseModel, factor: float) -> int:
@@ -79,31 +76,16 @@ class HistoryIndex:
                                    [vectors[turn.record_id] for turn in self.turns])
         self.service = EmbeddingService(load_config(config).embedding)
         self.estimator = TokenEstimator()
-        self.speaker_name = profile.speaker_name
         self._costs = [_turn_cost(turn, self.estimator.estimate_factor) for turn in self.turns]
 
     def select(self, query: HistoryQuery, budget_tokens: int, *, cancel: Event | None = None) -> HistorySelection:
-        """Return the most relevant and recent turns that fit ``budget_tokens``."""
+        """Mix embedding relevance, recency, and randomness through the shared 40/40/20 policy."""
         text = "\n".join([query.scene, query.intent, *(turn.text for turn in query.recent)])
         vector = run_embedding_work(self.service.embed(text, cancel=cancel))
-        ranked = [key for key, _ in self.index.search(vector, range(len(self.turns)))]
-        chosen: list[int] = []
-        seen: set[int] = set()
-
-        def add(index: int) -> None:
-            if index not in seen:
-                seen.add(index)
-                chosen.append(index)
-
-        # Recency first, then the speaker's own voice, then similarity.
-        for index in range(max(0, len(self.turns) - RECENT_HISTORY_TURNS), len(self.turns)):
-            add(index)
-        speaker_turns = [index for index, turn in enumerate(self.turns) if turn.speaker == self.speaker_name]
-        step = max(1, len(speaker_turns) // VOICE_SAMPLE_TURNS)
-        for index in speaker_turns[::step]:
-            add(index)
-        for index in ranked:
-            add(index)
+        similarities = dict(self.index.search(vector, range(len(self.turns))))
+        groups = [ContextGroup(str(index), Content(""), similarities[index], recency=context_recency(turn.at))
+                  for index, turn in enumerate(self.turns)]
+        chosen = [int(group.name) for group in rank_context(groups)]
 
         kept: list[int] = []
         used = 0
@@ -116,7 +98,8 @@ class HistoryIndex:
         kept.sort()
         return HistorySelection(turns=tuple(self.turns[index] for index in kept),
                                 omitted_turns=len(self.turns) - len(kept),
-                                estimated_tokens=used)
+                                estimated_tokens=used,
+                                salience={self.turns[index].record_id: similarities[index] for index in kept})
 
 
 def conversation_tokens(turns: Sequence[ConversationTurn]) -> int:

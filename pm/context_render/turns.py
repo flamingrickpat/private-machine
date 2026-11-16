@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import base64
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 from pathlib import Path
 from string import Formatter
@@ -30,10 +30,23 @@ class MediaKind(StrEnum):
 
 
 @dataclass(frozen=True)
+class ContextTag:
+    """Selection policy for one complete optional text group, supplied by its owner."""
+
+    name: str
+    salience: float
+    record_id: int | None = None
+    support_ids: tuple[int, ...] = ()
+    required: bool = False
+    recency: float = 0
+
+
+@dataclass(frozen=True)
 class Text:
     """One text segment. Its contents remain verbatim."""
 
     text: str
+    context: ContextTag | None = None
 
 
 @dataclass(frozen=True)
@@ -118,8 +131,8 @@ class Content:
         right = other if isinstance(other, Content) else Content(other)
         parts = list(self.parts)
         for part in right.parts:
-            if parts and isinstance(parts[-1], Text) and isinstance(part, Text):
-                parts[-1] = Text(parts[-1].text + part.text)
+            if parts and isinstance(parts[-1], Text) and isinstance(part, Text) and parts[-1].context == part.context:
+                parts[-1] = replace(parts[-1], text=parts[-1].text + part.text)
             else:
                 parts.append(part)
         return Content(tuple(parts), notes=tuple(dict.fromkeys((*self.notes, *right.notes))))
@@ -142,9 +155,9 @@ class Content:
         """Remove outer text whitespace without removing attachments."""
         parts = list(self.parts)
         if parts and isinstance(parts[0], Text):
-            parts[0] = Text(parts[0].text.lstrip())
+            parts[0] = replace(parts[0], text=parts[0].text.lstrip())
         if parts and isinstance(parts[-1], Text):
-            parts[-1] = Text(parts[-1].text.rstrip())
+            parts[-1] = replace(parts[-1], text=parts[-1].text.rstrip())
         return Content(tuple(parts), notes=self.notes)
 
 

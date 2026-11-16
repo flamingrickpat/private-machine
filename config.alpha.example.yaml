@@ -9,6 +9,7 @@ chat:
     startup_script: ""
     # Discover serving tokens from /props. Remote services can set context_window.
     # Use 80% for project input; reserve the remainder for the response.
+    cognition_context_window: 32768
     context_input_fraction: 0.8
     override_context: 98000
   UnitTestEvaluator:

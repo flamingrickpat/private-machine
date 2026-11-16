@@ -25,8 +25,8 @@ phases:
 # Main cognitive cycle
 
 One kernel role runs the ordered Python phases in memory. All phases share one
-`CycleWork` object (see `workflows/main_cognition/cycle_work.py`). Each phase
-validates it at entry and writes it back. Every model call of the cycle is
+`CycleWork` object (see `workflows/main_cognition/cycle_work.py`). Intake validates
+the request once; phases share the live object. Every model call of the cycle is
 an unconscious story and choice simulator: it starts with the shared story
 prefix and ends with its instruction.
 

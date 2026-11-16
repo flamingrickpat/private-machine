@@ -37,7 +37,8 @@ import json
 
 from pm.constants import EXPECTATION_COUNT
 from pm.context_render import render_context
-from pm.context_render.turns import Turn, format_content
+from pm.context_render.turns import Content, ContextTag, Turn, format_content
+from pm.context_render.budget import context_recency, optional_text
 from pm.llm.concurrency import ordered_parallel_map
 from pm.records.cycle_records import ActionDecision, ActionDispatchRef, StimulusGroup
 from pm.records.workspace import ShardKey
@@ -103,11 +104,15 @@ def render_group_stimuli(work: CycleWork, group: StimulusGroup) -> str:
     return "\n".join(lines) or "(none)"
 
 
-def render_memories(work: CycleWork) -> str:
+def render_memories(work: CycleWork) -> Content:
     """Return the selected memories with their ids and evidence roles."""
-    lines = [f"- id={item.knoxel_id} kind={item.memory_kind} evidence_role={item.evidence_role} text={item.text!r}"
-             for item in work.selected_memories]
-    return "\n".join(lines) or "(none)"
+    result = Content("")
+    for item in work.selected_memories:
+        result += optional_text(
+            f"- id={item.knoxel_id} kind={item.memory_kind} evidence_role={item.evidence_role} text={item.text!r}\n",
+            ContextTag(f"route-memory:{item.knoxel_id}", item.score, record_id=item.knoxel_id,
+                       support_ids=tuple(item.source_ids), recency=context_recency(item.timestamp)))
+    return result if work.selected_memories else Content("(none)")
 
 
 def build_messages(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix, decision: ActionDecision) -> list[Turn]:
@@ -124,7 +129,7 @@ def build_messages(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix, 
         capabilities="\n".join(f"- {item}" for item in request.capabilities) or "(none)",
         workflows="\n".join(f"- {item.name}: {item.description}" for item in available_workflows(work)),
         wait_default_seconds=request.wait_default_seconds,
-    ).text
+    )
     return prefix.ask(instruction)
 
 

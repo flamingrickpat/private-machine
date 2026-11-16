@@ -48,7 +48,7 @@ from pm.memory.store import MemoryStore
 from pm.records.media import alt_text_view
 
 from workflows.main_cognition.csm_view import record_view
-from workflows.main_cognition.model_json import ModelFormatError
+from workflows.main_cognition.model_json import ModelFormatError, model_context_budget
 from workflows.main_cognition.schemas import AgentCodeletAnswer, AgentCodeletJob
 
 if TYPE_CHECKING:
@@ -130,7 +130,8 @@ def build_codelet_agent(ghost: MemoryStore, environment: MemoryBashEnvironment,
                             run_id=f"{context.task_id}-{job.codelet}", attempt=attempt, skill=str(SKILL),
                             prompt=prompt_text(job, problems), work_dir=context.workspace,
                             images=prompt_images(job),
-                            runtime=replace(runtime, agent_model=replace(model, enable_thinking=True),
+                            runtime=replace(runtime, agent_model=replace(model, enable_thinking=True,
+                                context_window=min(model.context_window, model_context_budget(context).context_window)),
                                             mcp_servers=servers),
                             mcp_config=config,
                             trace_file=context.kernel_data / f"codelet-{job.codelet}-{attempt}.jsonl")

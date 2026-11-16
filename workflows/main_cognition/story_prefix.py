@@ -35,6 +35,8 @@ from workflows.main_cognition.cycle_work import CycleRequest, CycleWork
 from workflows.main_cognition.model_json import PhasePrompts
 from workflows.main_cognition.phases.model import phase_prompts
 from workflows.public_speech.situational_guidance import render_situational_guidance
+from workflows.main_cognition.prompt_context import shard_content
+from pm.context_render.turns import Content
 
 
 def shard_label(key: ShardKey, request: CycleRequest) -> str:
@@ -156,10 +158,12 @@ class StoryPrefix:
         self.entity = story_entities(work) if group is None else (
             shard_label(group, request) if group.kind == "entity" else request.user_name)
         hidden = set(work.experience.hidden_for(group))
-        blocks = [shard_block(self.prompts, shard.key, shard_label(shard.key, request), self.companion,
-                              work.records, shard.item_ids(),
-                              [record_id for record_id in shard.tail_ids if record_id not in hidden])
-                  for shard in shown_shards(work, group)]
+        blocks = Content("")
+        for position, shard in enumerate(shown_shards(work, group)):
+            if position:
+                blocks += "\n\n"
+            blocks += shard_content(shard, work.records, self.prompts, shard_label(shard.key, request),
+                                    self.companion, [record_id for record_id in shard.tail_ids if record_id not in hidden])
         new_ids = [record_id for item in groups for record_id in item.stimulus_ids] if group is not None else [
             item.knoxel_id for item in request.stimuli]
         system = self.fill(self.prompts.system_prompt).strip()
@@ -170,15 +174,15 @@ class StoryPrefix:
                           if situation.partner is not None and situation.partner.entity_id == target_id]
         story = format_content(self.fill(self.prompts.story_template),
             character_card=request.character_card.strip() or "(no character card)",
-            shards="\n\n".join(blocks),
+            shards=blocks,
             feeling=work.affect.felt or work.state_summary or "(no feeling recorded)",
             situational_guidance="\n\n".join(render_situational_guidance(situation) for situation in situations)
                                  or f"Runtime world time: {request.cycle_time.isoformat()} UTC. Partner receptivity is unknown without evidence.",
             new=render_story(work.records, new_ids, with_id=False) or "(nothing new happens)",
-        ).text.strip()
+        ).strip()
         self.turns = [Turn(Role.System, system), Turn(Role.User, story),
                       Turn(Role.Assistant, self.fill(self.prompts.story_ack).strip())]
-        self.story_text = f"{system}\n\n{story}"
+        self.story_text = f"{system}\n\n{story.text}"
         self.targets: dict[str, ShardKey] = {"self": SELF_SHARD}
         for item in groups:
             if item.key != SELF_SHARD:
@@ -188,7 +192,7 @@ class StoryPrefix:
         """Replace the name placeholders ``{companion_name}`` and ``{entity_name}``."""
         return fill(text, self.companion, self.entity)
 
-    def ask(self, instruction: str) -> list[Turn]:
+    def ask(self, instruction: Content | str) -> list[Turn]:
         """Return the prefix and then ``instruction`` as the last user turn."""
         return [*self.turns, Turn(Role.User, instruction.strip())]
 

@@ -148,12 +148,13 @@ def context_groups(value: ReflectionContext, salience: Mapping[int, float], *,
             continue
         ids = _episode_ids(episode) & records.keys()
         content = render_context(episode, schema_path=Path(__file__).parents[2] / "pm/context_render/architectural.json") + "\n" + _sources(records, ids)
-        priority = max((salience.get(key, 0) for key in ids), default=0) + episode.tick_id * 0.000001
-        groups.append(ContextGroup(f"Episode {episode.episode_id}", content, priority, source_ids=tuple(sorted(ids)), episode_ids=(episode.episode_id,)))
+        priority = max((salience.get(key, 0) for key in ids), default=0)
+        groups.append(ContextGroup(f"Episode {episode.episode_id}", content, priority, source_ids=tuple(sorted(ids)),
+                                   episode_ids=(episode.episode_id,), recency=float(max(ids, default=0))))
         grouped.update(ids)
     for record in value.records:
         if record.knoxel_id not in grouped:
-            priority = salience.get(record.knoxel_id, 0) + record.tick_id * 0.000001
+            priority = salience.get(record.knoxel_id, 0)
             groups.append(ContextGroup(f"Source {record.knoxel_id}", render_context(record), priority,
-                                       source_ids=(record.knoxel_id,)))
+                                       source_ids=(record.knoxel_id,), recency=float(record.knoxel_id)))
     return groups

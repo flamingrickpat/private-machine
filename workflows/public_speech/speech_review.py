@@ -24,7 +24,8 @@ from pathlib import Path
 from collections.abc import Sequence
 from typing import Literal, TypedDict
 from pm.constants import Sampler
-from pm.context_render.turns import Role, Turn
+from pm.context_render.turns import Content, ContextTag, Role, Turn, format_content
+from pm.context_render.budget import optional_text
 from pm.llm.completion import AsyncTextCompletion
 
 from pm.utils import yaml_util
@@ -139,14 +140,18 @@ def build_review_messages(candidate: str, context: PublicContext, prompts: Revie
         if partner is not None:
             lines = [f'- [{source.occurred_at_utc.isoformat()}; record {source.record_id}] '
                      f'{source.source} said: "{source.text}"' for source in partner.recent_dialogue]
-    user = prompts["user_template"].format(
+    conversation_context = Content("")
+    for index, line in enumerate(lines):
+        conversation_context += optional_text("\n" + line, ContextTag(f"review-dialogue:{index}", 0,
+            required=index >= len(lines) - 4, recency=float(index)))
+    user = format_content(prompts["user_template"],
         character=context.character.strip() or "(no character card)",
         feelings=context.feelings.strip() or "(calm, nothing strong)",
         abilities="\n".join(ability_lines(context)) or "- Text conversation only.",
         ontology="\n".join(_ontology_lines(context)) or "- (no ontology term recorded yet)",
         tasks="\n".join(task_lines(context, receipts)) or "- No task or tool ran.",
         memories="\n".join(memory_lines(context)) or "- (none)",
-        conversation="\n".join(lines) or "- (none)",
+        conversation=conversation_context if lines else "- (none)",
         presentation=presentation_text,
         reply=candidate,
         **names,

@@ -33,6 +33,10 @@ from simulation.plans import ScenarioPlan, ExtractedFacts, ActorTurn, ActorDraft
 from simulation.actors import ActorIdentity, ActorProfile, ConversationTurn, DeliveryEvidence, HistoricalTurn
 from simulation.history import HistoryIndex, HistoryQuery, bound_conversation, conversation_tokens
 from pm.llm.prompt_log import log_scope
+from pm.context_render import render_context
+from pm.context_render.budget import context_recency, fit_turns, optional_content
+from pm.context_render.turns import Content, ContextTag, Role, Turn
+from pm.llm.prompt_fitting import prompt_budget
 
 #: First delay before a failed scenario-agent completion is asked again, in seconds.
 AGENT_RETRY_DELAY_SECONDS = 30.0
@@ -62,12 +66,12 @@ ACTOR_INSTRUCTION = (
 )
 
 
-def _turns(instruction: str, payload: BaseModel, schema: type[BaseModel]) -> list[dict[str, str]]:
+def _turns(instruction: str, payload: BaseModel, schema: type[BaseModel]) -> list[Turn]:
     """Build the exact system and user turns that the provider receives."""
     required = " Required JSON schema: " + json.dumps(schema.model_json_schema())
-    return [{"role": "system", "content": instruction +
-             " Return a JSON data instance matching the schema. Do not return the schema itself." + required},
-            {"role": "user", "content": payload.model_dump_json()}]
+    return [Turn(Role.System, instruction +
+                 " Return a JSON data instance matching the schema. Do not return the schema itself." + required),
+            Turn(Role.User, payload_content(payload))]
 
 
 class ActorContext(BaseModel):
@@ -81,6 +85,7 @@ class ActorContext(BaseModel):
     conversation: list[ConversationTurn]
     history: list[HistoricalTurn] = Field(default_factory=list[HistoricalTurn])
     history_omitted: int = 0
+    history_salience: dict[int, float] = Field(default_factory=dict[int, float], description="Optional embedding scores for selected historical turns.")
     guidance: str = ""
 
 
@@ -139,6 +144,32 @@ class PlanDraftReview(BaseModel):
     reason: str
 
 
+def payload_content(payload: BaseModel) -> Content:
+    """Keep task constraints required; select whole historical conversation turns."""
+    if isinstance(payload, (DraftRequest, ReviewRequest)):
+        content = Content(payload.model_dump_json(exclude={"context": {"conversation", "history", "history_salience"}}))
+        content += "\ncontext.history (original public utterances):\n"
+        for position, row in enumerate(payload.context.history):
+            content += "\n" + optional_content(render_context(row),
+                ContextTag(f"history:{row.record_id}", payload.context.history_salience.get(row.record_id, 0),
+                           record_id=row.record_id, recency=context_recency(row.at)))
+        content += "\ncontext.conversation (current run, chronological):\n"
+        for position, row in enumerate(payload.context.conversation):
+            content += "\n" + optional_content(render_context(row),
+                ContextTag(f"conversation:{position}", 2,
+                           required=position >= len(payload.context.conversation) - 4, recency=context_recency(row.at)))
+        return content
+    if isinstance(payload, StageContext):
+        content = Content(payload.model_dump_json(exclude={"conversation"}))
+        content += "\nconversation (actual public deliveries, chronological):\n"
+        for position, row in enumerate(payload.conversation):
+            content += "\n" + optional_content(render_context(row),
+                ContextTag(f"delivery:{position}", 0,
+                           required=row.timestamp >= payload.stage.at, recency=context_recency(row.timestamp)))
+        return content
+    return render_context(payload)
+
+
 class Agents:
     """Use the configured default model and retain every full input and output.
 
@@ -172,23 +203,26 @@ class Agents:
         Cancellation pauses the run through the model's own cancel path.
         """
         from pm.llm.structured import extract_json, JsonOutputError
-        original: list[dict[str, str]] = _turns(instruction, payload, schema)
+        original = _turns(instruction, payload, schema)
         turns = original
         failure_delay = AGENT_RETRY_DELAY_SECONDS
         while True:
             call_id = uuid4().hex
             request: dict[str, JsonValue] = {"role": role, "messages": [
-                {"role": turn["role"], "content": turn["content"]} for turn in turns]}
+                {"role": turn.role.value, "content": turn.content.text} for turn in turns]}
             path = self.evidence / "agents" / f"{call_id}.json"
             atomic_json(path, {"id": call_id, "status": "running", "request": request})
             output: str = ""
             try:
                 from pm.llm.prompt_log import invocation_scope
                 with log_scope(self.evidence / "model-logs"), invocation_scope(role, call_id):
-                    measured = self.model.measure_context(turns, cancel=self.cancel)
-                    if measured["input_tokens"] > measured["input_budget_tokens"]:
-                        raise ValueError("The scenario task exceeds the serving context. Its evidence was retained.")
-                    output = self.model.complete(turns, cancel=self.cancel)
+                    capacity = self.model.measure_context([], cancel=self.cancel)
+                    selection = fit_turns(turns, prompt_budget(capacity, internal=False))
+                    request["messages"] = [{"role": turn.role.value, "content": turn.content.text}
+                                           for turn in selection.turns]
+                    atomic_json(path, {"id": call_id, "status": "running", "request": request,
+                                       "selection": selection.receipt().model_dump(mode="json")})
+                    output = self.model.complete(selection.turns, cancel=self.cancel)
                 result = schema.model_validate(extract_json(output))
                 if prepare is not None:
                     try:
@@ -219,11 +253,8 @@ class Agents:
             except (JsonOutputError, ValidationError) as error:
                 atomic_json(path, {"id": call_id, "status": "rejected", "request": request,
                                    "output": output, "error": str(error)})
-                turns = [*original, {"role": "assistant", "content": output},
-                         {"role": "user", "content": "Correct only this response to satisfy the schema: " + str(error)}]
-                measured = self.model.measure_context(turns, cancel=self.cancel)
-                if measured["input_tokens"] > measured["input_budget_tokens"]:
-                    raise ValueError("Scenario repair filled the model context. Edit the retained plan or input.") from error
+                turns = [*original, Turn(Role.Assistant, output),
+                         Turn(Role.User, "Correct only this response to satisfy the schema: " + str(error))]
                 continue
             except BaseException as error:
                 atomic_json(path, {"id": call_id, "status": "failed", "request": request,
@@ -284,7 +315,8 @@ class Agents:
             history_budget, cancel=self.cancel)
         return context.model_copy(update={"conversation": conversation,
                                           "history": list(selection.turns),
-                                          "history_omitted": selection.omitted_turns})
+                                          "history_omitted": selection.omitted_turns,
+                                          "history_salience": selection.salience})
 
     def actor(self, context: ActorContext, future_facts: list[Fact], *,
               profile: ActorProfile, home: Path) -> ActorTurn:

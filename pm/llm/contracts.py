@@ -29,6 +29,7 @@ class ContextMeasurement(TypedDict):
     """Token planning receipt. Estimates are deliberately separate from provider usage."""
 
     context_window: int
+    cognition_context_window: int
     context_source: str
     input_tokens: int
     measurement: str

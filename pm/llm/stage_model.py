@@ -81,19 +81,21 @@ class LazyStageModel:
         self._lock = Lock()
         self._client: ChatClient | None = None
 
-    async def _preflight(self, messages: Sequence[TurnInput], cancel: Event | None, generation: dict[str, object]) -> None:
-        """Reject impossible rendered context before a text, reasoning, or tool call."""
+    async def _preflight(self, messages: Sequence[TurnInput], cancel: Event | None, generation: dict[str, object]) -> Sequence[TurnInput]:
+        """Fit annotated context before every text, reasoning, or tool call."""
         from pm.llm.context_window import measure_context
-        from pm.context_render.budget import RequiredContextTooLarge
+        from pm.llm.prompt_fitting import fit_measured_prompt
+        from pm.llm.prompt_encoding import normalize_turns
         measurement = await measure_context(self.connection, messages, cancel if cancel is not None else Event(),
             live_test=self.live_test, protocol_context=ModelProtocolContext.model_validate(generation))
         if measurement["input_tokens"] > measurement["input_budget_tokens"]:
-            raise RequiredContextTooLarge(f"Rendered prompt estimate {measurement['input_tokens']} exceeds input ceiling {measurement['input_budget_tokens']}.")
+            return fit_measured_prompt(normalize_turns(messages), measurement).turns
+        return messages
 
     async def _complete_chat(self, messages: Sequence[TurnInput], generation: dict[str, object]) -> ChatResult:
         cancel = generation.get("cancel")
         assert cancel is None or isinstance(cancel, Event)
-        await self._preflight(messages, cancel, generation)
+        messages = await self._preflight(messages, cancel, generation)
         return await complete_chat_with_retry(self.ensure_client(cancel=cancel), messages, generation)
 
     async def _complete(self, messages: Sequence[TurnInput], generation: dict[str, object]) -> str:
@@ -156,8 +158,8 @@ class LazyStageModel:
         async def complete() -> Completion:
             cancel = generation.get("cancel")
             assert cancel is None or isinstance(cancel, Event)
-            await self._preflight(messages, cancel, generation)
-            return await OpenAICompletionBackend(client).complete(messages, **generation)
+            prepared = await self._preflight(messages, cancel, generation)
+            return await OpenAICompletionBackend(client).complete(prepared, **generation)
 
         return asyncio.run(complete())
 
@@ -199,7 +201,7 @@ class LazyStageModel:
             assert selected_cancel is None or isinstance(selected_cancel, Event)
             if tools:
                 generation["tools"] = tools
-            await self._preflight(messages, selected_cancel, generation)
+            messages = await self._preflight(messages, selected_cancel, generation)
             last: EmptyCompletionError | None = None
             for attempt in range(3):
                 try:

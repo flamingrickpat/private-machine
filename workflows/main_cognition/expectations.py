@@ -37,7 +37,13 @@ updates at commit.
 """
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, Self
+from collections.abc import Sequence
+from pm.context_render.budget import ContextGroup, batch_prompt
+from pm.context_render.turns import Content
+from workflows.main_cognition.model_json import model_context_budget
+from pm.llm.concurrency import ordered_parallel_map
+from workflows.inference_settings import DECISION_WORKERS
 
 from pm.constants import (
     EXPECTATION_ANXIETY_MULT,
@@ -65,7 +71,7 @@ from pm.memory.evidence import OBSERVED_EVIDENCE_ROLES, evidence_role
 from pm.memory.snapshot import Snapshot
 from pm.records.base import RecordBase, RecordScope
 from pm.records.situational_model import cosine
-from pydantic import create_model, model_validator
+from pydantic import model_validator
 
 from workflows.inner_thought.expectations import PRIVATE_SOURCE_REF, pending_expectations
 from workflows.main_cognition.csm_view import EXPECTATION, Embedder
@@ -280,25 +286,40 @@ def _check_group(context: RoleContext, work: CycleWork, prefix: StoryPrefix, pro
     invalid and gets a repair turn. Each outcome's ``observation_ids`` are
     exactly the rated stimuli, which the commit adds to the counted list.
     """
-    wanted = sorted(item.record_id for item in expectations)
+    by_id = {str(item.record_id): item for item in expectations}
+    groups = [ContextGroup(str(item.record_id), Content(f"[id {item.record_id}] {item.content}"), salience(item),
+                           source_ids=(item.record_id,), recency=float(item.tick_id)) for item in expectations]
 
-    def exact(answer: ExpectationCheckAnswer) -> ExpectationCheckAnswer:
-        given = sorted(item.expectation_id for item in answer.fulfillments)
-        if given != wanted:
-            raise ValueError(f"Give exactly one entry for each expectation id: {', '.join(map(str, wanted))}.")
-        return answer
+    def instruction(chosen: Sequence[ContextGroup]) -> Content:
+        return format_content(prefix.fill(prompts.check_template),
+            expectations="\n".join(group.content.text for group in chosen),
+            stimuli="\n".join(f"- {item.text}" for item in stimuli))
 
-    schema = create_model("ExpectationCheckChecked", __base__=ExpectationCheckAnswer,
-                          __validators__={"exact": model_validator(mode="after")(exact)})
-    instruction = format_content(prefix.fill(prompts.check_template),
-        expectations="\n".join(f"[id {item.record_id}] {item.content}" for item in expectations),
-        stimuli="\n".join(f"- {item.text}" for item in stimuli),
-    ).text
-    answer = complete(context, work, prefix.ask(instruction), schema)
-    by_id = {item.expectation_id: item for item in answer.fulfillments}
+    batches = batch_prompt(prefix.turns, groups, model_context_budget(context), instruction)
+    work.receipt("expectation-context", f"{len(expectations)} expectations in {len(batches)} batches; none omitted")
+
+    def rate(index: int) -> ExpectationCheckAnswer:
+        batch = batches[index]
+        wanted = sorted(by_id[name].record_id for name in batch.included)
+        class ExpectationBatch(ExpectationCheckAnswer):
+            @model_validator(mode="after")
+            def exact(self) -> Self:
+                """Require exactly one result per offered expectation."""
+                given = sorted(item.expectation_id for item in self.fulfillments)
+                if given != wanted:
+                    raise ValueError(f"Give exactly one entry for each expectation id: {', '.join(map(str, wanted))}.")
+                return self
+        return complete(context, work, batch.turns, ExpectationBatch)
+
+    assert context.runtime is not None
+    answers = ordered_parallel_map(rate, list(range(len(batches))), workers=DECISION_WORKERS,
+                                   cancel=context.runtime.stop_event)
+    by_expectation = {item.expectation_id: item for answer in answers for item in answer.fulfillments}
+    if set(by_expectation) != {item.record_id for item in expectations}:
+        raise ValueError("Expectation batches must cover every offered expectation.")
     observed = [item.knoxel_id for item in stimuli]
-    return [outcome_of(item, by_id[item.record_id].fulfillment_score, by_id[item.record_id].directness_score,
-                       observed) for item in expectations]
+    return [outcome_of(item, by_expectation[item.record_id].fulfillment_score,
+                       by_expectation[item.record_id].directness_score, observed) for item in expectations]
 
 
 def effect(outcomes: list[ExpectationOutcome]) -> tuple[float, float]:

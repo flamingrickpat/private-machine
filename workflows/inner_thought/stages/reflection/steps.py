@@ -9,7 +9,8 @@ from typing import TypeVar, cast
 from pydantic import BaseModel
 from pm_workflows.python_role import RoleContext
 from pm.context_render import Role, Turn, render_context
-from pm.context_render.budget import ContextBudget, select_context
+from pm.context_render.budget import select_context
+from pm.llm.prompt_fitting import prompt_budget
 from pm.llm.contracts import ContextMeasurer, ModelTool, WorkflowCompletion
 from pm.llm.structured import context_measure
 from workflows.inner_thought.schemas import InnerRequest
@@ -52,7 +53,7 @@ def _call(context: RoleContext, task: str, schema: type[T], call: ReflectionCall
                if ModelTool.MeasureContext in context.runtime.tools else context_measure(complete))
     assert measure is not None
     capacity = measure([], cancel=context.runtime.stop_event)
-    budget = ContextBudget(context_window=capacity["context_window"], input_fraction=capacity["input_fraction"])
+    budget = prompt_budget(capacity)
     instructions = [Turn(Role.System, RULES + "\n" + task + "\nSchema:\n" + json.dumps(schema.model_json_schema()))]
     from pm.context_render.budget import ContextGroup
     pinned: set[int] = set()

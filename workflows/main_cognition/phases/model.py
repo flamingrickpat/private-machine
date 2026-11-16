@@ -22,7 +22,9 @@ from pydantic import BaseModel
 
 from pm.constants import CODELET_TEXT_ATTEMPTS, Sampler
 from pm.context_render import ContextKind, render_context
-from pm.context_render.turns import Role, Turn
+from pm.context_render.turns import Content, ContextTag, Role, Turn
+from pm.context_render.budget import context_recency, optional_text, optional_content
+from workflows.public_speech.public_context import EvidenceItem
 from pm.llm.prompt_encoding import TurnInput
 
 from workflows.main_cognition.cycle_work import CycleWork
@@ -55,19 +57,28 @@ def grounding_turn(work: CycleWork, *, emotion: bool, capabilities: bool = False
         return None
     kinds = ContextKind.All if emotion else ContextKind.All & ~ContextKind.Emotion
     stimuli = {item.knoxel_id: item.text for item in work.request.stimuli}
-    evidence = []
+    evidence: list[EvidenceItem] = []
     for row in public.evidence:
         if row.knoxel_id not in stimuli or row.text != stimuli[row.knoxel_id]:
             evidence.append(row)
-    update = {"evidence": evidence, "memories": [] if public.evidence else public.memories}
+    selected = public.model_copy(update={"evidence": evidence, "memories": [] if public.evidence else public.memories})
     if not capabilities:
-        update["capabilities"] = {}
-    selected = public.model_copy(update=update)
+        selected = selected.model_copy(update={"capabilities": {}})
     grounding = "Private context. Keep source attribution. "
     if capabilities:
         grounding += "Respect domain capabilities. An emotion word cannot create an unimplemented state or sense. "
     grounding += "Private thoughts remain private.\n"
-    return Turn(Role.User, grounding + render_context(selected, kinds))
+    # Keep the fixed situation separate from optional retrieved evidence.
+    selected = selected.model_copy(update={"evidence": [], "memories": []})
+    content = Content(grounding) + render_context(selected, kinds)
+    for row in evidence:
+        content += "\n" + optional_content(render_context(row, kinds),
+            ContextTag(f"grounding:{row.knoxel_id}", row.score, record_id=row.knoxel_id,
+                       support_ids=tuple(row.source_ids), recency=context_recency(row.timestamp)))
+    if not public.evidence:
+        for row in public.memories:
+            content += optional_text("\n" + row, ContextTag(f"grounding-memory:{len(content.parts)}", 0))
+    return Turn(Role.User, content)
 
 
 def complete(context: RoleContext, work: CycleWork, messages: Sequence[TurnInput], schema: type[Result], *,

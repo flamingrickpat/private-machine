@@ -12,7 +12,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 from pm.constants import Sampler
-from pm.context_render.turns import Role, Turn
+from pm.context_render.turns import Role, Turn, format_content
+from workflows.inner_thought.rendering import request_content
 from pm_workflows.python_role import RoleContext
 
 from workflows.inner_thought.operations import OPERATIONS
@@ -40,8 +41,8 @@ def build_messages(request: InnerRequest, prompts: NominationPrompts) -> list[Tu
     """Present frozen sources and independent judgments before nomination."""
     operations = [f"{operation.name}: {operation.description}" for operation in OPERATIONS.values()]
     system = prompts.system_prompt.format(companion_name=request.companion_name)
-    user = prompts.user_template.format(
-        request=request.model_dump_json(),
+    user = format_content(prompts.user_template,
+        request=request_content(request),
         operations="\n".join(operations),
         schema=json.dumps(NominationBatch.model_json_schema(), ensure_ascii=False),
     )

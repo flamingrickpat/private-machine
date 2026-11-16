@@ -245,6 +245,15 @@ def _conversation_problem[T: BaseModel](state: _Repair[T], previous_problem: str
     return problem
 
 
+
+def _fit_overflow(turns: Sequence[TurnInput], capacity: ContextMeasurement) -> list[TurnInput]:
+    """Select annotated context against a measured complete attempt."""
+    from pm.llm.prompt_encoding import normalize_turns
+    from pm.llm.prompt_fitting import fit_measured_prompt
+    rendered = normalize_turns(turns)
+    return list(fit_measured_prompt(rendered, capacity).turns)
+
+
 def complete_json(complete: Callable[..., str], messages: Sequence[TurnInput], schema: type[T], *,
                   measure: ContextMeasurer | None = None, validation_context: dict[str, object] | None = None,
                   on_rejection: Callable[[int, str, str], None] | None = None,
@@ -275,17 +284,20 @@ def complete_json(complete: Callable[..., str], messages: Sequence[TurnInput], s
             if state.attempt and measure is None:
                 raise ValueError("JSON repair requires context measurement from the selected model.")
             if measure is not None:
-                measurement = measure(state.turns, cancel=cancel, **generation)
-                if measurement["input_tokens"] > measurement["input_budget_tokens"]:
-                    if state.attempt:
-                        # Discard model repair chatter, retaining the original task and evidence.
-                        # A conversation cut short by its context is not a complete sample.
-                        state = _Repair(messages, schema, validation_context, on_rejection, validate, cancel)
-                        rejections_since_reset = 0
-                        previous_problem = None
-                        continue
-                    from pm.context_render.budget import RequiredContextTooLarge
-                    raise RequiredContextTooLarge("The initial rendered prompt exceeds its input ceiling.")
+                from pm.context_render.budget import RequiredContextTooLarge
+                try:
+                    measurement = measure(state.turns, cancel=cancel, **generation)
+                    if measurement["input_tokens"] > measurement["input_budget_tokens"]:
+                        state.turns = _fit_overflow(state.turns, measurement)
+                except RequiredContextTooLarge:
+                    if not state.attempt:
+                        raise
+                    # Required repair chatter can fill the window. Start a fresh
+                    # sample with the original task, retaining all rejection receipts.
+                    state = _Repair(messages, schema, validation_context, on_rejection, validate, cancel)
+                    rejections_since_reset = 0
+                    previous_problem = None
+                    continue
         raw = (initial if isinstance(initial, str) else json.dumps(initial, ensure_ascii=False)) if initial is not _MISSING else complete(
             state.turns, cancel=cancel, **generation)
         initial = _MISSING
@@ -321,20 +333,21 @@ async def complete_json_async(complete: Callable[..., Awaitable[str]], messages:
             if state.attempt and measure is None:
                 raise ValueError("JSON repair requires context measurement from the selected model.")
             if measure is not None:
-                if inspect.iscoroutinefunction(measure):
-                    measurement = await measure(state.turns, cancel=cancel, **generation)
-                else:
-                    measurement = await asyncio.to_thread(measure, state.turns, cancel=cancel, **generation)
-                if measurement["input_tokens"] > measurement["input_budget_tokens"]:
-                    if state.attempt:
-                        # Discard model repair chatter, retaining the original task and evidence.
-                        # A conversation cut short by its context is not a complete sample.
-                        state = _Repair(messages, schema, validation_context, on_rejection, validate, cancel)
-                        rejections_since_reset = 0
-                        previous_problem = None
-                        continue
-                    from pm.context_render.budget import RequiredContextTooLarge
-                    raise RequiredContextTooLarge("The initial rendered prompt exceeds its input ceiling.")
+                from pm.context_render.budget import RequiredContextTooLarge
+                try:
+                    if inspect.iscoroutinefunction(measure):
+                        measurement = await measure(state.turns, cancel=cancel, **generation)
+                    else:
+                        measurement = await asyncio.to_thread(measure, state.turns, cancel=cancel, **generation)
+                    if measurement["input_tokens"] > measurement["input_budget_tokens"]:
+                        state.turns = await asyncio.to_thread(_fit_overflow, state.turns, measurement)
+                except RequiredContextTooLarge:
+                    if not state.attempt:
+                        raise
+                    state = _Repair(messages, schema, validation_context, on_rejection, validate, cancel)
+                    rejections_since_reset = 0
+                    previous_problem = None
+                    continue
         raw = (initial if isinstance(initial, str) else json.dumps(initial, ensure_ascii=False)) if initial is not _MISSING else await complete(
             state.turns, cancel=cancel, **generation)
         initial = _MISSING

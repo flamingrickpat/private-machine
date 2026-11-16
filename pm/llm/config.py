@@ -48,6 +48,8 @@ class Connection(BaseModel):
     context_input_fraction: float = Field(default=0.8, gt=0, lt=1, strict=True)
     # Cap the resolved serving context without increasing the model's limit.
     override_context: StrictInt | None = Field(default=None, gt=0)
+    cognition_context_window: StrictInt = Field(default=32768, gt=0,
+        description="Context window in tokens for internal cognition; the smaller serving window wins.")
     # Bound one ordinary visible completion. Without this, a completion may run
     # to the provider's whole output ceiling: a degenerate repetition sample then
     # costs minutes of wall clock and holds an admission slot the whole time.
@@ -109,6 +111,7 @@ class ConnectionConfig(Connection):
         return Connection(base_url=self.base_url, model=self.model, api_key=key, startup_script=self.startup_script,
                           context_window=self.context_window, context_input_fraction=self.context_input_fraction,
                           override_context=self.override_context,
+                          cognition_context_window=self.cognition_context_window,
                           completion_token_limit=self.completion_token_limit,
                           max_concurrent_requests=self.max_concurrent_requests,
                           request_timeout_seconds=self.request_timeout_seconds)

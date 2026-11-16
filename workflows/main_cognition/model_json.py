@@ -23,6 +23,8 @@ from pydantic import BaseModel, Field, TypeAdapter
 from collections.abc import Callable, Sequence
 from pm.llm.prompt_encoding import TurnInput, normalize_turns
 from pm.context_render.turns import Turn
+from pm.context_render.budget import ContextBudget, PromptSelection, fit_turns
+from pm.llm.prompt_fitting import prompt_budget
 
 from pm.llm.structured import (
     JsonOutputError as StageOutputError, ModelFormatError,
@@ -84,6 +86,17 @@ def read_request(environment: WorkingEnvironment) -> dict[str, object]:
     return TypeAdapter(dict[str, object]).validate_python(yaml_util.safe_load(environment.read_text("inbox/request.yaml")))
 
 
+def model_context_budget(context: RoleContext) -> ContextBudget:
+    """Resolve the internal window for pure prompt planning before a model call."""
+    assert context.runtime is not None
+    tools = context.runtime.tools
+    measure = (cast(ContextMeasurer, tools[ModelTool.MeasureContext])
+               if ModelTool.MeasureContext in tools else context_measure(cast(WorkflowCompletion, tools[ModelTool.Complete])))
+    if measure is None:
+        raise ValueError("Prompt fitting requires context measurement from the selected model.")
+    return prompt_budget(measure([], cancel=context.runtime.stop_event))
+
+
 def complete_json[T: BaseModel](context: RoleContext, messages: Sequence[TurnInput], schema: type[T], *,
                   transform: Callable[[list[Turn]], list[Turn]] | None = None,
                   validation_context: dict[str, object] | None = None,
@@ -98,10 +111,24 @@ def complete_json[T: BaseModel](context: RoleContext, messages: Sequence[TurnInp
     runtime = context.runtime
     tool = cast(WorkflowCompletion, runtime.tools[ModelTool.Complete])
     selected_cancel = runtime.stop_event if cancel is None else cancel
+    cached_input: list[Turn] = []
+    cached_selection: PromptSelection | None = None
 
     def transformed(turns: Sequence[TurnInput]) -> list[Turn]:
+        nonlocal cached_input, cached_selection
         turns = normalize_turns(turns)
-        return transform(turns) if transform is not None else turns
+        turns = transform(turns) if transform is not None else turns
+        if cached_selection is not None and turns == cached_input:
+            return list(cached_selection.turns)
+        if original_measure is None:
+            raise ValueError("The model tool must provide context measurement before inference.")
+        budget = prompt_budget(original_measure([], cancel=selected_cancel, **generation))
+        selection = fit_turns(turns, budget)
+        cached_input = turns
+        cached_selection = selection
+        runtime.environment.write_text(f"scratch/{schema.__name__}-context-selection.json",
+                                       selection.receipt().model_dump_json())
+        return list(selection.turns)
 
     def complete(turns: Sequence[TurnInput], *, cancel: Event | None = None, **settings: object) -> str:
         return tool(transformed(turns), **settings)
@@ -136,6 +163,14 @@ def complete_text(context: RoleContext, messages: Sequence[TurnInput], *, attemp
     assert context.runtime is not None
     turns = normalize_turns(messages)
     tool = cast(WorkflowCompletion, context.runtime.tools[ModelTool.Complete])
+    measure = (cast(ContextMeasurer, context.runtime.tools[ModelTool.MeasureContext])
+               if ModelTool.MeasureContext in context.runtime.tools else context_measure(tool))
+    if measure is None:
+        raise ValueError("Prose inference requires context measurement from the selected model.")
+    budget = prompt_budget(measure([], cancel=context.runtime.stop_event, **generation))
+    selection = fit_turns(turns, budget)
+    turns = list(selection.turns)
+    context.runtime.environment.write_text("scratch/prose-context-selection.json", selection.receipt().model_dump_json())
     for attempt in range(1, attempts + 1):
         raw = tool(turns, **generation)
         if raw.strip():

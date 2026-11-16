@@ -531,9 +531,11 @@ def generate_reviewed(request: StoryRequest, prompts: StoryPrompts, generate: As
 
             def render_review(selected: StoryRequest) -> list[Turn]:
                 return build_review_messages(candidate, selected.public_context or context,
-                                             review_prompts, conversation=conversation)
+                                             review_prompts, conversation=review_deps.get("conversation") or review_conversation(selected))
 
-            reviewed = select_story_prompt(generation_request, prompts, render=render_review)
+            review_request = generation_request.model_copy(update={
+                "required_evidence_ids": tuple(item.knoxel_id for item in generation_context.evidence)})
+            reviewed = select_story_prompt(review_request, prompts, render=render_review)
             generation_context = reviewed.request.public_context or context
             attempt.review_context_selection = reviewed.selection.receipt()
             review_messages = reviewed.selection.turns

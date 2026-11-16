@@ -76,7 +76,8 @@ from workflows.main_cognition.codelet_registry import (
 )
 from workflows.main_cognition.csm_view import Embedder, csm_protected, render_story, story_line, story_tokens
 from workflows.main_cognition.cycle_work import CycleWork, provisional_tick
-from workflows.main_cognition.model_json import PhasePrompts
+from workflows.main_cognition.model_json import PhasePrompts, model_context_budget
+from pm.context_render.budget import fit_turns
 from workflows.main_cognition.phases.appraise import partner_entity
 from workflows.main_cognition.phases.model import complete, complete_prose, phase_prompts
 from workflows.main_cognition.schemas import (
@@ -229,9 +230,19 @@ def execute(context: RoleContext, work: CycleWork, frame: CodeletFrame, definiti
     for types in job.percept_types:
         allowed = set(job.view_ids)
         if job.mode == "agent":
+            from workflows.main_cognition.codelet_agent import SKILL
+            task = (frame.view_text(job.view) + "\n\n" + frame.job_text(definition) +
+                    "\nRetrieval plan:\n" + "\n".join(frame.fill(item) for item in definition.data_aquisation) +
+                    "\n" + SKILL.read_text(encoding="utf-8"))
+            fitted = fit_turns([*frame.prefix[:2], Turn(Role.User, task)], model_context_budget(context))
+            story = "\n\n".join(turn.content.text for turn in fitted.turns[:2])
+            context.runtime.environment.write_text(f"scratch/{definition.name}-agent-context.json", fitted.receipt().model_dump_json())
+            native_instruction = frame.job_text(definition)
+            if fitted.omitted:
+                native_instruction += f"\n{len(fitted.omitted)} optional story groups were omitted. Read original sources with the granted memory tools when needed."
             answer = context.runtime.tools["codelet_agent"](context, AgentCodeletJob(
-                codelet=definition.name, story=frame.story_text,
-                instruction=frame.job_text(definition),
+                codelet=definition.name, story=story,
+                instruction=native_instruction,
                 retrieval_plan=[frame.fill(item) for item in definition.data_aquisation],
                 view=frame.view_text(job.view), view_ids=list(job.view_ids), known_ids=list(work.records)))
             prose = answer.recommendation.strip()

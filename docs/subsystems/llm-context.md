@@ -50,7 +50,7 @@ The serving window comes from configured `context_window`, OpenRouter's selected
 Training-context metadata cannot establish the serving window.
 Discovery waits for an endpoint that has not answered yet. See [Wait through an endpoint outage](inference-settings.md#wait-through-an-endpoint-outage).
 `context_input_fraction` defaults to `0.8` and accepts a number strictly between zero and one.
-The effective input ceiling uses the smaller of that fraction and `0.8`.
+The effective input ceiling uses the configured fraction.
 The remainder reserves room for the response; it does not impose a generation cap.
 
 Token planning uses local `tiktoken` estimates for all direct model calls.
@@ -121,13 +121,23 @@ Ordinary decision evidence and architectural reflection use explicit collection 
 The architectural profile retains creation ticks and exact numeric values.
 Stored source-version maps and dispatch payloads do not become prompt content.
 
-[`pm.context_render.budget.ContextBudget`][] treats 80 percent of the serving window as a ceiling.
+[`pm.context_render.budget.ContextBudget`][] applies the configured input fraction to the usable window.
 It does not fill unused space.
 [`pm.context_render.budget.select_context`][] reserves required instructions and evidence before selecting optional groups.
 Workflows supply existing salience signals. Selection makes no new scoring model calls.
 When the complete prompt fits, selection retains every group in one fit check.
-Otherwise, optional groups compete by salience within the input ceiling.
+Otherwise, optional groups combine 40% recency, 40% existing salience, and 20% randomness within the input ceiling.
 A group retains its citations and supporting evidence together.
+[`pm.context_render.turns.ContextTag`][] carries these signals through text composition.
+[`pm.context_render.budget.fit_turns`][] preserves required text, media, role order, tool contracts, and assistant prefills.
+It fits complete attempts, including structured-output corrections.
+The shared direct-model boundary also fits annotated context before text, reasoning, and tool calls.
+
+Internal cognitive roles use `cognition_context_window`, defaulting to 32,768 tokens per chat connection.
+Dialogue and simulation keep their serving-window budgets.
+[`pm.context_render.budget.batch_prompt`][] handles independent tasks that require complete coverage under a fixed shared context.
+It preserves every task item and checks the resulting prompts before inference.
+Read [cognition](cognition.md#prompt-fitting-and-complete-evaluation) for the mechanism-specific combination rules.
 The selection receipt records included groups, omitted groups, and the conservative token estimate.
 
 Reflection uses named ledger, episode, observation-grant, and source models.

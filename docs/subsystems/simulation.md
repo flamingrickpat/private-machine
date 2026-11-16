@@ -185,6 +185,11 @@ Delivery timestamps establish time; actors do not have to announce clock values.
 Stage circumstances and private intent guide dialogue without prescribing exact words.
 The actor sees public history, current circumstances, active commitments, and delivered conversation.
 Future events and completion rubrics stay outside its generation context.
+The shared context fitter measures complete actor, review, and judgment prompts, including repair feedback.
+Older dialogue and historical references compete through the 40% recency, 40% salience, and 20% randomness policy.
+Current facts, the newest dialogue, and the stage's actual deliveries remain required.
+Review-only future facts stay required in the review; they never enter actor generation.
+
 A separate checker sees future facts to detect premature claims.
 It checks historical voice, correct identity, natural conversation, and scenario consistency before delivery.
 Incidental details and future intentions are allowed. Required facts can emerge across several turns.

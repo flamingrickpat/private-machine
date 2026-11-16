@@ -1,11 +1,69 @@
 """Exercise real rendered evidence selection and conservative token planning."""
 import unittest
+from random import Random
 
 from pm.context_render import Content, Role, Turn
-from pm.context_render.budget import ContextBudget, ContextGroup, RequiredContextTooLarge, select_context
+from pm.context_render.budget import ContextBudget, ContextGroup, RequiredContextTooLarge, batch_prompt, fit_turns, optional_text, rank_context, select_context
+from pm.context_render.turns import ContextTag
 
 
 class ContextBudgetTests(unittest.TestCase):
+    def test_batches_cover_every_task_once_under_identical_context(self) -> None:
+        context = [Turn(Role.System, "Rate every candidate against this same moment."),
+                   Turn(Role.User, "Required current event." + optional_text(" historical" * 2000, ContextTag("history", 1)))]
+        groups = [ContextGroup(str(index), Content(f"Candidate {index}: " + "evidence " * 240), index,
+                               source_ids=(index,), recency=index) for index in range(8)]
+        def instruction(chosen: list[ContextGroup] | tuple[ContextGroup, ...]) -> Content:
+            return Content("Rate exactly these candidates:\n" + "\n".join(group.content.text for group in chosen))
+        budget = ContextBudget(context_window=1800)
+        batches = batch_prompt(context, groups, budget, lambda chosen: instruction(list(chosen)))
+        self.assertGreater(len(batches), 1)
+        self.assertEqual(sorted(name for batch in batches for name in batch.included), sorted(group.name for group in groups))
+        for batch in batches:
+            self.assertEqual(batch.turns[:-1], batches[0].turns[:-1])
+            self.assertIn("Required current event.", batch.turns[1].content.text)
+            self.assertLessEqual(batch.estimated_tokens, budget.input_ceiling)
+
+    def test_an_indivisible_oversized_task_is_not_clipped(self) -> None:
+        groups = [ContextGroup("whole source", Content("exact source " * 2000), 1)]
+        with self.assertRaises(RequiredContextTooLarge):
+            batch_prompt([Turn(Role.System, "Keep exact evidence.")], groups, ContextBudget(context_window=500),
+                         lambda chosen: chosen[0].content)
+
+    def test_ranking_balances_old_salient_and_recent_context_with_random_variety(self) -> None:
+        groups = [ContextGroup("old important", Content(""), 1, recency=0),
+                  ContextGroup("recent", Content(""), 0, recency=1),
+                  ContextGroup("old unimportant", Content(""), 0, recency=0)]
+        orders: set[tuple[str, ...]] = set()
+        for seed in range(10):
+            names = tuple(group.name for group in rank_context(groups, random=Random(seed)))
+            self.assertEqual(names[-1], "old unimportant")
+            orders.add(names)
+        self.assertGreater(len(orders), 1)
+
+    def test_complete_prompt_preserves_support_and_repairs_when_optional_evidence_is_removed(self) -> None:
+        source = optional_text("\nOriginal source 17.", ContextTag("source", .1, record_id=17))
+        claim = optional_text("\nClaim 21.", ContextTag("claim", 2, record_id=21, support_ids=(17,)))
+        unrelated = optional_text(" unrelated" * 3000, ContextTag("unrelated", 0, record_id=99))
+        turns = [Turn(Role.System, "Inspect exact evidence."), Turn(Role.User, source + claim + unrelated),
+                 Turn(Role.Assistant, "rejected answer"), Turn(Role.User, "Repair this specific error."),
+                 Turn(Role.Assistant, "prefill:")]
+        budget = ContextBudget(context_window=900)
+        selected = fit_turns(turns, budget)
+        text = "\n".join(turn.content.text for turn in selected.turns)
+        self.assertIn("Original source 17.", text)
+        self.assertIn("Claim 21.", text)
+        self.assertIn("Repair this specific error.", text)
+        self.assertNotIn(" unrelated", text)
+        self.assertEqual(selected.turns[-1].content.text, "prefill:")
+        self.assertLessEqual(selected.estimated_tokens, budget.input_ceiling)
+        self.assertIn(" unrelated", turns[1].content.text)
+
+    def test_fitting_keeps_exact_turns_when_everything_fits(self) -> None:
+        turns = [Turn(Role.System, "Instructions."), Turn(Role.User,
+            "Context:" + optional_text("\nExact bytes.", ContextTag("record", 1)))]
+        self.assertEqual(tuple(turns), fit_turns(turns, ContextBudget(context_window=1000)).turns)
+
     def test_required_sources_stay_together_and_optional_groups_use_workflow_salience(self) -> None:
         budget = ContextBudget(context_window=1800)
         groups = [

@@ -20,12 +20,26 @@ Parent: [README](index.md).
 The credential-free example is `config.example.yaml`.
 It contains `Default`, `UnitTestEvaluator`, and one `embedding` entry.
 Both chat presets initially use the same endpoint.
-Each chat entry accepts `max_concurrent_requests`, `request_timeout_seconds`, and `override_context`.
+Each chat entry accepts `max_concurrent_requests`, `request_timeout_seconds`, `override_context`, and `cognition_context_window`.
 The local DeepSeek settings use 8 slots, 99,999 seconds, and a 65,536-token context cap.
 Slot values at most zero or at least 9999 mean unlimited requests.
 Triage receives the next free slot before queued critical, interaction, or background calls.
 Dialogue fits its optional evidence to the configured context input fraction, normally 80%.
 These settings belong in YAML; they need no environment overrides.
+`cognition_context_window` defaults to 32,768 tokens and controls internal cognition's evidence window.
+It cannot increase the serving limit. Public dialogue keeps its separate serving-window budget.
+
+```yaml
+chat:
+  Default:
+    override_context: 65536
+    cognition_context_window: 32768
+    context_input_fraction: 0.85
+```
+
+Optional context combines 40% recency, 40% salience, and 20% randomness.
+Mechanisms that must inspect every candidate use complete [evaluation batches](subsystems/cognition.md#prompt-fitting-and-complete-evaluation).
+
 
 This is a shared-backend evaluation, not an independent neutral reviewer.
 

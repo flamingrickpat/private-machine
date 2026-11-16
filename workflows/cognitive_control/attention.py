@@ -15,7 +15,8 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict
 
 from pm.constants import Sampler
-from pm.context_render.turns import Role, Turn
+from pm.context_render.turns import Role, Turn, format_content
+from pm.context_render import render_context
 from workflows.cognitive_control.schemas import FocusRejection, FocusState
 from workflows.main_cognition.model_json import complete_json
 from workflows.main_cognition.schemas import FocusProposalRef
@@ -163,9 +164,9 @@ def resolve_focus(context: Any, active: FocusState | None, proposals: list[Focus
     rejections: list[FocusRejection] = list(effective.rejections)[-4:] if effective is not None else []
     for item in proposals:
         proposal = item.focus
-        instruction = FOCUS_INSTRUCTION.format(
+        instruction = format_content(FOCUS_INSTRUCTION,
             proposal=json.dumps(proposal.model_dump(), ensure_ascii=False),
-            evidence=json.dumps(evidence.model_dump(mode="json"), ensure_ascii=False))
+            evidence=render_context(evidence))
         result = complete_json(context, [*prefix, Turn(Role.User, instruction)], FocusDecision,
                                temperature=Sampler.TempInstruct, enable_thinking=False)
         if result.accept:

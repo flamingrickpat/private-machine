@@ -45,7 +45,8 @@ async def measure_context(connection: Connection, messages: Sequence[TurnInput],
     if protocol.tools or protocol.response_format is not None or protocol.chat_template_kwargs:
         turns.append(Turn(Role.System, render_context(protocol.model_dump(exclude_defaults=True))))
     count = budget.estimate(turns)
-    return {"context_window": context, "context_source": source, "input_tokens": count,
+    return {"context_window": context, "cognition_context_window": connection.cognition_context_window,
+            "context_source": source, "input_tokens": count,
             "measurement": budget.measurement_label(turns),
             "input_fraction": budget.input_fraction, "input_budget_tokens": budget.input_ceiling,
             "measurement_complete": False}

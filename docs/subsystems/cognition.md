@@ -39,7 +39,7 @@ The module commits accepted state in one write batch and publishes one typed act
 
 ## The story frame
 
-Every model call starts with the same three turns of [`workflows.main_cognition.story_prefix.StoryPrefix`][]:
+Every model call starts from the same three-turn frame of [`workflows.main_cognition.story_prefix.StoryPrefix`][]:
 
 1. The shared system prompt: an expert story writer who simulates the mind of one character from the inside.
 2. The story: the character card, then the self shard, then the shard of each current stimulus group, each with its tail. Then the feeling in words and the new stimuli.
@@ -53,25 +53,59 @@ The shared [situational guidance](situational-guidance.md) supplies actual capab
 Workflow names and routing rules remain in the route call.
 The private grounding turn of other calls has no separate capability section.
 
-## The fast triage frame
+## Prompt fitting and complete evaluation
 
-Triage is a split-second judgment of how much each new event matters.
-It gates publication of incoming input, so it must stay fast even when the configured model window is large.
-A triage prompt therefore plans for at most 32k tokens of serving context, or less when the configured window is smaller.
-The configured input fraction of that window is its input ceiling.
+Internal cognition uses the chat entry's `cognition_context_window`, which defaults to 32,768 tokens.
+The smaller serving window wins. The configured `context_input_fraction` then reserves response space.
+For example, a 32,768-token window with fraction `0.85` admits at most 27,852 estimated input tokens.
+This setting changes how much evidence a mechanism can consider; it does not change stored memory.
 
-The story frame stays the same, but triage can show fewer records:
+[`workflows.main_cognition.prompt_context.shard_content`][] attaches priorities to complete shard records.
+The shared [`pm.context_render.budget.fit_turns`][] fits the whole attempt, including its instruction, grounding, and correction feedback.
+Optional records combine 40% recency, 40% existing salience, and 20% randomness.
+These are ranking weights, not fixed token quotas. Required evidence never competes with optional records.
+The measured selection remains unchanged when the request is sent.
 
-1. Required: the character card, the situational guidance, the feeling, the new events, the instruction, and the newest four dialogue lines of each partner.
-2. Optional, in this order: accepted entity context about the partner, the rest of the latest conversation, the three strongest narratives, the latest thoughts and experiences, other workspace records, and retrieved grounding evidence.
+The character card, current events, situational guidance, instructions, and newest four partner lines remain required.
+The fitter keeps cited support that is present in the prompt. It never cuts a record in half.
+A prompt that already fits keeps its text. Selection receipts record included groups, omitted groups, and estimated tokens.
+A required indivisible input that exceeds the window raises `RequiredContextTooLarge`.
 
-Newer lines and higher activation or retrieval scores enter first inside one class.
-The shared selector in [`pm.context_render.budget.select_rendered_context`][] admits optional records while the complete prompt fits.
-The prompt tells the model how many records it left out.
-A prompt that already fits is unchanged.
-Required content that does not fit raises `RequiredContextTooLarge`; nothing is clipped.
-Main cognition and [early input triage](public-publication.md) both use [`workflows.main_cognition.phases.triage.fit_messages`][].
-The phase receipt `triage-context` records the counts and the token estimate.
+Some mechanisms must evaluate every candidate. They use [`pm.context_render.budget.batch_prompt`][] instead of dropping candidates:
+
+| Mechanism | Complete evaluation | Result combination |
+| --- | --- | --- |
+| Attention | Every structure for every shard | Merge all ratings, then choose winners once across the full set |
+| Recall | Every supplied memory candidate | Merge selected source IDs; handle goals and belief changes in one coherent call |
+| Expectation checks | Every offered expectation and its uncounted observed stimuli | Merge outcomes by expectation ID |
+| Main triage | Every new event, with batches when the required event payload overflows | Restore input order and retain the strongest requested codelet budget |
+
+Each batch shares one fitted context. The task's own inputs remain complete.
+An oversized structure receives source-linked evidence reviews before its final attention rating.
+Every member enters a review, and a coverage receipt retains the complete member set.
+The digest allowance comes from the remaining window. Digests remain derived evidence; the stored structure keeps its original records.
+The final attention pass compares those reviewed structures without averaging partial ratings.
+
+Independent batches can run concurrently through the normal request pool.
+Coverage checks reject missing or duplicate results before the cycle changes state.
+Appraisal, experience, goals, decisions, and immediate entity-model maintenance retain a coherent view.
+They do not average independent character judgments or merge conflicting entity revisions.
+
+```mermaid
+flowchart LR
+    A[Typed context and task inputs] --> B{Task ownership}
+    B -->|Optional recall| C[Fit whole records with 40/40/20 ranking]
+    B -->|Every item required| D[Fit shared context and batch every item]
+    C --> E[Measured model request]
+    D --> F[Parallel measured requests]
+    F --> G[Validate coverage and merge]
+    E --> H[Accepted cycle result]
+    G --> H
+```
+
+Triage remains a fast judgment, but its window is no longer a hardcoded special case.
+Early triage still validates entity extraction against its frozen source grants.
+Native codelets fit their initial story through the same renderer; pm-coder owns their later history and compaction.
 
 ## Subjective experience
 
