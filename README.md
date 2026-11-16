@@ -364,6 +364,69 @@ Limits to know:
 - RSS is the whole test process, so the sim user's client counts too. Install `psutil` for a current-RSS reading; without it Linux uses `/proc` and other systems fall back to peak RSS, which never falls.
 - One run is one seed (`--seed`). Short runs with a fast model are only a smoke test; the memory slope needs several hours of virtual time to mean anything.
 
+## Eventful month end-to-end run
+
+`test_data/simulation/eventful-month.json` is a 90-scene, 30-day scenario with an
+exact committed plan: three scenes a day for a month of an adult user's life with
+her companion. The companion's feelings and choices are never scripted. Use this
+run to find out whether the whole architecture holds up over a long stretch,
+rather than over one exchange.
+
+Prerequisites: the repository, and your model settings. `config.yaml` is
+git-ignored, so copy `config.example.yaml` to `config.yaml` and add your key, or
+put the key in `.env`.
+
+The run also needs a seed home. The actor's voice is derived from the seed's
+public dialogue, so an empty character home is refused with `No public Jesse
+utterances exist to ground this simulation actor`. Build the seed once from the
+canon that ships with the repository:
+
+```bash
+uv run --locked python - <<'EOF'
+from pathlib import Path
+from pm.memory.store import MemoryStore
+home = Path.home() / ".pm/private-machine/spamuel-simulation-a"
+home.mkdir(parents=True, exist_ok=True)
+MemoryStore.from_yaml("test_data/personas/spamuel/canon.yaml", checkpoint=home / "ghost.pickle").save()
+EOF
+```
+
+That writes `~/.pm/private-machine/spamuel-simulation-a/ghost.pickle` (about
+35 MB) holding 912 public dialogue turns, so the scenario opens the morning after
+the canon's last line. The template already names that home in
+`participants[0].home`, so nothing needs editing.
+
+Create and run it:
+
+```bash
+uv run --locked python -m simulation.templates create   --run-id eventful-month   --template test_data/simulation/eventful-month.json   --config config.yaml   --start
+```
+
+`--start` runs the scenario in the foreground until it ends. On a headless
+machine run it under `tmux` or `screen`. To watch it instead, drop `--start` and
+use the dashboard:
+
+```bash
+uv run --locked python -m simulation --config config.yaml --openrouter-only --port 8100
+```
+
+What to expect:
+
+- **Virtual time runs at real time.** The clock is driven by `time.monotonic()`,
+  so a simulated hour takes an hour. A deadline that comes due while a cycle is
+  still running is served late; the clock never waits for it. This is deliberate:
+  the number of cognition cycles per simulated hour is then whatever your model
+  and machine actually deliver, which is the number worth measuring. A 30-day
+  scenario takes about 30 days.
+- **Neither actor blocks the other.** Jesse writes at her own pace (30 seconds to
+  an hour per turn, deterministic per turn so a resumed run keeps the same
+  rhythm). If the companion says nothing back she still writes again after at
+  least 30 minutes, so an ignored message is recorded as an outcome instead of
+  stalling the run. The companion may also speak unprompted.
+- Run state is `<data>/runs/<run-id>/state.json`. The participant's own log is
+  `participants/primary/logs/runtime_*.log`, and every prompt it sent is kept
+  under `participants/primary/logs/prompts/`.
+
 ## More information
 
 - [Example characters and optional histories](docs/workflows/example-characters.md)
