@@ -24,6 +24,7 @@ import logging
 from enum import StrEnum
 from typing import Any, Self
 
+import numpy as np
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from pm.records.enums import FrameEnum, RecordSubtypeBase, NoSubtype, SourceKind
@@ -202,9 +203,19 @@ class RecordBase(BaseModel):
         return self.id
 
     def __getstate__(self) -> dict[str, Any]:
-        """Save this record without its runtime owner or the owner's lock."""
+        """Save this record without its runtime owner or the owner's lock.
+
+        The embedding is written as ``float32``. It is the largest part of a
+        record and every consumer already treats it at that precision: the
+        vector index casts to ``float32`` before it searches. Storing Python
+        floats instead costs eight times the file for no gain.
+        """
         state = super().__getstate__()
         state["__pydantic_private__"] = {**state["__pydantic_private__"], "_owner": None}
+        saved = state["__dict__"]
+        embedding = saved.get("embedding")
+        if embedding:
+            state["__dict__"] = {**saved, "embedding": np.asarray(embedding, dtype=np.float32)}
         return state
 
     def copy_for_edit(self) -> Self:
@@ -214,11 +225,19 @@ class RecordBase(BaseModel):
         return record
 
     def __setstate__(self, state: dict[str, Any]) -> None:
-        """Supply identity defaults when importing trusted older pickle records."""
+        """Supply identity defaults and restore the embedding as a float list.
+
+        A checkpoint written by this version carries a ``float32`` array; older
+        checkpoints and seeds carry a list. Both become the list that every
+        caller already reads, so no other module sees the storage shape.
+        """
         super().__setstate__(state)
         self.__dict__.setdefault("supersedes_id", None)
         self.__dict__.setdefault("tombstone", False)
         self.__dict__.setdefault("embedding_model", "")
+        embedding = self.__dict__.get("embedding")
+        if embedding is not None and not isinstance(embedding, list):
+            self.__dict__["embedding"] = np.asarray(embedding, dtype=np.float32).tolist()
 
     def __setattr__(self, name: str, value: Any) -> None:
         if not name.startswith("_") and name not in {"embedding", "embedding_model", "last_accessed"}:

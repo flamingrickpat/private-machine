@@ -12,7 +12,7 @@ import tempfile
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from pathlib import Path
-from typing import Literal
+from typing import BinaryIO, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -76,6 +76,15 @@ class CheckpointSerializer(ABC):
     def loads(self, data: bytes) -> Checkpoint:
         """Decode and validate external bytes. Invalid data raises an error."""
 
+    def dump(self, checkpoint: Checkpoint, stream: BinaryIO) -> None:
+        """Write an encoded checkpoint to ``stream``.
+
+        The default buffers one whole encoding. A serializer that can stream
+        overrides this, because a large store must not hold both the accepted
+        state and a complete encoded copy in memory at once.
+        """
+        stream.write(self.dumps(checkpoint))
+
 
 class JsonCheckpointSerializer(CheckpointSerializer):
     """Keep the existing JSON format and encode it in one allocation."""
@@ -105,21 +114,28 @@ class PickleCheckpointSerializer(CheckpointSerializer):
         """Restore the typed state without record conversion or validation loops."""
         return pickle.loads(data)
 
+    def dump(self, checkpoint: Checkpoint, stream: BinaryIO) -> None:
+        """Stream the encoding straight into the file.
+
+        ``pickle.dump`` writes incrementally, so the commit holds only the live
+        records instead of a second complete byte copy of the whole store.
+        """
+        pickle.dump(checkpoint, stream, protocol=pickle.HIGHEST_PROTOCOL)
+
 
 PICKLE_SERIALIZER = PickleCheckpointSerializer()
 
 
 def write_checkpoint(path: Path, checkpoint: Checkpoint, check_cancelled: Callable[[], None], *,
                      serializer: CheckpointSerializer = PICKLE_SERIALIZER) -> None:
-    """Sync encoded bytes before atomic replacement. Cancellation preserves the old file."""
+    """Write and sync the file before atomic replacement. Cancellation preserves the old file."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    encoded = serializer.dumps(checkpoint)
     temporary = None
     try:
         with tempfile.NamedTemporaryFile(mode="wb", dir=path.parent, suffix=".tmp", delete=False) as stream:
             temporary = Path(stream.name)
-            stream.write(encoded)
+            serializer.dump(checkpoint, stream)
             stream.flush()
             OperatingSystem.sync_file(stream.fileno())
         check_cancelled()

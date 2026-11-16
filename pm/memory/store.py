@@ -969,7 +969,13 @@ class MemoryStore(RecordIndex):
         return changed
 
     def store_knoxel(self, knoxel: RecordBase) -> RecordBase:
-        """Commit one trusted host input through the same batch boundary."""
+        """Commit one trusted host input through the same batch boundary.
+
+        The commit stays provisional: it is neither a main cycle nor a recovery
+        root, so the accepted view admits it only when a later main cycle
+        depends on it. A caller that must retain it without that dependency
+        marks its own batch with ``preserve_on_recovery``.
+        """
         batch = self.begin_batch(uuid4().hex)
         record = batch.create(knoxel)
         self.commit(batch)

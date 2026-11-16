@@ -107,8 +107,16 @@ def commit_public_reply(ghost: MemoryStore, text: str, correlation: str, *, comm
         if exchange is not None:
             inputs.add(exchange.id)
         authority_id = action_id if action_id is not None else context.action_schema_id if context is not None else None
+        # Keep the identity of the reply context, not a second copy of it. The
+        # rendered context is the largest part of a checkpoint save (megabytes
+        # per reply) and nothing reads it back: the same text is already
+        # retained under the run's ``logs/prompts`` and the record ids below
+        # lead to the evidence it was built from.
         batch.depend_on(inputs, authority=authority_id,
-                        manifest={"kind": "public_reply", "context": context.model_dump(mode="json") if context is not None else None})
+                        manifest={"kind": "public_reply",
+                                  "context_schema": context.schema_version if context is not None else None,
+                                  "context_input_record_ids": list(context.input_record_ids) if context is not None else [],
+                                  "context_commit_ids": list(context.input_commit_ids) if context is not None else []})
         if context is not None:
             validate_public_context(ghost, context)
             for entity_context in context.entity_contexts:
