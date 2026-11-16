@@ -10,6 +10,7 @@ from pathlib import Path
 
 from pm.app.character_home import CharacterHome
 from pm.app.cli import build_from_plan, launch_plan
+from pm.memory.store import MemoryStore
 from pm.constants import WEB_CHAT_PORT
 from pm.records.cycle_records import StimulusGroup
 from pm.records.cycle_state import CycleState
@@ -78,7 +79,10 @@ class RestartTests(unittest.TestCase):
         self.assertEqual(reopened.current_tick_id, tick)
         self.assertEqual(sorted(reopened.gwt_turns), [tick])
         self.assertEqual(reopened.states[-1], store.states[-1])
-        self.assertEqual(reopened.get_knoxel_by_id(reply.id).content, "hi!")
+        # The reply is provisional until a main cycle depends on it, so the
+        # accepted view omits it while the raw history still holds it.
+        raw = MemoryStore.from_checkpoint(reopened.checkpoint, raw=True)
+        self.assertEqual(raw.get_knoxel_by_id(reply.id).content, "hi!")
         # The next tick continues after the saved one and never reuses it.
         self.assertEqual(reopened.begin_batch("cycle-2", new_tick=True).tick_id, tick + 1)
 

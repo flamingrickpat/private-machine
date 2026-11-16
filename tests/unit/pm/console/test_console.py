@@ -26,6 +26,18 @@ class ConsoleTests(unittest.TestCase):
             time.sleep(.05)
         self.fail("The worker did not produce the expected event.")
 
+    def fresh_snapshot(self, instance, action: dict) -> dict:
+        """Run a command that republishes the snapshot, then wait for that event.
+
+        The command acknowledgment returns before the event stream carries the
+        new snapshot, so reading the attribute straight after the command can
+        observe the previous one.
+        """
+        before = int(instance.snapshot.get("seq", 0))
+        instance.command(action)
+        self.wait_for(instance, lambda events: int(instance.snapshot.get("seq", 0)) > before)
+        return instance.snapshot
+
     def test_worker_trace_memory_sessions_restart_and_kill(self):
         with tempfile.TemporaryDirectory() as directory:
             console = Console(Path(directory))
@@ -44,18 +56,21 @@ class ConsoleTests(unittest.TestCase):
                 self.assertEqual(replies[0]["session"], "alice-session")
                 self.assertTrue(any(e["kind"] == "bus" and e["recipient"] == "main_cog" for e in instance.events))
                 self.assertTrue(any(e["kind"] == "workflow.end" for e in instance.events))
-                instance.command({"action": "snapshot"})
-                records = instance.snapshot["records"]
+                snapshot = self.fresh_snapshot(instance, {"action": "snapshot"})
+                records = snapshot["records"]
                 record_id, record = next((key, value) for key, value in records.items() if value["__type__"] == "Feature")
-                revision = instance.snapshot["revisions"][record_id]
+                revision = snapshot["revisions"][record_id]
                 changed = json.loads(json.dumps(record))
                 changed["data"]["content"] = "Injected operator memory"
-                instance.command({"action": "memory", "record": changed, "revision": revision})
-                self.assertEqual(instance.snapshot["records"][record_id]["data"]["content"], "Injected operator memory")
+                saved = self.fresh_snapshot(instance, {"action": "memory", "record": changed, "revision": revision})
+                # A saved edit appends a successor, so the injected text carries a new id.
+                injected_id = next(key for key, value in saved["records"].items()
+                                   if value["data"]["content"] == "Injected operator memory")
+                self.assertNotIn(record_id, saved["records"])
                 with self.assertRaisesRegex(ValueError, "memory changed"):
                     instance.command({"action": "memory", "record": changed, "revision": revision})
-                instance.command({"action": "memory", "record": changed, "create": True})
-                self.assertEqual(len(instance.snapshot["records"]), len(records) + 1)
+                created = self.fresh_snapshot(instance, {"action": "memory", "record": changed, "create": True})
+                self.assertEqual(len(created["records"]), len(records) + 1)
                 instance.command({"action": "chat", "session": "bob-session", "user": "Bob", "text": "Hello again"})
                 self.wait_for(instance, lambda events: sum(e["kind"] == "chat.reply" for e in events) == 2)
                 self.assertEqual([e for e in instance.events if e["kind"] == "chat.reply"][-1]["session"], "bob-session")
@@ -65,8 +80,8 @@ class ConsoleTests(unittest.TestCase):
                 self.assertTrue((instance.root / "ghost.pickle").is_file())
                 instance.start()
                 self.wait_for(instance, lambda events: sum(e["kind"] == "ready" for e in events) == 2)
-                instance.command({"action": "snapshot"})
-                self.assertEqual(instance.snapshot["records"][record_id]["data"]["content"], "Injected operator memory")
+                restarted = self.fresh_snapshot(instance, {"action": "snapshot"})
+                self.assertEqual(restarted["records"][injected_id]["data"]["content"], "Injected operator memory")
                 instance.kill()
                 self.assertEqual(instance.info()["state"], "stopped")
             finally:

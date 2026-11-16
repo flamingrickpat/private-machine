@@ -54,13 +54,16 @@ class AttributionTests(unittest.TestCase):
         correlation = self.proxy.submit("first message")
         source = exchange_record(self.ghost, correlation)
         context = build_public_context(self.ghost, ActionRequest(stimuli=[Stimulus(knoxel_id=source.id)]))
-        commit_public_reply(self.ghost, "first answer", correlation, commit_id="first")
-        # Another independent action can retain this source after resolution.
-        reply_id = commit_public_reply(self.ghost, "a follow-up", "", commit_id="follow-up", context=context)
-        context2 = build_public_context(self.ghost, ActionRequest(stimuli=[Stimulus(knoxel_id=reply_id)]))
-        acknowledge_reply(self.ghost, reply_id)
-        self.proxy.submit("second message arrives while composing")
+        first_reply = commit_public_reply(self.ghost, "first answer", correlation, commit_id="first")
+        # A completed exchange returns no further utterance for the same context.
+        self.assertIsNone(commit_public_reply(self.ghost, "a follow-up", "", commit_id="follow-up", context=context))
+        # Acknowledging that delivery must not invalidate a draft for a new message.
+        acknowledge_reply(self.ghost, first_reply)
+        follow = self.proxy.submit("second message arrives while composing")
+        follow_source = exchange_record(self.ghost, follow)
+        context2 = build_public_context(self.ghost, ActionRequest(stimuli=[Stimulus(knoxel_id=follow_source.id)]))
         new_id = commit_public_reply(self.ghost, "another follow-up", "", commit_id="last", context=context2)
+        self.assertIsNotNone(new_id)
         self.assertEqual(self.ghost.get_knoxel_by_id(new_id).content, "another follow-up")
 
     def test_narrator_extraction_cannot_rewrite_speech(self):

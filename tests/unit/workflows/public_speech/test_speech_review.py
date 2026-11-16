@@ -309,7 +309,9 @@ class NoContextReviewTests(unittest.TestCase):
                 PublicContext(companion_name="Spamuel", user_name="Jesse")))
         self.assertEqual(result.reason, "ok")
         self.assertEqual(client.complete.await_count, 2)
-        self.assertEqual(measure.await_count, 1)
+        # The repair turn appends its correction to the conversation, so the
+        # second attempt is a different prompt and must be measured again.
+        self.assertEqual(measure.await_count, 2)
         self.assertIs(measure.call_args.args[0], connection)
 
     def test_request_context_keeps_abilities_and_memories(self):

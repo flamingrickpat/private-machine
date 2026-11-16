@@ -25,7 +25,10 @@ class DurableApplicationTests(unittest.TestCase):
         observed = []
 
         def receive(envelope):
-            reopened = MemoryStore.from_checkpoint(self.path)
+            # Raw mode keeps provisional transactions, so this reads what the
+            # commit actually wrote. The accepted view admits a public reply
+            # only when a later main cycle depends on it.
+            reopened = MemoryStore.from_checkpoint(self.path, raw=True)
             if "knoxel_id" in envelope.payload:
                 self.assertIsNotNone(reopened.get_knoxel_by_id(envelope.payload["knoxel_id"]))
             if "gwt_tick" in envelope.payload:
@@ -46,7 +49,16 @@ class DurableApplicationTests(unittest.TestCase):
         self.assertTrue(all(module._thread is None for module in self.app.modules))
         restarted = build_app(None, self.root / "restarted", checkpoint_path=self.path,
                               record_lifecycle=False)
-        self.assertEqual(restarted.ghost.state_dict(), self.app.ghost.state_dict())
+        # A restart recovers the accepted state. The public reply is still
+        # provisional until a later main cycle depends on it, so it is absent
+        # from the accepted view while every recovered record is identical.
+        live = {key: record.as_payload(include_embedding=False)
+                for key, record in self.app.ghost.all_knoxels.items()}
+        recovered = {key: record.as_payload(include_embedding=False)
+                     for key, record in restarted.ghost.all_knoxels.items()}
+        self.assertTrue(set(recovered).issubset(set(live)), sorted(set(recovered) - set(live)))
+        for key, payload in recovered.items():
+            self.assertEqual(payload, live[key], key)
 
     def test_failed_save_emits_no_gwt_or_action(self):
         self.app.user_input.submit("hello")

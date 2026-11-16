@@ -92,7 +92,8 @@ class CyclePackageTests(unittest.TestCase):
         self.assertEqual(package["cycle"]["decisions"][0]["text"], "Call him a coward.")
         self.assertEqual(package["cycle"]["csm"]["items"][str(stimulus.id)]["endorsers"], ["retrieval"])
         self.assertEqual(package["gwt"]["stimulus_ids"], [stimulus.id])
-        self.assertNotIn("embedding", json.dumps(package))
+        # The vector is excluded; ``embedding_model`` is metadata and stays.
+        self.assertNotIn('"embedding":', json.dumps(package))
         self.assertEqual(SELF_SHARD.kind, package["cycle"]["workspace"]["self_shard"]["key"]["kind"])
         self.assertIsNone(package["mental_state_before"])
         before = pickle_copy(ghost.states[-1])

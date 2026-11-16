@@ -16,7 +16,7 @@ from pm.llm.activation import ChatClient, ModelActivation
 from pm.llm.config import resolve_connection
 from pm.llm.context_window import estimate_tokens
 from pm.llm.http_client import ModelError
-from pm.llm.multimodal import agent_images, encode_messages
+from pm.llm.multimodal import agent_images, encode_messages, prompt_image_count
 from pm.llm.prompt_encoding import OpenAIChatEncoder
 from pm.llm.prompt_log import start_prompt_log
 from pm.records.media import image_from_bytes, install_media_lookup
@@ -100,12 +100,16 @@ class EncoderTests(unittest.TestCase):
     def test_token_estimate_adds_a_constant_per_image(self):
         install_media_lookup(type("Lookup", (), {"find_image": staticmethod(self.lookup)})())
         self.addCleanup(install_media_lookup, None)
+        prompt = [Turn(Role.User, "look " + " ".join(i.tag for i in self.images))]
+        # Only the newest PROMPT_MAX_IMAGES become parts; the rest stay alt text.
+        self.assertEqual(prompt_image_count(prompt), PROMPT_MAX_IMAGES)
         plain, _ = estimate_tokens("qwen", [Turn(Role.User, "look")])
-        tagged, label = estimate_tokens("qwen", [Turn(Role.User, "look " + " ".join(i.tag for i in self.images))])
-        self.assertGreaterEqual(tagged - plain, PROMPT_MAX_IMAGES * PROMPT_IMAGE_TOKENS)
-        # Tag text adds tokens beyond the image constant. Allow generous headroom.
-        self.assertLess(tagged - plain, (PROMPT_MAX_IMAGES + 1) * PROMPT_IMAGE_TOKENS + 200)
-        self.assertTrue(label.startswith("estimated.images_by_constant."))
+        tagged, label = estimate_tokens("qwen", prompt)
+        allowance = PROMPT_MAX_IMAGES * PROMPT_IMAGE_TOKENS
+        self.assertGreaterEqual(tagged - plain, allowance)
+        # The estimate applies its safety margin to text and allowance together.
+        self.assertLess(tagged - plain, 2 * (allowance + 200))
+        self.assertTrue(label.endswith(".images_by_constant"))
 
 
 class AgentImageTests(unittest.TestCase):
@@ -156,7 +160,10 @@ class ChatClientHookTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(ModelError):
                     await client.complete([Turn(Role.User, f"what is this?\n{image.tag}")])
             payload = log.call_args.kwargs["payload"]
-            self.assertFalse(list(Path(directory).glob("*.json")))
+            # The exact payload is retained beside the readable transcript.
+            prompts = sorted(Path(directory).glob("*.md"))
+            self.assertEqual(len(prompts), 1)
+            self.assertTrue(prompts[0].with_suffix(".json").exists())
         parts = payload["messages"][0]["content"]
         self.assertEqual(parts[0], {"type": "text", "text": "what is this?\n"})
         self.assertEqual(parts[1]["image_url"]["url"], image.data_url())

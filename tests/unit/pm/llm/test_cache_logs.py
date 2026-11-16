@@ -26,7 +26,9 @@ class CacheLogTests(unittest.TestCase):
             self.assertIn('      "b": 1', text)
             self.assertIn("tokens_per_second: 10.0", text)
             self.assertEqual(list(Path(directory).glob("*.md")), [path])
-            self.assertFalse(path.with_suffix(".json").exists())
+            # The exact request and response bytes stay beside the transcript.
+            retained = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
+            self.assertEqual(retained["response"]["usage"]["completion_tokens"], 20)
             self.assertTrue(all(len(line) <= 120 for line in text.splitlines()))
 
     def test_replay_records_no_fresh_generation_speed(self):

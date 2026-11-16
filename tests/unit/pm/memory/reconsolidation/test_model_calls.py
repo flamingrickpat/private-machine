@@ -14,7 +14,9 @@ class Script:
         self.requests = []
 
     def measure_context(self, turns, **generation):
-        return {"input_tokens": len(turns), "input_budget_tokens": 9}
+        # Roomy on purpose: the repair conversation must reach its rejection
+        # bound rather than reset early because the prompt stopped fitting.
+        return {"input_tokens": len(turns), "input_budget_tokens": 64}
 
     def __call__(self, turns, **generation):
         self.requests.append(turns)
@@ -43,7 +45,9 @@ class ModelCallTests(unittest.TestCase):
         self.assertEqual(script.requests[0], script.requests[1])
 
     def test_exhausted_repairs_raise(self):
-        calls = ModelCalls(Script(*["no json"] * 5), workers=1)
+        # Two complete nine-rejection conversations fail on one identical
+        # problem, which is the documented bound.
+        calls = ModelCalls(Script(*["no json"] * 20), workers=1)
         with self.assertRaises(ReconsolidationOutputError):
             calls.json("system", "task", SummaryAnswer)
 

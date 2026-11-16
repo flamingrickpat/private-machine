@@ -33,7 +33,9 @@ class ActivationTests(unittest.IsolatedAsyncioTestCase):
                 encoding="utf-8").splitlines()]
             self.assertEqual([event["event"] for event in events], ["start", "error"])
             self.assertEqual(events[-1]["call_id"], prompt.stem)
-            self.assertFalse(list(Path(directory).glob("*.json")))
+            # The exact payload is retained beside the transcript, and neither
+            # of those files may carry the credential.
+            self.assertTrue(prompt.with_suffix(".json").exists())
             self.assertNotIn("private-credential-marker", "".join(
                 path.read_text() for path in Path(directory).iterdir()))
 

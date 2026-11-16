@@ -118,7 +118,11 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(sorted(semantic.source_knoxel_ids), sorted(report.fact_ids))
         self.assertEqual(semantic.lineage.parent_record_ids, [min(report.fact_ids)])
         self.assertTrue(all(item.semantic_record_id == semantic.id for item in facts))
-        self.assertTrue(all(self.store.get_knoxel_by_id(key).facts_extracted for key in report.topical_ids))
+        # Fact extraction appends a successor cluster, so the accepted head carries
+        # the flag and the created id stays as superseded history.
+        live_topical = [item for item in self.store.all_knoxels.values()
+                        if isinstance(item, MemoryClusterRecord) and item.cluster_type == ClusterType.Topical]
+        self.assertTrue(live_topical and all(item.facts_extracted for item in live_topical))
         narratives = [records[key] for key in report.narrative_ids]
         self.assertEqual(len(narratives), 9)
         self.assertTrue(all(isinstance(item, Narrative) and item.lineage.operation == OPERATION_NARRATIVE

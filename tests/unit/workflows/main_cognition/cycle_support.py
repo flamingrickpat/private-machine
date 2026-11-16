@@ -18,6 +18,7 @@ import math
 import re
 from collections.abc import Callable
 
+from pm.llm.contracts import ContextMeasurement
 from pm.llm.prompt_encoding import normalize_turns
 from workflows.main_cognition.codelet_percepts import HEADER_FIELDS, MODEL_BY_TYPE, CodeletPerceptType
 from workflows.main_cognition.schemas import AgentCodeletAnswer
@@ -133,6 +134,19 @@ class ScriptedModel:
         self.reports = reports
         self.calls: list[str] = []
         self.messages: list[list] = []
+
+    def measure_context(self, messages, *, cancel=None, **generation) -> ContextMeasurement:
+        """Report a generous input budget for the scripted phase answers.
+
+        The real model measures its rendered prompt. This script answers a
+        fixed phase, so the estimate only has to leave the repair budget room:
+        a measured prompt is what lets a rejected answer be asked again.
+        """
+        turns = normalize_turns(messages)
+        return {"context_window": 200_000, "context_source": "scripted",
+                "input_tokens": len(turns) * 8, "measurement": "scripted",
+                "input_fraction": 0.8, "input_budget_tokens": 160_000,
+                "measurement_complete": False}
 
     def answer_for(self, phase: str) -> object:
         mapped = answers_from_reports(self.reports) if self.reports is not None else {}

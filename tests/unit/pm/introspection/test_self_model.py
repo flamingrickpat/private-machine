@@ -14,6 +14,7 @@ from pm.introspection.grants import SourceGrant, SourceInspector
 from pm.introspection.self_model import (
     capability_belief_key,
     mark_stale_beliefs,
+    narrative_belief_key,
     record_capability_beliefs,
     record_narrative_belief,
 )
@@ -83,9 +84,13 @@ class CapabilityBeliefTests(unittest.TestCase):
             ghost.commit(batch)
             self.assertEqual(len(receipt["accepted_ids"]), 1)
             self.assertEqual(receipt["revised"], [old.id])
-            superseded = ghost.get_knoxel_by_id(old.id)
-            self.assertFalse(superseded.active)
-            self.assertEqual(superseded.superseded_by_id, receipt["accepted_ids"][0])
+            # ``replace`` keeps the prior version as superseded history and
+            # stages the deactivation on its successor, which is the retired head.
+            retired = [record for record in ghost.all_knoxels.values()
+                       if isinstance(record, BeliefRecord)
+                       and record.belief_key == capability_belief_key("feature") and not record.active]
+            self.assertEqual(len(retired), 1)
+            self.assertEqual(retired[0].superseded_by_id, receipt["accepted_ids"][0])
             shifts = [record for record in ghost.all_knoxels.values()
                       if isinstance(record, BeliefShiftRecord) and record.target_belief_id == old.id]
             self.assertEqual(len(shifts), 1)
@@ -133,7 +138,13 @@ class NarrativeBeliefTests(unittest.TestCase):
             old = ghost.get_knoxel_by_id(first_id)
             self.assertEqual(old.supporting_knoxel_ids, [thought.id])
             self.assertTrue(old.metadata["episode_ids"])
-            self.assertFalse(old.active)
+            # The prior version keeps its episode reference in history; the
+            # deactivation lives on its successor, which is the retired head.
+            retired = [record for record in ghost.all_knoxels.values()
+                       if isinstance(record, BeliefRecord)
+                       and record.belief_key == narrative_belief_key("the story") and not record.active]
+            self.assertEqual(len(retired), 1)
+            self.assertEqual(retired[0].superseded_by_id, second["accepted_ids"][0])
 
     def test_a_dropped_evidence_id_is_reported_not_linked(self):
         ghost = small_ghost()

@@ -114,8 +114,10 @@ class CacheTests(unittest.TestCase):
         self.assertEqual(len(cached), 1)
         self.assertFalse(cached[0].with_suffix(".md").exists())
         self.assertFalse(transcript.exists())
-        self.assertEqual(len(list(logs.glob("*.md"))), 3)
-        self.assertFalse(list(logs.glob("*.json")))
+        transcripts = sorted(logs.glob("*.md"))
+        self.assertEqual(len(transcripts), 3)
+        # Each attempt keeps its exact payload beside its transcript.
+        self.assertEqual([path.with_suffix(".json").exists() for path in transcripts], [True, True, True])
         starts = [line for line in captured.output if "Model request start" in line]
         self.assertEqual(len(starts), 3)
         self.assertIn("cache_hit=True", starts[-1])

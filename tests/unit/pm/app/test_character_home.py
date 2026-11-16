@@ -47,7 +47,7 @@ class HomeTests(unittest.TestCase):
     def test_init_creates_the_layout_and_an_empty_history(self):
         home = CharacterHome(self.root / "home")
         self.init(home)
-        for path in (home.character_yaml, home.personality_json, home.ghost_json, home.runtime_root, home.import_dir):
+        for path in (home.character_yaml, home.personality_json, home.ghost_pickle, home.runtime_root, home.import_dir):
             self.assertTrue(path.exists(), path)
         persona = home.load_persona()
         self.assertEqual(persona.character_card_story.strip(), "Ava teases Bob.")
@@ -56,7 +56,7 @@ class HomeTests(unittest.TestCase):
         self.assertEqual(store.states, [])
         self.assertEqual(sorted(entity.content for entity in store.all_entities), ["Ava", "Bob"])
         self.assertTrue(all(import_mark(entity).origin == ImportOrigin.CharacterInit for entity in store.all_entities))
-        self.assertEqual(store.checkpoint, home.ghost_json)
+        self.assertEqual(store.checkpoint, home.ghost_pickle)
 
     def test_init_refuses_an_existing_home_without_force(self):
         home = CharacterHome(self.root / "home")
@@ -64,7 +64,7 @@ class HomeTests(unittest.TestCase):
         with self.assertRaises(FileExistsError):
             self.init(home)
         self.init(home, force=True)
-        self.assertTrue(home.ghost_json.exists())
+        self.assertTrue(home.ghost_pickle.exists())
 
     def test_open_store_needs_init(self):
         with self.assertRaises(FileNotFoundError) as caught:

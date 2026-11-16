@@ -60,14 +60,27 @@ class VectorSampleTests(unittest.TestCase):
         self.assertEqual(stats["merge_share"], 0.0)
 
 
+def seed_durable_memory(store: MemoryStore, vectors) -> None:
+    """Commit fixture memory that must survive a reload.
+
+    ``store_knoxel`` is provisional input; it enters the accepted view only
+    when a main cycle depends on it, so a fixture that a reload must find is
+    committed as an explicit recovery root.
+    """
+    for index, vector in enumerate(vectors):
+        batch = store.begin_batch(f"fixture-{index}")
+        batch.create(Feature(content=f"memory {index}", feature_type=FeatureType.Dialogue,
+                             embedding=[float(value) for value in vector]))
+        batch.preserve_on_recovery()
+        store.commit(batch)
+
+
 class RebuildTests(unittest.TestCase):
     def test_rebuild_saves_new_vectors_and_keeps_a_backup_of_the_old_ones(self):
         with tempfile.TemporaryDirectory() as folder:
             checkpoint = Path(folder) / "ghost.pickle"
             store = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"), checkpoint=checkpoint)
-            for index, vector in enumerate(DEGENERATE):
-                store.store_knoxel(Feature(content=f"memory {index}", feature_type=FeatureType.Dialogue,
-                                           embedding=[float(value) for value in vector]))
+            seed_durable_memory(store, DEGENERATE)
             store.previous_emb_model = "broken-encoder"
             store.save()
             old_bytes = checkpoint.read_bytes()
@@ -84,12 +97,18 @@ class RebuildTests(unittest.TestCase):
             backup = Path(report["backup"])
             self.assertTrue(backup.exists())
             self.assertEqual(backup.read_bytes(), old_bytes)
-            reloaded = MemoryStore.from_checkpoint(checkpoint)
+            # The rebuilt records are provisional input until a main cycle
+            # admits them, so read the raw history to inspect their vectors.
+            reloaded = MemoryStore.from_checkpoint(checkpoint, raw=True)
             self.assertEqual(reloaded.previous_emb_model, "stub-vectors")
-            stored = {tuple(record.embedding) for record in reloaded.all_knoxels.values()}
+            stored = [tuple(record.embedding) for record in reloaded.all_knoxels.values()]
             self.assertEqual(len(stored), 5)
+            # A checkpoint stores embeddings as float32, the same precision the
+            # vector index searches, so compare within that resolution.
+            expected = [tuple(float(value) for value in row) for row in HEALTHY]
             for vector in stored:
-                self.assertIn(vector, [tuple(float(value) for value in row) for row in HEALTHY])
+                self.assertTrue(any(all(abs(actual - want) <= 1e-6 for actual, want in zip(vector, row))
+                                    for row in expected), vector)
 
 
 class RunRebuildTests(unittest.TestCase):
@@ -102,9 +121,7 @@ class RunRebuildTests(unittest.TestCase):
             config_path = root / "model.yaml"
             config_path.write_text("embedding: {}\n", encoding="utf-8")
             store = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"), checkpoint=checkpoint)
-            for index, vector in enumerate(DEGENERATE):
-                store.store_knoxel(Feature(content=f"memory {index}", feature_type=FeatureType.Dialogue,
-                                           embedding=[float(value) for value in vector]))
+            seed_durable_memory(store, DEGENERATE)
             store.previous_emb_model = "broken-encoder"
             store.save()
             plan = launch_plan(["--checkpoint", str(checkpoint), "--config", str(config_path), "--embed"], SEED)
@@ -122,7 +139,9 @@ class RunRebuildTests(unittest.TestCase):
             self.assertIn("before: 5 of 5 vectors", printed)
             self.assertIn("model 'broken-encoder' -> 'stub-vectors'", printed)
             self.assertIn("backup with the old vectors", printed)
-            reloaded = MemoryStore.from_checkpoint(checkpoint)
+            # The rebuilt records are provisional input until a main cycle
+            # admits them, so read the raw history to inspect their vectors.
+            reloaded = MemoryStore.from_checkpoint(checkpoint, raw=True)
             self.assertEqual(reloaded.previous_emb_model, "stub-vectors")
             self.assertTrue(all(record.embedding for record in reloaded.all_knoxels.values()))
 
