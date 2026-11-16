@@ -6,9 +6,11 @@ activates the configured connection on the calling module thread; later
 completions reuse it. Activation is therefore explicit and observable, and no
 model switch can happen while another completion is in flight.
 
-Visible completions have no automatic ``max_tokens`` cap. Workflows can budget
-hidden reasoning separately. The application shares admission slots across
-module threads. Cancellation releases a slot after the request finishes
+Visible completions are bounded by ``Connection.completion_token_limit`` (8192
+by default) so a degenerate sample cannot run to the provider's whole output
+ceiling. Workflows can budget hidden reasoning separately, and an explicit
+``max_tokens`` from the caller still wins. The application shares admission
+slots across module threads. Cancellation releases a slot after the request finishes
 cleanup. An empty response is retried at most once. An endpoint that is down
 pauses activation and requests until it returns; it never ends the session.
 """

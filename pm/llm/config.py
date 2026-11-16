@@ -48,6 +48,11 @@ class Connection(BaseModel):
     context_input_fraction: float = Field(default=0.8, gt=0, lt=1, strict=True)
     # Cap the resolved serving context without increasing the model's limit.
     override_context: StrictInt | None = Field(default=None, gt=0)
+    # Bound one ordinary visible completion. Without this, a completion may run
+    # to the provider's whole output ceiling: a degenerate repetition sample then
+    # costs minutes of wall clock and holds an admission slot the whole time.
+    # ``None`` disables the cap. Hidden reasoning has its own smaller budget.
+    completion_token_limit: StrictInt | None = Field(default=8192, gt=0)
 
     @field_validator("base_url")
     @classmethod
@@ -98,7 +103,8 @@ class ConnectionConfig(Connection):
             key = SecretStr(value)
         return Connection(base_url=self.base_url, model=self.model, api_key=key, startup_script=self.startup_script,
                           context_window=self.context_window, context_input_fraction=self.context_input_fraction,
-                          override_context=self.override_context)
+                          override_context=self.override_context,
+                          completion_token_limit=self.completion_token_limit)
 
 
 class EmbeddingConfig(ConnectionConfig):

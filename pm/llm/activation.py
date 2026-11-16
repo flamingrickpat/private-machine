@@ -321,6 +321,14 @@ class ChatClient:
             raise ValueError("Use the resolved model and non-streaming response path.")
         if cancel is not None and cancel.is_set():
             raise asyncio.CancelledError
+        # Bound the visible answer before the reasoning budget reads the output
+        # ceiling. An unbounded completion can run to 131072 tokens; one such
+        # sample held the inference slot for 691 seconds, so the connection's
+        # limit applies unless the caller asked for a different bound.
+        if generation.get("max_tokens") is None and generation.get("max_completion_tokens") is None:
+            limit = self.connection.completion_token_limit
+            if limit is not None:
+                generation["max_tokens"] = limit
         # A reasoning budget reserves hidden thinking space inside the serving
         # context. Its token count is measured from the same rendered prompt.
         budget = generation.pop("reasoning_budget", None)
