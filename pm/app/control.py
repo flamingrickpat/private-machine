@@ -182,8 +182,12 @@ class RuntimeControl:
                 clock = vclock.active()
                 if clock is None:
                     raise ValueError("This process has no virtual clock.")
-                if not app.idle():
-                    raise ValueError("The runtime must be idle before time advances.")
+                # Real time does not pause while a mind finishes a cycle. The
+                # clock therefore keeps moving while work is still running, and
+                # a deadline that comes due is served late instead of holding
+                # time still. ``set`` already rejects a backward move. Only the
+                # mailbox wake is needed to let an overdue module notice; its
+                # own loop decides whether it is due.
                 clock.set(datetime.fromisoformat(body["to"]))
                 for module in app.modules:
                     module.mailbox.wake()

@@ -16,9 +16,10 @@ The package overview is in ``simulation/__init__.py``.
 from __future__ import annotations
 
 from asyncio import CancelledError
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+import hashlib
 import json
 from pathlib import Path
 import queue
@@ -38,6 +39,41 @@ from simulation.agents import ActorContext, Agents, StageContext
 from simulation.actors import ActorProfile, ConversationTurn, DeliveryEvidence, load_profile
 from simulation.client import PMProcess
 from simulation.evidence import capture_participant
+
+#: How often virtual time is pushed to the participants. One push per second
+#: keeps the clock within a second of real time without flooding the controls.
+ADVANCE_TICK_SECONDS = 1.0
+
+#: How long Jesse takes to write her next line when Spamuel answered. A person
+#: answers when she next looks at a phone or a screen. Simulated user pacing,
+#: not an architectural claim.
+ACTOR_TURN_LATENCY_SECONDS = (30.0, 3600.0)
+#: The least Jesse waits before writing again when Spamuel said nothing back.
+#: She is not blocked by him; she simply gives him a real chance first.
+ACTOR_UNANSWERED_WAIT_SECONDS = 1800.0
+
+
+def actor_turn_latency(delivery_id: str) -> float:
+    """Return Jesse's thinking time for one turn, derived from the turn identity.
+
+    Deterministic on purpose: a resumed run keeps the same rhythm, and a failure
+    receipt can be replayed against the same pacing.
+    """
+    low, high = ACTOR_TURN_LATENCY_SECONDS
+    digest = hashlib.sha256(delivery_id.encode("utf-8")).digest()
+    return low + (high - low) * int.from_bytes(digest[:8], "big") / 2 ** 64
+
+
+def replied_after(rows: Sequence[Mapping[str, JsonValue]], delivery_id: str, source: str) -> bool:
+    """Return whether ``source`` spoke after one delivered message."""
+    seen_actor = False
+    for row in rows:
+        if row.get("delivery_id") == delivery_id:
+            seen_actor = True
+            continue
+        if seen_actor and row.get("kind") == "speech" and row.get("source") == source:
+            return True
+    return False
 from simulation.personas import fork_home
 from simulation.plans import ScenarioPlan, StageJudgment, facts_for_scene
 from simulation.source import freeze_source
@@ -406,26 +442,75 @@ class RunEngine:
             time.sleep(.05)
 
     def advance(self, target: datetime) -> None:
-        """Advance every participant through each semantic timer deadline.
+        """Move virtual time with wall time until ``target`` is reached.
 
-        Poll timers do not force extra inference. Required wake and private
-        thought deadlines still run. Routing stays buffered during the barrier.
+        Virtual time and real time run together, so a simulated hour holds
+        exactly the cognition cycles that this machine and model can finish in
+        an hour. A deadline that comes due while a slow cycle is still running
+        fires late; the clock does not stop and wait for it. Stopping at every
+        deadline would let a scenario claim more cycles per simulated hour than
+        the model can actually sustain, which is the opposite of a realistic
+        test. Routing stays buffered during the barrier.
         """
+        states = {key: item.state() for key, item in self.processes.items()}
+        base = max(datetime.fromisoformat(item["clock"]) for item in states.values())
+        if target < base:
+            raise ValueError("A scenario cannot move behind its current coordinated clock.")
+        # Read the clock without waiting for quiescence: the runtime is normally
+        # busy, and waiting here would hold time still for a whole cycle.
+        self._drive_clock(base, until=target)
+
+    def _drive_clock(self, base: datetime, *, until: datetime | None,
+                     done: Callable[[], bool] | None = None) -> None:
+        """Push virtual time at real speed until ``until`` or ``done``.
+
+        ``until`` is the coordinate this call must reach. ``done`` lets a caller
+        keep time moving past it, so waiting for a reply never freezes the
+        clock. Both may be combined: the window ends at ``until`` or when
+        ``done`` becomes true.
+        """
+        started = time.monotonic()
         while True:
-            states = self.settle()
-            now = max(datetime.fromisoformat(item["clock"]) for item in states.values())
-            if target < now:
-                raise ValueError("A scenario cannot move behind its current coordinated clock.")
-            if now >= target or self.request.is_set():
+            if self.request.is_set():
                 return
-            stops = [target]
-            stops.extend(datetime.fromisoformat(item["next_due"]) for item in states.values()
-                         if item.get("next_due") and now < datetime.fromisoformat(item["next_due"]) <= target)
-            stop = min(stops)
+            now = base + timedelta(seconds=time.monotonic() - started)
+            if until is not None and now > until:
+                now = until
             for process in self.processes.values():
-                process.post("/control/advance-step", {"to": stop.isoformat()})
-            self.state["clock"] = stop.isoformat()
+                process.post("/control/advance-step", {"to": now.isoformat()})
+            self.state["clock"] = now.isoformat()
+            # Record and route any speech that arrives while time runs, so a
+            # reply is not lost behind the clock push.
+            self.collect(route=True)
             self.save()
+            if done is not None and done():
+                return
+            if until is not None and now >= until:
+                return
+            time.sleep(ADVANCE_TICK_SECONDS)
+
+    def wait_actor_turn(self, delivery_id: str, source: str) -> None:
+        """Let Jesse write her next line without ever waiting on Spamuel.
+
+        Her cadence belongs to her, not to the companion. If Spamuel answered she
+        writes at her own pace; if he said nothing she still writes again after a
+        real pause of at least :data:`ACTOR_UNANSWERED_WAIT_SECONDS`. An ignored
+        message is therefore a measured outcome, never a stalled run, and neither
+        actor blocks the other. Speech arriving during the wait is still
+        collected and routed.
+        """
+        sampled = actor_turn_latency(delivery_id)
+        states = {key: item.state() for key, item in self.processes.items()}
+        base = max(datetime.fromisoformat(item["clock"]) for item in states.values())
+        started = time.monotonic()
+
+        def turn_over() -> bool:
+            elapsed = time.monotonic() - started
+            answered = replied_after(self.state["timeline"], delivery_id, source)
+            limit = sampled if answered else max(sampled, ACTOR_UNANSWERED_WAIT_SECONDS)
+            return elapsed >= limit
+
+        self._drive_clock(base, until=None, done=turn_over)
 
     def _stage(self, agents: Agents) -> None:
         """Run one conversational turn and review actual recorded responses."""
@@ -462,7 +547,7 @@ class RunEngine:
         if not any(item.get("delivery_id") == pending["delivery_id"] for item in self.state["timeline"]):
             self.state["timeline"].append({**pending, "kind": "actor", "timestamp": self.state["clock"]})
             self.save()
-        self.settle(target=step.target, route=True)
+        self.wait_actor_turn(pending["delivery_id"], step.target)
         delivered = process.post("/control/delivery", {"delivery_id": pending["delivery_id"]})
         if not delivered["accepted"]:
             raise RuntimeError("Main cognition did not admit the delivered scenario input.")
