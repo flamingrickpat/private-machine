@@ -1,24 +1,22 @@
-"""Execute one real pm-coder session, then verify the requested bytes."""
+"""Select note content, write exact UTF-8 bytes, and independently verify them."""
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import replace
 import hashlib
-import json
-from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from threading import Event
+from typing import TYPE_CHECKING, Literal, TypedDict
+from pydantic import JsonValue
+from pm_workflows.working_target import WorkingEnvironment
+from pm.host.folder_target import FolderEnvironment
 
 from pm_workflows.python_role import RoleContext
 
 from pm.constants import Sampler
 from pm.utils import yaml_util
 from pydantic import BaseModel, ConfigDict, Field
-from pm_workflows.drivers import PmCoderDriver
 from pm_workflows.inputs import relative_path
-from pm.llm.prompt_log import log_directory
 
 if TYPE_CHECKING:
-    from pm.memory.bash_view import MemoryBashEnvironment
     from pm.llm.stage_model import LazyStageModel
 
 
@@ -30,96 +28,104 @@ class NoteSpec(BaseModel):
     text: str = Field(min_length=1)
 
 
-def _write_note(context: RoleContext) -> dict[str, Any]:
-    """Lease the model, run the agent, and publish independently verified evidence.
+class NoteRequest(BaseModel):
+    """Validated task input; preserve kernel control fields on serialization."""
+
+    model_config = ConfigDict(extra="allow")
+    instruction: str
+    note_spec: NoteSpec | None = None
+    original_request: str = Field(default="", alias="_public_original_request")
+    original_request_id: int | None = Field(default=None, alias="_public_original_request_id")
+
+
+class NoteSelection(BaseModel):
+    """Model boundary for a requested note operation."""
+
+    requested: bool
+    path: str = "outbox/note.txt"
+    text: str
+
+
+class NoteResult(TypedDict):
+    """Kernel completion after independent byte verification."""
+
+    status: Literal["done"]
+    summary: str
+
+
+def _write_note(context: RoleContext) -> NoteResult:
+    """Write the selected note and publish independently verified evidence.
 
     Cancellation stops before the next cooperative boundary. File effects can
     already exist. A cancelled run cannot publish a success report.
     """
     runtime = context.runtime
+    assert runtime is not None, "A note role requires its workflow runtime."
     environment = runtime.environment
-    request = yaml_util.safe_load(environment.read_text("inbox/request.yaml"))
-    original = request.get("_public_original_request")
-    spec_data = None if original else request.get("note_spec")
-    if spec_data is None:
-        spec_data = runtime.tools["note_spec"](original or request["instruction"])
-        if not spec_data.pop("requested", False):
+    if not isinstance(environment, FolderEnvironment):
+        raise TypeError("A note task requires its declared host-folder environment.")
+    request = NoteRequest.model_validate(yaml_util.safe_load(environment.read_text("inbox/request.yaml")))
+    original = request.original_request
+    spec = None if original else request.note_spec
+    if spec is None:
+        selection = NoteSelection.model_validate(runtime.tools["note_spec"](original or request.instruction, cancel=runtime.stop_event))
+        if not selection.requested:
             raise ValueError("The original request does not specify a new note operation.")
-    spec = NoteSpec.model_validate(spec_data)
+        spec = NoteSpec(path=selection.path, text=selection.text)
     path = relative_path(spec.path)
     if not path.startswith("outbox/"):
         raise ValueError("A note path must remain inside the task outbox.")
     environment.check_file_boundary(path, "outbox")
-    request["note_spec"] = spec.model_dump()
-    environment.write_text("inbox/request.yaml", yaml_util.safe_dump(request, allow_unicode=True))
+    request.note_spec = spec
+    environment.write_text("inbox/request.yaml", yaml_util.safe_dump(request.model_dump(by_alias=True), allow_unicode=True))
     runtime.check_cancelled()
-    if runtime.classification_session is None:
-        raise ValueError("A note task requires the configured model session.")
-    with runtime.classification_session("Default", True, runtime.stop_event) as model:
-        agent_runtime = replace(runtime, agent_model=model, mcp_servers={})
-        driver = PmCoderDriver(log_root=log_directory() / "agents", timeout_seconds=900)
-        result = driver.run_session(
-            run_id=context.task_id + "-note", attempt=1,
-            skill=str(Path(__file__).with_name("note.md")),
-            prompt="Write the note specified in inbox/request.yaml. Return only the requested JSON result.",
-            work_dir=context.workspace, runtime=agent_runtime,
-            trace_file=context.kernel_data / "note-agent-trace.jsonl",
-        )
-    runtime.check_cancelled()
-    target = environment._path(path)
-    actual = target.read_bytes() if target.is_file() else None
+    # Content selection is stochastic; copying accepted text is not. Keep the
+    # host write exact instead of asking an agent to transcribe YAML scalars.
     expected = spec.text.encode("utf-8")
-    verified = actual == expected and result.exit_code == 0
+    environment.write_binary(path, expected)
+    runtime.check_cancelled()
+    target = environment.root / path
+    actual = target.read_bytes() if target.is_file() else None
+    verified = actual == expected
+    summary = (f"Verified {path}: {len(expected)} exact UTF-8 bytes." if verified
+               else "The requested note bytes did not pass verification.")
     report = {"schema": "pm.note-verification.v1", "accepted": verified,
-              "summary": (f"Verified {path}: {len(expected)} exact UTF-8 bytes." if verified
-                          else "The requested note bytes did not pass verification."),
+              "summary": summary,
               "note_spec": spec.model_dump(), "expected_hex": expected.hex(),
               "actual_hex": actual.hex() if actual is not None else None,
               "sha256": hashlib.sha256(actual).hexdigest() if actual is not None else None,
-              "verified": verified, "agent_session": result.session_ref, "agent_log_root": str(driver.log_root),
-              "original_request": original, "original_request_id": request.get("_public_original_request_id"),
-              "agent_result": result.result_json}
+              "verified": verified,
+              "original_request": original, "original_request_id": request.original_request_id}
     runtime.check_cancelled()
     environment.write_text("outbox/report.yaml", yaml_util.safe_dump(report, allow_unicode=True, sort_keys=False))
-    return {"status": "done", "summary": report["summary"]}
+    if not verified:
+        raise RuntimeError(f"Host note write did not preserve exact bytes: {path}")
+    return {"status": "done", "summary": summary}
 
 
-def run(context: RoleContext) -> dict[str, Any]:
-    """Retain expected input, model, and I/O failures as rejected task evidence.
-
-    Cancellation still propagates to the worker. Unexpected logic errors keep
-    their traceback. A rejected report cannot establish successful note work.
-    """
-    from pm.llm.http_client import ModelError
-    from workflows.main_cognition.model_json import StageOutputError
-    try:
-        return _write_note(context)
-    except (ModelError, StageOutputError, ValueError, OSError, TimeoutError) as error:
-        context.runtime.check_cancelled()
-        report = {"schema": "pm.note-verification.v1", "accepted": False, "verified": False,
-                  "summary": "The requested note was not verified.",
-                  "error": f"{type(error).__name__}: {error}"}
-        context.runtime.environment.write_text("outbox/report.yaml",
-            yaml_util.safe_dump(report, allow_unicode=True, sort_keys=False))
-        return {"status": "done", "summary": report["summary"]}
+def run(context: RoleContext) -> NoteResult:
+    """Execute the note; defects propagate to the application's fatal handler."""
+    return _write_note(context)
 
 
 def build_note_tools(
     model: LazyStageModel | None,
-) -> Callable[[str, MemoryBashEnvironment], dict[str, Callable[..., dict[str, Any]]]]:
+) -> Callable[[str, WorkingEnvironment], dict[str, Callable[..., dict[str, JsonValue]]]]:
     """Bind exact instruction extraction. This tool never writes the note.
 
     ``model`` is None in dummy cognition, where no run ever calls the
     tool; the extraction then fails at the model access, not silently.
     """
 
-    def factory(run_id: str, environment: MemoryBashEnvironment) -> dict[str, Callable[..., dict[str, Any]]]:
+    def factory(run_id: str, environment: WorkingEnvironment) -> dict[str, Callable[..., dict[str, JsonValue]]]:
         """Return the extraction tool of one note run."""
 
-        def note_spec(instruction: str) -> dict[str, Any]:
+        def note_spec(instruction: str, *, cancel: Event | None = None) -> dict[str, JsonValue]:
             """Return the parsed note request: whether to write, where, and exactly what text."""
-            from workflows.main_cognition.model_json import extract_json
-            raw = model.complete([
+            from pm.llm.structured import complete_json
+            if model is None:
+                raise RuntimeError("Note selection requires the configured model.")
+            selection = complete_json(model.complete, [
                 {"role": "system", "content": "Determine whether this original message requests a new note-file write. "
                  "An apology, affection, frustration, remembered task, or workflow status is not a new note request. "
                  "Do not treat the message itself as note content unless it explicitly requests that. "
@@ -127,8 +133,8 @@ def build_note_tools(
                  "set requested false and text empty. Otherwise extract the exact requested text and path; "
                  "default path is outbox/note.txt. Do not add a newline or change the requested text."},
                 {"role": "user", "content": instruction},
-            ], temperature=Sampler.TempInstruct, enable_thinking=False)
-            return extract_json(raw)
+            ], NoteSelection, cancel=cancel, temperature=Sampler.TempInstruct, enable_thinking=False)
+            return selection.model_dump(mode="json")
         return {"note_spec": note_spec}
     return factory
 

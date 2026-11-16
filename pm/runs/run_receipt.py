@@ -56,6 +56,42 @@ class UnavailableWorkflow(ManagedRunError):
     """The run named a workflow the application does not manage."""
 
 
+class ManagedRunData(TypedDict):
+    """The named serialized form of one managed-run receipt."""
+
+    run_id: str
+    action_id: str
+    workflow_name: str
+    parent_correlation: str
+    state: str
+    latest_event: str
+    artifact_path: str
+    instructions: str
+    revision: int
+    applied_revision: int
+    updates_open: bool
+    question_id: str
+    answer: str
+    request_ids: list[str]
+    arguments: dict[str, JsonValue]
+    evidence: list[str]
+    created_at: float
+    updated_at: float
+    execution_epoch: int
+    control_version: int
+    interrupted_from: str
+    events: list[RunEvent]
+    resume_requests: list[str]
+    singleton_key: str
+    blocked_by_run_id: str
+    authority_record_id: int | None
+    input_record_ids: list[int]
+    input_commit_ids: list[str]
+    resume_phase: str
+    causal_commit_id: str
+    parked_state: dict[str, JsonValue]
+
+
 @dataclass
 class ManagedRunReceipt:
     """One row of the managed-run table. Serialized into MemoryStore verbatim."""
@@ -90,14 +126,14 @@ class ManagedRunReceipt:
     input_commit_ids: list[str] = field(default_factory=list)
     resume_phase: str = ""
     causal_commit_id: str = ""
-    parked_state: dict = field(default_factory=dict)
+    parked_state: dict[str, JsonValue] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """Reject an unknown run state before the row can be stored."""
         if self.state not in STATES:
             raise ValueError(f"Unknown managed-run state: {self.state!r}")
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> ManagedRunData:
         """Return the row that is stored in the table and mirrored to control files.
 
         The shape is this dataclass: the same keys, in the same order, with the

@@ -2,7 +2,8 @@
 
 ## Summary
 
-Shared constants control direct PM reasoning and independent cognition calls.
+Model YAML controls request concurrency, HTTP timeout, and context capacity.
+Shared constants control reasoning policy and independent cognition workers.
 All inner-thought stages disable reasoning.
 Codelets and attention batches run concurrently, then merge in a stable order.
 Public answers keep their separate generation and review steps.
@@ -133,15 +134,16 @@ cancellation signal, and the waiting call raises `WorkflowTerminated` or
 [`pm.llm.http_client.wait_until_ready`][] and
 [`pm.llm.activation.ModelActivation.activate`][].
 
-The `live_test` mode keeps the first-error behavior. Unit tests, development
-gates, and the startup context-budget probe use that mode, so the terminal
-session opens even before the model server is up. Later inference waits.
+The `live_test` mode keeps first-error behavior for explicit endpoint gates.
+Production context discovery waits for the configured endpoint when its budget is not already known.
 
 ## Parallel execution and cancellation
 
 `CODELET_WORKERS` and `ATTENTION_WORKERS` each default to two.
-`CHAT_CONCURRENCY` bounds application workers at four.
-A shared HTTP admission gate admits one direct completion per endpoint at a time.
+`Connection.max_concurrent_requests` sets the shared endpoint capacity; the DeepSeek configuration uses eight.
+Values at most zero or at least 9999 disable the capacity limit.
+`Connection.request_timeout_seconds` includes server-side queue time; the configured value is 99999.
+There is no second semaphore in the model wrapper.
 The independent Jesse model and native worker sessions have separate owners.
 
 [`pm.llm.concurrency.ordered_parallel_map`][] joins all owned workers before returning.
@@ -212,9 +214,8 @@ Read [memory ownership](../ghost.md) for shared records, isolated edits, and sta
 The private loop already runs on its own thread.
 [`pm.llm.concurrency.InferenceAdmission`][] controls direct completion admission across those threads.
 An active private completion finishes normally.
-Queued main cognition and dialogue events reserve foreground priority until their workflows finish.
-The reply reservation starts during dispatch, before the main reservation ends.
-Private inference resumes after the foreground reservations drain.
+Queued requests fill free slots in this order: triage, critical, interaction, then ordinary work.
+FIFO order applies within each role. Critical workflows do not exclude all other work between calls.
 Cancellation removes a waiting request from the queue.
 
 The shared story prefix remains unchanged.

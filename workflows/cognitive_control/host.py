@@ -111,15 +111,12 @@ class CognitiveControl(BusModule):
                     if item.category == "Critical":
                         if item.knoxel_id in claimed:
                             self._critical_accepted_tick = max(self._critical_accepted_tick, claimed[item.knoxel_id])
-                        else:
+                        elif self.ghost.get_knoxel_by_id(item.knoxel_id).metadata.get("exchange_status") == "pending":
                             self._critical_sources.add(item.knoxel_id)
             for record in self.ghost.all_features:
                 if (record.metadata.get("exchange_correlation") and record.metadata.get("exchange_status") == "pending"
                         and record.id not in claimed and record.id not in self._assessments):
                     self._pending_triage.add(record.id)
-            if self.inference_admission is not None:
-                for source_id in self._critical_sources:
-                    self.inference_admission.reserve(f"critical:{source_id}", role=InferenceRole.Critical)
 
     def register_input(self, source_id: int) -> None:
         """Fence a committed input under the same store lock as publication."""
@@ -188,9 +185,6 @@ class CognitiveControl(BusModule):
             self.ghost.commit(batch)
             self._reconsideration_epoch = epoch
             self._critical_sources.update(critical)
-            if self.inference_admission is not None:
-                for source_id in critical:
-                    self.inference_admission.reserve(f"critical:{source_id}", role=InferenceRole.Critical)
             self._pending_triage.difference_update(source_ids)
             self._classification_changed.notify_all()
             for source_id in source_ids:
@@ -461,9 +455,6 @@ class CognitiveControl(BusModule):
             accepted_critical = self._critical_sources.intersection(source_ids)
             if accepted_critical:
                 self._critical_sources.difference_update(accepted_critical)
-                if self.inference_admission is not None:
-                    for source_id in accepted_critical:
-                        self.inference_admission.release(f"critical:{source_id}")
                 self._critical_accepted_tick = max(self._critical_accepted_tick, batch.tick_id)
             self._pending_inputs.difference_update(handled)
             if armed:

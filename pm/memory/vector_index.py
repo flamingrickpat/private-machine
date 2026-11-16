@@ -1,7 +1,7 @@
 """An in-memory cosine index over vectors owned by the central records."""
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from threading import RLock
 
 import faiss
@@ -30,6 +30,19 @@ class VectorIndex:
                 self.index = faiss.IndexIDMap2(faiss.IndexFlatIP(vectors.shape[1]))
                 self.index.add_with_ids(vectors, np.asarray([record.id for record in records], dtype=np.int64))
                 self.ids.update(record.id for record in records)
+
+    def rebuild_vectors(self, ids: Sequence[int], vectors: Sequence[Sequence[float]]) -> None:
+        """Build one index from caller-owned vectors without changing any record."""
+        with self.lock:
+            self.index = None
+            self.ids.clear()
+            if not ids:
+                return
+            matrix = np.asarray(vectors, dtype=np.float32)
+            faiss.normalize_L2(matrix)
+            self.index = faiss.IndexIDMap2(faiss.IndexFlatIP(matrix.shape[1]))
+            self.index.add_with_ids(matrix, np.asarray(ids, dtype=np.int64))
+            self.ids.update(ids)
 
     def update(self, record: RecordBase) -> None:
         """Replace one indexed vector. An empty vector removes the record ID."""

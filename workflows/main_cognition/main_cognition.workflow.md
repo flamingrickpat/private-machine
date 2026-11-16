@@ -14,71 +14,17 @@ roles:
         status: {enum: [done]}
         summary: string
 phases:
-  - name: intake
-    kind: role
-    role: phase
-    on_status: {done: triage}
-    on_invalid: {action: stop}
-  - name: triage
-    kind: role
-    role: phase
-    on_status: {done: appraise}
-    on_invalid: {action: stop}
-  - name: appraise
-    kind: role
-    role: phase
-    on_status: {done: retrieve}
-    on_invalid: {action: stop}
-  - name: retrieve
-    kind: role
-    role: phase
-    on_status: {done: codelets}
-    on_invalid: {action: stop}
-  - name: codelets
-    kind: role
-    role: phase
-    on_status: {done: structures}
-    on_invalid: {action: stop}
-  - name: structures
-    kind: role
-    role: phase
-    on_status: {done: attention}
-    on_invalid: {action: stop}
-  - name: attention
-    kind: role
-    role: phase
-    on_status: {done: experience}
-    on_invalid: {action: stop}
-  - name: experience
-    kind: role
-    role: phase
-    on_status: {done: goals}
-    on_invalid: {action: stop}
-  - name: goals
-    kind: role
-    role: phase
-    on_status: {done: decide}
-    on_invalid: {action: stop}
-  - name: decide
-    kind: role
-    role: phase
-    on_status: {done: route}
-    on_invalid: {action: stop}
-  - name: route
-    kind: role
-    role: phase
-    on_status: {done: commit}
-    on_invalid: {action: stop}
-  - name: commit
+  - name: cycle
     kind: role
     role: phase
     on_status: {done: stop}
     on_invalid: {action: stop}
+
 ---
 
 # Main cognitive cycle
 
-One cycle runs as one sequence of typed phases. All phases share one
+One kernel role runs the ordered Python phases in memory. All phases share one
 `CycleWork` object (see `workflows/main_cognition/cycle_work.py`). Each phase
 validates it at entry and writes it back. Every model call of the cycle is
 an unconscious story and choice simulator: it starts with the shared story

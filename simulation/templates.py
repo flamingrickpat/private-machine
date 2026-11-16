@@ -23,7 +23,7 @@ from simulation.analysis import AnalysisSettings, analyze_run
 from simulation.actors import ActorProfile, load_profile, suggested_start
 from simulation.engine import ParticipantSelection, RunEngine
 from simulation.personas import DEFAULT_RUNS
-from simulation.plans import DirectorSettings, Fact, ScenarioPlan, Step
+from simulation.plans import DirectorSettings, Fact, ScenarioPlan, SimulationTiming, Step
 
 
 class TemplateParticipant(BaseModel):
@@ -70,6 +70,8 @@ class SimulationTemplate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     schema_id: Literal["pm.simulation-template.v1"] = "pm.simulation-template.v1"
+    time_multiplier: float = Field(default=1.0, gt=0, allow_inf_nan=False,
+        description="Simulated seconds per wall-clock second. Actor cadence scales with this clock.")
     title: str = "New simulation"
     brief: str = Field(min_length=1)
     start_time: AwareDatetime | None = None
@@ -185,7 +187,7 @@ def create_run(template: SimulationTemplate, root: Path, config: str) -> RunEngi
     participants = [ParticipantSelection(id=item.id, home=item.home, minecraft_mcp_url=item.minecraft_mcp_url)
                     for item in template.participants]
     edges = [{"source": item.source, "target": item.target, "name": item.name} for item in template.edges]
-    engine = RunEngine.create(root, plan, participants, edges, config)
+    engine = RunEngine.create(root, plan, participants, edges, config, time_multiplier=template.time_multiplier)
     atomic_json(root / "template.json", template.model_copy(update={"plan": plan}).model_dump(mode="json"))
     atomic_json(root / "analysis-settings.json", template.analysis.model_dump(mode="json"))
     return engine
@@ -204,6 +206,7 @@ def main() -> int:
     create.add_argument("--data", type=Path, default=DEFAULT_RUNS)
     create.add_argument("--run-id", required=True)
     create.add_argument("--start", action="store_true")
+    create.add_argument("--time-multiplier", type=float, help="Override simulated seconds per wall second.")
     analyze = commands.add_parser("analyze")
     analyze.add_argument("root", type=Path)
     analyze.add_argument("--config", default="config.yaml")
@@ -226,6 +229,8 @@ def main() -> int:
         participant.home = str((args.template.resolve().parent / Path(participant.home).expanduser()).resolve())
     if not args.run_id.replace("-", "").replace("_", "").isalnum():
         raise ValueError("Run IDs use letters, numbers, underscores, or hyphens.")
+    if args.time_multiplier is not None:
+        template.time_multiplier = SimulationTiming(time_multiplier=args.time_multiplier).time_multiplier
     engine = create_run(template, args.data / "runs" / args.run_id, args.config)
     print(f"Created {engine.root}", flush=True)
     if args.start:

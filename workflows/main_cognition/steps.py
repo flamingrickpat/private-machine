@@ -1,23 +1,21 @@
-"""The Python role of every main cognition phase.
+"""Run one cognitive cycle on one in-memory typed state.
 
-Entry point: ``run(context)``. The kernel calls it once for each phase of
-``main_cognition.workflow.md``. ``context.phase`` selects the phase module.
-
-- The intake phase validates ``inbox/request.yaml`` and creates the shared
-  :class:`~workflows.main_cognition.cycle_work.CycleWork`.
-- Every other phase validates ``CycleWork`` from the working target at
-  entry, runs, and writes the returned object back.
-- The commit phase also writes the final report to ``outbox/report.yaml``.
-
-Phases call the model only through the run's ``llm_complete`` tool.
+The kernel invokes this role once. Intake validates the external request;
+existing phase functions then share the same CycleWork without intermediate
+JSON files or reconstruction. Commit writes the final report for the host's
+atomic memory acceptance. A cancelled or interrupted cycle has no resumable
+phase state. The host.py overview describes memory and publication ownership.
 """
 from __future__ import annotations
 
 from pm_workflows.python_role import RoleContext
+from collections.abc import Sequence
+from dataclasses import replace
+import logging
 
 from pm.utils import yaml_util
 
-from workflows.main_cognition.cycle_work import CycleRequest, read_work, write_work
+from workflows.main_cognition.cycle_work import CycleRequest, CycleWork
 from workflows.main_cognition.phases import (
     appraise, attention, codelets, commit, decide, experience, goals, intake, retrieve, route, structures, triage,
 )
@@ -38,16 +36,25 @@ PHASES = {
 }
 
 
+def run_selected_phases(context: RoleContext, work: CycleWork, names: Sequence[str]) -> CycleWork:
+    """Execute dependent phase functions in order on the same state object."""
+    runtime = context.runtime
+    assert runtime is not None
+    for name in names:
+        runtime.check_cancelled()
+        logging.getLogger(__name__).info("Cognitive phase start run=%s phase=%s", context.run_id, name)
+        work = PHASES[name].run(replace(context, phase=name), work)
+        logging.getLogger(__name__).info("Cognitive phase end run=%s phase=%s", context.run_id, name)
+    return work
+
+
 def run(context: RoleContext) -> dict[str, str]:
-    """Run one phase and return its role result for the kernel."""
-    environment = context.runtime.environment
-    if context.phase == "intake":
-        request = CycleRequest.model_validate(yaml_util.safe_load(environment.read_text("inbox/request.yaml")))
-        work = intake.start(request)
-    else:
-        work = PHASES[context.phase].run(context, read_work(environment))
-    write_work(environment, work)
+    """Validate intake once and execute the whole cycle without state round trips."""
+    runtime = context.runtime
+    assert runtime is not None
+    request = CycleRequest.model_validate(yaml_util.safe_load(runtime.environment.read_text("inbox/request.yaml")))
+    work = run_selected_phases(context, intake.start(request), list(PHASES))
     return {"status": "done", "summary": work.phases[-1].summary}
 
 
-__all__ = ["PHASES", "run"]
+__all__ = ["PHASES", "run", "run_selected_phases"]

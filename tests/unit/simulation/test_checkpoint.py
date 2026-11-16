@@ -24,6 +24,8 @@ def admit(store: MemoryStore, text: str) -> int:
     record = batch.create(Feature(content=text, feature_type=FeatureType.Thought))
     batch.set_gwt(GwtTurnRecord(tick_id=batch.tick_id, knoxel_ids=[record.id]))
     store.commit(batch)
+    # Commits stay in memory; this fixture needs the record on disk.
+    store.save()
     return record.id
 
 

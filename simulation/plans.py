@@ -20,6 +20,13 @@ from typing import Self
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
+class SimulationTiming(BaseModel):
+    """Clock speed: simulated seconds per wall-clock second."""
+
+    time_multiplier: float = Field(default=1.0, gt=0, allow_inf_nan=False,
+        description="2 means twice real time; 0.5 means half real time. Actor delays use simulated seconds.")
+
+
 class FactKind(StrEnum):
     """An event is observed; a commitment is maintained through choices."""
 

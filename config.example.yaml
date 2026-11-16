@@ -4,15 +4,23 @@ ghost_backups: false
 
 chat:
   Default:
+    max_concurrent_requests: 8
+    request_timeout_seconds: 99999
+    override_context: 65536
     base_url: http://127.0.0.1:8080/v1
     model: qwen
     api_key: ""
     startup_script: ""
+    context_input_fraction: 0.85
   UnitTestEvaluator:
+    max_concurrent_requests: 8
+    request_timeout_seconds: 99999
+    override_context: 65536
     base_url: http://127.0.0.1:8080/v1
     model: qwen
     api_key: ""
     startup_script: ""
+    context_input_fraction: 0.85
 embedding:
   base_url: http://127.0.0.1:8081/v1
   model: qwen3-embedding-0.6b

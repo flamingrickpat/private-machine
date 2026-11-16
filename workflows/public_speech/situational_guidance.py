@@ -20,6 +20,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from pm.memory.snapshot import Snapshot
+from pm.memory.evidence import evidence_role
 from pm.records.base import RecordBase, RecordScope
 from pm.records.cognitive_records import BeliefRecord, Intention
 from pm.records.enums import ActionSchemaStatus, EntityClass, FeatureType, FrameEnum, InterlocusType, NarrativeTypes, SourceKind
@@ -138,7 +139,7 @@ def _source(view: Snapshot, record: RecordBase) -> SituationSource:
         kind = f"belief ({record.belief_kind}; confidence {record.confidence:.2f})"
     return SituationSource(record_id=record.id, revision=view.revisions[record.id],
                            occurred_at_utc=record.timestamp_world_begin, source=source,
-                           kind=kind, text=record.content, scope=record.scope)
+                           kind=f"{kind}; {evidence_role(view, record)}", text=record.content, scope=record.scope)
 
 
 def _dialogue_partner(record: Feature, entities: dict[str, int], companion_id: int | None,
@@ -283,6 +284,9 @@ def render_situational_guidance(guidance: SituationalGuidance) -> str:
         "Infer whether this partner can receive and respond from current evidence, keeping uncertainty explicit. "
         "Presence, activity, interruptibility, and willingness can differ. A statement is attributed evidence, "
         "not proof of the inferred state. Silence and elapsed time do not prove a new state; a timer is only an occasion to reconsider.",
+        "Historical dialogue retains its original date and speaker; it is not a fresh incoming message. "
+        "Private beliefs, thoughts, and internal feelings are not independent observations of the partner. "
+        "Actual delivered words below establish that you sent them, even if a later thought says you never did.",
         "Compare any interaction with current purposes and moves already made. Choose among interaction, private activity, "
         "and waiting as this character would; this context sets no automatic permission or silence rule."]
     partner = guidance.partner

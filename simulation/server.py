@@ -35,6 +35,7 @@ from pm.memory.store import MemoryStore
 from pm.llm.config import load_config
 from simulation.agents import Agents
 from simulation.actors import load_profile, suggested_start, summarize
+from simulation.plans import SimulationTiming
 from simulation.engine import ParticipantSelection, RunEngine, participant_body_endpoint
 from simulation.personas import DEFAULT_HOMES, DEFAULT_RUNS, canon_home, fork_home, homes
 from simulation.plans import ScenarioPlan
@@ -385,7 +386,8 @@ def handler(application: Simulation) -> type[BaseHTTPRequestHandler]:
                                                     minecraft_mcp_url=_body_endpoint(item.get("minecraft_mcp_url")))
                                 for item in body["participants"]]
                 run_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-") + uuid4().hex[:8]
-                engine = RunEngine.create(application.run_root(run_id), plan, participants, body.get("edges", []), application.config)
+                engine = RunEngine.create(application.run_root(run_id), plan, participants, body.get("edges", []), application.config,
+                    time_multiplier=SimulationTiming.model_validate(body).time_multiplier)
                 application.engines[run_id] = engine
                 return self.output({"run_id": run_id}, 201)
             if path.startswith("/api/runs/"):

@@ -207,24 +207,21 @@ class CacheTests(unittest.TestCase):
         self.assertNotIn("seed", requests[0])
         self.assertEqual(list(self.root.rglob("cache_emb_*.json")), [])
 
-    def test_cancellation_before_admission_does_not_consume_a_response(self):
-        connection = Connection(base_url="http://cancelled-fixture/v1", model="fixture")
-        admission = inference_admission(connection.base_url)
-        admission.reserve("user")
+    def test_cancellation_before_admission_does_not_consume_a_response(self) -> None:
+        connection = Connection(base_url="http://cancelled-fixture/v1", model="fixture", max_concurrent_requests=1)
+        admission = inference_admission(connection.base_url, max_concurrent_requests=1)
         cancel = Event()
         payload = self.payload("cancelled")
 
-        async def run():
-            with background_inference():
-                task = asyncio.create_task(JsonClient(connection).request(
-                    "POST", "chat/completions", payload=payload, cancel=cancel))
-            await asyncio.sleep(0.02)
-            cancel.set()
-            with self.assertRaises(asyncio.CancelledError):
-                await task
+        async def run() -> None:
+            async with admission.slot():
+                with background_inference():
+                    task = asyncio.create_task(JsonClient(connection).request(
+                        "POST", "chat/completions", payload=payload, cancel=cancel))
+                await asyncio.sleep(0.02)
+                cancel.set()
+                with self.assertRaises(asyncio.CancelledError):
+                    await task
 
-        try:
-            asyncio.run(run())
-        finally:
-            admission.release("user")
+        asyncio.run(run())
         self.assertTrue(cache.completion_path(connection.base_url, payload).name.endswith("_1.json"))

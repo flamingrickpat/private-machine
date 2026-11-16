@@ -17,8 +17,8 @@ The layers, in the order one call passes through them:
    that reasoning budgets read.
 3. :class:`pm.llm.stage_model.LazyStageModel` is the object workflows actually
    hold. It activates on first use, measures the rendered prompt against the
-   serving context (:mod:`pm.llm.context_window`), and admits one request at a
-   time per endpoint (:mod:`pm.llm.concurrency`).
+   serving context (:mod:`pm.llm.context_window`), and shares configured priority
+   request slots per endpoint (:mod:`pm.llm.concurrency`).
 4. :mod:`pm.llm.multimodal` resolves ``[image:<id>]`` tags in prompt text into
    provider image parts; :mod:`pm.llm.prompt_encoding` is the only place where
    typed turns and attachment bytes become provider JSON.

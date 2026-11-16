@@ -399,7 +399,7 @@ the canon's last line. The template already names that home in
 Create and run it:
 
 ```bash
-uv run --locked python -m simulation.templates create   --run-id eventful-month   --template test_data/simulation/eventful-month.json   --config config.yaml   --start
+uv run --locked python -m simulation.templates create test_data/simulation/eventful-month.json   --run-id eventful-month   --config config.yaml   --start
 ```
 
 `--start` runs the scenario in the foreground until it ends. On a headless
@@ -412,12 +412,10 @@ uv run --locked python -m simulation --config config.yaml --openrouter-only --po
 
 What to expect:
 
-- **Virtual time runs at real time.** The clock is driven by `time.monotonic()`,
-  so a simulated hour takes an hour. A deadline that comes due while a cycle is
-  still running is served late; the clock never waits for it. This is deliberate:
-  the number of cognition cycles per simulated hour is then whatever your model
-  and machine actually deliver, which is the number worth measuring. A 30-day
-  scenario takes about 30 days.
+- **Virtual time defaults to real time.** Set `time_multiplier` in the template,
+  use the setup page, or pass `--time-multiplier 2` when creating the run.
+  At 2, fifteen wall minutes consume thirty simulated minutes; at 0.5, they
+  consume seven and a half. Actor delays and scheduled events follow simulated time.
 - **Neither actor blocks the other.** Jesse writes at her own pace (30 seconds to
   an hour per turn, deterministic per turn so a resumed run keeps the same
   rhythm). If the companion says nothing back she still writes again after at

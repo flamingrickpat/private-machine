@@ -17,7 +17,9 @@ Committer: [`workflows.main_cognition.host.MainCogLoop.publish_output`][].
 [`workflows.main_cognition.host.MainCogLoop`][] builds one request from a bus batch.
 Each phase of the cycle adds its typed result to one shared
 [`workflows.main_cognition.cycle_work.CycleWork`][].
-[`workflows.main_cognition.steps.run`][] validates it at the entry of each phase.
+[`workflows.main_cognition.steps.run`][] validates the incoming request once.
+One kernel role runs the Python phases on the same in-memory object.
+Intermediate phase state is neither serialized nor resumed after interruption.
 The final work carries the appraisal, the appraisal affect, the goal changes, the
 dispatches, and the changed cycle state.
 The module applies those proposals inside one Ghost write batch.
@@ -152,7 +154,9 @@ The GWT turn record of that batch lists the shard changes of the cycle
 It commits once.
 A failure before the commit leaves accepted state unchanged.
 A stale revision raises `GhostConflict`, so no partial update lands.
-The checkpoint write precedes action publication.
+The completed main cycle writes the checkpoint before action publication.
+Ordinary memory commits stay in memory. A crash can lose messages received after the last checkpoint.
+Restart discards unfinished inputs, publications, and workers instead of resuming old conversation work.
 The [wait controller](inference-wait.md) can accept a pause in that same commit.
 Its generation fence prevents a late sleep decision from hiding newer input.
 

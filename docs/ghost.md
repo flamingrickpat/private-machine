@@ -2,7 +2,7 @@
 
 ## Summary
 
-Ghost accepts a complete batch of memory changes after its checkpoint save succeeds.
+Ghost accepts complete batches in memory. Completed main cycles and explicit saves write the checkpoint.
 Each bus subscriber receives an independent JSON copy.
 The same module `step()` supports direct debugging and threaded operation.
 
@@ -29,17 +29,19 @@ The virtual Bash target uses this snapshot for each invocation.
 The service performs these steps under one commit lock:
 
 1. Reject cancellation, invalid references, or stale replacement revisions.
-2. Collect typed state with the existing records and the staged changes.
-3. Write and flush a temporary sibling of the checkpoint.
-4. Replace the previous checkpoint with the temporary file.
-5. Install only the new or replaced records and update their indexes.
+2. Construct the accepted record changes and causal receipt in memory.
+3. Install the new or replaced records and update their indexes.
+
+Ordinary commits do not serialize the full Ghost.
+At a completed main-cycle boundary, the host writes and flushes a temporary checkpoint, then atomically replaces the previous file.
+Explicit `save()`, clean shutdown, and export use the same file-writing boundary.
 
 The module publishes its bus output after the commit returns.
 No model or network call runs under this lock.
 
 An unrelated append does not cause a conflict.
 Two replacements of the same revision produce one winner and one `GhostConflict`.
-A failed save preserves accepted memory and the previous checkpoint.
+A failed save preserves the previous checkpoint. Newer in-memory changes can be lost when the failed application stops.
 The error reaches the direct caller or the application error handler.
 
 Unchanged records retain object identity across every commit, including receipt-only commits.
@@ -47,8 +49,7 @@ No commit serializes records into dictionaries and then reconstructs the store.
 
 A repeated commit ID returns its original receipt without duplicate memories.
 Callers use the receipt's IDs, not IDs from a repeated attempt.
-Cancellation before checkpoint replacement rejects the batch.
-Cancellation after replacement does not undo an accepted commit.
+Cancellation before in-memory acceptance rejects the batch. An accepted batch is not rolled back by later cancellation.
 
 ## Direct debugger example
 
@@ -65,7 +66,8 @@ batch = ghost.begin_batch("example-turn", new_tick=True)
 proposal = batch.create(Feature(feature_type=FeatureType.Dialogue, content="Hello, Spamuel."))
 assert ghost.get_knoxel_by_id(proposal.id) is None
 assert batch.view().get(proposal.id).content == "Hello, Spamuel."
-receipt = ghost.commit(batch)  # breakpoint: validation, disk replacement, installation
+receipt = ghost.commit(batch)  # breakpoint: validation and in-memory installation
+ghost.save()  # explicit checkpoint boundary
 restarted = MemoryStore.from_checkpoint(ghost.checkpoint)
 assert restarted.get_knoxel_by_id(receipt.added_ids[0]).content == "Hello, Spamuel."
 ```
@@ -112,9 +114,10 @@ Fresh YAML imports retain source hashes and explicit background provenance.
 Read [experienced memory](subsystems/experienced-memory.md) for attribution, retrieval, and interval queries.
 
 Restart restores accepted memory, not threads or external effects.
-Previously active run receipts become `interrupted` in the restored Ghost.
-The next commit persists this classification.
-The managed-run supervisor uses these receipts for real workflow execution.
+Unfinished inboxes, unpublished replies, and parked workers are discarded on ordinary restart.
+Historical records remain inspectable, but the application does not automatically answer old pending inputs.
+An interrupted cycle has no intermediate state to resume. Recent unsaved messages can be lost.
+Raw inspection preserves the original records. Clean export writes a separate accepted checkpoint without modifying its source.
 
 ## Observed performance
 
@@ -153,7 +156,7 @@ Unsupported live objects and callback errors raise errors.
 
 This is one Ghost owner in one process, not a multi-process database.
 Only that owner can write its checkpoint.
-Each commit serializes the full state. No incremental journal or database migration is necessary for this version.
+Completed-cycle checkpoints and explicit saves serialize the full state. Ordinary memory commits do not.
 Atomic replacement protects the previous file during a failed save. It does not promise recovery from every hardware or power failure.
 
 The bus has no durable replay or exactly-once delivery.

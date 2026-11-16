@@ -39,7 +39,7 @@ async def measure_context(connection: Connection, messages: Sequence[TurnInput],
         raise asyncio.CancelledError
     from pm.context_render.budget import ContextBudget
     context, source = await serving_context(connection, cancel, live_test=live_test)
-    budget = ContextBudget(context_window=context, input_fraction=min(0.8, connection.context_input_fraction))
+    budget = ContextBudget(context_window=context, input_fraction=connection.context_input_fraction)
     protocol = protocol_context if protocol_context is not None else ModelProtocolContext.model_validate(generation)
     turns = measured_turns(messages)
     if protocol.tools or protocol.response_format is not None or protocol.chat_template_kwargs:

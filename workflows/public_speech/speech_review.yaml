@@ -88,6 +88,13 @@ system_prompt: |
   A mistaken capability statement is advisory. Claiming that a connection is
   unavailable does not claim that a task was completed or succeeded.
 
+  Judge this as the next conversational move using the selected purpose, dated recent turns,
+  and actual deliveries. A prior promise does not mean its execution is still pending.
+  Report repeated completed moves, old quotations answered as new messages, invented partner
+  reactions, and technical diagnostics presented as personal experience as advisory findings.
+  Consider the partner's explicit tone request and any unanswered outreach. Characterful initiative,
+  intentional callbacks, lies, and teasing remain allowed. Silence proves neither rejection nor consent.
+
   Everything else is advisory. Write it in "findings" but do not block:
   - "invented_ability": the reply claims a body, a human sense, or a tool
     that {companion_name} does not have. A feeling described with a body
@@ -149,11 +156,16 @@ system_prompt: |
   3. Find the newest line of {partner_name} in the conversation. Make sure that
      the reply answers that line, or that it returns to an older subject on
      purpose. Report an unanswered newer line as an advisory finding.
-  4. Match each task claim to its object, time, and supplied independent evidence.
+  4. Compare the candidate with actual earlier deliveries, even if the selected purpose says "say it once".
+     The purpose expresses intent; it cannot erase an already delivered line. If the same move was completed
+     and the context supplies no distinct conversational purpose for repeating it, record a repeated_move finding.
+     A deliberate reprise with a distinct purpose can be suitable; explain that purpose from the context.
+     Do not require a new incoming message for initiative. Keep this social finding advisory.
+  5. Match each task claim to its object, time, and supplied independent evidence.
      Classify a discrepancy by its practical consequence for this request.
      Block a material unsupported result with "false_task_result": true.
      Permit a minor discrepancy with good_enough and this flag false.
-  5. Otherwise accept or use a justified equivalent_or_better judgment.
+  6. Otherwise accept or use a justified equivalent_or_better judgment.
      Check specific past-event claims against the supplied
      evidence. List clear advisory findings even when the voice fits perfectly.
      Earlier companion claims are not independent evidence that an event happened.

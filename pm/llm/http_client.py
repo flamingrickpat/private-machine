@@ -247,8 +247,8 @@ class JsonClient:
         cached_chat = chat and OperatingSystem.environment.get("PM_COMPLETION_CACHE", "1") != "0"
         if chat:
             payload = {**(payload or {}), "seed": secrets.randbelow(2**31)}
-        # Connecting can fail. Once connected, inference has no speed deadline.
-        async with httpx.AsyncClient(timeout=httpx.Timeout(None, connect=10.0)) as client:
+        # The read timeout includes time queued inside a local inference server.
+        async with httpx.AsyncClient(timeout=httpx.Timeout(self.connection.request_timeout_seconds, connect=10.0)) as client:
             retries = 0
             while True:
                 if cancel is not None and cancel.is_set():
@@ -256,7 +256,8 @@ class JsonClient:
                 failure = None
                 try:
                     if chat:
-                        async with inference_admission(self.connection.base_url).slot(cancel):
+                        async with inference_admission(self.connection.base_url,
+                                max_concurrent_requests=self.connection.max_concurrent_requests).slot(cancel):
                             if cached_chat and cache_path is None:
                                 # Queue cancellation must not advance the response counter.
                                 cache_path = completion_path(self.connection.base_url, payload or {})

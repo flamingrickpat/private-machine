@@ -61,132 +61,77 @@ class AdmissionTicket:
 
 
 class InferenceAdmission:
-    """Serialize endpoint calls with urgent priority and bounded normal fairness.
+    """Fill configured endpoint slots in queued role priority order.
 
-    Triage precedes interaction. After four urgent calls, the oldest waiting
-    cognition or private call receives a turn. A critical reservation instead
-    admits only triage and critical calls until its workflow releases it.
-    Active calls finish cooperatively; reservations never interrupt HTTP.
-    State is process-local and protected across independent workflow threads.
-    Admission logs record role, queued duration, active duration, and critical
-    reservation count without prompt content or credentials.
-    See :mod:`pm.llm` for the inference subsystem overview.
+    Triage, critical, interaction, then ordinary work receive the next free
+    slot. Calls already in flight are never preempted. No workflow reserves
+    the whole endpoint between requests. Capacity is process-local.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, max_concurrent_requests: int = 8) -> None:
         self._lock: Lock = Lock()
         self._waiting: list[AdmissionTicket] = []
-        self._active: AdmissionTicket | None = None
-        self._reservations: dict[str, InferenceRole] = {}
-        self._consecutive_urgent: int = 0
+        self._active: set[AdmissionTicket] = set()
+        self.max_concurrent_requests: int = max_concurrent_requests
 
     @property
     def background_active(self) -> bool:
-        """Return whether a private call currently owns the HTTP slot."""
+        """Return whether any private call is currently in flight."""
         with self._lock:
-            return self._active is not None and self._active.role == InferenceRole.Private
-
-    def reserve(self, event_id: str, *, role: InferenceRole = InferenceRole.Critical) -> None:
-        """Retain a workflow's role between calls; only Critical blocks others.
-
-        The default preserves older foreground reservation callers while they
-        migrate to explicit roles. Reusing an event ID updates its role.
-        """
-        with self._lock:
-            self._reservations[event_id] = role
-
-    def release(self, event_id: str) -> None:
-        """Release a queued or completed event's reservation, if still present."""
-        with self._lock:
-            self._reservations.pop(event_id, None)
+            return any(ticket.role == InferenceRole.Private for ticket in self._active)
 
     def _next_ticket(self) -> AdmissionTicket | None:
-        """Select under the lock; critical barriers suspend normal fairness."""
-        triage: AdmissionTicket | None = None
-        critical: AdmissionTicket | None = None
-        interaction: AdmissionTicket | None = None
-        normal: AdmissionTicket | None = None
-        for ticket in self._waiting:
-            match ticket.role:
-                case InferenceRole.Triage:
-                    if triage is None:
-                        triage = ticket
-                case InferenceRole.Critical:
-                    if critical is None:
-                        critical = ticket
-                case InferenceRole.Interaction:
-                    if interaction is None:
-                        interaction = ticket
-                case InferenceRole.Cognition | InferenceRole.Private:
-                    if normal is None:
-                        normal = ticket
-
-        # A marked critical call also has priority if its owner has not yet
-        # installed the cross-phase reservation. It cannot grant normal work.
-        if InferenceRole.Critical in self._reservations.values() or critical is not None:
-            return triage if triage is not None else critical
-        urgent = triage if triage is not None else interaction
-        if normal is not None and (urgent is None or self._consecutive_urgent >= 4):
-            return normal
-        return urgent
+        """Choose FIFO within each role, with triage first."""
+        for role in (InferenceRole.Triage, InferenceRole.Critical, InferenceRole.Interaction):
+            for ticket in self._waiting:
+                if ticket.role == role:
+                    return ticket
+        return self._waiting[0] if self._waiting else None
 
     @asynccontextmanager
     async def slot(self, cancel: Event | None = None) -> AsyncGenerator[None, None]:
-        """Wait for one call slot; cancellation removes this request's ticket.
-
-        The short async wait supports independent event loops in bus threads.
-        Cancellation while queued or inside the slot releases all owned state.
-        """
+        """Own one slot until HTTP finishes; cancellation removes its ticket."""
         queued_at = monotonic()
         admitted_at: float | None = None
-        critical_reservations: int = 0
         ticket = AdmissionTicket(role=_ROLE.get())
         with self._lock:
             self._waiting.append(ticket)
-        acquired = False
         try:
-            while not acquired:
+            while admitted_at is None:
                 if cancel is not None and cancel.is_set():
                     raise asyncio.CancelledError
                 with self._lock:
-                    if self._active is None and self._next_ticket() is ticket:
+                    limit = self.max_concurrent_requests
+                    unlimited = limit <= 0 or limit >= 9999
+                    if unlimited or (len(self._active) < limit and self._next_ticket() is ticket):
                         self._waiting.remove(ticket)
-                        self._active = ticket
-                        acquired = True
+                        self._active.add(ticket)
                         admitted_at = monotonic()
-                        critical_reservations = sum(
-                            role == InferenceRole.Critical for role in self._reservations.values()
-                        )
-                        if ticket.role in (InferenceRole.Triage, InferenceRole.Interaction):
-                            self._consecutive_urgent = min(self._consecutive_urgent + 1, 4)
-                        elif ticket.role in (InferenceRole.Cognition, InferenceRole.Private):
-                            self._consecutive_urgent = 0
-                if not acquired:
+                if admitted_at is None:
                     await asyncio.sleep(0.01)
-            assert admitted_at is not None
-            _LOGGER.info(
-                "Inference admitted role=%s queue_seconds=%.3f critical_reservations=%d",
-                ticket.role.value, admitted_at - queued_at, critical_reservations,
-            )
+            _LOGGER.info("Inference admitted role=%s queue_seconds=%.3f limit=%s",
+                         ticket.role.value, admitted_at - queued_at, self.max_concurrent_requests)
             yield
         finally:
             with self._lock:
-                if acquired:
-                    self._active = None
-                else:
+                if admitted_at is None:
                     self._waiting.remove(ticket)
+                else:
+                    self._active.remove(ticket)
             if admitted_at is not None:
                 _LOGGER.info("Inference released role=%s active_seconds=%.3f",
                              ticket.role.value, monotonic() - admitted_at)
-            else:
-                _LOGGER.info("Inference cancelled while queued role=%s queue_seconds=%.3f",
-                             ticket.role.value, monotonic() - queued_at)
 
 
-def inference_admission(endpoint: str) -> InferenceAdmission:
-    """Share one admission gate for each endpoint in this process."""
+def inference_admission(endpoint: str, *, max_concurrent_requests: int = 8) -> InferenceAdmission:
+    """Share configured capacity across clients using the same endpoint."""
     with _ADMISSIONS_LOCK:
-        return _ADMISSIONS.setdefault(endpoint, InferenceAdmission())
+        if endpoint not in _ADMISSIONS:
+            _ADMISSIONS[endpoint] = InferenceAdmission(max_concurrent_requests)
+        admission = _ADMISSIONS[endpoint]
+        admission.max_concurrent_requests = max_concurrent_requests
+        return admission
+
 
 T = TypeVar("T")
 R = TypeVar("R")

@@ -54,6 +54,11 @@ class Connection(BaseModel):
     # ``None`` disables the cap. Hidden reasoning has its own smaller budget.
     completion_token_limit: StrictInt | None = Field(default=8192, gt=0)
 
+    max_concurrent_requests: StrictInt = Field(default=8,
+        description="Shared endpoint request slots. Values <=0 or >=9999 mean unlimited.")
+    request_timeout_seconds: float | None = Field(default=None, gt=0,
+        description="HTTP read/write/pool timeout in seconds, including time queued at the server; null means unlimited.")
+
     @field_validator("base_url")
     @classmethod
     def check_url(cls, value: str) -> str:
@@ -104,7 +109,9 @@ class ConnectionConfig(Connection):
         return Connection(base_url=self.base_url, model=self.model, api_key=key, startup_script=self.startup_script,
                           context_window=self.context_window, context_input_fraction=self.context_input_fraction,
                           override_context=self.override_context,
-                          completion_token_limit=self.completion_token_limit)
+                          completion_token_limit=self.completion_token_limit,
+                          max_concurrent_requests=self.max_concurrent_requests,
+                          request_timeout_seconds=self.request_timeout_seconds)
 
 
 class EmbeddingConfig(ConnectionConfig):

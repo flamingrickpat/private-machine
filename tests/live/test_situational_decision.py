@@ -28,7 +28,7 @@ from pm.records.enums import ActionType, EntityClass, FeatureType, InterlocusTyp
 from pm.records.memory_records import ActionSchemaRecord, Entity, Feature
 from pm.runs.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
 from pm.utils.operating_system import OperatingSystem
-from workflows.main_cognition.cycle_work import CycleRequest, CycleWork, write_work
+from workflows.main_cognition.cycle_work import CycleRequest, CycleWork
 from workflows.main_cognition.affect import describe_mental_state, regulation_mode
 from workflows.main_cognition.host import build_main_cognition_tools
 from workflows.main_cognition.phases.intake import start
@@ -71,16 +71,21 @@ class LiveSituationalDecisionTests(unittest.TestCase):
         revision = OperatingSystem.output_text(["git", "rev-parse", "HEAD"], cwd=ROOT).strip()
         (out / "run.json").write_text(json.dumps({"revision": revision, "endpoint": connection.base_url,
             "model": connection.model, "cache": False, "scope": __doc__}, indent=2), encoding="utf-8")
+        role = out / "decision_role.py"
+        role.write_text(
+            "from pm_workflows.python_role import RoleContext\n"
+            "from workflows.main_cognition.cycle_work import CycleWork\n"
+            "from workflows.main_cognition.steps import run_selected_phases\n"
+            "def run(context: RoleContext) -> dict[str, str]:\n"
+            "    work = run_selected_phases(context, CycleWork.model_validate_json(context.runtime.environment.read_text('scratch/work.json')), ('decide', 'route', 'commit'))\n"
+            "    return {'status': 'done', 'summary': work.summary}\n", encoding="utf-8")
         manifest = out / "decision.workflow.md"
         manifest.write_text("---\nname: situational-decision-gate\ndriver: {kind: python}\n"
             "human_resolver: {mode: forbid}\nroles:\n  phase:\n"
-            f"    skill: {ROOT.as_posix()}/workflows/main_cognition/steps.py\n"
+            f"    skill: {role.as_posix()}\n"
             "    tools: [llm_complete, embed_texts]\n    result_contract:\n      type: json\n"
             "      schema:\n        status: {enum: [done]}\n        summary: string\nphases:\n"
-            "  - name: decide\n    kind: role\n    role: phase\n    on_status: {done: route}\n"
-            "    on_invalid: {action: stop}\n  - name: route\n    kind: role\n    role: phase\n"
-            "    on_status: {done: commit}\n    on_invalid: {action: stop}\n"
-            "  - name: commit\n    kind: role\n    role: phase\n    on_status: {done: stop}\n"
+            "  - name: cycle\n    kind: role\n    role: phase\n    on_status: {done: stop}\n"
             "    on_invalid: {action: stop}\n---\n", encoding="utf-8")
         print(f"Situational decision evidence: {out}", flush=True)
         results: list[CycleWork] = []
@@ -130,7 +135,7 @@ class LiveSituationalDecisionTests(unittest.TestCase):
                 work.affect.regulation = regulation_mode(work.state.mental_state, work.state.mental_state)
                 work.affect.felt = describe_mental_state(work.state.mental_state,
                                                        name=store.get_companion_name(), partner_name=partner_name)
-                write_work(environment, work)
+                environment.write_text("scratch/work.json", work.model_dump_json())
                 tools = build_main_cognition_tools(store, out, model.complete, embeddings=embeddings)(environment, [])
                 runtime = WorkflowRuntime(environment, Event(), tools, propagate_python_errors=True)
                 runner = WorkflowRunner(manifest, out / "kernel-runs", base_dir=ROOT)

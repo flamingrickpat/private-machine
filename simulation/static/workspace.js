@@ -148,6 +148,7 @@ function readTemplate(withPlan) {
   const plan = withPlan ? JSON.parse($("plan-json").value) : null;
   if (plan) { plan.director = director; plan.title = $("scenario-title").value; plan.brief = $("brief").value; }
   return {schema_id: "pm.simulation-template.v1", title: $("scenario-title").value,
+    time_multiplier: Number($("time-multiplier").value),
     brief: $("brief").value, start_time: $("start-time").value || null, participants, edges, director,
     analysis: {...analysisDefaults, ...(importedTemplate?.analysis || {}), automatic: $("automatic-analysis").checked,
       context: $("analysis-context").value, criteria: JSON.parse($("criteria-json").value)},
@@ -170,6 +171,7 @@ async function applyTemplate(template) {
   importedTemplate = template;
   $("scenario-title").value = template.title;
   $("brief").value = template.brief;
+  $("time-multiplier").value = template.time_multiplier ?? 1;
   if (template.start_time) $("start-time").value = template.start_time;
   for (const [key, value] of Object.entries({...directorDefaults, ...template.director})) $(`director-${key}`).value = value;
   const settings = {...analysisDefaults, ...template.analysis};

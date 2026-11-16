@@ -494,8 +494,11 @@ class ManagedRunSupervisor:
                         receipt.run_id, state=outcome,
                         latest_event=f"worker error: {type(exc).__name__}: {exc}"[-500:],
                     )
-                    self._emit(receipt.run_id, outcome, error=str(exc), detail=str(exc),
-                               reason="resource_busy" if isinstance(exc, BodyBusy) else "worker_error")
+                    # The control receipt retains diagnostics. A logic defect
+                    # must reach the operator without becoming a world event.
+                    if cancelled or isinstance(exc, (TaskServiceError, BodyBusy)):
+                        self._emit(receipt.run_id, outcome, error=str(exc), detail=str(exc),
+                                   reason="resource_busy" if isinstance(exc, BodyBusy) else "worker_error")
                 else:
                     # Publication can fail after a terminal receipt commits.
                     # Keep that actual outcome and identify the delivery error.
@@ -510,6 +513,7 @@ class ManagedRunSupervisor:
                 if self.on_error is None:
                     raise
                 self.on_error(exc)
+                return
             self._notify_terminal(receipt.run_id)
         finally:
             with self._lock:

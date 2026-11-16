@@ -95,3 +95,15 @@ These mechanisms do not establish completed deliberate ToM or sustained characte
 - [`StoryPrefix`][workflows.main_cognition.story_prefix.StoryPrefix] supplies main-cognition context.
 - [`PublicContext`][workflows.public_speech.public_context.PublicContext] carries the frozen speech context.
 - [`EntityContextView`][workflows.entity_context.schemas.EntityContextView] carries persistent entity meaning and source dependencies.
+
+## Social consequences and review
+
+The existing choice call weighs delivered words, unanswered outreach, current intentions, and the character's desired self-image.
+It considers the possible cost of another follow-up while preserving uncertainty about the partner.
+The character can speak, change focus, choose private activity, or wait.
+Historical quotations retain their dates and speakers. Private feelings do not establish the partner's reaction.
+
+Speech review receives this same grounding and the candidate's selected purpose.
+Continuity problems remain advisory findings. Only material false task results block publication.
+Conditional decisions to speak later must remain quiet until their condition holds.
+These instructions guide model behavior; sustained quality still requires transcript review of real runs.

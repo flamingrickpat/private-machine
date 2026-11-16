@@ -23,7 +23,8 @@ from workflows.dialogue_story.steps import build_story_messages, load_prompts
 from workflows.main_cognition.cycle_work import CycleRequest, CycleWork
 from workflows.main_cognition.schemas import ActionRequest
 from workflows.main_cognition.story_prefix import StoryPrefix
-from workflows.public_speech.public_context import build_public_context
+from workflows.public_speech.public_context import PublicContext, build_public_context
+from workflows.public_speech.speech_review import build_review_messages, load_prompts as load_review_prompts
 from workflows.public_speech.publication import acknowledge_reply, commit_public_reply, validate_public_context
 from workflows.public_speech.situational_guidance import (
     SituationalGuidance, build_situational_guidance, render_situational_guidance,
@@ -59,6 +60,18 @@ def guidance(store: MemoryStore, partner: int | None = None) -> SituationalGuida
 
 
 class SituationalGuidanceTests(unittest.TestCase):
+    def test_review_uses_dated_actual_turns_when_separate_transcript_is_absent(self) -> None:
+        store = make_store()
+        reply_id = say(store, "Spamuel", "That was real. Filed.")
+        context = PublicContext(companion_name="Spamuel", user_name="Jesse", partner_name="Jesse",
+                                selected_action="Leave the completed move alone.", situational_guidance=guidance(store))
+        messages = build_review_messages("That was real. Filed.", context, load_review_prompts())
+        text = str(messages[-1].content)
+        self.assertIn("Recent conversation:", text)
+        self.assertIn(f"record {reply_id}] Spamuel said", text)
+        self.assertIn(NOW.isoformat(), text)
+        self.assertIn("Selected purpose: Leave the completed move alone.", text)
+
     def test_other_reality_cannot_supply_partner_state_or_action_purpose(self) -> None:
         store = make_store()
         partner_id = store.get_entity_id("Jesse")

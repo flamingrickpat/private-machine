@@ -27,9 +27,11 @@ from pm.llm.activation import ModelActivation
 from pm.llm.http_client import ModelError
 from pm.llm.config import LlmPreset, load_config, resolve_connection
 from pm.llm.stage_model import LazyStageModel
+from pm.llm.context_window import estimate_tokens
 from pm.host.durable_files import atomic_json
 from simulation.plans import ScenarioPlan, ExtractedFacts, ActorTurn, ActorDraftReview, Fact, Step, StageJudgment
-from simulation.actors import ActorProfile, ConversationTurn, DeliveryEvidence
+from simulation.actors import ActorIdentity, ActorProfile, ConversationTurn, DeliveryEvidence, HistoricalTurn
+from simulation.history import HistoryIndex, HistoryQuery, bound_conversation, conversation_tokens
 from pm.llm.prompt_log import log_scope
 
 #: First delay before a failed scenario-agent completion is asked again, in seconds.
@@ -39,16 +41,46 @@ AGENT_RETRY_MAX_DELAY_SECONDS = 300.0
 
 T = TypeVar("T", bound=BaseModel)
 
+#: The actor instruction. It is a constant so the budget fitter can measure the
+#: exact base prompt before choosing conversation and history.
+ACTOR_INSTRUCTION = (
+    "Write the user's next natural message to their AI companion. Your identity, companion name, "
+    "voice and relationship come from context.identity and context.history. "
+    "Continue that relationship in the same medium. Write one short chat message, not a narrated scene. "
+    "Match the user's own cadence, humor, casualness "
+    "and message length; do not imitate the companion's theatrical monologues. "
+    "Use the current scene and private intent as circumstances, never as a script to recite. "
+    "Respond to the latest companion reply when present. This is an ordinary conversation, not a "
+    "report to a system or experimenter. Never call the companion PM unless that is their actual name. "
+    "Convey facts naturally over multiple turns when appropriate. No checklist, formal pledge, "
+    "Once a fact is established, continue the conversation rather than announcing it again. "
+    "Use context.guidance for the user's motives and style, while keeping the current scene grounded. "
+    "exact-time announcement, or repeated 'not up for debate' is required. Maintain the scenario's "
+    "choices through disagreement while remaining emotionally responsive. "
+    "The clock is metadata. Do not invent events outside the current scene or speak for the companion. "
+    "Return only the next message content in the required object."
+)
+
+
+def _turns(instruction: str, payload: BaseModel, schema: type[BaseModel]) -> list[dict[str, str]]:
+    """Build the exact system and user turns that the provider receives."""
+    required = " Required JSON schema: " + json.dumps(schema.model_json_schema())
+    return [{"role": "system", "content": instruction +
+             " Return a JSON data instance matching the schema. Do not return the schema itself." + required},
+            {"role": "user", "content": payload.model_dump_json()}]
+
 
 class ActorContext(BaseModel):
     """Public grounding and current circumstances; no future plot or rubric."""
 
-    profile: ActorProfile
+    identity: ActorIdentity
     at: datetime
     scene: str
     intent: str
     current_facts: list[Fact]
     conversation: list[ConversationTurn]
+    history: list[HistoricalTurn] = Field(default_factory=list[HistoricalTurn])
+    history_omitted: int = 0
     guidance: str = ""
 
 
@@ -119,6 +151,9 @@ class Agents:
         self.model: LazyStageModel = LazyStageModel(resolve_connection(load_config(config), preset=preset), ModelActivation())
         self.evidence: Path = evidence
         self.cancel: threading.Event | None = cancel
+        self.config_path: str = config
+        self._history: dict[str, HistoryIndex] = {}
+        self._budget: int | None = None
 
     def call(self, role: str, instruction: str, payload: BaseModel, *, schema: type[T],
              prepare: Callable[[T], T] | None = None) -> T:
@@ -137,10 +172,7 @@ class Agents:
         Cancellation pauses the run through the model's own cancel path.
         """
         from pm.llm.structured import extract_json, JsonOutputError
-        required = " Required JSON schema: " + json.dumps(schema.model_json_schema())
-        original: list[dict[str, str]] = [{"role": "system", "content": instruction +
-            " Return a JSON data instance matching the schema. Do not return the schema itself." + required},
-                                     {"role": "user", "content": payload.model_dump_json()}]
+        original: list[dict[str, str]] = _turns(instruction, payload, schema)
         turns = original
         failure_delay = AGENT_RETRY_DELAY_SECONDS
         while True:
@@ -208,7 +240,7 @@ class Agents:
             "Compare with the exact public history: cadence, informality, emotional stance and relationship. "
             "Reject logbook reports, checklist recitation, evaluator language, robotic commitments, or addressing PM "
             "as a name when the companion has another name. They are user and AI companion; do not invent physical "
-            "co-presence. Names are profile.speaker_name and profile.companion_name. Natural unnamed address is fine. "
+            "co-presence. Names are context.identity.speaker_name and context.identity.companion_name. Natural unnamed address is fine. "
             "Facts are semantic constraints, not required wording. A commitment can be a choice or stance, not an oath. "
             "Time is established by context.at; the speaker need not announce the date or exact clock time. "
             "Facts may emerge across several turns. Missing facts in this one draft are not a reason to reject. "
@@ -218,26 +250,49 @@ class Agents:
             "Return four independent checks and accepted=true only when all pass, with a specific reason.",
             ReviewRequest(context=context, draft=draft, future_facts=future_facts), schema=ActorDraftReview)
 
-    def actor(self, context: ActorContext, future_facts: list[Fact]) -> ActorTurn:
+    def _input_budget(self) -> int:
+        """Resolve the configured input ceiling once from the serving context."""
+        if self._budget is None:
+            measurement = self.model.measure_context([{"role": "user", "content": "x"}], cancel=self.cancel)
+            self._budget = measurement["input_budget_tokens"]
+        return self._budget
+
+    def _history_index(self, profile: ActorProfile, home: Path) -> HistoryIndex:
+        """Build one in-memory index per source checkpoint and reuse it."""
+        index = self._history.get(profile.source_checkpoint_sha256)
+        if index is None:
+            index = HistoryIndex(profile, home, self.config_path)
+            self._history[profile.source_checkpoint_sha256] = index
+        return index
+
+    def _fit_context(self, context: ActorContext, profile: ActorProfile, home: Path) -> ActorContext:
+        """Fill the configured input budget with recent dialogue and retrieved history."""
+        budget = self._input_budget()
+        empty = context.model_copy(update={"conversation": [], "history": [], "history_omitted": 0})
+        base = estimate_tokens(self.model.connection.model,
+                               _turns(ACTOR_INSTRUCTION, DraftRequest(context=empty), ActorTurn))[0]
+        reserve = max(1024, budget // 20)
+        available = budget - base - reserve
+        if available <= 0:
+            raise ValueError("The scenario actor prompt leaves no room for conversation or history.")
+        conversation_budget = available // 2
+        conversation = bound_conversation(context.conversation, conversation_budget)
+        # The conversation may use less than its half; history takes the rest.
+        history_budget = available - conversation_tokens(conversation)
+        selection = self._history_index(profile, home).select(
+            HistoryQuery(scene=context.scene, intent=context.intent, recent=tuple(conversation)),
+            history_budget, cancel=self.cancel)
+        return context.model_copy(update={"conversation": conversation,
+                                          "history": list(selection.turns),
+                                          "history_omitted": selection.omitted_turns})
+
+    def actor(self, context: ActorContext, future_facts: list[Fact], *,
+              profile: ActorProfile, home: Path) -> ActorTurn:
         """Sample grounded user speech until the immersion check accepts it."""
+        context = self._fit_context(context, profile, home)
         rejected: list[RejectedDraft] = []
         while True:
-            draft = self.call("participant_actor",
-                "Write the user's next natural message to their AI companion. Your identity, companion name, "
-                "voice and relationship come from context.profile and its complete public history. "
-                "Continue that relationship in the same medium. Write one short chat message, not a narrated scene. "
-                "Match the user's own cadence, humor, casualness "
-                "and message length; do not imitate the companion's theatrical monologues. "
-                "Use the current scene and private intent as circumstances, never as a script to recite. "
-                "Respond to the latest companion reply when present. This is an ordinary conversation, not a "
-                "report to a system or experimenter. Never call the companion PM unless that is their actual name. "
-                "Convey facts naturally over multiple turns when appropriate. No checklist, formal pledge, "
-                "Once a fact is established, continue the conversation rather than announcing it again. "
-                "Use context.guidance for the user's motives and style, while keeping the current scene grounded. "
-                "exact-time announcement, or repeated 'not up for debate' is required. Maintain the scenario's "
-                "choices through disagreement while remaining emotionally responsive. "
-                "The clock is metadata. Do not invent events outside the current scene or speak for the companion. "
-                "Return only the next message content in the required object.",
+            draft = self.call("participant_actor", ACTOR_INSTRUCTION,
                 DraftRequest(context=context, rejected_drafts=rejected[-3:]), schema=ActorTurn)
             review = self.review(context, draft, future_facts)
             if review.accepted:

@@ -50,6 +50,22 @@ class ActorProfile(BaseModel):
     dialogue: list[HistoricalTurn] = Field(min_length=1, description="Complete public history; text is unchanged.")
 
 
+class ActorIdentity(BaseModel):
+    """Prompt-facing identity without the full public history.
+
+    The actor prompt carries this identity plus a bounded history selection.
+    The complete dialogue stays in :class:`ActorProfile` on disk for audit and
+    for the retrieval index.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    speaker_name: str = Field(min_length=1, description="Real user name from the character home.")
+    companion_name: str = Field(min_length=1, description="Actual AI companion name; never a transport ID.")
+    relationship: Literal["user_and_ai_companion"] = "user_and_ai_companion"
+    continuity_at: datetime = Field(description="Latest saved public dialogue, cognitive cycle, or world-clock time.")
+    source_checkpoint_sha256: str
+
+
 class ActorSummary(BaseModel):
     """Small browser projection of the selected source's public grounding."""
 
@@ -123,6 +139,13 @@ def load_profile(home: Path) -> ActorProfile:
     """Load an accepted source checkpoint and derive its public actor profile."""
     checkpoint = home / "ghost.pickle"
     return profile_from_store(MemoryStore.from_checkpoint(checkpoint), checkpoint)
+
+
+def identity(profile: ActorProfile) -> ActorIdentity:
+    """Return the prompt-facing identity for one full profile."""
+    return ActorIdentity(speaker_name=profile.speaker_name, companion_name=profile.companion_name,
+                         continuity_at=profile.continuity_at,
+                         source_checkpoint_sha256=profile.source_checkpoint_sha256)
 
 
 def suggested_start(profile: ActorProfile) -> datetime:

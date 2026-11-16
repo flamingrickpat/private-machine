@@ -340,3 +340,13 @@ Existing capture files under `.runtime/dev-review/` remain unchanged.
 The simulation imports the runtime and workflow assembly.
 Product runtime code does not import the simulation application.
 K003 adds the read-only [execution timeline](timeline.md) over the same capture and presentation interfaces.
+
+## Simulation speed
+
+A template's `time_multiplier` sets simulated seconds per wall-clock second. The default is 1.
+The setup page exposes the same setting. The CLI accepts `--time-multiplier 2` when creating a run.
+At 2, a 15-minute cognitive cycle consumes 30 simulated minutes. At 0.5, it consumes 7.5 simulated minutes.
+Actor reply delays and unanswered-message waits use simulated seconds, so their wall durations scale with the clock.
+Scheduled scene timestamps retain their meaning. A due scene runs late when cognition passes its scheduled time.
+HTTP timeouts, process supervision, and diagnostic durations remain wall-clock measurements.
+The run retains its multiplier in controller state for later inspection.

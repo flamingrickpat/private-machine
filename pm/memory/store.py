@@ -1,9 +1,9 @@
 """MemoryStore ownership, scoped snapshots, and atomic accepted memory.
 
 Invalid proposals and revision conflicts reject a complete batch. A failed
-checkpoint leaves accepted memory unchanged. Errors reach the debugger.
-No model or network call runs under the commit lock. Optional checkpoint=None
-means an explicit in-memory session, not durable storage.
+checkpoint leaves the previous file intact. Errors reach the debugger.
+Commits accept memory in process; completed main cycles and explicit saves
+write checkpoints. No model or network call runs under the commit lock.
 
 The store is the only writer of accepted records: it owns record membership
 (inherited from :mod:`pm.memory.record_index`), the revision map, the causal
@@ -249,16 +249,13 @@ class MemoryStore(RecordIndex):
     @classmethod
     def from_checkpoint(cls, path: str | Path, *, raw: bool = False) -> "MemoryStore":
         """Open the accepted view by default. Raw mode retains provisional activity."""
-        ghost = cls._restore(read_checkpoint(Path(path)), Path(path), raw=raw)
-        for receipt in ghost.managed_runs.values():
-            if receipt["state"] in {"accepted", "running"}:
-                receipt["interrupted_from"] = receipt["state"]
-                receipt["state"] = "interrupted"
-        return ghost
+        return cls._restore(read_checkpoint(Path(path)), Path(path), raw=raw)
 
     @classmethod
     def _restore(cls, data: Checkpoint, path: Path | None, *, raw: bool = False) -> "MemoryStore":
-        ghost = cls.from_state(data.state, checkpoint=path)
+        # Loading must not rewrite the source checkpoint while removing
+        # executable leftovers from its accepted in-memory projection.
+        ghost = cls.from_state(data.state, checkpoint=None)
         if set(data.revisions) != set(ghost._all_knoxels) or any(revision < 1 for revision in data.revisions.values()):
             raise ValueError("Checkpoint record revisions do not match stored memory.")
         if (data.current_knoxel_id < ghost.current_knoxel_id
@@ -284,6 +281,10 @@ class MemoryStore(RecordIndex):
             ghost._raw_cycles = list(data.state.cycles)
             ghost._raw_commits = dict(data.applied_commits)
             ghost._project(raw=raw)
+        if not raw:
+            from pm.memory.restart import discard_unfinished_work
+            discard_unfinished_work(ghost)
+        ghost.checkpoint = path
         return ghost
 
     def _ensure_history(self) -> None:
@@ -348,8 +349,8 @@ class MemoryStore(RecordIndex):
                                     if key in accepted or key in history.baseline_commit_ids},
                 "causal_history": history})
             # Validate the projection before publishing a clean artifact.
-            self._restore(data, None)
-            write_checkpoint(destination, data, lambda: None)
+            cleaned = self._restore(data, None)
+            write_checkpoint(destination, cleaned.checkpoint_data(), lambda: None)
         return destination
 
     def _recovery_records(self, accepted: set[str]) -> _RecoveryRecords:
@@ -696,8 +697,8 @@ class MemoryStore(RecordIndex):
                     embed: bool = True) -> WriteBatch:
         """Capture a stable view. A new tick reserves an ID without accepting memory.
 
-        Set ``embed=False`` for stimulus delivery. It must reach durable storage
-        without a model call. Cognition can fill the derived vectors later.
+        Set ``embed=False`` for stimulus delivery so intake does not wait on a model.
+        A completed main cycle or an explicit save later checkpoints the input. Cognition can fill the derived vectors later.
         """
         with self.lock:
             tick = self.current_tick_id
@@ -707,10 +708,10 @@ class MemoryStore(RecordIndex):
             return WriteBatch(self, commit_id, self.snapshot(visible_ids, capture=False), tick, cancel, embed=embed)
 
     def commit(self, batch: WriteBatch) -> CommitReceipt:
-        """Save and accept a whole batch, or raise without accepting its proposals.
+        """Accept a whole batch in memory, or raise without accepting its proposals.
 
         Repeated commit IDs return their original receipt. Revision conflicts
-        raise GhostConflict. A cancellation before replacement raises GhostCancelled.
+        raise GhostConflict. A cancellation before acceptance raises GhostCancelled.
         """
         reads = current_reads()
         if reads is not None:
@@ -855,19 +856,10 @@ class MemoryStore(RecordIndex):
             if batch._gwt is not None:
                 raw_gwt[batch.tick_id] = batch._gwt
             raw_commits = {**self._raw_commits, transaction_id: receipt.model_copy(update={"commit_id": transaction_id})}
-            data = Checkpoint(
-                state=self.state(raw_records, raw_cycles), current_knoxel_id=self.current_knoxel_id,
-                current_tick_id=max(self.current_tick_id, batch.tick_id), reserved_tick_id=self._reserved_tick_id,
-                revisions=revisions, gwt_turns=raw_gwt,
-                applied_commits=raw_commits,
-                managed_runs={**self.managed_runs, **batch._runs},
-                consolidations={**self.consolidations, **batch._consolidations},
-                causal_history=history,
-            )
+            # Accept in memory. Main cognition saves completed cycles; explicit
+            # shutdown/export also save. Per-record commits do not pickle the
+            # whole Ghost or persist executable inboxes between cycle boundaries.
             batch.check_cancelled()
-            if self.checkpoint is not None:
-                write_checkpoint(self.checkpoint, data, batch.check_cancelled)
-            # Save before installation. A failed file replacement leaves proposals private.
             for record_id in batch._superseded:
                 self.embedding_index.remove(record_id)
                 self._deindex_knoxel(self._all_knoxels.pop(record_id))
@@ -884,12 +876,12 @@ class MemoryStore(RecordIndex):
                 self._index_knoxel(record)
                 self.embedding_index.update(record)
             self.states = cycles
-            self.current_tick_id = data.current_tick_id
+            self.current_tick_id = max(self.current_tick_id, batch.tick_id)
             self.revisions = revisions
             self.gwt_turns = gwt
             self.applied_commits = {**self.applied_commits, batch.commit_id: receipt}
-            self.managed_runs = data.managed_runs
-            self.consolidations = data.consolidations
+            self.managed_runs = {**self.managed_runs, **batch._runs}
+            self.consolidations = {**self.consolidations, **batch._consolidations}
             self.causal_history = history
             self._history = raw_records
             self._raw_gwt = raw_gwt

@@ -7,7 +7,7 @@ actions. This module is the canonical subsystem overview.
 
 **What the cycle owns.**
 
-- The phase order of ``main_cognition.workflow.md``: triage, appraise,
+- The Python phase order inside the single ``main_cognition.workflow.md`` role: triage, appraise,
   retrieve, codelets, structures, attention, experience, goals, decide,
   route, commit (:mod:`workflows.main_cognition.steps`).
 - The frozen input of one cycle (:class:`~workflows.main_cognition.cycle_work.CycleRequest`)
@@ -413,12 +413,9 @@ class MainCogLoop(CognitiveWorkflow):
             with self.ghost.lock:
                 replay = self._critical_interrupted.is_set() and not self.stop_event.is_set()
                 self._active_batch = []
-            if self.inference_admission is not None:
-                for envelope in batch:
-                    self.inference_admission.release(envelope.id)
             if replay:
                 for envelope in batch:
-                    # Identity keeps one pending-input cause and reservation.
+                    # Identity keeps one pending-input cause.
                     self.deliver(envelope)
                 self.bus.put(new_envelope(self.module_id, "telemetry", "cycle.preempted", "",
                     {"source_ids": [item.payload["knoxel_id"] for item in batch if item.topic == "user.input"],
@@ -1316,6 +1313,7 @@ class MainCogLoop(CognitiveWorkflow):
                     private_generation=self._control_generation if self._private_only else None,
                     source_ids=list(self._stimulus_ids))
             self._active_batch_committed = True
+            self.ghost.save()
             # Failed attempts must leave the last completed cycle's backup intact.
             if self.ghost_backups:
                 self.ghost.backup()

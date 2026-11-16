@@ -17,9 +17,8 @@ pauses activation and requests until it returns; it never ends the session.
 from __future__ import annotations
 
 import asyncio
-from threading import BoundedSemaphore, Event, Lock
-from contextlib import asynccontextmanager
-from collections.abc import AsyncIterator, Sequence
+from threading import Event, Lock
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pm.llm.contracts import ContextMeasurement, ModelProtocolContext
 
@@ -74,29 +73,13 @@ class LazyStageModel:
         owner: ModelActivation,
         *,
         live_test: bool = False,
-        max_concurrency: int = 4,
     ) -> None:
         self.connection = connection
         self.owner = owner
         self.live_test = live_test
-        self.admission = inference_admission(connection.base_url)
+        self.admission = inference_admission(connection.base_url, max_concurrent_requests=connection.max_concurrent_requests)
         self._lock = Lock()
         self._client: ChatClient | None = None
-        self._slots = BoundedSemaphore(max_concurrency)
-
-    @asynccontextmanager
-    async def slot(self, cancel: Event | None = None) -> AsyncIterator[None]:
-        """Admit one request across module threads. Waiting consumes no worker thread."""
-        while not self._slots.acquire(blocking=False):
-            if cancel is not None and cancel.is_set():
-                raise asyncio.CancelledError
-            await asyncio.sleep(0.05)
-        try:
-            if cancel is not None and cancel.is_set():
-                raise asyncio.CancelledError
-            yield
-        finally:
-            self._slots.release()
 
     async def _preflight(self, messages: Sequence[TurnInput], cancel: Event | None, generation: dict[str, object]) -> None:
         """Reject impossible rendered context before a text, reasoning, or tool call."""
@@ -111,8 +94,7 @@ class LazyStageModel:
         cancel = generation.get("cancel")
         assert cancel is None or isinstance(cancel, Event)
         await self._preflight(messages, cancel, generation)
-        async with self.slot(cancel):
-            return await complete_chat_with_retry(self.ensure_client(cancel=cancel), messages, generation)
+        return await complete_chat_with_retry(self.ensure_client(cancel=cancel), messages, generation)
 
     async def _complete(self, messages: Sequence[TurnInput], generation: dict[str, object]) -> str:
         result = await self._complete_chat(messages, generation)
@@ -175,8 +157,7 @@ class LazyStageModel:
             cancel = generation.get("cancel")
             assert cancel is None or isinstance(cancel, Event)
             await self._preflight(messages, cancel, generation)
-            async with self.slot(cancel):
-                return await OpenAICompletionBackend(client).complete(messages, **generation)
+            return await OpenAICompletionBackend(client).complete(messages, **generation)
 
         return asyncio.run(complete())
 
@@ -222,8 +203,7 @@ class LazyStageModel:
             last: EmptyCompletionError | None = None
             for attempt in range(3):
                 try:
-                    async with self.slot(generation.get("cancel")):
-                        result = await client.complete(messages, **generation)
+                    result = await client.complete(messages, **generation)
                     return result.completion()
                 except EmptyCompletionError as error:
                     last = error

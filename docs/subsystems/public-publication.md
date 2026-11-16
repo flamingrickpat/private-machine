@@ -9,18 +9,18 @@ Checkpoint restart can replay an unacknowledged utterance or dispatch a selected
 
 Parent: [public dialogue](public-dialogue.md).
 Related: [operator service](console.md), [managed work](managed-work.md), and [A09 verification](../work_items/verification/a09-public-dialogue.md).
-Accepted companion actions and managed progress also use [durable publication recovery](recovery-publication.md).
+Accepted companion actions use [live delivery and clean restart](recovery-publication.md).
 
 ## Input and durable ownership
 
 [`workflows.public_speech.user_input.UserInputProxy.submit`][] assigns the correlation ID before it stores the user's utterance.
 The Feature retains `exchange_correlation`, `exchange_status=pending`, and the console session name.
-These fields live in the existing Ghost checkpoint.
+These fields live in Ghost memory and enter the next explicit or completed-cycle checkpoint.
 There is no separate state authority or broker.
 
 Incoming delivery opts into an explicit recovery root through
 [`pm.memory.write_batch.WriteBatch.preserve_on_recovery`][].
-This keeps durable inbox evidence visible after default clean recovery, before main cognition claims it.
+This keeps recorded input evidence attributable. Restart resolves unfinished exchanges and does not redispatch them.
 An early classification uses the same mechanism for its control receipt.
 Neither receipt creates a GWT turn or an accepted character decision.
 Recovery roots can depend only on already recoverable evidence.
@@ -131,18 +131,16 @@ A completed `local_task` proves that the control worker finished.
 Its artifacts do not establish arbitrary instruction execution.
 The public receipt must preserve that limit.
 
-[`workflows.note_task.steps.run`][] provides actual agent-backed note execution.
-It leases the configured normal chat connection through the existing model-session provider.
-The installed pm-coder driver writes the requested file in the task outbox.
-Its normal automatic compaction remains available.
+[`workflows.note_task.steps.run`][] provides exact note execution.
+The model selects content when required. The host writes accepted text as exact UTF-8 bytes in the task outbox.
 The host compares the actual file bytes with the requested UTF-8 bytes.
 Self-management retains the original user request and its source ID in the run arguments.
 The note specification comes from that original request when it exists.
 Rewritten action instructions cannot override the requested file contents.
 The extractor first determines whether that original message requests a new note operation.
 An apology, affection, frustration, or completion event cannot become note content by default.
-A rejected extraction stops before the agent starts or writes a file.
-The report retains expected and actual hexadecimal bytes, SHA-256, session reference, and verification status.
+A rejected extraction stops before the host writes a file.
+The report retains expected and actual hexadecimal bytes, SHA-256, and verification status.
 
 [`workflows.public_speech.reply_recovery.task_evidence`][] reads the report and verifies note bytes again before public dispatch.
 A changed file or extra newline invalidates task verification.
@@ -151,7 +149,7 @@ A workflow can also declare `reply_evidence` in its specification.
 For `tool_call`, [`reply_evidence`][workflows.tool_call.report.reply_evidence] reads the report again and checks the bytes of each reported local file.
 `task_verified` stays false. See the [tool goal guide](../workflows/tool-call.md).
 The control worker always lacks that independent note verification.
-Expected input, model protocol, timeout, and file errors produce rejected note reports.
+Internal note defects propagate to the application error handler. Structured model extraction repairs malformed samples at its own boundary.
 Cancellation propagates to the worker, and unexpected logic errors keep their traceback.
 
 ## Cognitive protocol recovery

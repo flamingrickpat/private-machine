@@ -2,6 +2,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+from collections.abc import Sequence
 
 from pm.memory.store import MemoryStore
 from pm.memory.snapshot import GhostConflict
@@ -22,26 +23,29 @@ class CausalRecoveryTests(unittest.TestCase):
     def feature(self, text):
         return Feature(content=text, feature_type=FeatureType.Dialogue)
 
-    def admit(self, inputs=()):
+    def admit(self, inputs: Sequence[int] = ()) -> Feature:
         batch = self.ghost.begin_batch(f"main-{self.ghost.current_tick_id + 1}", new_tick=True)
         batch.depend_on(inputs)
         action = batch.create(self.feature("approved action"))
         batch.set_gwt(GwtTurnRecord(tick_id=batch.tick_id, slot_id="main", stimulus_ids=list(inputs), knoxel_ids=[action.id, *inputs]))
         self.ghost.commit(batch)
+        self.ghost.save()  # Completed-cycle boundary.
         return action
 
-    def result(self, action, inputs=()):
+    def result(self, action: Feature, inputs: Sequence[int] = ()) -> Feature:
         batch = self.ghost.begin_batch("reply")
         batch.depend_on(inputs, authority=action.id)
         reply = batch.create(self.feature("completed reply"))
         batch.set_lifecycle(action.id, execution_status="completed", public_reply_id=reply.id)
         self.ghost.commit(batch)
+        self.ghost.save()  # Explicit forensic save to exercise causal projection.
         return reply
 
-    def test_default_restart_excludes_latest_message_and_keeps_raw_history(self):
+    def test_explicit_forensic_save_keeps_raw_history_but_restart_excludes_unaccepted_input(self) -> None:
         first = self.ghost.store_knoxel(self.feature("accepted input"))
         self.admit([first.id])
         latest = self.ghost.store_knoxel(self.feature("failed latest input"))
+        self.ghost.save()  # Preserve provisional history deliberately, not automatically.
         clean = MemoryStore.from_checkpoint(self.path)
         self.assertIsNotNone(clean.get_knoxel_by_id(first.id))
         self.assertIsNone(clean.get_knoxel_by_id(latest.id))
@@ -183,9 +187,10 @@ class CausalRecoveryTests(unittest.TestCase):
         self.assertEqual(clean.get_knoxel_by_id(action.id).metadata["execution_status"], "completed")
         self.assertNotIn("execution_status", clean._history[action.id].metadata)
 
-    def test_clean_restart_never_reuses_excluded_record_ids(self):
+    def test_clean_restart_never_reuses_persisted_excluded_record_ids(self) -> None:
         self.admit()
         excluded = self.ghost.store_knoxel(self.feature("excluded"))
+        self.ghost.save()  # Unsaved IDs are deliberately lost on restart.
         clean = MemoryStore.from_checkpoint(self.path)
         next_record = clean.store_knoxel(self.feature("new branch"))
         self.assertGreater(next_record.id, excluded.id)
@@ -250,6 +255,7 @@ class CausalRecoveryTests(unittest.TestCase):
         batch.depend_on([action.id], authority=action.id)
         replacement = batch.create(self.feature("retried against accepted input"))
         restored.commit(batch)
+        restored.save()
         reopened = MemoryStore.from_checkpoint(self.path)
         self.assertIsNone(reopened.get_knoxel_by_id(excluded.id))
         self.assertIsNotNone(reopened.get_knoxel_by_id(replacement.id))

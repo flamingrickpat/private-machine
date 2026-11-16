@@ -523,6 +523,8 @@ def memory_lines(context: PublicContext, *, exclude_ids: Iterable[int] = (),
             # change how real the content is keep a label.
             phrase = _KIND_WORDS.get(item.memory_kind, "").format(user_name=context.user_name)
         when = format_moment(item.timestamp)
+        if item.historical:
+            phrase = "historical quotation; " + phrase
         label = ", ".join(part for part in (when, phrase) if part)
         rows.append((item.timestamp or "", f"- {label + ': ' if label else ''}{body}"))
     return [line for _, line in sorted(rows, key=lambda row: row[0])]

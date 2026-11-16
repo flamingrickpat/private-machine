@@ -59,7 +59,7 @@ class ContextBudget(TokenEstimator):
     """Reserve output space and apply the input ceiling to rendered evidence."""
 
     context_window: int = Field(gt=0, description="Usable serving capacity, including any configured cap.")
-    input_fraction: float = Field(default=0.8, gt=0, le=0.8, description="Input ceiling; unused space stays unused.")
+    input_fraction: float = Field(default=0.8, gt=0, lt=1, description="Input ceiling; unused space stays unused.")
 
     @property
     def input_ceiling(self) -> int:

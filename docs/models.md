@@ -20,6 +20,13 @@ Parent: [README](index.md).
 The credential-free example is `config.example.yaml`.
 It contains `Default`, `UnitTestEvaluator`, and one `embedding` entry.
 Both chat presets initially use the same endpoint.
+Each chat entry accepts `max_concurrent_requests`, `request_timeout_seconds`, and `override_context`.
+The local DeepSeek settings use 8 slots, 99,999 seconds, and a 65,536-token context cap.
+Slot values at most zero or at least 9999 mean unlimited requests.
+Triage receives the next free slot before queued critical, interaction, or background calls.
+Dialogue fits its optional evidence to the configured context input fraction, normally 80%.
+These settings belong in YAML; they need no environment overrides.
+
 This is a shared-backend evaluation, not an independent neutral reviewer.
 
 The endpoint can be local or remote.
@@ -160,8 +167,9 @@ Cancellation stops supported HTTP waits, readiness waits, or the directly owned 
 It does not claim to terminate detached server descendants.
 Windows startup processes use hidden windows.
 
-Generation has no response deadline or automatic output cap.
-The HTTP client has a connection-establishment timeout, not an inference timeout.
+`request_timeout_seconds` sets the HTTP read, write, and pool timeout, including time queued inside a local server.
+A null value disables those timeouts. Connection establishment has a separate ten-second timeout.
+`completion_token_limit` bounds generated output independently.
 Production waits through connection failures, HTTP 429, and HTTP 5xx, with a 30-second pause before each retry.
 There is no production retry quota. Temporary unavailability must not become a cognitive failure.
 Cancellation interrupts request I/O, readiness, and retry pauses.

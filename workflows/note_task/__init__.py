@@ -1,1 +1,1 @@
-"""Real agent-backed note execution with independent byte verification."""
+"""Exact host note writes with independent byte verification."""

@@ -11,10 +11,9 @@ State flow between phases:
   workflow runner does this for every invocation.
 - The intake phase validates the request and creates the first
   ``CycleWork``.
-- Every phase reads ``CycleWork`` from :data:`WORK_FILE` in the working
-  target and validates it at entry. It returns the changed object, and the
-  phase entry point writes it back. The working target of main cognition is
-  an in-memory Bash machine, so the file never reaches the disk.
+- Every phase receives the same typed ``CycleWork`` object. No intermediate
+  phase state is serialized, parsed, or persisted. Interrupted cycles restart
+  from the accepted Ghost rather than resuming halfway through deliberation.
 - The commit phase writes the final ``CycleWork`` to ``outbox/report.yaml``.
   The host validates it again and stages the one write batch.
 
@@ -28,7 +27,6 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from pm_workflows.working_target import WorkingEnvironment
 
 from pm.records.cycle_records import StimulusGroup
 from pm.records.cycle_state import CycleState
@@ -64,9 +62,6 @@ from workflows.main_cognition.schemas import (
 from workflows.public_speech.public_context import PublicContext
 from workflows.main_cognition.interval_review import IntervalReview
 from workflows.public_speech.situational_guidance import SituationalGuidance
-
-#: Path of the shared phase state in the working target.
-WORK_FILE = "scratch/cycle_work.json"
 
 
 class CycleRequest(BaseModel):
@@ -258,17 +253,4 @@ def provisional_tick(work: CycleWork) -> int:
     return work.state.tick_id + 1
 
 
-def read_work(environment: WorkingEnvironment) -> CycleWork:
-    """Read and validate the shared phase state from the working target.
-
-    A missing or invalid file is a bug in the phase order and raises.
-    """
-    return CycleWork.model_validate_json(environment.read_text(WORK_FILE))
-
-
-def write_work(environment: WorkingEnvironment, work: CycleWork) -> None:
-    """Write the shared phase state to the working target."""
-    environment.write_text(WORK_FILE, work.model_dump_json())
-
-
-__all__ = ["CycleRequest", "CycleWork", "WORK_FILE", "primary_group", "provisional_tick", "read_work", "write_work"]
+__all__ = ["CycleRequest", "CycleWork", "primary_group", "provisional_tick"]

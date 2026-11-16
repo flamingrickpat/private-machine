@@ -30,6 +30,8 @@ from pm.llm.completion import AsyncTextCompletion
 from pm.utils import yaml_util
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, TypeAdapter, with_config
 
+from workflows.public_speech.situational_guidance import render_situational_guidance
+
 from workflows.main_cognition.model_json import StageOutputError, extract_json
 from workflows.public_speech.public_context import (
     DialogueTurn, PublicContext, ability_lines, memory_lines, task_lines,
@@ -130,7 +132,13 @@ def build_review_messages(candidate: str, context: PublicContext, prompts: Revie
                              f"At most they may share: {presentation.shareable_summary or 'nothing'}.")
     else:
         presentation_text = f"{context.companion_name} chose to speak candidly."
-    lines = [f'- {turn.speaker} said: "{turn.text}"' for turn in conversation]
+    lines = [f'- [{turn.timestamp or "time unavailable"}; source {turn.knoxel_id}] {turn.speaker} said: "{turn.text}"'
+             for turn in conversation]
+    if not lines and context.situational_guidance is not None:
+        partner = context.situational_guidance.partner
+        if partner is not None:
+            lines = [f'- [{source.occurred_at_utc.isoformat()}; record {source.record_id}] '
+                     f'{source.source} said: "{source.text}"' for source in partner.recent_dialogue]
     user = prompts["user_template"].format(
         character=context.character.strip() or "(no character card)",
         feelings=context.feelings.strip() or "(calm, nothing strong)",
@@ -143,6 +151,10 @@ def build_review_messages(candidate: str, context: PublicContext, prompts: Revie
         reply=candidate,
         **names,
     )
+    grounding = "Selected purpose: " + (context.selected_action or "not supplied")
+    if context.situational_guidance is not None:
+        grounding += "\n" + render_situational_guidance(context.situational_guidance)
+    user = grounding + "\n\n" + user
     return [Turn(Role.System, prompts["system_prompt"].format(**names).strip()), Turn(Role.User, user.strip())]
 
 

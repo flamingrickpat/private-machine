@@ -36,7 +36,7 @@ from pydantic import JsonValue
 from pm.host.durable_files import ProcessLock, atomic_json
 from pm.memory.checkpoint import read_checkpoint
 from simulation.agents import ActorContext, Agents, StageContext
-from simulation.actors import ActorProfile, ConversationTurn, DeliveryEvidence, load_profile
+from simulation.actors import ActorProfile, ConversationTurn, DeliveryEvidence, identity, load_profile
 from simulation.client import PMProcess
 from simulation.evidence import capture_participant
 
@@ -75,7 +75,7 @@ def replied_after(rows: Sequence[Mapping[str, JsonValue]], delivery_id: str, sou
             return True
     return False
 from simulation.personas import fork_home
-from simulation.plans import ScenarioPlan, StageJudgment, facts_for_scene
+from simulation.plans import ScenarioPlan, SimulationTiming, StageJudgment, facts_for_scene
 from simulation.source import freeze_source
 from simulation.analysis import AnalysisSettings, analyze_run
 
@@ -126,6 +126,7 @@ class RunEngine:
         # The controller document is mutable browser state, not a fixed record:
         # its rows grow with the run. ``view`` documents the keys.
         self.state: dict[str, JsonValue] = json.loads(self.state_path.read_text(encoding="utf-8"))
+        self.time_multiplier: float = SimulationTiming.model_validate(self.state).time_multiplier
         self.plan: ScenarioPlan = ScenarioPlan.model_validate_json((root / "plan.json").read_text(encoding="utf-8"))
         self.processes: dict[str, PMProcess] = {}
         self.thread: threading.Thread | None = None
@@ -136,7 +137,7 @@ class RunEngine:
 
     @classmethod
     def create(cls, root: Path, plan: ScenarioPlan, participants: Sequence[ParticipantSelection],
-               edges: Sequence[Mapping[str, str]], config: str) -> RunEngine:
+               edges: Sequence[Mapping[str, str]], config: str, *, time_multiplier: float = 1.0) -> RunEngine:
         """Fork every source home, then publish the new run as ready.
 
         ``participants`` are selections that each name run-local ``id``, the
@@ -163,6 +164,7 @@ class RunEngine:
             raise ValueError("Each connection must join distinct registered participants.")
         if any(not item.id.replace("-", "").replace("_", "").isalnum() for item in participants):
             raise ValueError("Participant IDs must contain letters, numbers, underscores, or hyphens.")
+        timing = SimulationTiming(time_multiplier=time_multiplier)
         profiles: dict[str, ActorProfile] = {}
         for item in participants:
             profile = load_profile(Path(item.home))
@@ -186,7 +188,7 @@ class RunEngine:
         atomic_json(root / "plan.json", plan.model_dump(mode="json"))
         atomic_json(root / "analysis-settings.json", AnalysisSettings().model_dump(mode="json"))
         initial_state: dict[str, JsonValue] = {
-            "id": root.name, "title": plan.title, "status": "ready",
+            "id": root.name, "title": plan.title, "time_multiplier": timing.time_multiplier, "status": "ready",
             "created_at": datetime.now(timezone.utc).isoformat(), "config": str(Path(config).resolve()),
             "participants": prepared, "edges": list(edges), "step_index": 0, "turn": 0, "attempt": 0,
             "clock": plan.start_time.isoformat(), "timeline": [], "transit": [], "facts": {},
@@ -454,8 +456,8 @@ class RunEngine:
         """
         states = {key: item.state() for key, item in self.processes.items()}
         base = max(datetime.fromisoformat(item["clock"]) for item in states.values())
-        if target < base:
-            raise ValueError("A scenario cannot move behind its current coordinated clock.")
+        if target <= base:
+            return  # A scheduled event can become due while cognition is busy.
         # Read the clock without waiting for quiescence: the runtime is normally
         # busy, and waiting here would hold time still for a whole cycle.
         self._drive_clock(base, until=target)
@@ -473,7 +475,7 @@ class RunEngine:
         while True:
             if self.request.is_set():
                 return
-            now = base + timedelta(seconds=time.monotonic() - started)
+            now = base + timedelta(seconds=(time.monotonic() - started) * self.time_multiplier)
             if until is not None and now > until:
                 now = until
             for process in self.processes.values():
@@ -505,7 +507,7 @@ class RunEngine:
         started = time.monotonic()
 
         def turn_over() -> bool:
-            elapsed = time.monotonic() - started
+            elapsed = (time.monotonic() - started) * self.time_multiplier
             answered = replied_after(self.state["timeline"], delivery_id, source)
             limit = sampled if answered else max(sampled, ACTOR_UNANSWERED_WAIT_SECONDS)
             return elapsed >= limit
@@ -526,13 +528,15 @@ class RunEngine:
             if evidence.target == step.target or evidence.source == step.target:
                 conversation.append(ConversationTurn(speaker=evidence.speaker,
                     at=evidence.timestamp.isoformat(), text=evidence.content))
-        context = ActorContext(profile=profile, at=step.at, scene=step.instruction, intent=step.actor_intent,
+        context = ActorContext(identity=identity(profile), at=step.at, scene=step.instruction, intent=step.actor_intent,
             current_facts=facts_for_scene(self.plan, step),
             conversation=conversation, guidance=self.plan.director.actor_guidance)
         pending = self.state["pending_input"]
         if pending is None:
             # ActorTurn rejects a blank message inside the call, so the actor is asked again.
-            actor = agents.actor(context, [fact for fact in self.plan.facts if fact.at is not None and fact.at > step.at])
+            home = next(Path(item["home"]) for item in self.state["participants"] if item["id"] == step.target)
+            actor = agents.actor(context, [fact for fact in self.plan.facts if fact.at is not None and fact.at > step.at],
+                                 profile=profile, home=home)
             pending = {"content": actor.content, "target": step.target, "speaker": step.speaker,
                        "delivery_id": f"{self.root.name}:stage:{step.id}:turn:{self.state['turn']}"}
             self.state["pending_input"] = pending

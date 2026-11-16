@@ -17,7 +17,7 @@ Game initiative: [cooperative survival](cooperative-survival.md) and [observed w
 ## Input, change, and output
 
 The request contains the stimuli, the memory candidates, the open expectations, the user and entity context, and the available workflows.
-One manifest runs the phases intake, triage, appraise, retrieve, codelets, structures, attention, experience, goals, decide, route, and commit.
+One Python role in the kernel runs the phases intake, triage, appraise, retrieve, codelets, structures, attention, experience, goals, decide, route, and commit.
 The phases share one typed cycle state and add their results to it.
 The commit phase hands the finished cycle to the application module.
 The module commits accepted state in one write batch and publishes one typed action request for each released action.
@@ -78,7 +78,7 @@ The workflow does not need its own module thread or bus subscription.
 [`workflows.main_cognition.host.MainCogLoop`][] connects the cycle to the bus and the memory store.
 Each published action carries the correlation of its stimulus group. So the groups of one batch keep separate exchanges.
 
-Ordinary main calculation releases foreground reservations between calls.
+The endpoint has configurable concurrent request slots. Queued triage receives the next free slot; no workflow reserves the whole endpoint.
 Independent interaction uses accepted main guidance and current evidence to select local moves.
 Main cognition still appraises those inputs and suppresses duplicate conversational selection.
 Critical triage interrupts obsolete work and holds ordinary publication until accepted reconsideration.

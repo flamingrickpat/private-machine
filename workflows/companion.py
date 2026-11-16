@@ -201,7 +201,7 @@ def _cognition_workflow_options(
     ]
     for name in sorted(supervisor.workflows):
         descriptions = {"local_task": "Control worker. Writes task telemetry; cannot execute arbitrary instructions or create a requested note.",
-                        "note_task": "Real pm-coder note writer. Exact UTF-8 byte verification. Optional arguments.note_spec has path and text; path stays in outbox/.",
+                        "note_task": "Exact UTF-8 note writer with independent byte verification. Optional arguments.note_spec has path and text; path stays in outbox/.",
                         "memory_reconsolidation": "Sort through memories and sleep on them: builds topic and day summaries, facts, and updated self and relationship narratives from the stored history. Slow; runs in the background. Use ToolCall when the character decides to sort through memories, sleep on what happened, or reflect on the past days.",
                         "minecraft": "One sustained survival specialist leaf. Standalone completion requires an explicit supported verifier, currently wood_return. Use minecraft_project for other goals that need verified completion.",
                         "minecraft_project": "Generic Minecraft project planner. Durable subtasks, verified prerequisites, fresh specialists, and independent world verification. Use for multi-step goals."}
@@ -289,8 +289,7 @@ def _cognition_modules(
             from pm.llm.config import load_config, resolve_connection
 
             config = load_config(config_path)
-            from workflows.inference_settings import CHAT_CONCURRENCY
-            stage_model = LazyStageModel(resolve_connection(config), ModelActivation(), max_concurrency=CHAT_CONCURRENCY)
+            stage_model = LazyStageModel(resolve_connection(config), ModelActivation())
         main_cog = MainCogLoop(
             "main_cog", bus, on_error, clock, None,
             working_target=target,
@@ -447,8 +446,7 @@ def build_app(
 
         model_config = load_config(resolved_config)
         model_owner = ModelActivation()
-        from workflows.inference_settings import CHAT_CONCURRENCY
-        stage_model = LazyStageModel(resolve_connection(model_config), model_owner, max_concurrency=CHAT_CONCURRENCY)
+        stage_model = LazyStageModel(resolve_connection(model_config), model_owner)
         if workflow_models is None:
             workflow_models = WorkflowModels(model_config, model_owner)
 
@@ -763,16 +761,10 @@ def build_app(
             import asyncio as _aio
             from threading import Event as _Evt
             from pm.llm.workflow_sessions import serving_context as _serving
-            try:
-                # Ask once and move on. The session must open before the model
-                # server is up. Later inference waits for the endpoint instead
-                # of giving up, so a missing budget is not worth a blocked start.
-                _ctx, _ = _aio.run(_serving(stage_model.connection, _Evt(), live_test=True))
-                _budget = int(_ctx * stage_model.connection.context_input_fraction)
-                dialogue.context_budget = _budget
-                assistant.context_budget = _budget
-            except Exception:
-                pass
+            _ctx, _ = _aio.run(_serving(stage_model.connection, app.shutdown_event))
+            _budget = int(_ctx * stage_model.connection.context_input_fraction)
+            dialogue.context_budget = _budget
+            assistant.context_budget = _budget
         recovery = ReplyRecovery("reply_recovery", bus, on_error, clock, None, ghost=ghost, supervisor=supervisor)
         recovery.paused_source_ids = lambda: control.paused_source_ids() | main_cog.entity_reconsider_source_ids()
         recovery.selected_source_ids = lambda: set(interaction_receipts(ghost.recovery_snapshot(capture=False)))
@@ -847,23 +839,8 @@ def build_app(
     from pm.app.lifecycle_records import record_startup
     boot = record_startup(ghost) if record_lifecycle else None
     app.lifecycle_boot = boot
-    if cognition == "real":
-        # Queue original pending requests before the startup cycle. Otherwise
-        # startup can retrieve that request and execute it without its cause,
-        # while asynchronous recovery dispatches it again in another cycle.
-        # Interrupted runs get their terminal report and consolidation first,
-        # so a recovered task reply reads the retained report.
-        for module in modules:
-            restore = getattr(module, "restore_parked", None)
-            if restore is not None:
-                restore()
-        supervisor.recover_interrupted()
-        recovery.resume()
-        interaction.resume()
-        main_cog.resume_entity_actions()
-        inner_thought.resume()
-        if focus_management is not None:
-            focus_management.resume()
+    # Startup opens accepted memory. Executable inboxes, parked workers, and
+    # undelivered replies from a previous process are deliberately not replayed.
     if cognition == "real" and boot is not None:
         bus.put(Envelope(
             id=new_id(), source="system", kind="data", topic="system.lifecycle",

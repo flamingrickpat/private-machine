@@ -20,9 +20,9 @@ phases:
     on_invalid: {action: stop}
 ---
 
-# Agent-backed note
+# Exact note write
 
-The Python role leases the configured chat connection for one pm-coder session.
-The agent writes the requested note in the task's outbox.
+The configured model selects content when the request has no accepted note specification.
+The Python role writes the accepted text directly as exact UTF-8 bytes in the task outbox.
 The host compares the actual file bytes with the requested UTF-8 bytes.
 The final report records the instruction, expected bytes, digest, and verified result.

@@ -22,7 +22,7 @@ A busy start returns its owner as workflow evidence. Cognition chooses the next 
 The configured targets include `local_task`, `local_task_question`, `note_task`, `minecraft`, and `minecraft_project`.
 The [`tool_call`](../workflows/tool-call.md) target exists only when the model configuration names MCP servers.
 `local_task` is a control worker and cannot execute arbitrary note instructions.
-`note_task` uses the real pm-coder driver and verifies exact UTF-8 file bytes.
+`note_task` writes accepted text through the host file API and independently verifies exact UTF-8 bytes.
 `minecraft_project` runs [durable subtasks](minecraft-tasks.md) with fresh actors and independent world verification.
 Read [public publication and recovery](public-publication.md) for terminal task replies and note evidence.
 The console exposes update, answer, and cancellation for existing runs.

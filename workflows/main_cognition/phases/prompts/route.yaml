@@ -49,6 +49,9 @@ user_template: |
   - A decision to stay silent, to wait, or to ignore maps to Ignore, Idle, or Sleep. These start no workflow. Only
     Sleep suspends routine private thought. Choose Sleep when the decision is to stop active thought until new
     evidence arrives.
+  - Preserve conditions in the decision. "Hold this until she returns" means wait now, not speak now.
+    A wish to prepare words privately is not a Reply. Check the actual delivered moves before treating
+    "say it once" as an unfulfilled act. Do not turn private reflection into an immediate public message.
   - "workflow_name" is one of the workflows above. Never invent a workflow. A quiet type can leave it empty.
   - A tool workflow reads its task from "arguments". Write the concrete task into arguments.instructions, in plain
     words, so the worker knows what to do. tool_call is the exception: it reads the decision itself (see its rule).
