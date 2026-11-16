@@ -79,6 +79,13 @@ from workflows.dialogue_story.schemas import (
 
 WORKFLOW_DIR = Path(__file__).resolve().parent
 
+#: Correction turns requested before the conversation restarts from its origin.
+FOLLOWUPS_PER_RESTART = 10
+#: Full restarts before a reply that keeps failing review is reported as blocked.
+#: Two restarts give three rounds of corrections. Without a bound here a
+#: persistently blocked draft retried with no end and no rejection receipt.
+BLOCKED_REPLY_RESTARTS = 2
+
 
 
 def load_prompts(path: Path | None = None) -> StoryPrompts:
@@ -482,6 +489,7 @@ def generate_reviewed(request: StoryRequest, prompts: StoryPrompts, generate: As
     on_attempt = review_deps.get("on_attempt")
     attempts: list[StoryAttempt] = []
     followups = 0
+    restarts = 0
     while True:
         for index in range(2):
             selection = None
@@ -545,12 +553,18 @@ def generate_reviewed(request: StoryRequest, prompts: StoryPrompts, generate: As
             return attempts, attempt
         reason = block_reason(review)
         print(f"[dialogue_story] Reply rejected (attempt {len(attempts)}): {reason}", flush=True)
-        if followups >= 10:
+        if followups >= FOLLOWUPS_PER_RESTART:
+            if restarts >= BLOCKED_REPLY_RESTARTS:
+                # Report the blocked draft. The host owns the rejection receipt,
+                # and retrying the same criterion again cannot improve it.
+                print(f"[dialogue_story] Giving up after {len(attempts)} attempts.", flush=True)
+                return attempts, attempt
             print("[dialogue_story] Ten follow-ups failed. Restarting from the original context.", flush=True)
             repair_turns = []
             followups = 0
+            restarts += 1
         else:
-            print(f"[dialogue_story] Requesting correction {followups + 1}/10.", flush=True)
+            print(f"[dialogue_story] Requesting correction {followups + 1}/{FOLLOWUPS_PER_RESTART}.", flush=True)
             repair_turns.extend([Turn(Role.Assistant, raw),
                                  Turn(Role.User, prompts["rejected_reply_recovery"].format(reason=reason))])
             followups += 1

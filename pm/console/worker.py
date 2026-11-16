@@ -266,7 +266,11 @@ def run(settings: InstanceSettings, root: Path) -> None:
                         record.tick_id = -1
                         batch.create(record)
                     else:
-                        if batch.view().revisions[record.id] != command["revision"]:
+                        # A superseded or absent id is a stale page, not a deep
+                        # commit conflict: the operator must reload before saving.
+                        view = batch.view()
+                        if (record.id not in view.all_knoxels
+                                or view.revisions.get(record.id) != command["revision"]):
                             raise ValueError("The memory changed. Reload the record before you save it.")
                         batch.replace(record)
                     receipt = app.ghost.commit(batch)

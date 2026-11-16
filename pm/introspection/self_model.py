@@ -89,18 +89,22 @@ def _supersede(batch: WriteBatch, prior: list[BeliefRecord], belief: BeliefRecor
                source_kind: SourceKind, source_ref: str) -> list[int]:
     """Deactivate the prior beliefs and record one shift for each."""
     revised: list[int] = []
-    for old in prior:
-        old = old.copy_for_edit()
-        old.active = False
-        old.superseded_by_id = belief.id
-        batch.replace(old)
+    for prior_belief in prior:
+        # ``replace`` appends a successor and reassigns the staged record's id,
+        # so the prior id must be read before the replacement. The receipt and
+        # the shift both name the belief that was superseded, not its successor.
+        previous_id = prior_belief.id
+        superseded = prior_belief.copy_for_edit()
+        superseded.active = False
+        superseded.superseded_by_id = belief.id
+        batch.replace(superseded)
         batch.create(BeliefShiftRecord(
             content=f"Superseded {belief.belief_key}",
-            target_belief_id=old.id, proposed_belief_key=belief.belief_key,
+            target_belief_id=previous_id, proposed_belief_key=belief.belief_key,
             shift_type="supersede", reason=reason, causal_knoxel_ids=[belief.id],
             accepted=True, provenance=Provenance(source_kind=source_kind, source_ref=source_ref),
         ))
-        revised.append(old.id)
+        revised.append(previous_id)
     return revised
 
 
