@@ -53,6 +53,26 @@ The shared [situational guidance](situational-guidance.md) supplies actual capab
 Workflow names and routing rules remain in the route call.
 The private grounding turn of other calls has no separate capability section.
 
+## The fast triage frame
+
+Triage is a split-second judgment of how much each new event matters.
+It gates publication of incoming input, so it must stay fast even when the configured model window is large.
+A triage prompt therefore plans for at most 32k tokens of serving context, or less when the configured window is smaller.
+The configured input fraction of that window is its input ceiling.
+
+The story frame stays the same, but triage can show fewer records:
+
+1. Required: the character card, the situational guidance, the feeling, the new events, the instruction, and the newest four dialogue lines of each partner.
+2. Optional, in this order: accepted entity context about the partner, the rest of the latest conversation, the three strongest narratives, the latest thoughts and experiences, other workspace records, and retrieved grounding evidence.
+
+Newer lines and higher activation or retrieval scores enter first inside one class.
+The shared selector in [`pm.context_render.budget.select_rendered_context`][] admits optional records while the complete prompt fits.
+The prompt tells the model how many records it left out.
+A prompt that already fits is unchanged.
+Required content that does not fit raises `RequiredContextTooLarge`; nothing is clipped.
+Main cognition and [early input triage](public-publication.md) both use [`workflows.main_cognition.phases.triage.fit_messages`][].
+The phase receipt `triage-context` records the counts and the token estimate.
+
 ## Subjective experience
 
 [`workflows.main_cognition.phases.experience.run`][] ports `_generate_subjective_experience` with its seed phrases.
