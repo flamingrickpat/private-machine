@@ -574,9 +574,9 @@ def generate_reviewed(request: StoryRequest, prompts: StoryPrompts, generate: As
                 return build_review_messages(candidate, selected.public_context or context,
                                              review_prompts, conversation=review_deps.get("conversation") or review_conversation(selected))
 
-            review_request = generation_request.model_copy(update={
-                "required_evidence_ids": tuple(item.knoxel_id for item in generation_context.evidence)})
-            reviewed = select_story_prompt(review_request, prompts, render=render_review)
+            # Relevance does not make retrieved memories mandatory. The review
+            # layout may need more room than generation for the same evidence.
+            reviewed = select_story_prompt(generation_request, prompts, render=render_review)
             generation_context = reviewed.request.public_context or context
             attempt.review_context_selection = reviewed.selection.receipt()
             review_messages = reviewed.selection.turns

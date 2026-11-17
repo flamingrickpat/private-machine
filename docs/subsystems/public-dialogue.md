@@ -171,6 +171,11 @@ An incidental discrepancy can pass with its reason and finding intact.
 Findings name an invented ability, an invented event, an unsupported label, or a private leak.
 A finding stays in the receipt for review. It never blocks a reply and never triggers regeneration.
 
+Story uses the available configured context capacity for relevant evidence.
+Review fits that evidence again against its own complete prompt. Retrieved memories
+remain optional even when generation used them; relevance does not make them required.
+The selector preserves required dialogue, selected action, and workspace shards.
+
 Only a material false task result is a hard block.
 A false task result can change what the user does with a real object.
 Python decides the block from the model's explicit `false_task_result` flag, so an invented kind cannot reject a reply.
