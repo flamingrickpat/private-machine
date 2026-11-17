@@ -7,13 +7,13 @@ declared validation errors receive repair turns. Completion, measurement,
 recording, and programming errors keep their original boundary and propagate.
 
 A fresh conversation is a new sample, so a stochastic mistake gets unlimited
-conversations. One case is not stochastic: when one identical problem rejects
-every answer of two consecutive complete conversations, the correction text
+conversations. One case is not stochastic: when the same set of problems rejects
+two consecutive complete conversations, the correction text
 itself does not lead the model to a valid answer. That raises
 :class:`RepeatedRejectionError` instead of a third conversation, because the
 prompt or the validator message needs a human look.
 
-Reading map: :func:`extract_json` reads the object, :class:`_Repair` owns the
+Reading map: :func:`extract_json` reads the object, :class:`RepairConversation` owns the
 conversation and its rejections, :func:`complete_json` and
 :func:`complete_json_async` run the loop for synchronous and asynchronous
 completions, and :func:`repair_agent_result` applies the same policy to the
@@ -163,13 +163,18 @@ def context_measure(complete: Callable[..., object]) -> ContextMeasurer | None:
     return None
 
 
-class _Repair[T: BaseModel]:
-    """Own one uncommitted conversation and its validation failures."""
+class RepairConversation[T: BaseModel]:
+    """Keep original evidence, latest rejected answer, and accumulated constraints.
+
+    Rejection callbacks retain complete failed answers outside the next prompt.
+    Earlier rejected answers cannot crowd original task evidence out of context.
+    """
 
     def __init__(self, messages: Sequence[TurnInput], schema: type[T],
                  validation_context: dict[str, object] | None,
                  on_rejection: Callable[[int, str, str], None] | None,
                  validate: Callable[[dict[str, object], str], T] | None, cancel: Event | None) -> None:
+        self.original_turns: list[TurnInput] = list(messages)
         self.turns = list(messages)
         self.schema = schema
         self.validation_context = validation_context
@@ -218,31 +223,27 @@ class _Repair[T: BaseModel]:
         self.problems.append(problem)
         if self.on_rejection is not None:
             self.on_rejection(self.attempt, raw, problem)
-        self.turns = [*self.turns, {"role": "assistant", "content": raw},
+        constraints = "\n".join(dict.fromkeys(self.problems))
+        self.turns = [*self.original_turns, {"role": "assistant", "content": raw},
                       {"role": "user", "content":
                        f"The answer failed JSON or schema validation: {problem}\n"
+                       f"Constraints reported during this repair conversation:\n{constraints}\n"
                        "Return one corrected JSON object only. Keep the original task facts and source IDs. "
                        "Do not use Markdown fences. Escape quotation marks inside strings."}]
         return None
+
+    def check_repeated_rejections(self, previous_problem: str | None) -> str:
+        """Reject consecutive repair conversations with the same failure cycle."""
+        problem = "\n".join(sorted(set(self.problems)))
+        if problem == previous_problem:
+            raise RepeatedRejectionError(problem, rejected_answers=2 * len(self.problems))
+        return problem
+
 
 # Reset the repair history after more than this many rejected answers.
 RESET_STATE_LIMIT = 8
 
 
-def _conversation_problem[T: BaseModel](state: _Repair[T], previous_problem: str | None) -> str | None:
-    """Return the single problem of a finished conversation, or None when its problems differed.
-
-    ``previous_problem`` is this function's result for the conversation before
-    it. When both complete conversations failed on one identical problem, raise
-    RepeatedRejectionError instead of returning.
-    """
-    distinct_problems = set(state.problems)
-    if len(distinct_problems) != 1:
-        return None
-    problem = state.problems[0]
-    if problem == previous_problem:
-        raise RepeatedRejectionError(problem, rejected_answers=2 * len(state.problems))
-    return problem
 
 
 
@@ -263,8 +264,8 @@ def complete_json(complete: Callable[..., str], messages: Sequence[TurnInput], s
 
     After nine consecutive rejections, start again with the original messages.
     Each reset retains the validator, validation context, and cancellation event.
-    Two consecutive nine-rejection conversations that fail on one identical
-    problem raise RepeatedRejectionError instead of a third conversation.
+    Two consecutive nine-rejection conversations repeating the same set of
+    problems raise RepeatedRejectionError instead of a third conversation.
 
     ``initial`` validates an existing agent result before any new completion.
     ``measure`` returns input_tokens and input_budget_tokens with output space
@@ -274,7 +275,7 @@ def complete_json(complete: Callable[..., str], messages: Sequence[TurnInput], s
     """
     if cancel is None and isinstance(complete, partial):
         cancel = complete.keywords.get("cancel")
-    state = _Repair(messages, schema, validation_context, on_rejection, validate, cancel)
+    state = RepairConversation(messages, schema, validation_context, on_rejection, validate, cancel)
     measure = measure or context_measure(complete)
     rejections_since_reset = 0
     previous_problem: str | None = None
@@ -294,7 +295,7 @@ def complete_json(complete: Callable[..., str], messages: Sequence[TurnInput], s
                         raise
                     # Required repair chatter can fill the window. Start a fresh
                     # sample with the original task, retaining all rejection receipts.
-                    state = _Repair(messages, schema, validation_context, on_rejection, validate, cancel)
+                    state = RepairConversation(messages, schema, validation_context, on_rejection, validate, cancel)
                     rejections_since_reset = 0
                     previous_problem = None
                     continue
@@ -306,8 +307,8 @@ def complete_json(complete: Callable[..., str], messages: Sequence[TurnInput], s
             return result
         rejections_since_reset += 1
         if rejections_since_reset > RESET_STATE_LIMIT:
-            previous_problem = _conversation_problem(state, previous_problem)
-            state = _Repair(messages, schema, validation_context, on_rejection, validate, cancel)
+            previous_problem = state.check_repeated_rejections(previous_problem)
+            state = RepairConversation(messages, schema, validation_context, on_rejection, validate, cancel)
             rejections_since_reset = 0
 
 
@@ -323,7 +324,7 @@ async def complete_json_async(complete: Callable[..., Awaitable[str]], messages:
     """
     if cancel is None and isinstance(complete, partial):
         cancel = complete.keywords.get("cancel")
-    state = _Repair(messages, schema, validation_context, on_rejection, validate, cancel)
+    state = RepairConversation(messages, schema, validation_context, on_rejection, validate, cancel)
     measure = measure or context_measure(complete)
     rejections_since_reset = 0
     previous_problem: str | None = None
@@ -344,7 +345,7 @@ async def complete_json_async(complete: Callable[..., Awaitable[str]], messages:
                 except RequiredContextTooLarge:
                     if not state.attempt:
                         raise
-                    state = _Repair(messages, schema, validation_context, on_rejection, validate, cancel)
+                    state = RepairConversation(messages, schema, validation_context, on_rejection, validate, cancel)
                     rejections_since_reset = 0
                     previous_problem = None
                     continue
@@ -356,8 +357,8 @@ async def complete_json_async(complete: Callable[..., Awaitable[str]], messages:
             return result
         rejections_since_reset += 1
         if rejections_since_reset > RESET_STATE_LIMIT:
-            previous_problem = _conversation_problem(state, previous_problem)
-            state = _Repair(messages, schema, validation_context, on_rejection, validate, cancel)
+            previous_problem = state.check_repeated_rejections(previous_problem)
+            state = RepairConversation(messages, schema, validation_context, on_rejection, validate, cancel)
             rejections_since_reset = 0
 
 

@@ -177,8 +177,18 @@ def fit_reduced_prompt(turns: Sequence[Turn], budget: ContextBudget, review: Rev
             selected = max(candidates, key=lambda name: budget.estimate([Turn(Role.User, candidates[name])]))
             text = candidates[selected]
             original_tokens = budget.estimate([Turn(Role.User, text)])
-            maximum_tokens = min(original_tokens // 2, budget.input_ceiling // 3)
-            if maximum_tokens < 256:
+            full_prompt_tokens = budget.estimate(current)
+            measurement_window = int((full_prompt_tokens + budget.reserved_tokens + 1) / budget.input_fraction) + 1
+            required_prompt = fit_turns(current, budget.model_copy(update={"context_window": measurement_window}),
+                                        include_optional=False)
+            overflow_tokens = required_prompt.estimated_tokens - budget.input_ceiling
+            # Leave space for the derived-evidence attribution wrapper and
+            # estimator variation instead of halving an otherwise useful section.
+            reduction_tokens = max(256, overflow_tokens + 256)
+            # Several required sections may need reduction. Let this section
+            # contribute without requiring it to absorb the entire deficit.
+            maximum_tokens = max(256, original_tokens - reduction_tokens)
+            if maximum_tokens >= original_tokens:
                 raise RequiredContextTooLarge("Required instructions or evidence metadata exceed the window; no useful digest fits.")
             tag = tags[selected]
             name = f"{receipt_name}-{reduction_index}"

@@ -161,6 +161,8 @@ def fit_internal_prompt(context: RoleContext, turns: Sequence[Turn], budget: Con
         # compress that answer instead of regenerating from the original input.
         current_messages: Sequence[Turn] = messages
         compression_pass = 0
+        previous_tokens: int | None = None
+        stagnant_passes = 0
         while True:
             runtime.check_cancelled()
             answer = validated_json(complete_review, current_messages, EvidenceDigest,
@@ -171,6 +173,15 @@ def fit_internal_prompt(context: RoleContext, turns: Sequence[Turn], budget: Con
             if summary_tokens <= allowance:
                 save(f"{receipt_name}-{call_id}-digest.json", answer.model_dump_json(indent=2))
                 return answer
+            if previous_tokens is not None and summary_tokens >= previous_tokens - 32:
+                stagnant_passes += 1
+            else:
+                stagnant_passes = 0
+            if stagnant_passes >= 3:
+                raise RequiredContextTooLarge(
+                    f"Evidence compression stagnated at {summary_tokens} estimated tokens "
+                    f"for allowance {allowance}; original evidence and attempts retained in {context.kernel_data}.")
+            previous_tokens = summary_tokens
             print(f"Evidence review compression pass {compression_pass}: "
                   f"{summary_tokens} estimated tokens; target {allowance}.", flush=True)
             current_messages = [
@@ -178,7 +189,13 @@ def fit_internal_prompt(context: RoleContext, turns: Sequence[Turn], budget: Con
                      "Retain attribution, source IDs, chronology, negation, conflicts, and uncertainty. "
                      "Do not invent evidence. Return JSON with summary and covered_spans. "
                      f"Keep covered_spans exactly {json.dumps(list(spans))}. "
-                     f"The summary must fit within {allowance} estimated tokens; shorten aggressively."),
+                     f"The previous summary measured {summary_tokens} estimated tokens, "
+                     f"exceeding the allowance by {summary_tokens - allowance}. "
+                     "Our estimate includes framing and a 1.5x tokenizer safety margin. "
+                     f"Aim for at most {max(32, int(len(answer.summary) * allowance / summary_tokens * 0.75))} "
+                     "characters. Remove repeated wording and compact numerical lists; "
+                     "retain distinctions and source attribution rather than repeating caveats. "
+                     f"The summary must fit within {allowance} estimated tokens."),
                 Turn("user", answer.summary),
             ]
             compression_pass += 1

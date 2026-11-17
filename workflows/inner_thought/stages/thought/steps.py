@@ -66,17 +66,22 @@ def run(context: RoleContext) -> dict[str, str]:
     """Produce the private thought for the accepted trigger."""
     request = read_request(context.runtime.environment)
     if request.get("stage_kind") == "inquiry_operation":
-        from workflows.inner_thought.graph_execution import GraphThoughtRequest, graph_thought_instruction, validate_graph_step
+        from workflows.inner_thought.graph_execution import GraphThoughtRequest, InquiryPromptGrant, graph_thought_instruction, validate_graph_step
         from workflows.inner_thought.schemas import InquiryStep
         parsed_graph = GraphThoughtRequest.model_validate(request)
-        # The rendered evidence is in the instruction. Leaving it in the echoed
-        # envelope would send the same material twice. ``original_source_ids``
-        # is a fact for the in-loop check only, so no prompt byte changes.
+        prompt_grant = InquiryPromptGrant(observer_entity_id=parsed_graph.grant.observer_entity_id,
+            scope=parsed_graph.grant.scope,
+            permitted_evidence_ids=tuple(source.record_id for source in parsed_graph.grant.sources))
+        # Full grants remain in the host for validation. The model needs the
+        # permitted citation IDs, not repeated persistence fingerprints.
+        # Evidence rendered by the system instruction must not be echoed here.
         graph_messages = [Turn(Role.System, graph_thought_instruction(parsed_graph)),
                           Turn(Role.User, parsed_graph.model_dump_json(
-                                   exclude={"request", "reflection_evidence", "inspection_evidence",
-                                            "perspective_evidence", "activity_evidence",
-                                            "original_source_ids"}) +
+                                   exclude={"request": True, "reflection_evidence": True,
+                                            "inspection_evidence": True, "perspective_evidence": True,
+                                            "activity_evidence": True, "original_source_ids": True,
+                                            "grant": True, "state": {"grant"}}) +
+                               "\nCitation authority:\n" + prompt_grant.model_dump_json() +
                                "\nFrozen request:\n" + request_content(parsed_graph.request,
                                    frozenset(parsed_graph.state.root_source_ids)) +
                                "\nReturn only an object conforming to this output schema. "

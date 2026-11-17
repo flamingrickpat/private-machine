@@ -38,6 +38,7 @@ from workflows.inner_thought.request_views import PrivateInspection
 from workflows.public_speech.public_context import EvidenceItem
 from pm.records.mental_state import FullMentalState, compute_attention_bias
 from pm.records.enums import FeatureType
+from pm.records.base import RecordScope
 from pm.records.memory_records import Feature
 from workflows.cognitive_control.attention import CapturedPrivateFocus, validate_private_attention, validate_private_focus
 from workflows.inner_thought.graph_host import (
@@ -123,6 +124,15 @@ class DeliberateBudget(BaseModel):
 def _absent(value: object) -> bool:
     """Return True for a field that the serialized request leaves out."""
     return value is None
+
+
+class InquiryPromptGrant(BaseModel):
+    """Readable citation authority; persistence fingerprints stay with the host."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    observer_entity_id: int = Field(description="Companion whose captured perspective governs this inquiry.")
+    scope: RecordScope = Field(description="Reality and frame within which supplied evidence may be interpreted.")
+    permitted_evidence_ids: tuple[int, ...] = Field(description="Supplied record IDs permitted in evidence citations.")
 
 
 class GraphThoughtRequest(BaseModel):
@@ -275,6 +285,14 @@ def graph_thought_instruction(request: GraphThoughtRequest) -> str:
                        "without generating new branch records.")
         progress_rule = ("It can claim progress.kind='discrimination' only when it compares at least two accepted "
                          "graph nodes, each named in compared_node_ids and in relations.")
+        if len(accepted_nodes) < 2:
+            progress_rule += (
+                " Fewer than two accepted nodes are available, so discrimination progress is unavailable. "
+                "Original expectations and observations are evidence_ids, never compared_node_ids. "
+                "You may still review that evidence and state an outcome without claiming discrimination. "
+                "Use progress.kind='none', compared_node_ids=[], meaningful_difference=false unless "
+                "this step actually inspected new original evidence. Keep the required relation to the "
+                "existing node separate from progress.")
     return (
         f"Perform {operation.name} ({operation.mode}) as {request.request.companion_name}'s private inquiry. "
         f"Purpose: {operation.description}\n"

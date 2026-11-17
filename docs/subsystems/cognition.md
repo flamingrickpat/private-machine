@@ -95,6 +95,19 @@ Every member enters a review, and a coverage receipt retains the complete member
 The digest allowance comes from the remaining window. Digests remain derived evidence; the stored structure keeps its original records.
 The final attention pass compares those reviewed structures without averaging partial ratings.
 
+Context fitting preserves original evidence before repairing model output.
+A repair request carries the original task, the latest rejected answer, and reported constraints.
+Earlier failed answers remain in diagnostic receipts rather than accumulating in the prompt.
+Repeated repair conversations with the same rejection cycle fail explicitly, including alternating validation errors.
+Evidence reduction targets the measured overflow with space for attribution, rather than automatically halving a section.
+Repeated compression without useful size reduction raises an explicit error and retains the original evidence and attempts.
+Coverage records show which spans entered review; they do not prove lossless semantic compression.
+
+Private inquiry prompts provide permitted citation IDs once.
+The host retains complete grants and source fingerprints for validation.
+An expectation review can report an evidence-based outcome without claiming that it compared two accepted thought nodes.
+This keeps bookkeeping and failed formulations from displacing the concern and its supporting evidence.
+
 Independent batches can run concurrently through the normal request pool.
 Coverage checks reject missing or duplicate results before the cycle changes state.
 Appraisal, experience, goals, decisions, and immediate entity-model maintenance retain a coherent view.
