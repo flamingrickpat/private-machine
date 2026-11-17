@@ -38,6 +38,10 @@ def wait_before_retry(cancel: Event, delay_seconds: float = 30) -> None:
         time.sleep(0.1)
 
 
+_serving_contexts: dict[Connection, tuple[int, str]] = {}
+_serving_context_lock = Lock()
+
+
 async def serving_context(connection: Connection, cancel: Event, *, live_test: bool = False) -> tuple[int, str]:
     """Read a configured bound or llama.cpp's actual serving context.
 
@@ -46,6 +50,8 @@ async def serving_context(connection: Connection, cancel: Event, *, live_test: b
     ``override_context`` can reduce the resolved window.
     Local training context metadata cannot establish serving limits.
     Cancellation closes the discovery request. No source context is clipped.
+    Successful discovery is shared by equal resolved connections until process
+    exit. Concurrent callers wait for the same discovery; failures are not cached.
 
     An endpoint that is down, or that has not finished loading, is waited
     out. The discovery call repeats every 30 seconds until the endpoint
@@ -54,8 +60,22 @@ async def serving_context(connection: Connection, cancel: Event, *, live_test: b
     """
     if connection.context_window is not None:
         return min(connection.context_window, connection.override_context or connection.context_window), "configuration"
-    return await wait_until_ready(lambda: _discover_serving_context(connection, cancel), cancel,
-                                  live_test=live_test, label=f"Serving context at {connection.base_url}")
+    # Configuration is fixed until restart. A thread lock also coordinates
+    # callers using separate asyncio.run() event loops; no async client is shared.
+    while not _serving_context_lock.acquire(blocking=False):
+        if cancel.is_set():
+            raise asyncio.CancelledError
+        await asyncio.sleep(0.01)
+    try:
+        if cancel.is_set():
+            raise asyncio.CancelledError
+        if connection not in _serving_contexts:
+            _serving_contexts[connection] = await wait_until_ready(
+                lambda: _discover_serving_context(connection, cancel), cancel,
+                live_test=live_test, label=f"Serving context at {connection.base_url}")
+        return _serving_contexts[connection]
+    finally:
+        _serving_context_lock.release()
 
 
 async def _discover_serving_context(connection: Connection, cancel: Event) -> tuple[int, str]:
