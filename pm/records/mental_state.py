@@ -669,6 +669,8 @@ def compute_state_delta(current_ms: FullMentalState, relationship_entity_id: int
       - StateCore (valence/arousal/dominance) readouts/deltas
       - StateEmotions (discrete intensities)
       - optional StateRelationship (deltas toward a specific entity, if provided)
+    Relationship outputs change only when their relevant social cues were
+    explicitly supplied. Missing cues mean no new evidence, not rejection.
     Returns also the derived BaselineContext with scale factors you’ll apply to your EMA taus.
     """
 
@@ -775,15 +777,34 @@ def compute_state_delta(current_ms: FullMentalState, relationship_entity_id: int
     # ----- 5) Relationship (optional, per-entity) -----
     rel = None
     if relationship_entity_id is not None:
+        previous_relationship = current_ms.state_relationship
+        if previous_relationship is None:
+            previous_relationship = StateRelationship(entity_id=relationship_entity_id)
+        elif previous_relationship.entity_id != relationship_entity_id:
+            raise ValueError("Relationship appraisal must use the current partner's state.")
+        social_cues = soc.model_fields_set
+        general_cues = ap.model_fields_set
+        # Missing inputs retain the output's prior contribution. In particular,
+        # one positive trust cue must not become distrust because fairness was
+        # not mentioned. An explicitly supplied zero still contributes zero.
+        goal_affection = ap.goal_congruence if "goal_congruence" in general_cues else previous_relationship.affection
+        partner_warmth = soc.perceived_warmth if "perceived_warmth" in social_cues else previous_relationship.affection
+        trust_signal = soc.trust_cues if "trust_cues" in social_cues else previous_relationship.trust
+        trust_fairness = soc.fairness if "fairness" in social_cues else previous_relationship.trust
+        reliability_signal = soc.trust_cues if "trust_cues" in social_cues else previous_relationship.reliability_belief
+        reliability_fairness = soc.fairness if "fairness" in social_cues else previous_relationship.reliability_belief
+        warmth_tenderness = tenderness if "goal_congruence" in general_cues else previous_relationship.communication_warmth
+        warmth_joy = joy if "goal_congruence" in general_cues else previous_relationship.communication_warmth
+        appraised_relief = relief if general_cues.intersection({"certainty", "control_self", "bodily_threat"}) else 0.0
         # Generic mapping: warmth/trust up on fairness, trust_cues, inclusion; tension up on norm_violation & contempt.
-        affection = _clamp11( (ap.goal_congruence*0.4 + soc.perceived_warmth*0.6) * (0.9 + 0.2*oxy) - 0.3*disgust )
-        trust     = _clamp11( (soc.trust_cues*0.6 + soc.fairness*0.4) * (0.9 + 0.2*oxy) - 0.4*ap.norm_violation )
-        reliability_belief = _clamp11( soc.fairness*0.7 + soc.trust_cues*0.3 - 0.5*ap.norm_violation )
+        affection = _clamp11((goal_affection * 0.4 + partner_warmth * 0.6) * (0.9 + 0.2 * oxy) - 0.3 * disgust)
+        trust = _clamp11((trust_signal * 0.6 + trust_fairness * 0.4) * (0.9 + 0.2 * oxy) - 0.4 * ap.norm_violation)
+        reliability_belief = _clamp11(reliability_fairness * 0.7 + reliability_signal * 0.3 - 0.5 * ap.norm_violation)
         romantic_affection = _clamp11(affection * (0.5 + 0.5 * current_ms.state_emotions.intimacy_arousal))
         privacy_trust = _clamp11( trust * (0.6 + 0.4*(0.5+0.5*soc.perceived_intimacy)) )
         attachment_strength = _clamp01( (0.6*affection + 0.4*trust) * (0.8 + 0.3*oxy) )
-        conflict_tension = _clamp01( 0.6*anger + 0.5*disgust + 0.4* soc.contempt - 0.5*relief - 0.3*social_laughter )
-        communication_warmth = _clamp11( (0.6*tenderness + 0.4*joy) - 0.4*anger - 0.3*disgust )
+        conflict_tension = _clamp01(0.6 * anger + 0.5 * disgust + 0.4 * soc.contempt - 0.5 * appraised_relief - 0.3 * social_laughter)
+        communication_warmth = _clamp11((0.6 * warmth_tenderness + 0.4 * warmth_joy) - 0.4 * anger - 0.3 * disgust)
         aversive_association = _clamp01( 0.6*disgust + 0.4* soc.contempt )
 
         rel = StateRelationship(
@@ -793,6 +814,50 @@ def compute_state_delta(current_ms: FullMentalState, relationship_entity_id: int
             attachment_strength=attachment_strength, conflict_tension=conflict_tension,
             communication_warmth=communication_warmth, aversive_association=aversive_association,
         )
+        # A sparse appraisal cannot reset unrelated relationship estimates.
+        # Keep the output's prior readout when none of its social inputs was
+        # appraised. Explicit zero remains a real, potentially negative cue.
+        if "perceived_warmth" not in social_cues:
+            rel.affection = previous_relationship.affection
+        if not social_cues.intersection({"trust_cues", "fairness"}):
+            rel.trust = previous_relationship.trust
+            rel.reliability_belief = previous_relationship.reliability_belief
+        if not social_cues.intersection({"perceived_warmth", "perceived_intimacy"}):
+            rel.romantic_affection = previous_relationship.romantic_affection
+        else:
+            rel.romantic_affection = _clamp11(rel.affection * (0.5 + 0.5 * current_ms.state_emotions.intimacy_arousal))
+        if not social_cues.intersection({"trust_cues", "fairness", "perceived_intimacy"}):
+            rel.privacy_trust = previous_relationship.privacy_trust
+        else:
+            privacy_reliability = previous_relationship.privacy_trust
+            if social_cues.intersection({"trust_cues", "fairness"}):
+                privacy_reliability = rel.trust
+            intimacy_trust = previous_relationship.privacy_trust
+            if "perceived_intimacy" in social_cues:
+                intimacy_trust = rel.trust * (0.5 + 0.5 * soc.perceived_intimacy)
+            rel.privacy_trust = _clamp11(0.6 * privacy_reliability + 0.4 * intimacy_trust)
+        if not social_cues.intersection({"perceived_warmth", "trust_cues", "fairness"}):
+            rel.attachment_strength = previous_relationship.attachment_strength
+        else:
+            attachment_affection = previous_relationship.attachment_strength
+            if "perceived_warmth" in social_cues:
+                attachment_affection = rel.affection
+            attachment_trust = previous_relationship.attachment_strength
+            if social_cues.intersection({"trust_cues", "fairness"}):
+                attachment_trust = rel.trust
+            rel.attachment_strength = _clamp01((0.6 * attachment_affection + 0.4 * attachment_trust) * (0.8 + 0.3 * oxy))
+        if not social_cues.intersection({"perceived_warmth", "contempt"}):
+            rel.communication_warmth = previous_relationship.communication_warmth
+        if not general_cues.intersection({"norm_violation", "bodily_threat", "goal_congruence"}):
+            conflict_contempt = soc.contempt if "contempt" in social_cues else previous_relationship.conflict_tension
+            rel.conflict_tension = _clamp01(0.6 * previous_relationship.conflict_tension + 0.4 * conflict_contempt
+                                           - 0.5 * appraised_relief)
+        if not social_cues.intersection({"perceived_warmth", "contempt"}):
+            rel.conflict_tension = previous_relationship.conflict_tension
+        if "contempt" not in social_cues:
+            rel.aversive_association = previous_relationship.aversive_association
+        elif not general_cues.intersection({"norm_violation", "bodily_threat", "goal_congruence"}):
+            rel.aversive_association = _clamp01(0.6 * previous_relationship.aversive_association + 0.4 * soc.contempt)
         # --- small, stable feedback pass (stage 2) ---
         # more intimacy if warmth/trust/attachment high & tension low
         target_intimacy = (
@@ -908,6 +973,8 @@ def ema_baselined_normalize(
     now: datetime.datetime | None = None,
     sigma_floor: float = MENTAL_STATE_SIGMA_FLOOR,
     tanh_gain: float = MENTAL_STATE_TANH_GAIN,
+    *,
+    ignore_zero_deltas: bool = False,
 ) -> list[float]:
     """Return the time-aware, EMA-baselined readout of a delta history.
 
@@ -919,7 +986,9 @@ def ema_baselined_normalize(
        seconds. Before each sample, ``ema += alpha * (level - ema)`` with
        ``alpha = 1 - exp(-ln 2 * dt / half_life_s)`` for the time ``dt``
        since the previous sample. Then the sample adds its delta to the level.
-    3. ``level - ema`` after each sample is one deviation sample.
+    3. ``level - ema`` after each sample is one deviation sample. With
+       ``ignore_zero_deltas``, only a nonzero delta on that axis adds a
+       deviation sample. Other axes still catch up through elapsed time.
     4. ``now`` (optional) adds a last catch-up step from the newest sample to
        ``now``. So the deviation fades while no new feature arrives. This is
        the time decay between cycles.
@@ -959,7 +1028,8 @@ def ema_baselined_normalize(
         last_t = t
         for i in axes:
             level[i] += delta[i]
-            dev_samples[i].append(level[i] - ema[i])
+            if not ignore_zero_deltas or delta[i] != 0.0:
+                dev_samples[i].append(level[i] - ema[i])
     if now is not None:
         catch_up(max(0.0, (now - last_t).total_seconds()))
 
@@ -1191,12 +1261,23 @@ def compute_relationship_state(
 ) -> StateRelationship:
     """Return the EMA relationship state toward one entity.
 
-    Only the samples that concern ``entity_id`` count. The readout uses the
-    same EMA as :func:`compute_mental_state`, and reads the relationship axes.
+    Only samples concerning ``entity_id`` with an actual relationship-axis
+    delta count. Each axis's scale uses only samples that change that axis.
+    Mood-only percepts and unrelated relationship changes must not change
+    its scale by adding zero-valued observations. Time decay still applies.
     """
-    own = [(sample.timestamp, sample.vector()) for sample in samples if entity_id in sample.entity_ids]
+    relationship_positions = set(StateRelationship.get_vector_positions().values())
+    relationship_positions.discard(VectorModelRelationshipEntityID)
+    own: list[tuple[datetime.datetime, list[float]]] = []
+    for sample in samples:
+        if entity_id not in sample.entity_ids:
+            continue
+        has_relationship_delta = any(position in relationship_positions and value != 0.0
+                                     for position, value in sample.delta.items())
+        if has_relationship_delta:
+            own.append((sample.timestamp, sample.vector()))
     vector = ema_baselined_normalize(own, VectorModelReservedSize, half_life_s, _collect_axis_bounds(),
-                                     _collect_axis_defaults(), now=now)
+                                     _collect_axis_defaults(), now=now, ignore_zero_deltas=True)
     relationship = StateRelationship.init_from_vector(vector)
     relationship.entity_id = entity_id
     return relationship

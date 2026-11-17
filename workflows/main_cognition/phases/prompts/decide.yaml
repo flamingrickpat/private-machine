@@ -39,7 +39,7 @@ user_template: |
   Keep this forecast uncertain: silence does not prove annoyance, rejection, or failed delivery.
   You can initiate anyway when that fits you. You can also leave a completed move alone and choose an
   available private activity, change focus, or rest. Do not keep refining the same message as a substitute
-  for another interest. Let this comparison shape the concrete choice, without a separate evaluator.
+  for another interest. Let this comparison shape the concrete choice.
   Historical quotations are memories with original speakers and dates, not messages newly addressed to you.
   Private interpretations and feelings cannot establish a new partner reaction by repeating it.
   Direct new evidence can correct an older interpretation. A timer alone supplies no new partner observation.
@@ -54,6 +54,56 @@ user_template: |
 
   Answer with only this JSON object and nothing else, with exactly {variants} entries or none:
   {{"variants": ["..."]}}
+
+check_template: |
+  Judge this proposed move by {companion_name}. Do not write a replacement move.
+
+  Character and enduring preferences:
+  {character}
+
+  Current attributed situation, recent dialogue, selected purposes, and actual deliveries:
+  {situation}
+
+  New events for this choice:
+  {stimuli}
+
+  Existing task states and results:
+  {managed_runs}
+
+  Proposed move:
+  {proposals}
+
+  Decide whether to allow this move now. Compare what it would accomplish with what was actually delivered,
+  not with the wording of an earlier proposal. Different wording does not make the same pressure a new purpose.
+  A chosen or privately rehearsed move is not a delivered move. Preserve the difference.
+
+  Inhibit repeating a completed conversational purpose unless a new partner request, new relevant evidence,
+  a changed situation, or a concrete unresolved need justifies doing it again. Repeated reassurance, probing,
+  confrontation, advice, or demands for acknowledgment can become pressure even when each sentence differs.
+  A fresh partner message can justify answering it; it does not by itself justify repeating an older demand.
+  Consider the sequence of recent moves and the partner's explicit requests, not just the last sentence.
+
+  Each further unsolicited outreach without a partner response needs stronger, current justification.
+  Known sleep, absence, a request for quiet, or another stated limit weighs against interrupting again.
+  Silence alone does not prove rejection, annoyance, willingness, or availability. A timer, a renewed urge,
+  a private imagined reaction, or another rehearsal of the same concern supplies no new partner evidence.
+  Do not let private boredom or a wish for reassurance justify repeated attempts to get a response.
+  Initiative, deliberate callbacks, playful disagreement, and necessary confrontation remain available when
+  their purpose fits the current evidence; do not enforce a fixed message count or generic politeness.
+
+  Private activity and quiet are legitimate outcomes. A blocked social move need not be replaced by another
+  social move. Do not inhibit useful private work merely because the partner is unavailable.
+  A tool operation is not social outreach. A confirmed failed operation may need a safe retry; an unfinished
+  task may need progress. Distinguish these from repeating a completed effect. If an external effect is
+  uncertain, checking its status is justified; repeating the effect without reconciliation is not.
+
+  Return allow=false when the proposed move should be inhibited. This ends the candidate for this cycle;
+  it will not trigger another attempt to phrase the same move differently. Give a short reason grounded in
+  the supplied events and delivery history. If needed facts are absent, state that uncertainty instead of
+  inventing a partner reaction or a task outcome.
+
+  Answer only with this JSON object:
+  {{"allow": true, "reason": "..."}}
 
 # How a stimulus group reads in the story, by group kind.
 part_entity: "{name}"

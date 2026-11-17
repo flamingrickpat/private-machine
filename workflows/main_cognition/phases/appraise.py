@@ -35,6 +35,7 @@ from __future__ import annotations
 from pm_workflows.python_role import RoleContext
 
 from pm.context_render.turns import Turn, format_content
+from pm.records.enums import FeatureType
 from pm.records.mental_state import (
     MentalStateSample,
     alpha_clamp_delta,
@@ -145,7 +146,22 @@ def update_affect(work: CycleWork, appraisal: AppraisalResult) -> AppraisalAffec
     current = compute_mental_state(history, now=now, half_life_s=half_life, personality=request.personality)
     if entity is not None:
         current.state_relationship = compute_relationship_state(history, entity, now=now, half_life_s=half_life)
-    appraisal_state, delta = appraise_state(current, appraisal, entity_id=entity)
+    # Recalling or reinterpreting a partner does not supply another observation.
+    # Only cited dialogue in this cycle's newly claimed inputs can update the
+    # relationship. Codelet interpretations have their own mood-only path.
+    cited_ids = set(appraisal.evidence_ids)
+    observed_ids = set(request.observed_stimulus_ids)
+    relationship_evidence = False
+    for stimulus in request.stimuli:
+        if (entity is not None and stimulus.entity_id == entity
+                and stimulus.knoxel_id in cited_ids
+                and stimulus.knoxel_id in observed_ids
+                and stimulus.knoxel_id not in request.appraised_partner_input_ids
+                and work.records[stimulus.knoxel_id].feature_type == FeatureType.Dialogue.value):
+            relationship_evidence = True
+            break
+    appraisal_state, delta = appraise_state(current, appraisal, entity_id=entity,
+                                           relationship_evidence=relationship_evidence)
     # !!! ALPHA RUN ONLY: TEMPORARY FAILSAFE. FIX PROPERLY LATER. !!!
     # One stimulus moves one axis by a third at most. The commit stores the
     # clamped delta, so the next cycle reads the same sample.

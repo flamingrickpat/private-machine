@@ -20,7 +20,7 @@ from workflows.main_cognition.cycle_work import CycleWork
 from workflows.main_cognition.model_json import write_report
 from workflows.main_cognition.phases import decide, intake, route, triage
 from workflows.main_cognition.phases.model import complete, phase_prompts
-from workflows.main_cognition.schemas import AppraisalAffect, DecisionCheck
+from workflows.main_cognition.schemas import AppraisalAffect, DecisionCheck, DecisionInhibition
 from workflows.main_cognition.story_prefix import StoryPrefix
 
 
@@ -59,8 +59,12 @@ def select_interaction(context: RoleContext, request: InteractionRequest) -> Int
     prefix = StoryPrefix(work, group=group.key)
     messages = decide.build_messages(work, phase_prompts("decide"), prefix, group)
     messages.append(Turn(Role.User,
-        "This is an ordinary exchange under the accepted direction above. "
-        "Choose the character's local move using the same situation and motives. "
+        "This is an ordinary exchange after the accepted main context above. "
+        "Choose whether to continue this conversation, stay quiet, or seek reconsideration. "
+        "Earlier immediate purposes may already be fulfilled by delivered speech. "
+        "Follow the newest partner turn instead of repeating those purposes. "
+        "An ordinary reply is a natural story continuation; your wording is retained for review, "
+        "but it will not be injected as a fresh instruction to its story writer. "
         "guidance_disposition is follow, decline, or suspend for this exchange. "
         "If the current situation makes prior guidance unsuitable, explain that mismatch in guidance_reason. "
         "This local choice does not rewrite durable intentions or establish a permanent wait. "
@@ -68,12 +72,15 @@ def select_interaction(context: RoleContext, request: InteractionRequest) -> Int
     check = DecisionCheck(workflow_names=[item.name for item in decide.available_workflows(work)])
     answer = complete(context, work, messages, InteractionDecision, validation_context=check.model_dump())
     source_ids = [item.knoxel_id for item in request.cycle.stimuli]
-    if not answer.variants:
+    inhibition: DecisionInhibition | None = None
+    if answer.variants:
+        inhibition = decide.inhibit_decision(context, work, answer, group)
+    if not answer.variants or (inhibition is not None and not inhibition.allow):
         outcome = InteractionOutcome.Quiet
         if answer.guidance_disposition != GuidanceDisposition.Follow:
             outcome = InteractionOutcome.Reconsider
         return InteractionReceipt(selection_id=request.selection_id, source_ids=source_ids,
-            outcome=outcome, decision=answer, dependencies=request.dependencies)
+            outcome=outcome, decision=answer, inhibition=inhibition, dependencies=request.dependencies)
     work.state.decisions = [ActionDecision(group=group.key, text=answer.variants[0],
         variants=list(answer.variants), stimulus_ids=source_ids)]
     work = route.select_routes(context, work)
@@ -90,7 +97,8 @@ def select_interaction(context: RoleContext, request: InteractionRequest) -> Int
     else:
         outcome = InteractionOutcome.Reconsider
     return InteractionReceipt(selection_id=request.selection_id, source_ids=source_ids,
-        outcome=outcome, decision=answer, route=choice, dispatch=dispatch, dependencies=request.dependencies)
+        outcome=outcome, decision=answer, inhibition=inhibition, route=choice, dispatch=dispatch,
+        dependencies=request.dependencies)
 
 
 def run(context: RoleContext) -> dict[str, str]:

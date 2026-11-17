@@ -14,6 +14,10 @@ The message layout is a contract:
   ...          - alternating dialogue and artifact blocks in world-time order
   last user    - GWT state + feelings + action + continue directive
 
+Runtime GWT guidance instead enters as a dated artifact at its original
+snapshot frontier. Subsequent speech stays after it, including on fast-path
+rebuilds. No renewed action instruction follows the latest partner line.
+
 Dialogue lines (both speakers) always land in assistant turns. Derived
 artifacts (memories, summaries, feelings) always land in user turns. The
 voice is anchored only by real dialogue in assistant turns; summary wording
@@ -211,13 +215,33 @@ def build_story_messages(request: StoryRequest, prompts: StoryPrompts, *, avoid:
     """Return the interleaved Story turns: system, opening, alternating blocks, directive."""
     dialogue = _split_dialogue(request, prompts)
     artifacts = _artifact_lines(request, prompts) + _thought_lines(dialogue.private_thoughts, prompts)
+    if request.guidance is not None:
+        artifacts.append(_guidance_line(request, prompts))
     return render_interleaved_story(
         system_text=build_system_text(request, prompts),
         opening_text=build_opening_text(request, prompts),
         dialogue=dialogue.speech,
         artifacts=artifacts,
-        directive_text=build_directive_text(request, prompts, avoid=avoid),
+        directive_text=build_directive_text(request, prompts, avoid=avoid) or None,
+        guidance_frontier=request.guidance.through_record_id if request.guidance is not None else None,
     )
+
+
+def _guidance_line(request: StoryRequest, prompts: StoryPrompts) -> ArtifactLine:
+    """Keep the accepted frame before every later delivered or incoming line."""
+    guidance = request.guidance
+    assert guidance is not None
+    names = {"companion_name": request.companion_name, "partner_name": request.partner_name}
+    parts = [f"Private context when {request.companion_name} took stock here:",
+             guidance.shard_story,
+             _section(prompts["goals_title"].format(**names), [f"- {goal}" for goal in guidance.goals]),
+             prompts["inner_feelings"].format(feelings=guidance.feelings, **names),
+             prompts["inner_regulation"][guidance.regulation].format(**names),
+             prompts["inner_mind"].format(workspace=guidance.workspace, **names)]
+    if guidance.selected_action:
+        parts.append(f"The immediate move chosen here: {guidance.selected_action}")
+    return ArtifactLine(timestamp=guidance.observed_at_utc, record_id=guidance.through_record_id,
+                        lane="main_guidance", text="\n\n".join(part for part in parts if part))
 
 
 def build_system_text(request: StoryRequest, prompts: StoryPrompts) -> str:
@@ -238,6 +262,15 @@ def build_system_text(request: StoryRequest, prompts: StoryPrompts) -> str:
         ontology_terms = []
     parts.append(_section(prompts["abilities_title"].format(**names), abilities))
     parts.append(_section(prompts["ontology_title"].format(**names), ontology_terms))
+    if request.guidance is not None:
+        # Actual capability, disclosure, and task boundaries still apply now;
+        # old emotional guidance is carried only by its dated story artifact.
+        if context is not None:
+            parts.append(_section(prompts["tasks_title"], task_lines(context)))
+        presentation = context.presentation if context is not None else Presentation()
+        parts.append(prompts["presentation"][presentation.mode].format(
+            summary=presentation.shareable_summary or "nothing",
+            purpose=presentation.purpose or "unstated", **names))
     return "\n\n".join(part for part in parts if part)
 
 
@@ -255,6 +288,8 @@ def build_opening_text(request: StoryRequest, prompts: StoryPrompts) -> str:
 def build_directive_text(request: StoryRequest, prompts: StoryPrompts, *, avoid: str = "") -> str:
     """Final user turn: shards + goals + tasks + inner state + continue directive."""
     names = {"companion_name": request.companion_name, "partner_name": request.partner_name}
+    if request.guidance is not None:
+        return _section(prompts["regeneration_title"], [avoid]) if avoid else ""
     context = request.public_context
     shard_story = context.shard_story.strip() if context is not None else ""
     parts = []
@@ -293,8 +328,14 @@ def _split_dialogue(request: StoryRequest, prompts: StoryPrompts) -> StoryDialog
     """
     turns = list(request.prior_dialogue)
     if request.current_user_message:
+        timestamp: str | None = None
+        if request.public_context is not None:
+            current = next((item for item in request.public_context.evidence
+                            if item.knoxel_id == request.current_message_id), None)
+            if current is not None:
+                timestamp = current.timestamp
         turns.append(DialogueTurn(speaker=request.partner_name, text=request.current_user_message,
-                                  knoxel_id=request.current_message_id))
+                                  knoxel_id=request.current_message_id, timestamp=timestamp))
     speech_turns = [t for t in turns if t.kind != "thought"]
     thought_turns = [t for t in turns if t.kind == "thought"]
     return StoryDialogueParts(dialogue_lines(speech_turns, prompts), thought_turns)

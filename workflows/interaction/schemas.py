@@ -10,7 +10,7 @@ from typing import Self
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from workflows.main_cognition.cycle_work import CycleRequest
-from workflows.main_cognition.schemas import ActionDispatch, ActionRequest, DecisionAnswer, RouteChoice
+from workflows.main_cognition.schemas import ActionDispatch, ActionRequest, DecisionAnswer, DecisionInhibition, RouteChoice
 from workflows.public_speech.dependencies import WorkDependencies
 from workflows.public_speech.situational_guidance import GuidanceDisposition
 
@@ -55,6 +55,8 @@ class InteractionReceipt(BaseModel):
     source_ids: list[int] = Field(min_length=1)
     outcome: InteractionOutcome
     decision: InteractionDecision
+    inhibition: DecisionInhibition | None = Field(default=None,
+        description="Gate judgment on the original proposal; an inhibited move remains recorded but is not dispatched.")
     route: RouteChoice | None = None
     dispatch: ActionDispatch | None = None
     dependencies: WorkDependencies
@@ -63,6 +65,11 @@ class InteractionReceipt(BaseModel):
     @model_validator(mode="after")
     def coherent_outcome(self) -> Self:
         """Reject contradictory internal results before the host writes them."""
+        if self.inhibition is not None:
+            if not self.decision.variants:
+                raise ValueError("An inhibition judgment requires its original nonempty proposal.")
+            if not self.inhibition.allow and (self.outcome == InteractionOutcome.Reply or self.dispatch is not None):
+                raise ValueError("An inhibited proposal cannot dispatch a reply.")
         if self.outcome == InteractionOutcome.Reply:
             if self.dispatch is None or self.route is None:
                 raise ValueError("An ordinary reply requires its selected route and dispatch.")

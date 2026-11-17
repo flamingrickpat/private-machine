@@ -29,7 +29,11 @@ system_prompt: |
   The other message gives you background material: the character card, how
   the character works on the inside, what the character can and cannot do,
   the time, memories, goals, and what the character feels and wants right
-  now. Treat this material as binding truth about the story world. Let it
+  at each recorded point. Private context inserted between dialogue turns
+  describes the companion's mind there. Later spoken turns can fulfill its
+  immediate purpose or change the conversation's direction. Do not perform
+  an old selected move again merely because it remains in the history.
+  Treat observations as observations and private interpretations as interpretations. Let the material
   shape the next line through what the character says, notices, avoids,
   teases, or admits. Never explain the material, never summarize it, never
   quote it like a document.
@@ -195,7 +199,8 @@ story_instruction: |
   The assistant turns hold the dialogue of both characters. The user turns
   between them hold background material that is true in the story world but
   is never speech: memories, facts, feelings, and what {companion_name}
-  is aware of right now.
+    was aware of at that point. Continue from the latest spoken exchange;
+    earlier private guidance explains earlier moves rather than ordering their repetition.
 
 regeneration_title: "## Avoid this"
 

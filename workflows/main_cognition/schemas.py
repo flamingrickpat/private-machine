@@ -342,7 +342,7 @@ class AppraisalResult(BaseModel):
         return AppraisalGeneral.model_validate(self.appraisal)
 
     def social(self) -> AppraisalSocial:
-        """Return the social appraisal axes. An omitted axis has its default."""
+        """Validate social values, retaining supplied field names for relationship updates."""
         return AppraisalSocial.model_validate(self.appraisal)
 
 
@@ -834,6 +834,15 @@ TICKET_OPENINGS = ("generate", "validate", "acknowledge", "provide", "ensure", "
 
 #: System words that a decision must not hold. A workflow name is checked separately.
 SYSTEM_WORDS = ("ToolCall", "workflow", "action_type")
+
+
+class DecisionInhibition(BaseModel):
+    """A retained judgment on whether a proposed move is justified now."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    allow: bool = Field(description="Whether this proposal adds a justified move in the current situation.")
+    reason: str = Field(min_length=1, description="Reason grounded in actual events and delivery history.")
 
 
 class DecisionCheck(BaseModel):

@@ -24,6 +24,7 @@ from pm.records.copying import pickle_copy
 from typing import TYPE_CHECKING
 
 from pm.constants import (
+    AFFECT_DIRECT_DELTA_GAIN,
     ANGER_REACTIVE_THRESHOLD,
     ATTENTION_DRIFT_THRESHOLD,
     AVERSIVE_REACTIVE_THRESHOLD,
@@ -76,17 +77,20 @@ def _bounded(container: StateCore | StateEmotions | StateNeeds, name: str, value
     return min(high, max(low, value))
 
 
-def appraise_state(base: FullMentalState, appraisal: AppraisalResult, *, entity_id: int | None) -> tuple[FullMentalState, list[float]]:
+def appraise_state(base: FullMentalState, appraisal: AppraisalResult, *, entity_id: int | None,
+                   relationship_evidence: bool = True) -> tuple[FullMentalState, list[float]]:
     """Return the appraisal state and its delta vector for one appraisal answer.
 
     ``base`` is the EMA readout at the start of the cycle
     (:func:`~pm.records.mental_state.compute_mental_state`), with the
-    relationship toward ``entity_id`` when there is one.
+    relationship toward ``entity_id`` when there is one. The caller supplies
+    ``relationship_evidence=False`` unless this appraisal cites a newly
+    observed partner message; private reinterpretation can change mood only.
 
     Steps:
 
-    1. Copy ``base`` and set the appraisal axes of the answer. An omitted
-       axis has its field default.
+    1. Copy ``base`` and set the appraisal axes of the answer. Omitted
+       social cues do not update the corresponding relationship axes.
     2. ``compute_state_delta`` derives core affect, emotions, expression,
        and (with ``entity_id``) the relationship from the axes.
     3. The explicit ``emotion_delta`` and ``need_delta`` add to the derived
@@ -100,13 +104,14 @@ def appraise_state(base: FullMentalState, appraisal: AppraisalResult, *, entity_
     probe = pickle_copy(base)
     probe.appraisal_general = appraisal.general()
     probe.appraisal_social = appraisal.social()
-    derived, _ = compute_state_delta(probe, relationship_entity_id=entity_id)
+    partner = entity_id if relationship_evidence else None
+    derived, _ = compute_state_delta(probe, relationship_entity_id=partner)
     emotions = derived.state_emotions
     for name, value in appraisal.emotion_delta.items():
-        setattr(emotions, name, _bounded(emotions, name, getattr(emotions, name) + value))
+        setattr(emotions, name, _bounded(emotions, name, getattr(emotions, name) + AFFECT_DIRECT_DELTA_GAIN * value))
     needs = derived.state_needs
     for name, value in appraisal.need_delta.items():
-        setattr(needs, name, _bounded(needs, name, getattr(needs, name) + value))
+        setattr(needs, name, _bounded(needs, name, getattr(needs, name) + AFFECT_DIRECT_DELTA_GAIN * value))
     error = appraisal.expectation_error
     if error:
         core = derived.state_core
@@ -128,9 +133,10 @@ def percept_affect(base: FullMentalState, general: AppraisalGeneral, social: App
                    entity_id: int | None) -> tuple[FullMentalState, list[float]]:
     """Mini-appraise one codelet percept. Return its appraisal state and delta.
 
-    Port of the percept loop of ``ghost_codelets.cognitive_cycle``: copy the
-    current state, set the appraisal axes of the percept, and run
-    ``compute_state_delta`` with the group entity. ``base`` stays unchanged.
+    Copy the current state, set the percept's appraisal axes, and derive
+    mood without changing relationship beliefs. A generated interpretation
+    is not another observation of the partner. ``entity_id`` retains the
+    caller's attribution; ``base`` stays unchanged.
     The delta is the result minus the copy, on the EMA axes only. A percept
     does not change the mental state. Its delta can enter the EMA history
     after attention puts the percept into a workspace shard. Then the commit
@@ -139,7 +145,7 @@ def percept_affect(base: FullMentalState, general: AppraisalGeneral, social: App
     probe = pickle_copy(base)
     probe.appraisal_general = general.model_copy()
     probe.appraisal_social = social.model_copy()
-    derived, _ = compute_state_delta(probe, relationship_entity_id=entity_id)
+    derived, _ = compute_state_delta(probe)
     return derived, ema_delta(derived, probe)
 
 

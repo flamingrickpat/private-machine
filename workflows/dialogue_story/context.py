@@ -69,6 +69,16 @@ def select_story_prompt(
     required_ids = {item.knoxel_id for item in evidence if item.knoxel_id not in optional_ids}
     required_ids.update(request.required_evidence_ids)
     required_ids.update(turn.knoxel_id for turn in request.prior_dialogue[-4:] if turn.knoxel_id is not None)
+    if request.guidance is not None:
+        # Keep the first actual reply that used the frame. Otherwise optional
+        # history selection could hide its fulfillment and revive the move.
+        first_reply = next((turn for turn in request.prior_dialogue
+                            if turn.kind == "speech" and turn.speaker == request.companion_name
+                            and turn.knoxel_id is not None
+                            and turn.knoxel_id > request.guidance.through_record_id), None)
+        if first_reply is not None:
+            assert first_reply.knoxel_id is not None
+            required_ids.add(first_reply.knoxel_id)
     if request.current_message_id is not None:
         required_ids.add(request.current_message_id)
     pending_required = [record_id for record_id in required_ids if record_id in by_id]
@@ -123,9 +133,9 @@ def select_story_prompt(
         else:
             turns = list(render(selected))
         if omitted:
-            last = turns[-1]
+            opening = turns[1]
             notice = "\n\nOmitted optional context groups: " + ", ".join(omitted)
-            turns[-1] = Turn(last.role, last.content + notice)
+            turns[1] = Turn(opening.role, opening.content + notice)
         return [*turns, *repair_turns]
 
     selection = select_rendered_context(groups, request.input_budget_tokens, assemble, estimator=TokenEstimator())

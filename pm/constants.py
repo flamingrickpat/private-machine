@@ -158,8 +158,9 @@ FOCUS_MAX_SHARE = 0.3  # Maximum part of a shard budget that deliberate focus ca
 # Affect: the EMA mental state over feature deltas (D27).
 # See pm.records.mental_state.compute_mental_state for the formula.
 MENTAL_STATE_REFERENCE_MINUTES = 24 * 60  # EMA half-life of the mental state. Ego-strength scaling is disabled for now.
-MENTAL_STATE_SIGMA_FLOOR = 0.35  # Smallest deviation scale of one axis. A small floor lets one small delta pin the readout at a bound. ALPHA RUN: raised from 0.25 to soften the readout (see the alpha block below). Tune with replays.
-MENTAL_STATE_TANH_GAIN = 1.0  # Soft clip gain. A deviation of two scales reads as tanh(1.0), about 0.76 of the axis range. Tune with replays.
+MENTAL_STATE_SIGMA_FLOOR = 0.5  # Minimum deviation scale; increased after the eventful-month run saturated several axes during sparse interaction.
+MENTAL_STATE_TANH_GAIN = 0.5  # Softer readout: a deviation of two scales reads as tanh(0.5), about 0.46 of the axis range. Requires live calibration.
+AFFECT_DIRECT_DELTA_GAIN = 0.5  # Contribution of explicit emotion/need adjustments; repeated private appraisals previously accumulated too quickly.
 EXPECTATION_VALENCE_GAIN = 0.55  # Core valence change for an expectation error of 1.
 EXPECTATION_EMOTION_GAIN = 0.35  # Joy (better) or sadness (worse) change for an expectation error of magnitude 1.
 

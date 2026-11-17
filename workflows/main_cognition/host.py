@@ -41,6 +41,9 @@ Entity proposals use the shared staging owner at final acceptance. A stale
 entity parent produces an explicit deferred proposal while valid historical
 appraisal can commit. Current actions separately compare the entity meaning
 that governed their selection, including changes staged by this cycle.
+Conversational replies also compare the partner's conversation against the
+frozen input view. New partner input or a committed reply can obsolete a
+selected move without invalidating the historical appraisal that produced it.
 An obsolete action stays deferred and emits a durable reconsideration cause;
 the original partner input is not appraised again. Terminal task reports keep
 their actual receipt and cannot repeat completed execution through that cause.
@@ -147,6 +150,7 @@ from workflows.main_cognition.cycle_commits import (
     active_goal_texts, active_intentions, apply_appraisal, apply_goal_changes,
 )
 from workflows.public_speech.public_context import build_public_context
+from workflows.public_speech.dependencies import latest_partner_input
 from workflows.public_speech.situational_guidance import build_situational_guidance
 
 if TYPE_CHECKING:
@@ -731,6 +735,10 @@ class MainCogLoop(CognitiveWorkflow):
             previous_state=previous,
             cycle_time=cycle_time,
             state_history=history,
+            appraised_partner_input_ids=sorted({source_id for state in self.ghost.read_cycles()
+                if state.tick_id in memory_view.gwt_turns
+                and memory_view.gwt_turns[state.tick_id].slot_id == "main"
+                for source_id in state.claimed_ids()} & {item.knoxel_id for item in stimuli}),
             personality=PersonalityProfile.init_from_vector(self.ghost.ghost_config.personality_profile),
             active_goals=active_goal_texts(self.ghost)[:8],
             stimuli=stimuli,
@@ -1263,7 +1271,7 @@ class MainCogLoop(CognitiveWorkflow):
             entity_deferred: list[ActionDispatch] = []
             reconsiderations: list[Feature] = []
             for dispatch, action_id, action_request in published:
-                reason = self._stale_entity_direction(changes, action_request)
+                reason = self._stale_entity_direction(changes, action_request, action_id=action_id)
                 if reason is not None:
                     action = changes.view().get(action_id).copy_for_edit()
                     action.metadata = {**action.metadata, "dispatch_status": "deferred", "entity_context_reason": reason}
@@ -1435,8 +1443,21 @@ class MainCogLoop(CognitiveWorkflow):
             self.ghost.commit(changes)
             self._publish_entity_reconsideration(marker)
 
-    def _stale_entity_direction(self, changes: WriteBatch, request: ActionRequest) -> str | None:
-        """Keep valid historical appraisal while withholding obsolete current action."""
+    def _stale_entity_direction(self, changes: WriteBatch, request: ActionRequest, *, action_id: int) -> str | None:
+        """Keep historical appraisal while withholding an obsolete current move.
+
+        The caller holds the store lock through acceptance and outbox enqueue.
+        Conversation progress is read from committed memory, never this cycle's
+        staged records. Tool execution and terminal task replies keep their
+        own authority; conversation movement alone does not restart them.
+        """
+        action = changes.view().get(action_id)
+        if not isinstance(action, ActionSchemaRecord):
+            raise TypeError("A selected direction requires its action record.")
+        if request.action_origin == "main" and action.action_type == ActionType.Reply:
+            reason = self._stale_conversation_direction(request, scope=action.scope)
+            if reason is not None:
+                return reason
         now = vclock.utcnow()
         for captured in request.entity_contexts:
             try:
@@ -1446,6 +1467,52 @@ class MainCogLoop(CognitiveWorkflow):
             pending = project_entity_context(changes.view(), query=captured.query, as_of_utc=now)
             if pending.projected_meaning_fingerprint != captured.projected_meaning_fingerprint:
                 return "This cycle's entity update changed the meaning that governed its selected action."
+        return None
+
+    def _stale_conversation_direction(self, request: ActionRequest, *, scope: RecordScope) -> str | None:
+        """Find partner dialogue that arrived after this cycle's frozen view.
+
+        A newly committed utterance already owns its conversational move even
+        while publication is pending. It must not be duplicated by an older
+        main decision. Private thoughts and other partners or realities do
+        not advance this conversation. The deferred action remains historical
+        evidence and receives the existing durable reconsideration cause.
+        """
+        frozen = self._memory_view
+        if frozen is None:
+            raise ValueError("Current-direction acceptance requires the cycle's frozen memory view.")
+        current = self.ghost.snapshot(capture=False)
+        partner_id = request.partner_entity_id
+        if partner_id is None:
+            partner_id = self.ghost.get_entity_id(self.ghost.get_user_name())
+        scopes = list(dict.fromkeys(context.key.scope for context in request.entity_contexts))
+        for stimulus in request.stimuli:
+            source = frozen.get(stimulus.knoxel_id) if stimulus.knoxel_id in frozen.revisions else current.get(stimulus.knoxel_id)
+            if source.scope not in scopes:
+                scopes.append(source.scope)
+        if not scopes:
+            scopes = [scope]
+        previous_input = latest_partner_input(frozen, partner_entity_id=partner_id,
+            partner_name=request.partner_name, scopes=scopes)
+        current_input = latest_partner_input(current, partner_entity_id=partner_id,
+            partner_name=request.partner_name, scopes=scopes)
+        if current_input != previous_input:
+            return (f"Partner input advanced from {previous_input} to {current_input} "
+                    "while this main decision was being calculated.")
+        companion_name = self.ghost.get_companion_name()
+        user_id = self.ghost.get_entity_id(self.ghost.get_user_name())
+        for record in current.all_knoxels.values():
+            if record.id in frozen.revisions or not isinstance(record, Feature):
+                continue
+            if (record.feature_type != FeatureType.Dialogue or not record.causal
+                    or record.interlocus != InterlocusType.Public or record.scope not in scopes
+                    or record.provenance is None or record.provenance.source_kind != SourceKind.Self
+                    or record.source != companion_name):
+                continue
+            addressee_id = record.addressee_entity_id or user_id
+            if addressee_id == partner_id:
+                return (f"Companion utterance {record.id} was committed to this conversation "
+                        "while this main decision was being calculated.")
         return None
 
     def _accepted_state(self, work: CycleWork, tick: int, summary: str, published: list[tuple],

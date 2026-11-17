@@ -78,6 +78,17 @@ class GuidanceSuspension(BaseModel):
     source_ids: list[int] = Field(description="The inputs of that exchange.")
 
 
+class InhibitedMove(BaseModel):
+    """An undelivered local proposal; distinct from both silence and an executed action."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    receipt_id: int
+    source_ids: list[int]
+    proposals: list[str]
+    reason: str
+
+
 class IntervalReview(BaseModel):
     """What the companion did since its last accepted review. Read-only; built for each main cycle."""
 
@@ -88,6 +99,8 @@ class IntervalReview(BaseModel):
                                            "starts the frontier and reviews nothing.")
     moves: list[IntervalMove] = Field(description="Actions in the interval, oldest first.")
     suspensions: list[GuidanceSuspension] = Field(description="Set-aside guidance in the interval, oldest first.")
+    inhibitions: list[InhibitedMove] = Field(default_factory=list,
+        description="Proposed ordinary moves that were withheld, with their actual inhibition reasons.")
 
 
 class _OriginPayload(BaseModel):
@@ -110,12 +123,20 @@ class _GuidanceDecision(BaseModel):
     model_config = ConfigDict(extra="ignore")
     guidance_disposition: GuidanceDisposition
     guidance_reason: str
+    variants: list[str]
+
+
+class _InhibitionJudgment(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    allow: bool
+    reason: str
 
 
 class _GuidanceReceipt(BaseModel):
     model_config = ConfigDict(extra="ignore")
     source_ids: list[int]
     decision: _GuidanceDecision
+    inhibition: _InhibitionJudgment | None = None
 
 
 class _GuidanceMetadata(BaseModel):
@@ -211,6 +232,7 @@ def build_interval_review(view: Snapshot, *, after_record_id: int | None) -> Int
             expectations.setdefault(record.created_from_action_id, []).append(record.id)
     moves: list[IntervalMove] = []
     suspensions: list[GuidanceSuspension] = []
+    inhibitions: list[InhibitedMove] = []
     for record_id in sorted(view.all_knoxels):
         if record_id <= after_record_id:
             continue
@@ -223,12 +245,15 @@ def build_interval_review(view: Snapshot, *, after_record_id: int | None) -> Int
         elif isinstance(record, Feature) and "interaction_receipt" in record.metadata:
             receipt = _GuidanceMetadata.model_validate(record.metadata).interaction_receipt
             decision = receipt.decision
+            if receipt.inhibition is not None and not receipt.inhibition.allow:
+                inhibitions.append(InhibitedMove(receipt_id=record.id, source_ids=list(receipt.source_ids),
+                    proposals=list(decision.variants), reason=receipt.inhibition.reason))
             if decision.guidance_disposition == GuidanceDisposition.Follow:
                 continue
             suspensions.append(GuidanceSuspension(receipt_id=record.id, disposition=decision.guidance_disposition,
                                                   reason=decision.guidance_reason, source_ids=list(receipt.source_ids)))
     return IntervalReview(after_record_id=after_record_id, through_record_id=through_record_id, first_review=False,
-                          moves=moves, suspensions=suspensions)
+                          moves=moves, suspensions=suspensions, inhibitions=inhibitions)
 
 
 _ORIGIN_WORDS: dict[str, str] = {
@@ -258,7 +283,7 @@ def render_interval_review(review: IntervalReview, *, companion_name: str) -> st
     Every line names its record ids, so the model can cite them. The goal text
     is the version that held when the action was chosen.
     """
-    if not review.moves and not review.suspensions:
+    if not review.moves and not review.suspensions and not review.inhibitions:
         return f"(nothing: {companion_name} has done nothing since last taking stock)"
     lines: list[str] = []
     for item in review.moves:
@@ -282,6 +307,10 @@ def render_interval_review(review: IntervalReview, *, companion_name: str) -> st
         lines.append(f"- [exchange {suspension.receipt_id}] in the flow of the conversation, {companion_name} "
                      f"set the accepted direction aside ({suspension.disposition.value}) for inputs "
                      f"{suspension.source_ids}: {suspension.reason}")
+    for inhibition in review.inhibitions:
+        lines.append(f"- [exchange {inhibition.receipt_id}] a proposed move was withheld, "
+                     f"not executed: {'; '.join(inhibition.proposals)}. Reason: {inhibition.reason}. "
+                     f"Inputs: {inhibition.source_ids}.")
     return "\n".join(lines)
 
 

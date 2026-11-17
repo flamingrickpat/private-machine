@@ -103,6 +103,7 @@ def commit_public_reply(ghost: MemoryStore, text: str, correlation: str, *, comm
         inputs = set(context.revisions) if context is not None else set()
         if context is not None:
             inputs.update(context.input_record_ids)
+            inputs.update(source.record_id for source in context.historical_sources)
             batch.depend_on_commits(context.input_commit_ids)
         if exchange is not None:
             inputs.add(exchange.id)
@@ -126,6 +127,8 @@ def commit_public_reply(ghost: MemoryStore, text: str, correlation: str, *, comm
                     raise InteractionContextChanged(str(error)) from error
             for key, revision in context.revisions.items():
                 batch.expect_revision(key, ghost.revisions[key])
+            for source in context.historical_sources:
+                batch.expect_source(source)
             if context.interaction_dependencies is not None:
                 for dependency in context.interaction_dependencies.sources:
                     batch.expect_source(dependency)

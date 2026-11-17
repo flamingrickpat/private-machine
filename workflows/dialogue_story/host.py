@@ -25,7 +25,9 @@ from typing import TYPE_CHECKING, Any
 from pydantic import JsonValue
 
 from pm.bus.envelopes import Envelope
-from workflows.dialogue_story.schemas import StoryReport, StoryRequest
+from workflows.dialogue_story.schemas import DialogueTurn, StoryGuidance, StoryReport, StoryRequest
+from workflows.dialogue_story.guidance import accepted_story_guidance, retain_following_dialogue
+from workflows.public_speech.context_planning import PlannedContext
 from workflows.main_cognition.schemas import ActionRequest
 from workflows.public_speech.public_dialogue import PublicDialogue
 
@@ -64,6 +66,15 @@ class StoryDialogue(PublicDialogue):
 
     DATA_TOPICS = frozenset({"action.request"})
     WORKFLOW_NAME = "dialogue_story"
+    _story_guidance: StoryGuidance | None = None
+
+    def reply_context(self, request: ActionRequest, late_ids: list[int] = ()) -> PlannedContext:
+        """Keep the original main frame and all speech that followed its snapshot."""
+        planned = super().reply_context(request, late_ids)
+        self._story_guidance = accepted_story_guidance(self.ghost, request)
+        if self._story_guidance is not None:
+            planned = retain_following_dialogue(self.ghost, request, planned, self._story_guidance)
+        return planned
 
     def accepts(self, envelope: Envelope) -> bool:
         if envelope.topic == "action.request" and envelope.kind == "data":
@@ -85,6 +96,19 @@ class StoryDialogue(PublicDialogue):
                   if action_request.knoxel_id is not None else None)
         intent = str(action.content) if action is not None else action_request.content
         spoken, planned, public = self.prepare_reply(action_request)
+        if self._story_guidance is not None:
+            public.historical_sources = list(self._story_guidance.sources)
+        spoken_ids = {item.knoxel_id for item in spoken}
+        prior_dialogue = [turn for turn in planned.dialogue if turn.knoxel_id not in spoken_ids]
+        # Coalesced inputs keep their own identities and timestamps. Joining
+        # them under the last input's id can place an earlier line on the wrong
+        # side of the main frame or repeat it alongside retrieved dialogue.
+        with self.ghost.lock:
+            for item in spoken[:-1]:
+                source = self.ghost.snapshot({item.knoxel_id}).get(item.knoxel_id)
+                prior_dialogue.append(DialogueTurn(speaker=public.partner_name, text=item.text,
+                    knoxel_id=item.knoxel_id, timestamp=source.timestamp_world_begin.isoformat()))
+        prior_dialogue.sort(key=lambda turn: (turn.timestamp or "", turn.knoxel_id or 0))
         request = StoryRequest(
             companion_name=self.ghost.get_companion_name(),
             partner_name=public.partner_name,
@@ -93,8 +117,8 @@ class StoryDialogue(PublicDialogue):
             unsupported_capabilities=[str(item) for item in self.ghost.ghost_config.unsupported_capabilities],
             capability_notes=[str(item) for item in self.ghost.ghost_config.capability_notes],
             now=vclock.utcnow().isoformat(),
-            prior_dialogue=planned.dialogue,
-            current_user_message="\n".join(item.text for item in spoken),
+            prior_dialogue=prior_dialogue,
+            current_user_message=spoken[-1].text if spoken else "",
             current_message_id=spoken[-1].knoxel_id if spoken else None,
             feelings=public.feelings,
             regulation=public.regulation,
@@ -102,6 +126,7 @@ class StoryDialogue(PublicDialogue):
             memories=public.memories,
             workspace=public.workspace,
             selected_action=intent,
+            guidance=self._story_guidance,
             public_context=public,
             input_budget_tokens=self.context_budget,
         )

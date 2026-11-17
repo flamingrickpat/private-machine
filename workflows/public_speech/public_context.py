@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any, Literal, TypedDict
 from pydantic import BaseModel, ConfigDict, Field
 
 from pm import vclock
-from pm.memory.dependencies import source_fingerprint
+from pm.memory.dependencies import SourceDependency, source_fingerprint
 from pm.records.base import Provenance, RecordScope
 from pm.records.enums import FeatureType, InterlocusType, SourceKind
 from pm.records.memory_records import Feature
@@ -147,6 +147,8 @@ class PublicContext(BaseModel):
     input_commit_ids: list[str] = Field(default_factory=list)
     head_ids: list[int] = Field(default_factory=list)
     source_fingerprints: dict[int, str] = Field(default_factory=dict)
+    historical_sources: list[SourceDependency] = Field(default_factory=list,
+        description="Meaning guards for historical guidance, without requiring it to remain current authority.")
     user_frontier: int | None = None
     stimulus_user_ids: list[int] = Field(default_factory=list)
     task_receipt: dict = Field(default_factory=dict)

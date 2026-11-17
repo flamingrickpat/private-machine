@@ -105,6 +105,8 @@ class CycleRequest(BaseModel):
     previous_state: CycleState | None = None
     cycle_time: datetime = Field(default_factory=vclock.utcnow)
     state_history: list[MentalStateSample] = Field(default_factory=list)
+    appraised_partner_input_ids: list[int] = Field(default_factory=list,
+        description="This request's partner inputs already claimed by an earlier accepted main cycle.")
     personality: PersonalityProfile = Field(default_factory=PersonalityProfile)
     active_goals: list[str] = Field(default_factory=list)
     stimuli: list[Stimulus] = Field(default_factory=list)

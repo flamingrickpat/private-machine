@@ -7,10 +7,12 @@ Runtime ownership is described in [the Story host overview][workflows.dialogue_s
 """
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal, NotRequired, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field, with_config
 from pm.context_render.budget import SelectionReceipt
+from pm.memory.dependencies import SourceDependency
 from workflows.public_speech.public_context import DialogueTurn, MemoryLaneTemplate, PublicContext, TimeTemplates
 from workflows.public_speech.story_rendering import DialogueTemplates
 from workflows.public_speech.speech_review import SpeechReview
@@ -59,6 +61,27 @@ class StoryPrompts(TimeTemplates, DialogueTemplates):
     generation: NotRequired[StoryGenerationParameters]
 
 
+class StoryGuidance(BaseModel):
+    """Accepted main guidance anchored to the evidence it actually observed.
+
+    Later dialogue follows this frame in the prompt. Rebuilding a fast-path
+    prompt must not move the frame past the speech that already used it.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    tick_id: int
+    through_record_id: int = Field(description="Last record in the main cycle's frozen input view.")
+    observed_at_utc: datetime
+    shard_story: str
+    workspace: str
+    feelings: str
+    regulation: str
+    goals: tuple[str, ...]
+    selected_action: str
+    sources: tuple[SourceDependency, ...] = Field(description="Exact historical meanings; no current-head authority.")
+
+
 class StoryRequest(BaseModel):
     """The fixed situation plus the selected context for one Story generation."""
 
@@ -85,6 +108,8 @@ class StoryRequest(BaseModel):
     memories: list[str] = Field(default_factory=list)
     workspace: str = ""
     selected_action: str = ""
+    guidance: StoryGuidance | None = Field(default=None,
+        description="Historical main context, rendered once before subsequent conversation.")
     public_context: PublicContext | None = None
     input_budget_tokens: int | None = Field(default=None, gt=0, description="Conservative ceiling for the complete rendered prompt, when supplied by the runtime.")
     required_evidence_ids: tuple[int, ...] = Field(default=(), description="Evidence the reviewer must retain because it was supplied to speech generation.")
