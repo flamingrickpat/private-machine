@@ -6,6 +6,7 @@ validated ``TriggerChoice`` to ``outbox/report.yaml``. The message builder is
 pure and tested without a kernel, model, or MemoryStore.
 """
 from __future__ import annotations
+from workflows.main_cognition.context_reduction import evidence_text
 
 from pathlib import Path
 import json
@@ -80,11 +81,11 @@ def build_messages(request: dict[str, object], prompts: TriggerPrompts) -> list[
         goals=render_sources(parsed.active_goal_records, "goal"),
         expectations=render_sources(parsed.pending_expectations, "expectation"),
         thoughts=_render_thoughts(parsed),
-        triggers=_render_triggers(parsed),
+        triggers=evidence_text(_render_triggers(parsed), "private-triggers"),
         candidates=_render_candidates(parsed),
     )
     episode = parsed.episode.model_dump_json()
-    user = user + "\nPrivate episode and operation suggestions:\n" + episode
+    user = user + "\nPrivate episode and operation suggestions:\n" + evidence_text(episode, "private-episode")
     from pm.context_render import render_context
     from workflows.reflection.rendering import status
     user = user + "\nPrivate experiment status:\n" + render_context(status(parsed.reflection))
@@ -96,7 +97,7 @@ def build_attention_messages(request: AttentionStageRequest, prompts: TriggerPro
     system = prompts.attention_system_prompt.format(companion_name=request.request.companion_name)
     delivered = "\n".join(f"- {operation.name}: {operation.description}" for operation in OPERATIONS.values())
     user = format_content(prompts.attention_user_template,
-        request=request_content(request.request), attention=request.attention.model_dump_json(),
+        request=request_content(request.request), attention=evidence_text(request.attention.model_dump_json(), "private-attention"),
         operations=delivered,
         schema=json.dumps(ThoughtAttentionDecision.model_json_schema(), ensure_ascii=False))
     return [Turn(Role.System, system.strip()), Turn(Role.User, user.strip())]

@@ -6,11 +6,13 @@ whole structure without clipping its records or changing the stored structure.
 Digests are derived evidence, not new observations or Ghost records.
 """
 from collections.abc import Sequence
+from workflows.main_cognition.model_json import batch_internal_prompt, fit_internal_prompt
+from workflows.main_cognition.context_reduction import evidence_text
 from pydantic import BaseModel, Field, model_validator
 from typing import Self
 from pm_workflows.python_role import RoleContext
 
-from pm.context_render.budget import ContextBudget, ContextGroup, batch_prompt, context_recency, fit_turns
+from pm.context_render.budget import ContextBudget, ContextGroup, context_recency
 from pm.context_render.story import story_line
 from pm.context_render.turns import Content, Turn
 from pm.llm.concurrency import ordered_parallel_map
@@ -39,7 +41,7 @@ class StructureReviewCoverage(BaseModel):
 def review_structure(context: RoleContext, work: CycleWork, structure: StructureDraft,
                      story: Sequence[Turn], budget: ContextBudget, maximum_tokens: int) -> str:
     """Review all members, reducing only derived digests if another level is needed."""
-    required_story = fit_turns(story, budget, include_optional=False).turns
+    required_story = fit_internal_prompt(context, story, budget, include_optional=False).turns
     groups = [ContextGroup(str(key), Content(story_line(work.records[key], with_id=True)), structure.salience,
                            source_ids=(key,), recency=context_recency(work.records[key].timestamp))
               for key in dict.fromkeys(structure.record_ids)]
@@ -51,7 +53,7 @@ def review_structure(context: RoleContext, work: CycleWork, structure: Structure
             allowed_ids = sorted({key for group in chosen for key in group.source_ids})
             return Content(
                 f"Review evidence of one structure before attention compares it: {structure.theme}.\n"
-                f"Why its records belong together: {structure.reason}.\n{evidence}\n\n"
+                f"Why its records belong together: {structure.reason}.\n") + evidence_text(evidence, "structure-members", allowed_ids) + Content("\n\n"
                 "Write a source-linked digest, not an attention rating. Preserve distinct events, corrections, dates, "
                 "intentions, competing interpretations, emotional stakes, and uncertainty. Distinguish speech, private "
                 "thought, inference, and original observation. Repetition is not corroboration. Retain contradictions. "
@@ -62,7 +64,7 @@ def review_structure(context: RoleContext, work: CycleWork, structure: Structure
                 "Use at most DIGEST_TOKEN_ALLOWANCE estimated tokens and DIGEST_WORD_ALLOWANCE words. "
                 "Return JSON: {\"summary\": \"...\", \"cited_ids\": [1]}.")
 
-        batches = batch_prompt(required_story, groups, budget, instruction)
+        batches = batch_internal_prompt(context, required_story, groups, budget, instruction)
         headers = "\n\n".join(f"Derived evidence digest; original members {list(batch.source_ids)}:\n" for batch in batches)
         metadata_tokens = budget.estimate([Turn("user", headers)])
         digest_allowance = (maximum_tokens - metadata_tokens) // len(batches)

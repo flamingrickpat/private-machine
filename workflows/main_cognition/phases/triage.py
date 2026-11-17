@@ -5,6 +5,8 @@ stimuli, their instructions, and the newest partner lines. The configured
 cognition window controls their input ceiling, as it does for other phases.
 """
 from __future__ import annotations
+from workflows.main_cognition.model_json import batch_internal_prompt, fit_internal_prompt
+from workflows.main_cognition.context_reduction import evidence_text
 
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -12,7 +14,7 @@ from dataclasses import dataclass
 from pm_workflows.python_role import RoleContext
 
 from pm.constants import CODELET_BUDGET_DEFAULT, CODELET_BUDGET_MAX
-from pm.context_render.budget import ContextBudget, ContextGroup, PromptSelection, RequiredContextTooLarge, batch_prompt, context_recency, fit_turns
+from pm.context_render.budget import ContextBudget, ContextGroup, PromptSelection, RequiredContextTooLarge, context_recency, fit_turns
 from pm.context_render.turns import Content
 from pm.llm.concurrency import ordered_parallel_map
 from workflows.inference_settings import DECISION_WORKERS
@@ -59,11 +61,11 @@ def build_messages(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix) 
     user = format_content(prefix.fill(prompts.user_template),
         state_summary=work.state_summary or "(no feeling recorded yet)",
         active_goals="; ".join(request.active_goals) or "(nothing in particular)",
-        stimuli=render_stimuli(work, prefix),
+        stimuli=evidence_text(render_stimuli(work, prefix), "triage-stimuli", [item.knoxel_id for item in request.stimuli]),
         budget_max=str(CODELET_BUDGET_MAX),
         budget_default=str(CODELET_BUDGET_DEFAULT),
     )
-    return prefix.ask(user.text)
+    return prefix.ask(user)
 
 
 def rate_groups(work: CycleWork) -> None:
@@ -88,7 +90,17 @@ def triage_budget(context: RoleContext) -> ContextBudget:
 
 def fit_messages(context: RoleContext, work: CycleWork, *, appended: Sequence[Turn] = ()) -> TriagePrompt:
     """Fit both triage paths through the common renderer."""
-    return fit_prompt(work, triage_budget(context), appended=appended)
+    budget = triage_budget(context)
+    try:
+        return fit_prompt(work, budget, appended=appended)
+    except RequiredContextTooLarge:
+        prefix = StoryPrefix(work)
+        turns = build_messages(work, phase_prompts("triage"), prefix)
+        grounding = grounding_turn(work, emotion=True)
+        if grounding is not None:
+            turns.insert(len(prefix.turns), grounding)
+        selection = fit_internal_prompt(context, [*turns, *appended], budget)
+        return TriagePrompt(list(selection.turns), selection, budget.input_ceiling)
 
 
 def fit_prompt(work: CycleWork, budget: ContextBudget, *, appended: Sequence[Turn] = ()) -> TriagePrompt:
@@ -124,7 +136,7 @@ def classify(context: RoleContext, work: CycleWork) -> TriageResult:
             request = work.request.model_copy(update={"stimuli": [item for key, item in by_id.items() if key in ids]})
             return build_messages(work.model_copy(update={"request": request}), phase_prompts("triage"), prefix)[-1].content
 
-        batches = batch_prompt(shared, groups, budget, instruction)
+        batches = batch_internal_prompt(context, shared, groups, budget, instruction)
         work.receipt("triage-context", f"{len(groups)} events in {len(batches)} batches; none omitted")
 
         def rate(index: int) -> TriageResult:

@@ -31,7 +31,12 @@ class MediaKind(StrEnum):
 
 @dataclass(frozen=True)
 class ContextTag:
-    """Selection policy for one complete optional text group, supplied by its owner."""
+    """Owner-supplied selection and evidence-review policy for a text group.
+
+    ``required`` prevents omission. ``reducible`` permits an internal workflow
+    to replace evidence with a source-linked review after mandatory overflow.
+    The renderer itself performs no model call or reduction.
+    """
 
     name: str
     salience: float
@@ -39,6 +44,7 @@ class ContextTag:
     support_ids: tuple[int, ...] = ()
     required: bool = False
     recency: float = 0
+    reducible: bool = False
 
 
 @dataclass(frozen=True)

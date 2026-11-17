@@ -36,10 +36,12 @@ No function here writes the store. The host stages the records and the
 updates at commit.
 """
 from __future__ import annotations
+from workflows.main_cognition.context_reduction import evidence_text
+from workflows.main_cognition.model_json import batch_internal_prompt
 
 from typing import Literal, Self
 from collections.abc import Sequence
-from pm.context_render.budget import ContextGroup, batch_prompt
+from pm.context_render.budget import ContextGroup
 from pm.context_render.turns import Content
 from workflows.main_cognition.model_json import model_context_budget
 from pm.llm.concurrency import ordered_parallel_map
@@ -292,10 +294,12 @@ def _check_group(context: RoleContext, work: CycleWork, prefix: StoryPrefix, pro
 
     def instruction(chosen: Sequence[ContextGroup]) -> Content:
         return format_content(prefix.fill(prompts.check_template),
-            expectations="\n".join(group.content.text for group in chosen),
-            stimuli="\n".join(f"- {item.text}" for item in stimuli))
+            expectations=evidence_text("\n".join(group.content.text for group in chosen), "expectation-items",
+                                       [int(group.name) for group in chosen]),
+            stimuli=evidence_text("\n".join(f"- {item.text}" for item in stimuli), "expectation-stimuli",
+                                  [item.knoxel_id for item in stimuli]))
 
-    batches = batch_prompt(prefix.turns, groups, model_context_budget(context), instruction)
+    batches = batch_internal_prompt(context, prefix.turns, groups, model_context_budget(context), instruction)
     work.receipt("expectation-context", f"{len(expectations)} expectations in {len(batches)} batches; none omitted")
 
     def rate(index: int) -> ExpectationCheckAnswer:

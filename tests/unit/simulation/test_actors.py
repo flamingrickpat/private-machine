@@ -15,7 +15,7 @@ from pm.records.cycle_state import PersonaConfig
 from pm.records.enums import FeatureType, InterlocusType
 from pm.records.global_workspace import GwtTurnRecord
 from pm.records.memory_records import Feature
-from simulation.actors import load_profile, suggested_start
+from simulation.actors import DeliveryEvidence, load_profile, suggested_start
 from simulation.personas import write_home
 from simulation.plans import ActorDraftReview
 from pm import vclock
@@ -64,3 +64,21 @@ class ActorProfileTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             ActorDraftReview(accepted=True, voice_faithful=False, identity_correct=True,
                              natural_dialogue=True, scenario_consistent=True, reason="Contradictory verdict")
+
+
+class DeliveryEvidenceTests(unittest.TestCase):
+    def test_runtime_utc_compares_with_scenario_time(self) -> None:
+        delivery = DeliveryEvidence(kind="speech", speaker="Spamuel",
+            timestamp=datetime(2026, 5, 31, 8, 18, 19, 875000), content="Congratulations.")
+        stage_at = datetime(2026, 5, 31, 8, tzinfo=timezone.utc)
+
+        self.assertGreater(delivery.timestamp, stage_at)
+        self.assertEqual(delivery.timestamp.isoformat(), "2026-05-31T08:18:19.875000+00:00")
+
+    def test_explicit_offset_preserves_the_delivery_instant(self) -> None:
+        delivery = DeliveryEvidence.model_validate_json(
+            '{"kind":"actor","speaker":"Jesse","timestamp":"2026-05-31T10:00:00+02:00",'
+            '"content":"Big news."}')
+
+        self.assertEqual(delivery.timestamp.isoformat(), "2026-05-31T08:00:00+00:00")
+        self.assertEqual(DeliveryEvidence.model_validate_json(delivery.model_dump_json()), delivery)

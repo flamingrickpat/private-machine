@@ -69,7 +69,14 @@ The measured selection remains unchanged when the request is sent.
 The character card, current events, situational guidance, instructions, and newest four partner lines remain required.
 The fitter keeps cited support that is present in the prompt. It never cuts a record in half.
 A prompt that already fits keeps its text. Selection receipts record included groups, omitted groups, and estimated tokens.
-A required indivisible input that exceeds the window raises `RequiredContextTooLarge`.
+Instructions, schemas, and media remain fixed. Internal workflows can mark required evidence for a derived review on overflow.
+[`workflows.main_cognition.model_json.fit_internal_prompt`][] first tries ordinary fitting.
+If required evidence still exceeds the window, it reviews marked evidence in complete batches through the real model.
+Every text span enters a review. Source IDs and coverage receipts accompany the derived evidence; original records remain unchanged.
+The final appraisal, goal judgment, or decision still runs once. The runtime never adds emotion changes from separate partial appraisals.
+A fitting prompt keeps its content and needs no review call. A larger configured window can therefore avoid reduction entirely.
+Digests can lose detail. Coverage proves that a review received the evidence; it does not prove lossless meaning.
+Fixed instructions or evidence metadata that cannot fit still raise `RequiredContextTooLarge`.
 
 Some mechanisms must evaluate every candidate. They use [`pm.context_render.budget.batch_prompt`][] instead of dropping candidates:
 
@@ -81,6 +88,8 @@ Some mechanisms must evaluate every candidate. They use [`pm.context_render.budg
 | Main triage | Every new event, with batches when the required event payload overflows | Restore input order and retain the strongest requested codelet budget |
 
 Each batch shares one fitted context. The task's own inputs remain complete.
+[`workflows.main_cognition.model_json.batch_internal_prompt`][] adds evidence review when required shared context or a single task exceeds the window.
+Its overflow fallback freezes one common context for every task and retains every task identity for result validation.
 An oversized structure receives source-linked evidence reviews before its final attention rating.
 Every member enters a review, and a coverage receipt retains the complete member set.
 The digest allowance comes from the remaining window. Digests remain derived evidence; the stored structure keeps its original records.

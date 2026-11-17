@@ -1,5 +1,6 @@
 """Render private source collections through the shared knoxel interface."""
 from collections.abc import Sequence
+from workflows.main_cognition.context_reduction import evidence_text
 
 from pm.context_render import render_context
 from pm.context_render.turns import Content, ContextTag
@@ -52,7 +53,7 @@ def candidates(rows: Sequence[ThoughtCandidate], chosen: frozenset[int] = frozen
     for row, record in zip(rows, records, strict=True):
         result += "\n" + optional_content(render_context(record),
             ContextTag(f"private-candidate:{row.knoxel_id}", row.urgency, record_id=row.knoxel_id,
-                       required=row.knoxel_id in chosen, recency=float(row.knoxel_id)))
+                       required=row.knoxel_id in chosen, recency=float(row.knoxel_id), reducible=True))
     return result if records else Content("(none)")
 
 
@@ -67,7 +68,7 @@ def sources(rows: Sequence[PrivateSource], kind: str) -> Content:
         result += "\n" + optional_content(render_context(record),
             ContextTag(f"private-{kind}:{record.knoxel_id}", (position + 1) / len(records),
                        record_id=record.knoxel_id, support_ids=tuple(record.reference_ids),
-                       required=kind in {"goal", "expectation"}, recency=float(record.knoxel_id)))
+                       required=kind in {"goal", "expectation"}, recency=float(record.knoxel_id), reducible=True))
     return result if records else Content("(none)")
 
 
@@ -75,7 +76,7 @@ def request_content(request: InnerRequest, required_ids: frozenset[int] = frozen
     """Render the frozen private envelope with selectable original evidence."""
     from workflows.reflection.rendering import context_groups
 
-    result = Content(request.model_dump_json(exclude={"candidates", "recent_thoughts", "reflection"}))
+    result = evidence_text(request.model_dump_json(exclude={"candidates", "recent_thoughts", "reflection"}), "private-envelope")
     result += "\nPrivate source candidates:\n" + candidates(request.candidates, required_ids)
     result += "\nRecent private thoughts:\n" + sources(request.recent_thoughts, "private_thought")
     result += "\nPrivate reflection context:\n"
@@ -83,5 +84,5 @@ def request_content(request: InnerRequest, required_ids: frozenset[int] = frozen
         result += "\n" + group.name + ":\n"
         result += optional_content(group.content, ContextTag("private-reflection:" + group.name,
             group.salience, record_id=group.source_ids[0] if group.source_ids else None,
-            support_ids=group.source_ids, required=group.required, recency=group.recency))
+            support_ids=group.source_ids, required=group.required, recency=group.recency, reducible=True))
     return result

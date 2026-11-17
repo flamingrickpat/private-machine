@@ -32,6 +32,7 @@ Exhausted repairs of a rating call raise ``ModelFormatError``, and the host
 retries the whole cycle.
 """
 from __future__ import annotations
+from workflows.main_cognition.model_json import batch_internal_prompt, fit_internal_prompt
 
 from pm_workflows.python_role import RoleContext
 from pydantic import BaseModel, Field, model_validator
@@ -56,7 +57,7 @@ from pathlib import Path
 from pm.context_render import ContextKind, render_context
 from pm.context_render.budget import optional_text
 from pm.context_render.turns import ContextTag
-from pm.context_render.budget import ContextBudget, ContextGroup, RequiredContextTooLarge, batch_prompt, context_recency, fit_turns
+from pm.context_render.budget import ContextBudget, ContextGroup, RequiredContextTooLarge, context_recency
 from pm.context_render.turns import Content, Turn
 from pm.llm.concurrency import ordered_parallel_map
 from pm.records.global_workspace import ShardChange
@@ -265,7 +266,7 @@ def shard_job(work: CycleWork, prefix: StoryPrefix, prompts: PhasePrompts, shard
     return ShardJob(key=shard.key, labels=names, instruction=instruction.text)
 
 
-def shard_batches(work: CycleWork, prefix: StoryPrefix, prompts: PhasePrompts, shard: WorkspaceShard,
+def shard_batches(context: RoleContext, work: CycleWork, prefix: StoryPrefix, prompts: PhasePrompts, shard: WorkspaceShard,
                   structures: list[StructureDraft], budget: ContextBudget, views: dict[int, str]) -> list[ShardJob]:
     """Evaluate all structures in batches sharing the same fitted story."""
     by_label = {f"S{index}": structure for index, structure in enumerate(structures, start=1)}
@@ -282,7 +283,7 @@ def shard_batches(work: CycleWork, prefix: StoryPrefix, prompts: PhasePrompts, s
                        "Do not promote a weak structure just because its batch has no stronger rival. "
                        "The mind chooses winners only after every batch is rated.")
 
-    batches = batch_prompt(prefix.turns, groups, budget, instruction)
+    batches = batch_internal_prompt(context, prefix.turns, groups, budget, instruction)
     result: list[ShardJob] = []
     for batch in batches:
         included = set(batch.included)
@@ -474,7 +475,7 @@ def run(context: RoleContext, work: CycleWork) -> CycleWork:
     structures = work.structures.structures
     budget = model_context_budget(context)
     shards = shown_shards(work)
-    required_story = fit_turns(prefix.turns, budget, include_optional=False)
+    required_story = fit_internal_prompt(context, prefix.turns, budget, include_optional=False)
     overhead = max((budget.estimate([Turn("user", shard_job(work, prefix, prompts, shard, []).instruction)])
                     for shard in shards), default=0)
     maximum_view = budget.input_ceiling - required_story.estimated_tokens - overhead
@@ -488,7 +489,7 @@ def run(context: RoleContext, work: CycleWork) -> CycleWork:
     work.receipt("structure-context", f"{len(views)} oversized structures reviewed with all original members retained")
     jobs: list[ShardJob] = []
     for shard in shards:
-        jobs.extend(shard_batches(work, prefix, prompts, shard, structures, budget, views))
+        jobs.extend(shard_batches(context, work, prefix, prompts, shard, structures, budget, views))
     work.receipt("attention-context", f"{len(structures)} structures, {len(jobs)} rating batches; none omitted")
     answers = ordered_parallel_map(lambda job: rate(context, work, prefix, job), jobs,
                                    workers=ATTENTION_WORKERS, cancel=context.runtime.stop_event)

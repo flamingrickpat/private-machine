@@ -137,6 +137,9 @@ Internal cognitive roles use `cognition_context_window`, defaulting to 32,768 to
 Dialogue and simulation keep their serving-window budgets.
 [`pm.context_render.budget.batch_prompt`][] handles independent tasks that require complete coverage under a fixed shared context.
 It preserves every task item and checks the resulting prompts before inference.
+Internal workflows can review explicitly marked required evidence through [`workflows.main_cognition.model_json.fit_internal_prompt`][].
+This step runs only after ordinary fitting fails. It retains original evidence and records review coverage before one final judgment.
+It does not change public speech generation or its serving-window budget.
 Read [cognition](cognition.md#prompt-fitting-and-complete-evaluation) for the mechanism-specific combination rules.
 The selection receipt records included groups, omitted groups, and the conservative token estimate.
 

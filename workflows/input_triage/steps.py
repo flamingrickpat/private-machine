@@ -6,6 +6,7 @@ The prompt is fitted to the fast triage budget of
 extraction turn is required and always follows the triage instruction.
 """
 from __future__ import annotations
+from workflows.main_cognition.context_reduction import evidence_text
 
 from pm_workflows.python_role import RoleContext
 from pathlib import Path
@@ -41,7 +42,8 @@ def run(context: RoleContext) -> dict[str, str]:
     else:
         prompts = ExtractionPrompts.model_validate(yaml_util.safe_load(
             Path(__file__).with_name("prompts.yaml").read_text(encoding="utf-8")))
-        extraction = Turn(Role.User, render_extraction_context(request.entity_extraction_input) + "\n\n" + prompts.extraction)
+        extraction = Turn(Role.User, evidence_text(render_extraction_context(request.entity_extraction_input), "triage-entity-context")
+                          + "\n\n" + prompts.extraction)
         prompt = triage.fit_messages(context, work, appended=[extraction])
         work.receipt("triage-context", prompt.summary())
         answer = complete(context, work, prompt.turns, InputTriageAnswer,

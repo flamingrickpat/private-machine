@@ -18,6 +18,8 @@ candidates, the narratives, and the goals to the CSM with the endorser
 (:func:`~workflows.main_cognition.csm_view.enter_retrieval`).
 """
 from __future__ import annotations
+from workflows.main_cognition.model_json import batch_internal_prompt
+from workflows.main_cognition.context_reduction import evidence_text
 import json
 from typing import Self
 
@@ -38,7 +40,7 @@ from pydantic import model_validator
 from collections.abc import Sequence
 from workflows.main_cognition.schemas import ContextResult, MemoryCandidate
 from workflows.main_cognition.story_prefix import StoryPrefix
-from pm.context_render.budget import ContextGroup, batch_prompt, context_recency, optional_text
+from pm.context_render.budget import ContextGroup, context_recency, optional_text
 from pm.context_render.turns import Content, ContextTag, Turn
 
 
@@ -54,7 +56,7 @@ def render_memories(candidates: list[MemoryCandidate]) -> Content:
             f"historical={candidate.historical} "
             f"text={candidate.text!r}\n",
             ContextTag(f"retrieval:{candidate.knoxel_id}", candidate.score, record_id=candidate.knoxel_id,
-                       support_ids=tuple(candidate.source_ids), recency=context_recency(candidate.timestamp))
+                       support_ids=tuple(candidate.source_ids), recency=context_recency(candidate.timestamp), reducible=True)
         )
     return lines if candidates else Content("(none)")
 
@@ -146,14 +148,14 @@ def select(context: RoleContext, work: CycleWork, prompts: PhasePrompts) -> Cont
         support = [item for item in candidates if item.knoxel_id in covered and str(item.knoxel_id) not in chosen_ids]
         text = build_messages(shown, prompts, prefix)[-1].content
         if support:
-            text += "\nSupporting originals for these candidates:\n" + render_memories(support)
+            text += "\nSupporting originals for these candidates:\n" + evidence_text(render_memories(support), "recall-support")
             text += "\nSupport records are evidence, not extra selection candidates in this batch."
         return text + scan_suffix
 
     if not groups:
         return complete(context, work, build_messages(work, prompts, prefix), empty_recall_schema(),
                         grounded=True, emotion=False, grounding_at=len(prefix.turns))
-    batches = batch_prompt(shared, groups, budget, instruction)
+    batches = batch_internal_prompt(context, shared, groups, budget, instruction)
     work.receipt("recall-context", f"{len(candidates)} candidates inspected in {len(batches)} batches; none omitted")
 
     def scan(index: int) -> ContextResult:

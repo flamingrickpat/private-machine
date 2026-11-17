@@ -38,6 +38,8 @@ repeatable. Exhausted repairs raise ``ModelFormatError``, and the host
 retries the whole cycle.
 """
 from __future__ import annotations
+from workflows.main_cognition.model_json import fit_internal_prompt
+from workflows.main_cognition.context_reduction import evidence_text
 
 import math
 import random
@@ -77,7 +79,6 @@ from workflows.main_cognition.codelet_registry import (
 from workflows.main_cognition.csm_view import Embedder, csm_protected, render_story, story_line, story_tokens
 from workflows.main_cognition.cycle_work import CycleWork, provisional_tick
 from workflows.main_cognition.model_json import PhasePrompts, model_context_budget
-from pm.context_render.budget import fit_turns
 from workflows.main_cognition.phases.appraise import partner_entity
 from workflows.main_cognition.phases.model import complete, complete_prose, phase_prompts
 from workflows.main_cognition.schemas import (
@@ -161,7 +162,8 @@ class CodeletFrame:
 
     def ask(self, definition: CodeletDefinition, job: CodeletJob) -> list[Turn]:
         """Return the turns of call 1: the prefix, then the view and the instruction."""
-        return [*self.prefix, Turn(Role.User, f"{self.view_text(job.view)}\n\n{self.job_text(definition)}")]
+        return [*self.prefix, Turn(Role.User, evidence_text(self.view_text(job.view), "codelet-view", job.view_ids)
+                                   + f"\n\n{self.job_text(definition)}")]
 
     def conversion_schema(self, types: list[CodeletPerceptType], allowed_ids: set[int]) -> type[BaseModel]:
         """Return the answer model of call 2 for the offered percept types.
@@ -234,7 +236,9 @@ def execute(context: RoleContext, work: CycleWork, frame: CodeletFrame, definiti
             task = (frame.view_text(job.view) + "\n\n" + frame.job_text(definition) +
                     "\nRetrieval plan:\n" + "\n".join(frame.fill(item) for item in definition.data_aquisation) +
                     "\n" + SKILL.read_text(encoding="utf-8"))
-            fitted = fit_turns([*frame.prefix[:2], Turn(Role.User, task)], model_context_budget(context))
+            fitted = fit_internal_prompt(context, [*frame.prefix[:2], Turn(Role.User,
+                evidence_text(frame.view_text(job.view), "codelet-view", job.view_ids) +
+                task.removeprefix(frame.view_text(job.view)))], model_context_budget(context))
             story = "\n\n".join(turn.content.text for turn in fitted.turns[:2])
             context.runtime.environment.write_text(f"scratch/{definition.name}-agent-context.json", fitted.receipt().model_dump_json())
             native_instruction = frame.job_text(definition)

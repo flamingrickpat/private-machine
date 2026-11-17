@@ -23,6 +23,8 @@ not part of any structure: the prompt already shows them, so attention
 cannot place them as items.
 """
 from __future__ import annotations
+from workflows.main_cognition.context_reduction import evidence_text
+from pm.context_render.turns import Content
 
 import math
 import random
@@ -214,14 +216,15 @@ class StructureBinder:
         self.prefix = prefix
         self.prompts = prompts
 
-    def instruction(self, view_ids: list[int]) -> str:
+    def instruction(self, view_ids: list[int]) -> Content:
         """Return the last turn of the call."""
         broadcasts = "\n".join(f"- {item.summary}" for item in self.work.state.broadcasts if item.summary.strip())
         return format_content(self.prefix.fill(self.prompts.user_template),
-                              view=render_story(self.work.records, view_ids, with_id=True) or "(nothing)",
-                              broadcasts=broadcasts or "(nothing yet)",
+                              view=evidence_text(render_story(self.work.records, view_ids, with_id=True) or "(nothing)",
+                                                 "structures-view", view_ids),
+                              broadcasts=evidence_text(broadcasts or "(nothing yet)", "structures-broadcasts"),
                               max_structures=str(STRUCTURE_BINDER_MAX),
-                              targets=", ".join(f'"{label}"' for label in self.prefix.targets)).text
+                              targets=", ".join(f'"{label}"' for label in self.prefix.targets))
 
     def schema(self, view_ids: list[int]) -> type[BinderAnswer]:
         """Return the answer model with the checks of this view.

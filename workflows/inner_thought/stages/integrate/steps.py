@@ -11,6 +11,7 @@ offer the optional entity-model revision. Spontaneous integrations see neither.
 See ``workflows/inner_thought/host.py`` for the loop overview.
 """
 from __future__ import annotations
+from workflows.main_cognition.context_reduction import evidence_text
 
 from pathlib import Path
 from workflows.inner_thought.rendering import candidates as render_candidates, sources as render_sources
@@ -62,15 +63,15 @@ def build_messages(request: dict[str, object], prompts: IntegrationPrompts) -> l
         state_summary=parsed.state_summary or "(no recorded state update)",
         reality=thought.reality,
         operation=operation or trigger.operation,
-        thought=thought.thought or "(empty)",
-        evidence_summary=thought.evidence_summary or "(none)",
-        interpretation=thought.interpretation or "(none)",
+        thought=evidence_text(thought.thought or "(empty)", "integration-thought", thought.evidence_ids),
+        evidence_summary=evidence_text(thought.evidence_summary or "(none)", "integration-evidence", thought.evidence_ids),
+        interpretation=evidence_text(thought.interpretation or "(none)", "integration-interpretation"),
         goals=render_sources(parsed.active_goal_records, "goal"),
         expectations=render_sources(parsed.pending_expectations, "expectation"),
         evidence=render_candidates(parsed.candidates),
         evidence_ids=json.dumps(thought.evidence_ids),
     )
-    user = user + "\nRecent private episode for progress comparison:\n" + parsed.episode.model_dump_json()
+    user = user + "\nRecent private episode for progress comparison:\n" + evidence_text(parsed.episode.model_dump_json(), "private-episode")
     user = user + "\nRecent private thoughts:\n" + render_sources(parsed.recent_thoughts[-6:], "private_thought")
     advice = request.get("focus_advice")
     if advice is not None:

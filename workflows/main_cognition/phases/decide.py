@@ -21,6 +21,7 @@ An insignificant group gets no call and no decision. A group whose call
 returns an empty list gets no decision: the character does nothing about it.
 """
 from __future__ import annotations
+from workflows.main_cognition.context_reduction import evidence_text
 
 from pm_workflows.python_role import RoleContext
 
@@ -101,14 +102,14 @@ def build_messages(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix, 
     """Return the shared story prefix and then the decision instruction for one group as the last turn."""
     instruction = format_content(prefix.fill(prompts.user_template),
         part=group_part(work, prompts, prefix, group),
-        stimuli=group_stimuli(work, group),
+        stimuli=evidence_text(group_stimuli(work, group), "decide-stimuli", group.stimulus_ids),
         affect=work.affect.felt or work.state_summary or "(no feeling recorded)",
         regulation_words=prompts.regulation_words[work.affect.regulation],
-        experience=work.experience.text_for(group.key) or "(nothing)",
-        impulses=group_percepts(work, group),
-        goals=render_goals(work),
+        experience=evidence_text(work.experience.text_for(group.key) or "(nothing)", "decide-experience"),
+        impulses=evidence_text(group_percepts(work, group), "decide-impulses"),
+        goals=evidence_text(render_goals(work), "decide-goals"),
         variants=DECISION_VARIANTS,
-    ).text
+    )
     return prefix.ask(instruction)
 
 

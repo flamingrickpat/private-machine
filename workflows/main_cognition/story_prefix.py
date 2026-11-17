@@ -37,6 +37,7 @@ from workflows.main_cognition.phases.model import phase_prompts
 from workflows.public_speech.situational_guidance import render_situational_guidance
 from workflows.main_cognition.prompt_context import shard_content
 from pm.context_render.turns import Content
+from workflows.main_cognition.context_reduction import evidence_text
 
 
 def shard_label(key: ShardKey, request: CycleRequest) -> str:
@@ -176,9 +177,11 @@ class StoryPrefix:
             character_card=request.character_card.strip() or "(no character card)",
             shards=blocks,
             feeling=work.affect.felt or work.state_summary or "(no feeling recorded)",
-            situational_guidance="\n\n".join(render_situational_guidance(situation) for situation in situations)
+            situational_guidance=evidence_text("\n\n".join(render_situational_guidance(situation) for situation in situations)
                                  or f"Runtime world time: {request.cycle_time.isoformat()} UTC. Partner receptivity is unknown without evidence.",
-            new=render_story(work.records, new_ids, with_id=False) or "(nothing new happens)",
+                                 "story-situation"),
+            new=evidence_text(render_story(work.records, new_ids, with_id=False) or "(nothing new happens)",
+                              "story-new", new_ids),
         ).strip()
         self.turns = [Turn(Role.System, system), Turn(Role.User, story),
                       Turn(Role.Assistant, self.fill(self.prompts.story_ack).strip())]

@@ -44,7 +44,7 @@ def shard_content(shard: WorkspaceShard, records: dict[int, RecordView], prompts
         for position, view in enumerate([*timed, *untimed]):
             tag = ContextTag(f"shard:{shard.key.kind}:{shard.key.ref}:{view.record_id}", priorities[view.record_id],
                              record_id=view.record_id, required=view.record_id in required_ids,
-                             recency=context_recency(view.timestamp))
+                             recency=context_recency(view.timestamp), reducible=True)
             result += optional_text(("\n" if position else "") + story_line(view, with_id=False), tag)
         return result if views else Content(empty)
 

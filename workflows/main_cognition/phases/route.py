@@ -27,6 +27,7 @@ This phase has no external effect. The host stores the actions and the
 expectations at commit and publishes the released dispatches after it.
 """
 from __future__ import annotations
+from workflows.main_cognition.context_reduction import evidence_text
 
 from pm_workflows.python_role import RoleContext
 
@@ -122,10 +123,10 @@ def build_messages(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix, 
     instruction = format_content(prefix.fill(prompts.user_template),
         part=group_part(work, prompts, prefix, group),
         decision=decision.text,
-        stimuli=render_group_stimuli(work, group),
+        stimuli=evidence_text(render_group_stimuli(work, group), "route-stimuli", group.stimulus_ids),
         memories=render_memories(work),
-        goals=render_context(work.goals) if work.goals.changes else "(none)",
-        managed_runs=render_context(request.managed_runs) if request.managed_runs else "(none)",
+        goals=evidence_text(render_context(work.goals) if work.goals.changes else "(none)", "route-goals"),
+        managed_runs=evidence_text(render_context(request.managed_runs) if request.managed_runs else "(none)", "route-runs"),
         capabilities="\n".join(f"- {item}" for item in request.capabilities) or "(none)",
         workflows="\n".join(f"- {item.name}: {item.description}" for item in available_workflows(work)),
         wait_default_seconds=request.wait_default_seconds,

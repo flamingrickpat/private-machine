@@ -55,6 +55,7 @@ from workflows.main_cognition.model_json import PhasePrompts
 from workflows.main_cognition.phases.model import complete, phase_prompts
 from workflows.main_cognition.schemas import AppraisalAffect, AppraisalResult, ExpectationOutcome
 from workflows.main_cognition.story_prefix import StoryPrefix
+from workflows.main_cognition.context_reduction import evidence_text
 
 
 def render_triage(work: CycleWork) -> str:
@@ -79,13 +80,14 @@ def build_messages(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix) 
     if review is None:
         raise ValueError("The appraise phase requires the cycle's interval review.")
     user = format_content(prefix.fill(prompts.user_template),
-        interval_review=render_interval_review(review, companion_name=request.companion_name),
+        interval_review=evidence_text(render_interval_review(review, companion_name=request.companion_name), "appraise-interval"),
         state_summary=work.state_summary or "(no feeling recorded yet)",
-        active_goals="; ".join(request.active_goals) or "(nothing in particular)",
-        triage=render_triage(work),
-        expectations=expectations.render_outcomes(work.expectations),
+        active_goals=evidence_text("; ".join(request.active_goals) or "(nothing in particular)", "appraise-goals"),
+        triage=evidence_text(render_triage(work), "appraise-triage", [item.knoxel_id for item in work.request.stimuli]),
+        expectations=evidence_text(expectations.render_outcomes(work.expectations), "appraise-expectations",
+                                  [item.record_id for item in work.expectations]),
     )
-    return prefix.ask(user.text)
+    return prefix.ask(user)
 
 
 def merge_expectations(result: AppraisalResult, outcomes: list[ExpectationOutcome]) -> AppraisalResult:

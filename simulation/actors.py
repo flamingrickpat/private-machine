@@ -14,14 +14,14 @@ import hashlib
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from pm.memory.store import MemoryStore
 from pm.records.enums import FeatureType, InterlocusType
 
 
 def world_time(value: datetime) -> datetime:
-    """Normalize persisted world times; legacy naive seed times are UTC."""
+    """Normalize world times; offset-free checkpoint and runtime times are UTC."""
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc)
@@ -86,15 +86,26 @@ class ConversationTurn(BaseModel):
 
 
 class DeliveryEvidence(BaseModel):
-    """Public delivery metadata available to the director, never the actor."""
+    """Public delivery metadata available to the director, never the actor.
+
+    Runtime records use offset-free UTC; scenario deliveries include offsets.
+    Normalize both to aware UTC before comparing them with scenario times.
+    The original controller timeline remains unchanged.
+    """
 
     kind: Literal["actor", "speech"]
     speaker: str
-    timestamp: datetime
+    timestamp: datetime = Field(description="Delivery instant normalized to timezone-aware UTC.")
     content: str
     delivery_id: str | None = None
     target: str | None = None
     source: str | None = None
+
+    @field_validator("timestamp")
+    @classmethod
+    def timestamp_utc(cls, value: datetime) -> datetime:
+        """Preserve the delivery instant under the runtime's UTC convention."""
+        return world_time(value)
 
 
 class SavedClock(BaseModel):

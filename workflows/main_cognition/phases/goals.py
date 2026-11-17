@@ -11,6 +11,7 @@ change kind outside :data:`ALLOWED_CHANGES` fails validation. The commit
 applies the changes. This phase never writes memory.
 """
 from __future__ import annotations
+from workflows.main_cognition.context_reduction import evidence_text
 
 from pm_workflows.python_role import RoleContext
 from pydantic import create_model, model_validator
@@ -66,15 +67,15 @@ def build_messages(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix) 
     if review is None:
         raise ValueError("The goals phase requires the cycle's interval review.")
     user = format_content(prefix.fill(prompts.user_template),
-        interval_review=render_interval_review(review, companion_name=request.companion_name),
+        interval_review=evidence_text(render_interval_review(review, companion_name=request.companion_name), "goals-interval"),
         affect=work.affect.felt or work.state_summary or "(no feeling recorded)",
         regulation_words=prompts.regulation_words[work.affect.regulation],
-        current_goals=render_goals(request.active_goals),
+        current_goals=evidence_text(render_goals(request.active_goals), "goals-current"),
         appraisal=work.appraisal.feeling or "(no judgement recorded)",
         context=render_memories(work.selected_memories),
-        managed_runs=render_context(request.managed_runs) if request.managed_runs else "(none)",
-        inner_proposals=render_inner_proposals(conscious_percepts(work)),
-        deliberate_proposals=render_deliberate_proposals(request.mental_proposals),
+        managed_runs=evidence_text(render_context(request.managed_runs) if request.managed_runs else "(none)", "goals-runs"),
+        inner_proposals=evidence_text(render_inner_proposals(conscious_percepts(work)), "goals-inner-proposals"),
+        deliberate_proposals=evidence_text(render_deliberate_proposals(request.mental_proposals), "goals-plans"),
     )
     return prefix.ask(user)
 

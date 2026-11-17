@@ -26,6 +26,7 @@ seed phrases (``_generate_state_seed_phrases``).
    the content of another group. The calls run in parallel.
 """
 from __future__ import annotations
+from workflows.main_cognition.context_reduction import evidence_text
 
 from pm_workflows.python_role import RoleContext
 from pydantic import BaseModel, ConfigDict, Field
@@ -224,7 +225,8 @@ def render_entered(work: CycleWork, group: ShardKey | None = None) -> str:
 def build_messages(work: CycleWork, prompts: ExperiencePrompts, prefix: StoryPrefix, seed: str,
                    group: ShardKey | None = None) -> list[Turn]:
     """Return the story prefix, the instruction, and the seed as an open assistant turn."""
-    instruction = format_content(prefix.fill(prompts.user_template), entered=render_entered(work, group)).text
+    instruction = format_content(prefix.fill(prompts.user_template),
+                                 entered=evidence_text(render_entered(work, group), "experience-entered"))
     turns = prefix.ask(instruction)
     return [*turns, Turn(Role.Assistant, seed)] if seed else turns
 

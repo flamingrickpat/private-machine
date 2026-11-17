@@ -5,6 +5,7 @@ private candidates and writes the validated ``ThoughtResult``. The message
 builder is pure and tested without a kernel, model, or MemoryStore.
 """
 from __future__ import annotations
+from workflows.main_cognition.context_reduction import evidence_text
 
 from pathlib import Path
 import json
@@ -49,12 +50,12 @@ def build_messages(request: dict, prompts: dict) -> list[Turn]:
         state_summary=parsed.state_summary or "(no recorded state update)",
         trigger_reason=trigger.reason or parsed.trigger_candidates[0].cause if parsed.trigger_candidates else "(no trigger)",
         candidates=_render_candidates(parsed, chosen),
-        goals="\n".join(f"- {item.text}" for item in parsed.active_goal_records) or "(none)",
-        expectations="\n".join(f"- {item.text}" for item in parsed.pending_expectations) or "(none)",
-        thoughts="\n".join(f"- {item.text!r}" for item in parsed.recent_thoughts[-6:]) or "(none)",
-        inspection=render_inspection(parsed.inspection),
+        goals=evidence_text("\n".join(f"- {item.text}" for item in parsed.active_goal_records) or "(none)", "thought-goals"),
+        expectations=evidence_text("\n".join(f"- {item.text}" for item in parsed.pending_expectations) or "(none)", "thought-expectations"),
+        thoughts=evidence_text("\n".join(f"- {item.text!r}" for item in parsed.recent_thoughts[-6:]) or "(none)", "thought-history"),
+        inspection=evidence_text(render_inspection(parsed.inspection), "thought-inspection"),
     )
-    user = user + "\nPrivate episode:\n" + parsed.episode.model_dump_json()
+    user = user + "\nPrivate episode:\n" + evidence_text(parsed.episode.model_dump_json(), "private-episode")
     # The next operation must come from the invocation's catalogue. The
     # selected operation alone gives no names for a valid continuation.
     user = user + "\nAvailable next operations:\n" + "\n".join(item.name for item in parsed.operations)

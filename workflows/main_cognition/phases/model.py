@@ -29,6 +29,7 @@ from pm.llm.prompt_encoding import TurnInput
 
 from workflows.main_cognition.cycle_work import CycleWork
 from workflows.main_cognition.model_json import PhasePrompts, complete_json, complete_text, load_prompts
+from workflows.main_cognition.context_reduction import evidence_text
 
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 
@@ -70,11 +71,11 @@ def grounding_turn(work: CycleWork, *, emotion: bool, capabilities: bool = False
     grounding += "Private thoughts remain private.\n"
     # Keep the fixed situation separate from optional retrieved evidence.
     selected = selected.model_copy(update={"evidence": [], "memories": []})
-    content = Content(grounding) + render_context(selected, kinds)
+    content = Content(grounding) + evidence_text(render_context(selected, kinds), "grounding-situation")
     for row in evidence:
         content += "\n" + optional_content(render_context(row, kinds),
             ContextTag(f"grounding:{row.knoxel_id}", row.score, record_id=row.knoxel_id,
-                       support_ids=tuple(row.source_ids), recency=context_recency(row.timestamp)))
+                       support_ids=tuple(row.source_ids), recency=context_recency(row.timestamp), reducible=True))
     if not public.evidence:
         for row in public.memories:
             content += optional_text("\n" + row, ContextTag(f"grounding-memory:{len(content.parts)}", 0))

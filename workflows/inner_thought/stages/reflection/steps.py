@@ -9,7 +9,8 @@ from typing import TypeVar, cast
 from pydantic import BaseModel
 from pm_workflows.python_role import RoleContext
 from pm.context_render import Role, Turn, render_context
-from pm.context_render.budget import select_context
+from pm.context_render.budget import PromptSelection, RequiredContextTooLarge, optional_content, select_context
+from pm.context_render.turns import Content, ContextTag
 from pm.llm.prompt_fitting import prompt_budget
 from pm.llm.contracts import ContextMeasurer, ModelTool, WorkflowCompletion
 from pm.llm.structured import context_measure
@@ -18,7 +19,7 @@ from workflows.reflection.schemas import ReflectionContext
 from workflows.reflection.rendering import context_groups
 
 from pm.constants import Sampler
-from workflows.main_cognition.model_json import complete_json, read_request, write_report
+from workflows.main_cognition.model_json import complete_json, fit_internal_prompt, read_request, write_report
 from workflows.reflection.schemas import Assessment, MonitorResult, ReflectionDecision
 from workflows.reflection.experiments import validate_decision
 
@@ -70,7 +71,19 @@ def _call(context: RoleContext, task: str, schema: type[T], call: ReflectionCall
         groups.append(ContextGroup("Monitor", render_context(call.monitor), 1, required=True))
     if call.assessment is not None:
         groups.append(ContextGroup("Assessment", render_context(call.assessment), 1, required=True))
-    selection = select_context(instructions, groups, budget)
+    try:
+        selection = select_context(instructions, groups, budget)
+    except RequiredContextTooLarge:
+        evidence = Content("")
+        for group in groups:
+            evidence += f"\n{group.name}:\n"
+            evidence += optional_content(group.content, ContextTag(group.name, group.salience,
+                record_id=group.source_ids[0] if group.source_ids else None,
+                support_ids=group.source_ids, required=group.required, recency=group.recency, reducible=True))
+        fitted = fit_internal_prompt(context, [*instructions, Turn(Role.User, evidence)], budget)
+        episodes = tuple(sorted({key for group in groups if group.name in fitted.included for key in group.episode_ids}))
+        selection = PromptSelection(fitted.turns, fitted.included, fitted.omitted, fitted.estimated_tokens,
+                                    fitted.source_ids, episodes)
     context.runtime.environment.write_text(f"scratch/{schema.__name__}-selection.json", selection.receipt().model_dump_json())
     visible = ReflectionContext(experiments=call.context.experiments,
         omitted_experiments=call.context.omitted_experiments, attention_head_id=call.context.attention_head_id,
