@@ -90,6 +90,9 @@ Some mechanisms must evaluate every candidate. They use [`pm.context_render.budg
 Each batch shares one fitted context. The task's own inputs remain complete.
 [`workflows.main_cognition.model_json.batch_internal_prompt`][] adds evidence review when required shared context or a single task exceeds the window.
 Its overflow fallback freezes one common context for every task and retains every task identity for result validation.
+The fallback reserves the measured largest task before fitting shared evidence.
+It does not impose an equal split between a task and its shared context.
+An oversized task receives evidence review before its measured size is reserved.
 An oversized structure receives source-linked evidence reviews before its final attention rating.
 Every member enters a review, and a coverage receipt retains the complete member set.
 The digest allowance comes from the remaining window. Digests remain derived evidence; the stored structure keeps its original records.

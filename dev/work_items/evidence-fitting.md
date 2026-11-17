@@ -60,3 +60,41 @@ Verification on 2026-11-17:
 
 Strict MkDocs build exited 0. Rendered cognition policy text and local HTML
 navigation targets were inspected successfully.
+
+## Retrieval fallback correction
+
+The subsequent eventful-month-20261117-a attempt exposed an untested batching
+path. Its required shared context measured 26,151 tokens and the largest task
+needed 3,415 against a 27,852 ceiling. The fallback incorrectly reserved half
+the input for a task, leaving 13,926 for shared evidence. That artificial
+deficit drove grounding into a 256-token allowance and the stagnation guard
+correctly rejected the unsuccessful compression. The earlier focused gates
+did not exercise batch_internal_prompt; they did not establish this path.
+
+The corrected fallback prepares complete single tasks, reviewing one only
+when it exceeds the real input window. It reserves the largest measured task
+before fitting shared evidence. All final tasks receive the same frozen
+shared context, and retain their identities and coverage contracts.
+
+A focused live gate uses captured shared context and two task packets from
+the failed run. It invokes production batch_internal_prompt with the real
+configured endpoint and runtime. It checks that both tasks remain complete,
+both prompts fit, and shared context is identical across batches. Receipts:
+.runtime/retrieval-budget-20261117/. This gate is not a full retrieval cycle
+or a new month-long simulation. The failed run remains preserved.
+
+
+Retrieval correction verification:
+
+- The final replay-disabled real-endpoint gate required one completion request.
+  It produced batches of 20,066 and 24,837 estimated tokens against 27,852.
+  All task packets remained complete and shared context was identical.
+- Four focused deterministic checks passed; model_json.py passed scoped strict
+  typing. No new month run or complete retrieval cycle was launched.
+- The reported 256-token target was not below the estimator's absolute floor;
+  it was an unsuitable evidence allowance caused by the equal-split fallback.
+  The observed initial failure was 26,151 shared tokens plus a 3,415-token task.
+- The unrelated httpx event-loop shutdown warnings are outside this correction.
+
+The correction passed the strict documentation build (exit 0). The rendered
+batching policy and local navigation targets were inspected.

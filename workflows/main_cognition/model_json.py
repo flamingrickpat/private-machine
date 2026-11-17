@@ -208,14 +208,33 @@ def batch_internal_prompt(context: RoleContext, shared: Sequence[Turn], groups: 
                           instruction: Callable[[Sequence[ContextGroup]], Content]) -> tuple[PromptSelection, ...]:
     """Batch normally; reduce oversized shared evidence or single tasks on overflow.
 
-    The fallback reserves half the input for common context and half for one
-    task. Every task receives the same frozen shared context. Task identities
+    The fallback reserves the measured largest single task before fitting the
+    shared evidence. Every task receives the same frozen shared context. Task identities
     and grants remain original; callers still validate and merge all answers.
     """
     try:
         return batch_prompt(shared, groups, budget, instruction)
     except RequiredContextTooLarge:
-        shared_budget = budget.model_copy(update={"reserved_tokens": budget.reserved_tokens + budget.input_ceiling // 2})
+        task_note = "\nEvaluate this item; the caller combines all batches before deciding."
+        tasks: dict[str, Content] = {}
+        for group in groups:
+            task = instruction([group]) + task_note
+            # Every offered task must be read. Review an oversized task on its
+            # own before reserving its measured size beside shared evidence.
+            task_parts = tuple(replace(part, context=replace(part.context, required=True, reducible=True))
+                if isinstance(part, Text) and part.context is not None else part for part in task.parts)
+            prepared = fit_internal_prompt(context,
+                [Turn("user", Content(task_parts, notes=task.notes))], budget)
+            tasks[group.name] = prepared.turns[0].content
+        largest_task_tokens = max(
+            budget.estimate([Turn("user", tasks[group.name])]) - budget.estimate([]) + 1
+            for group in groups)
+        if largest_task_tokens >= budget.input_ceiling:
+            raise RequiredContextTooLarge(
+                f"One task needs {largest_task_tokens} estimated tokens before shared context; "
+                f"input ceiling is {budget.input_ceiling}.") from None
+        shared_budget = budget.model_copy(update={
+            "reserved_tokens": budget.reserved_tokens + largest_task_tokens})
         selected = fit_internal_prompt(context, shared, shared_budget)
         frozen: list[Turn] = []
         for turn in selected.turns:
@@ -223,13 +242,7 @@ def batch_internal_prompt(context: RoleContext, shared: Sequence[Turn], groups: 
             frozen.append(replace(turn, content=Content(parts, notes=turn.content.notes)))
         batches: list[PromptSelection] = []
         for group in groups:
-            task = instruction([group]) + "\nEvaluate this item; the caller combines all batches before deciding."
-            # Task evidence is never optional, even when its renderer also
-            # serves ordinary optional recall. Every offered item must be read.
-            task_parts = tuple(replace(part, context=replace(part.context, required=True, reducible=True))
-                if isinstance(part, Text) and part.context is not None else part for part in task.parts)
-            task = Content(task_parts, notes=task.notes)
-            fitted = fit_internal_prompt(context, [*frozen, Turn("user", task)], budget)
+            fitted = fit_internal_prompt(context, [*frozen, Turn("user", tasks[group.name])], budget)
             batches.append(PromptSelection(fitted.turns, (group.name,), fitted.omitted, fitted.estimated_tokens,
                                            group.source_ids, group.episode_ids))
         return tuple(batches)
