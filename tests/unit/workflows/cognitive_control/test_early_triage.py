@@ -5,6 +5,8 @@ about model classification or companion behavior; the live gate covers that.
 """
 from __future__ import annotations
 
+from pm.host.application import Application
+
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Event, Thread
@@ -14,11 +16,9 @@ import unittest
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import new_envelope
 from pm.memory.bash_view import MemoryBashTarget
-from pm.memory.store_tools import build_tools
 from pm.memory.snapshot import GhostCancelled
 from pm.memory.snapshot import GhostConflict
 from pm.memory.checkpoint import CommitReceipt
-from pm.memory.read_scope import ReadScope
 from pm.memory.store import MemoryStore
 from pm.memory.write_batch import WriteBatch
 from pm.records.base import RecordScope
@@ -29,7 +29,7 @@ from pm.records.enums import EntityClass, FeatureType, InterlocusType
 from pm.records.memory_records import Entity, Feature
 from workflows.cognitive_control.host import CognitiveControl
 from workflows.cognitive_control.schemas import ControlConfig
-from workflows.inner_thought.graph_host import PrivateInquiryOwner
+from workflows.inner_thought.graph_host import PrivateCommitOwner, PrivateInquiryOwner
 from workflows.inner_thought.nominations import capture_inquiry_grant, read_nomination_batch
 from workflows.inner_thought.schemas import NominationBatch
 from workflows.input_triage.schemas import EarlyTriageAssessment, TriageEvidence
@@ -48,12 +48,12 @@ class EarlyTriageBoundaryTests(unittest.TestCase):
         self.bus = BusSystem()
         self.store = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"))
         self.control = self.controller(self.store)
-        self.input = UserInputProxy("user_input", self.bus, self.fail, time.monotonic, self.store, lambda text: None)
+        self.input = UserInputProxy("user_input", Application(self.bus, []), self.store, lambda text: None)
         self.input.register_triage_input = self.control.register_input
 
     def controller(self, store: MemoryStore) -> CognitiveControl:
         """Construct the real owner and rebuild its accepted control evidence."""
-        control = CognitiveControl("control", self.bus, self.fail, time.monotonic, None, ghost=store)
+        control = CognitiveControl("control", Application(self.bus, []), None, ghost=store)
         control.enable_input_triage()
         return control
 
@@ -61,10 +61,10 @@ class EarlyTriageBoundaryTests(unittest.TestCase):
         """Construct the real public module for its deterministic commit boundary."""
         directory = TemporaryDirectory()
         self.addCleanup(directory.cleanup)
-        module = StoryDialogue("dialogue", self.bus, self.fail, time.monotonic, None,
+        module = StoryDialogue("dialogue", Application(self.bus, []), None,
             ghost=self.store, working_target=MemoryBashTarget(self.store, "read"),
             workflow=Path(__file__).resolve().parents[4] / "workflows/dialogue_story/dialogue_story.workflow.md",
-            runtime_root=Path(directory.name), tools_factory=build_tools)
+            runtime_root=Path(directory.name), tools_factory=None)
         module.cognitive_control = self.control.publication_control()
         self.control.cancel_public_drafts = module.defer_for_critical
         return module
@@ -142,18 +142,28 @@ class EarlyTriageBoundaryTests(unittest.TestCase):
                                 cognitive_control=self.control.publication_control())
         self.assertFalse(any(item.content == "obsolete draft" for item in self.store.all_features))
 
-    def test_clean_restart_preserves_pending_input_and_critical_assessment(self) -> None:
+    def test_checkpoint_retains_triage_evidence_and_restart_resolves_pending_input(self) -> None:
         with TemporaryDirectory() as directory:
             path = Path(directory) / "ghost.pickle"
             self.store.checkpoint = path
+            identity = self.store.begin_batch("companion-identity", embed=False)
+            identity.create(Entity(content="Spamuel", aliases=[], entity_class=EntityClass.Self))
+            identity.preserve_on_recovery()
+            self.store.commit(identity)
             source = self.submit("Critical evidence before interruption")
-            reopened = MemoryStore.from_checkpoint(path)
-            self.assertTrue(self.controller(reopened).reconsideration_required())
+            self.store.save()
+            retained = MemoryStore.from_checkpoint(path, raw=True)
+            self.assertTrue(self.controller(retained).reconsideration_required())
+
             self.assess(source, "Critical")
+            self.store.save()
+            retained = self.controller(MemoryStore.from_checkpoint(path, raw=True))
+            self.assertTrue(retained.has_assessment(source))
+            self.assertTrue(retained.reconsideration_required())
+
             reopened = MemoryStore.from_checkpoint(path)
-            restarted = self.controller(reopened)
-            self.assertTrue(restarted.has_assessment(source))
-            self.assertTrue(restarted.reconsideration_required())
+            self.assertEqual(reopened.get_knoxel_by_id(source).metadata["exchange_status"], "resolved")
+            self.assertFalse(self.controller(reopened).reconsideration_required())
 
     def test_resolved_historical_input_does_not_create_a_permanent_pending_barrier(self) -> None:
         source = self.submit("Already answered")
@@ -288,13 +298,8 @@ class EarlyTriageBoundaryTests(unittest.TestCase):
             scope=RecordScope(), source_ids=[], critical_epoch=0)
         generation = self.control.generation
 
-        def commit_private(changes: WriteBatch) -> None:
-            """Commit through the real control fence, as the private host does."""
-            with ReadScope() as reads:
-                reads.collecting = False
-                self.control.commit_private(changes, generation)
-
-        owner = PrivateInquiryOwner(self.store, commit=commit_private, cancel=Event(), limits=ControlConfig())
+        commit_owner = PrivateCommitOwner(self.store, self.control, generation)
+        owner = PrivateInquiryOwner(self.store, commit_owner=commit_owner, cancel=Event(), limits=ControlConfig())
         source = self.submit("Something arrived while I was thinking.")
         failures: list[BaseException] = []
 

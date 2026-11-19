@@ -167,16 +167,16 @@ class MinecraftStack:
         response.raise_for_status()
 
     def _wait_body(self, timeout: float) -> None:
-        from workflows.minecraft_body.mcp_client import build_minecraft_tools
-        tools = build_minecraft_tools(self.mcp_url)
+        from workflows.minecraft_body.mcp_client import MinecraftTransport, MinecraftTransportSettings
+        transport = MinecraftTransport(MinecraftTransportSettings(endpoint=self.mcp_url), model=None)
         deadline = time.monotonic() + timeout
         last: Exception | None = None
         while time.monotonic() < deadline:
             try:
-                observation = tools["minecraft_call"]("minecraft_observe", {"include_image": False})
-                if observation.get("ok"):
+                observation = transport.call("minecraft_observe", {"include_image": False})
+                if observation["ok"]:
                     return
-                last = RuntimeError(str(observation.get("result")))
+                last = RuntimeError(str(observation["result"]))
             except Exception as error:  # the body is not connected yet
                 last = error
             time.sleep(1.0)

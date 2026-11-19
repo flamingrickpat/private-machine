@@ -1,6 +1,10 @@
 """Give each human speaker of the dialogue input their own entity and exchange."""
 from __future__ import annotations
 
+from tests.support import ManualClock
+
+from pm.host.application import Application
+
 import unittest
 
 from pm.bus.bus import BusSystem
@@ -18,7 +22,7 @@ from workflows.public_speech.user_input import UserInputProxy
 class SpeakerTests(unittest.TestCase):
     def setUp(self):
         self.ghost = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Sunny"))
-        self.proxy = UserInputProxy("user_input", BusSystem(), self.fail, lambda: 0, self.ghost, print)
+        self.proxy = UserInputProxy("user_input", Application(BusSystem(), [], clock=ManualClock(0)), self.ghost, print)
 
     def test_the_default_speaker_is_the_user(self):
         for speaker in (None, "Jesse"):

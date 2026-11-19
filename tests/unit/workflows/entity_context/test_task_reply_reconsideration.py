@@ -5,6 +5,10 @@ reporting authority and reconsideration, not external task or model quality.
 """
 from __future__ import annotations
 
+from workflows.memory_consolidation.artifact_consolidation import Consolidator
+
+from pm.host.application import Application
+
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import time
@@ -56,10 +60,10 @@ class TaskReplyReconsiderationTests(unittest.TestCase):
 
     def main_host(self, store: MemoryStore, bus: BusSystem, runtime_root: Path) -> MainCogLoop:
         """Construct the production host without starting a generation worker."""
-        return MainCogLoop("main_cog", bus, self.fail, time.monotonic, None,
+        return MainCogLoop("main_cog", Application(bus, []), None,
             ghost=store, working_target=MemoryBashTarget(store),
             workflow=ROOT / "workflows/main_cognition/main_cognition.workflow.md",
-            tools_factory=build_tools, runtime_root=runtime_root)
+            tools_factory=build_tools, runtime_root=runtime_root, consolidator=Consolidator(store))
 
     def test_cancelled_task_reply_and_reconsideration_survive_clean_restart(self) -> None:
         with TemporaryDirectory() as directory:
@@ -77,7 +81,7 @@ class TaskReplyReconsiderationTests(unittest.TestCase):
 
             bus.subscribe("task-report-evidence", lambda envelope: envelope.topic in {
                 "action.request", "entity.action_reconsider"}, collect)
-            proxy = UserInputProxy("user_input", bus, self.fail, time.monotonic, store, lambda text: None)
+            proxy = UserInputProxy("user_input", Application(bus, []), store, lambda text: None)
             correlation = proxy.submit("Please report the outcome of this selected task.")
             source = exchange_record(store, correlation)
             assert source is not None
@@ -105,7 +109,7 @@ class TaskReplyReconsiderationTests(unittest.TestCase):
             terminal_batch.set_run_receipt(terminal.run_id, receipt)
             store.commit(terminal_batch)
             supervisor = ManagedRunSupervisor(store, runtime_root=runtime_root, workflows={}, clock=time.monotonic)
-            recovery = ReplyRecovery("reply_recovery", bus, self.fail, time.monotonic, None,
+            recovery = ReplyRecovery("reply_recovery", Application(bus, []), None,
                                      ghost=store, supervisor=supervisor)
             recovery.reply_to_task(receipt)
             requests = [event for event in events if event.topic == "action.request"]

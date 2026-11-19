@@ -60,7 +60,7 @@ class ManagementWiringTests(unittest.TestCase):
             ghost = fresh_ghost(load_seed_state())
             app = build_app(
                 None, Path(tmp), ghost=ghost, cognition="real",
-                stage_model=StubStageModel(), clock=time.monotonic,
+                stage_model=StubStageModel(), clock=None,
             )
             names = {item.name for item in app.main_cog.workflow_catalogue}
             self.assertIn("focus_management", names)
@@ -77,7 +77,7 @@ class ManagementWiringTests(unittest.TestCase):
             ghost = fresh_ghost(load_seed_state())
             app = build_app(
                 None, root, ghost=ghost, cognition="real",
-                stage_model=StubStageModel(), clock=time.monotonic,
+                stage_model=StubStageModel(), clock=None,
             )
             receipts = Recorder(app.bus, "action.receipt")
             app.self_management.mailbox.put(Envelope(
@@ -120,7 +120,7 @@ class ManagementWiringTests(unittest.TestCase):
             completions = [{"choices": [{"message": {"content": "Wired and watching."}}]}]
             app = build_app(
                 None, root, ghost=ghost, cognition="real",
-                stage_model=StubStageModel(completions), clock=time.monotonic,
+                stage_model=StubStageModel(completions), clock=None,
             )
             # This local text-wiring check has no game evidence. Do not let
             # an independent live fixture change its capability input mid-run.
@@ -151,7 +151,7 @@ class ManagementWiringTests(unittest.TestCase):
             model = StubStageModel()
             app = build_app(
                 None, Path(tmp), ghost=ghost, cognition="real",
-                stage_model=model, clock=time.monotonic,
+                stage_model=model, clock=None,
             )
             self.assertIsNotNone(app.assistant)
             self.assertIsNotNone(app.self_management)
@@ -167,7 +167,7 @@ class ManagementWiringTests(unittest.TestCase):
             ghost = fresh_ghost(load_seed_state())
             app = build_app(
                 None, Path(tmp), ghost=ghost, cognition="real",
-                stage_model=StubStageModel(), clock=time.monotonic,
+                stage_model=StubStageModel(), clock=None,
             )
             receipts = Recorder(app.bus, "action.receipt")
             app.steward_module.mailbox.put(Envelope(

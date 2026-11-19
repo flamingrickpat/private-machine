@@ -112,7 +112,7 @@ class RuntimeControl:
                 "error": repr(app.error) if app.error else None,
                 "modules": [{"id": item.module_id, "working": item.working,
                              "queued": item.mailbox.pending(), "parked": getattr(item, "_pending", None) is not None,
-                             "next_tick": item._next_tick} for item in app.modules]}
+                             "next_tick": item.next_tick_seconds} for item in app.modules]}
 
     def next_due(self) -> str | None:
         """Return the next semantic timer deadline, excluding empty polling.
@@ -130,8 +130,8 @@ class RuntimeControl:
             if waits:
                 return datetime.fromisoformat(waits[-1].metadata["wake_at"]).replace(tzinfo=now.tzinfo).isoformat()
             return None
-        due = [now + timedelta(seconds=max(0, item._next_tick - item.clock()))
-               for item in self.app.modules if item._next_tick is not None and not item.draining
+        due = [now + timedelta(seconds=max(0, item.next_tick_seconds - self.app.clock.monotonic()))
+               for item in self.app.modules if item.next_tick_seconds is not None and not item.draining
                and item.module_id not in {"scheduler", "cognitive_control"}]
         return min(due).isoformat() if due else None
 

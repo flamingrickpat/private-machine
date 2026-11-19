@@ -99,7 +99,7 @@ class IntervalReview(BaseModel):
                                            "starts the frontier and reviews nothing.")
     moves: list[IntervalMove] = Field(description="Actions in the interval, oldest first.")
     suspensions: list[GuidanceSuspension] = Field(description="Set-aside guidance in the interval, oldest first.")
-    inhibitions: list[InhibitedMove] = Field(default_factory=list,
+    inhibitions: list[InhibitedMove] = Field(default_factory=list[InhibitedMove],
         description="Proposed ordinary moves that were withheld, with their actual inhibition reasons.")
 
 

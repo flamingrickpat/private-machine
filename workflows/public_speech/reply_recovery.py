@@ -25,7 +25,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from dataclasses import dataclass
-from pm.bus.bus import BusSystem
+from pm.host.application import Application
 import json
 from typing import TYPE_CHECKING, Any
 from collections.abc import Callable
@@ -167,10 +167,9 @@ class ReplyRecovery(BusModule):
 
     DATA_TOPICS = frozenset({"workflow.event", "workflow.question", "action.receipt", "public.resume"})
 
-    def __init__(self, module_id: str, bus: BusSystem, on_error: Callable[[BaseException], None],
-                 clock: Callable[[], float], tick_seconds: float | None, *, ghost: MemoryStore,
+    def __init__(self, module_id: str, application: Application, tick_seconds: float | None, *, ghost: MemoryStore,
                  supervisor: ManagedRunSupervisor) -> None:
-        super().__init__(module_id, bus, on_error, clock, tick_seconds)
+        super().__init__(module_id, application, tick_seconds)
         self.ghost = ghost
         self.supervisor = supervisor
         self.selection: ReplyRecoverySelection | None = None

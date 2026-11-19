@@ -37,9 +37,15 @@ def check(name: str, ok: bool) -> None:
     print(f"{'PASS' if ok else 'FAIL'}  {name}")
 
 
-class ManualClock:
+from pm.vclock import SystemClock
+
+
+class ManualClock(SystemClock):
     def __init__(self):
         self.value = 0.0
+
+    def monotonic(self) -> float:
+        return self.value
 
     def __call__(self):
         return self.value

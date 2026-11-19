@@ -1,5 +1,7 @@
 """Check world-event commit and cancellation with a retained real observation."""
 
+from pm.host.application import Application
+
 from pm.records.copying import pickle_copy
 import json
 from pathlib import Path
@@ -23,7 +25,7 @@ class WorldEventTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.clock, self.bus, self.ghost = ManualClock(), BusSystem(), small_ghost()
         self.events = Recorder(self.bus, "minecraft.world")
-        self.module = WorldEvents("world_events", self.bus, self.fail, self.clock, 10,
+        self.module = WorldEvents("world_events", Application(self.bus, [], clock=self.clock), 10,
                                   ghost=self.ghost, observe=lambda: {"ok": True, "result": pickle_copy(self.observation)},
                                   journal=Path(self.tmp.name) / "events.jsonl", quiet_seconds=20)
 

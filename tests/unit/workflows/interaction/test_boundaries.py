@@ -5,6 +5,8 @@ choices. The live gate exercises the actual selection and speech kernels.
 """
 from __future__ import annotations
 
+from pm.host.application import Application
+
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import time
@@ -47,12 +49,12 @@ class InteractionBoundaryTests(unittest.TestCase):
         for name, kind in (("Spamuel", EntityClass.Self), ("Jesse", EntityClass.Human)):
             self.store.store_knoxel(Entity(content=name, aliases=[], entity_class=kind))
         self.accept_main([], [])
-        self.control = CognitiveControl("control", self.bus, self.fail, time.monotonic, None, ghost=self.store)
+        self.control = CognitiveControl("control", Application(self.bus, []), None, ghost=self.store)
         self.control.enable_input_triage()
-        self.input = UserInputProxy("user_input", self.bus, self.fail, time.monotonic, self.store, lambda text: None)
+        self.input = UserInputProxy("user_input", Application(self.bus, []), self.store, lambda text: None)
         self.input.register_triage_input = self.control.register_input
         self.target = MemoryBashTarget(self.store, recovery_only=True)
-        self.module = Interaction("interaction", self.bus, self.fail, time.monotonic, None,
+        self.module = Interaction("interaction", Application(self.bus, []), None,
             ghost=self.store, working_target=self.target,
             workflow=ROOT / "workflows/interaction/interaction.workflow.md",
             runtime_root=Path(self.directory.name), tools_factory=build_tools)

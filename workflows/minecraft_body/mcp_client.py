@@ -14,6 +14,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
 from typing import TypedDict
+from workflows.minecraft_body.lease import BodyEpoch
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 from mcp.types import ContentBlock, ImageContent
@@ -102,13 +103,6 @@ class MinecraftTransportSettings(BaseModel):
     request_timeout_seconds: int = MCP_REQUEST_TIMEOUT_SECONDS
 
 
-class BodyEpoch(BaseModel):
-    model_config = ConfigDict(extra="ignore", frozen=True)
-    owner: str
-    epoch: int
-    session: str
-
-
 class BodyCallSettings(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     epoch: BodyEpoch | None = None
@@ -164,16 +158,6 @@ class MinecraftTransport:
 
     def tool_schema_wire(self) -> list[dict[str, JsonValue]]:
         return [tool.model_dump(mode="json") for tool in self.tool_schemas()]
-
-    def fenced_call_wire(self, name: str, arguments: dict[str, JsonValue], token: dict[str, JsonValue]) -> MinecraftToolReply:
-        return self.fenced_call(name, arguments, BodyEpoch.model_validate(token))
-
-    def claim_wire(self, token: dict[str, JsonValue]) -> MinecraftToolReply:
-        return self.claim(BodyEpoch.model_validate(token))
-
-    def release_wire(self, token: dict[str, JsonValue]) -> MinecraftToolReply:
-        return self.release(BodyEpoch.model_validate(token))
-
 
 
 class MinecraftPlanner:

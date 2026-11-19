@@ -6,6 +6,10 @@ scripted model that answers each phase from a fixed stage report fixture.
 """
 from __future__ import annotations
 
+from workflows.memory_consolidation.artifact_consolidation import Consolidator
+
+from pm.host.application import Application
+
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -76,12 +80,13 @@ def _module(ghost, reports, tmp, module_id="main_cog"):
     bus = BusSystem()
     errors: list[BaseException] = []
     module = MainCogLoop(
-        module_id, bus, errors.append, ManualClock(), None,
+        module_id, Application(bus, [], clock=ManualClock()), None,
         working_target=MemoryBashTarget(ghost, "read"),
         workflow=REAL_MANIFEST,
         tools_factory=scripted_tools(ScriptedModel(reports=reports)),
         runtime_root=Path(tmp) / "runtime",
         ghost=ghost,
+        consolidator=Consolidator(ghost),
     )
     bus.subscribe(module.module_id, module.accepts, module.deliver)
     return module, bus, errors
@@ -372,7 +377,7 @@ class EventOriginTests(unittest.TestCase):
             bus = BusSystem()
             errors: list[BaseException] = []
             module = InnerThoughtLoop(
-                "inner_thought", bus, errors.append, ManualClock(), None,
+                "inner_thought", Application(bus, [], clock=ManualClock()), None,
                 working_target=MemoryBashTarget(ghost, "read"),
                 workflow=INNER_MANIFEST,
                 tools_factory=lambda environment, batch: {},

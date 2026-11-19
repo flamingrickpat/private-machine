@@ -7,6 +7,8 @@ Empty nominations and unselected concerns remain actual outcomes, not passes.
 """
 from __future__ import annotations
 
+from pm.host.application import Application
+
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import hashlib
@@ -240,11 +242,11 @@ class LivePrivateInquiryTests(unittest.TestCase):
                 stream.write(envelope.to_json() + "\n")
 
         bus.subscribe("private_inquiry_evidence", lambda envelope: True, observe)
-        control = CognitiveControl("control", bus, self.fail, time.monotonic, None, ghost=store)
+        control = CognitiveControl("control", Application(bus, []), None, ghost=store)
         control.enable_input_triage()
         self.assertFalse(control.reconsideration_required(), "NOT RUN — retained checkpoint requires real Critical reconsideration.")
         self.assertFalse(control.waiting(), "NOT RUN — retained checkpoint contains an accepted wait.")
-        module = PrivateThoughtLoop("inner_thought", bus, self.fail, time.monotonic, None, ghost=store,
+        module = PrivateThoughtLoop("inner_thought", Application(bus, []), None, ghost=store,
             working_target=MemoryBashTarget(store, "read"),
             workflow=ROOT / "workflows/inner_thought/inner_thought.workflow.md", runtime_root=out,
             tools_factory=build_inner_thought_tools(store, out, model.complete,

@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from workflows.minecraft_body.world_text import WorldObservation, WorldItem, NearbyBlock, render_world_observation
 from workflows.minecraft_project.schemas import Point
 from pm.bus.envelopes import Envelope, new_envelope, new_id
-from pm.host.application import BusModule
+from pm.host.application import Application, BusModule
 from pm.memory.snapshot import GhostCancelled
 from pm.records.enums import FeatureType, SourceKind
 from pm.records.memory_records import new_feature
@@ -168,10 +168,11 @@ class WorldEvents(BusModule):
 
     DATA_TOPICS = frozenset({"gwt.updated", "action.receipt", "user.input"})
 
-    def __init__(self, *args: Any, ghost: MemoryStore, observe: Callable[[], dict[str, Any]],
-                 journal: Path, quiet_seconds: float = 120.0, **kwargs: Any) -> None:
+    def __init__(self, module_id: str, application: Application, tick_seconds: float | None,
+                 *, ghost: MemoryStore, observe: Callable[[], dict[str, Any]],
+                 journal: Path, quiet_seconds: float = 120.0) -> None:
         """Forward the module configuration and retain the observation source."""
-        super().__init__(*args, **kwargs)
+        super().__init__(module_id, application, tick_seconds)
         self.ghost = ghost
         self.observe = observe
         self.journal = Path(journal)
@@ -180,7 +181,7 @@ class WorldEvents(BusModule):
         self.pending_correlation = ""
         self.last_conditions: WorldConditions | None = None
         self.retry_observation = False
-        self.last_user_at = self.clock()
+        self.last_user_at = self.application.clock.monotonic()
 
     def _record(self, row: dict) -> None:
         self.journal.parent.mkdir(parents=True, exist_ok=True)
@@ -190,7 +191,7 @@ class WorldEvents(BusModule):
     def deliver(self, envelope: Envelope) -> None:
         """Record user arrival before a queued observation can finish."""
         if envelope.topic == "user.input" and envelope.kind == "data":
-            self.last_user_at = self.clock()
+            self.last_user_at = self.application.clock.monotonic()
         super().deliver(envelope)
 
     def _active_work(self) -> bool:
@@ -218,7 +219,7 @@ class WorldEvents(BusModule):
                     and envelope.payload.get("recovery_outcome") == "cycle_rejected"):
                 self.pending_id = None
                 self.retry_observation = True
-        silent = self.clock() - self.last_user_at >= self.quiet_seconds
+        silent = self.application.clock.monotonic() - self.last_user_at >= self.quiet_seconds
         if batch or self.pending_id is not None or not (silent or self.last_conditions is not None and self._active_work()):
             return
         requested_at = vclock.now_aware().isoformat()
@@ -229,7 +230,7 @@ class WorldEvents(BusModule):
             return
         if self.stop_event.is_set():
             return
-        silent = self.clock() - self.last_user_at >= self.quiet_seconds
+        silent = self.application.clock.monotonic() - self.last_user_at >= self.quiet_seconds
         if not silent and not (self.last_conditions is not None and self._active_work()):
             return
         observed_at = vclock.now_aware().isoformat()

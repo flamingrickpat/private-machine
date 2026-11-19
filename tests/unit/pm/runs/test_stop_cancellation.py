@@ -6,6 +6,8 @@ regression pin so a future change cannot reintroduce the crash.
 """
 from __future__ import annotations
 
+from pm.host.application import Application
+
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import threading
@@ -83,7 +85,7 @@ class StopCancellationTests(unittest.TestCase):
 
             from tests.unit.test_design_contracts import small_ghost
             module = StoppingModule(
-                "stopping_module", BusSystem(), errors.append, ManualClock(), None,
+                "stopping_module", Application(BusSystem(), [], clock=ManualClock()), None,
                 working_target=MemoryBashTarget(small_ghost(), "read"), workflow=manifest,
                 tools_factory=lambda environment, batch: {"await_stop": await_stop},
                 runtime_root=Path(tmp),

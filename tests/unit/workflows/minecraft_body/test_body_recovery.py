@@ -76,7 +76,7 @@ class RecoveryTests(unittest.TestCase):
         script = "from pathlib import Path; import sys; from workflows.minecraft_body.lease import BodyLeases; " \
                  "lease=BodyLeases(Path(sys.argv[1])); " \
                  "scope=lease.acquire('http://localhost:6767/mcp/','child'); " \
-                 "token=scope.__enter__(); print(token['epoch'],flush=True); sys.stdin.readline(); scope.__exit__(None,None,None)"
+                 "token=scope.__enter__(); print(token.epoch,flush=True); sys.stdin.readline(); scope.__exit__(None,None,None)"
         process = OperatingSystem.start_text_process(
             [sys.executable, "-c", script, str(self.root)],
             stdin=OperatingSystem.pipe,
@@ -94,7 +94,7 @@ class RecoveryTests(unittest.TestCase):
             process.wait(10)
             self.assertEqual(process.returncode, 0)
             with leases.acquire("http://127.0.0.1:6767/mcp", "parent") as token:
-                self.assertGreater(token["epoch"], first_epoch)
+                self.assertGreater(token.epoch, first_epoch)
         finally:
             if process.poll() is None:
                 from dev.work_items.alpha_a12_recovery_gate import kill_worker

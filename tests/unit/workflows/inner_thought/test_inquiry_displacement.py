@@ -11,6 +11,10 @@ The generated behaviour belongs to the recorded scenario and the live gates.
 """
 from __future__ import annotations
 
+from pm.vclock import VirtualClock
+
+from pm.host.application import Application
+
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
@@ -533,10 +537,10 @@ class ControlDisplacementTests(DisplacementFixture):
     def setUp(self) -> None:
         super().setUp()
         self.bus: BusSystem = BusSystem()
-        self.control: CognitiveControl = CognitiveControl("control", self.bus, self.fail, time.monotonic, None,
+        self.control: CognitiveControl = CognitiveControl("control", Application(self.bus, []), None,
                                                           ghost=self.store)
         self.control.enable_input_triage()
-        self.input: UserInputProxy = UserInputProxy("user_input", self.bus, self.fail, time.monotonic, self.store,
+        self.input: UserInputProxy = UserInputProxy("user_input", Application(self.bus, []), self.store,
                                                     lambda text: None)
         self.input.register_triage_input = self.control.register_input
         self.old_epoch = self.control.publication_epoch()

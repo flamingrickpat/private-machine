@@ -4,6 +4,8 @@ Real model, real MCP management tools, real local managed run. The model is
 asked to read a run's status and must actually execute the granted tool. The
 reply is committed only when a receipt supports its claim.
 """
+
+from pm.host.application import Application
 import json
 import time
 import unittest
@@ -76,7 +78,7 @@ class LiveAssistantTests(unittest.TestCase):
             model = LazyStageModel(resolve_connection(self.config), ModelActivation())
             bus = BusSystem()
             module = AssistantDialogue(
-                "assistant", bus, self.fail, time.monotonic, None,
+                "assistant", Application(bus, []), None,
                 working_target=MemoryBashTarget(ghost, mode="read"),
                 workflow=ASSISTANT_MANIFEST,
                 tools_factory=build_assistant_tools(model, supervisor),

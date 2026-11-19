@@ -50,10 +50,6 @@ from workflows.dialogue_assistant.schemas import (
 
 WORKFLOW_DIR = Path(__file__).resolve().parent
 
-#: Corrections asked for on one conversation before generation restarts cold.
-REPAIR_FOLLOWUPS = 10
-
-
 class ToolExecutionError(RuntimeError):
     """A remote tool reports failure after the request reaches its transport."""
 
@@ -312,11 +308,8 @@ def review_and_revise(request: AssistantRequest, candidate: str, messages: list[
     Each block appends the rejected words and the block reason to the
     conversation and asks for one new completion. That follow-up call carries
     no tools: the tool budget ran once in the caller, so a repair can change
-    the words and can never change the world. After ``REPAIR_FOLLOWUPS``
-    corrections on one conversation, the next call reads the retained
-    transcript alone. A long repair chain repeats its own wrong claims, so the
-    chain is dropped rather than extended. There is no total limit; the loop
-    stops only on an accepted draft, on cancellation, or on empty output.
+    the words and can never change the world. Each attempt uses the retained
+    transcript and the latest review diagnostic. The capture retains the rejected answer.
 
     Return the accepted utterance, its review, and every rejected draft with
     its correction request, oldest first, for the report transcript.
@@ -327,10 +320,9 @@ def review_and_revise(request: AssistantRequest, candidate: str, messages: list[
     review_prompts = load_review_prompts()
     conversation = review_conversation(request)
     receipt_payloads = tuple(item.evidence() for item in receipts)
-    retained = list(messages)
+    retained = tuple(messages)
     trail: list[AssistantMessage] = []
     text = candidate
-    followups = 0
     attempts = 0
     while True:
         attempts += 1
@@ -345,20 +337,17 @@ def review_and_revise(request: AssistantRequest, candidate: str, messages: list[
                 print(f"[dialogue_assistant] Reply accepted after {attempts} attempts.", flush=True)
             return text, review, trail
         print(f"[dialogue_assistant] Reply rejected (attempt {attempts}): {reason}", flush=True)
-        correction = [AssistantMessage(role=Role.Assistant, content=text),
-                      AssistantMessage(role=Role.User,
-                                       content=prompts["rejected_reply_recovery"].format(reason=reason))]
-        trail = [*trail, *correction]
-        if followups >= REPAIR_FOLLOWUPS:
-            print("[dialogue_assistant] Ten follow-ups failed. Restarting from the retained transcript.",
-                  flush=True)
-            followups = 0
-        else:
-            print(f"[dialogue_assistant] Requesting correction {followups + 1}/{REPAIR_FOLLOWUPS}.", flush=True)
-            followups += 1
-        message = parse_completion(asyncio.run(
-            complete.complete_tools_async(capture_assistant_continuation(complete, AssistantContinuationInput(tuple(retained), (), request.images, prompts.get("generation", GenerationSettings()),
-                problem=prompts["rejected_reply_recovery"].format(reason=reason), rejected_answer=text)).turns, tools=(), settings=prompts.get("generation", GenerationSettings()))))
+        problem = prompts["rejected_reply_recovery"].format(reason=reason)
+        trail.append(AssistantMessage(role=Role.Assistant, content=text))
+        trail.append(AssistantMessage(role=Role.User, content=problem))
+        generation = prompts.get("generation", GenerationSettings())
+        repair_input = AssistantContinuationInput(
+            messages=retained, tools=(), images=request.images, generation=generation,
+            problem=problem, rejected_answer=text,
+        )
+        rendered = capture_assistant_continuation(complete, repair_input)
+        completion = asyncio.run(complete.complete_tools_async(rendered.turns, tools=(), settings=generation))
+        message = parse_completion(completion)
         text = final_public_speech(message.content.strip(), request)
 
 

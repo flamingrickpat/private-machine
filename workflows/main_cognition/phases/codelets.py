@@ -77,7 +77,7 @@ from pm.records.workspace import ShardKey
 from workflows.inference_settings import CODELET_WORKERS
 from workflows.main_cognition.affect import percept_affect
 from workflows.main_cognition.codelet_percepts import (
-    HEADER_FIELDS, PerceptConversionCheck, CodeletPerceptType, container_model, percept_items, percept_text, sample_percept_types, schema_text,
+    PerceptConversionCheck, CodeletPerceptType, container_model, percept_items, percept_text, sample_percept_types, schema_text,
 )
 from workflows.main_cognition.codelet_registry import (
     CodeletDefinition, activation_score, add_rating, apply_pathway_boost, fill,
@@ -193,8 +193,7 @@ def convert(context: RoleContext, work: CycleWork, frame: CodeletFrame, asked: l
     answer = complete(context, messages, container_model(types, "PerceptConversion"),
                       validation_context=PerceptConversionCheck(allowed_ids=frozenset(allowed_ids)))
     percepts = [VariantPercept(percept_type=kind.value, text=percept_text(kind, percept),
-                               details={name: getattr(percept, name) for name in type(percept).model_fields
-                                        if name not in HEADER_FIELDS},
+                               details=percept.story_fields(),
                                salience=percept.salience, valence=percept.valence,
                                appraisal_general=percept.general(), appraisal_social=percept.social())
                 for kind, percept in percept_items(answer)]

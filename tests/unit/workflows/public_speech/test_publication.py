@@ -1,6 +1,10 @@
 """State, source, and publication boundaries. Live prose uses separate gates."""
 from __future__ import annotations
 
+from tests.support import ManualClock
+
+from pm.host.application import Application
+
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -26,7 +30,7 @@ class PublicationTests(unittest.TestCase):
     def setUp(self):
         self.ghost = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"))
         self.bus = BusSystem()
-        self.proxy = UserInputProxy("user_input", self.bus, self.fail, lambda: 0, self.ghost, lambda text: None)
+        self.proxy = UserInputProxy("user_input", Application(self.bus, [], clock=ManualClock(0)), self.ghost, lambda text: None)
         self.tmp = TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
 
@@ -65,7 +69,7 @@ class PublicationTests(unittest.TestCase):
             with self.subTest(status=status), TemporaryDirectory() as tmp:
                 correlation = self.proxy.submit("Keep this source unchanged.")
                 source = exchange_record(self.ghost, correlation)
-                module = StoryDialogue("dialogue", self.bus, self.fail, lambda: 0, None,
+                module = StoryDialogue("dialogue", Application(self.bus, [], clock=ManualClock(0)), None,
                     working_target=MemoryBashTarget(self.ghost, "read"),
                     workflow=MANIFEST, tools_factory=lambda environment, batch: {},
                     runtime_root=Path(tmp), ghost=self.ghost)
@@ -90,7 +94,7 @@ class PublicationTests(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             correlation = self.proxy.submit("Reply after a transport error.")
             source = exchange_record(self.ghost, correlation)
-            module = StoryDialogue("dialogue", self.bus, self.fail, lambda: 0, None,
+            module = StoryDialogue("dialogue", Application(self.bus, [], clock=ManualClock(0)), None,
                 working_target=MemoryBashTarget(self.ghost, "read"), workflow=MANIFEST,
                 tools_factory=lambda environment, batch: {}, runtime_root=Path(tmp), ghost=self.ghost)
             module._public_context = build_public_context(self.ghost, ActionRequest(stimuli=[Stimulus(knoxel_id=source.id)]))
@@ -110,7 +114,7 @@ class PublicationTests(unittest.TestCase):
             restored = MemoryStore.from_checkpoint(self.ghost.checkpoint, raw=True)
             self.assertEqual(exchange_record(restored, correlation).metadata["public_reply_id"], reply_id)
             self.assertIsNone(commit_public_reply(restored, "Duplicate answer.", correlation, commit_id="duplicate"))
-            recovery = ReplyRecovery("reply_recovery", self.bus, self.fail, lambda: 0, None,
+            recovery = ReplyRecovery("reply_recovery", Application(self.bus, [], clock=ManualClock(0)), None,
                                      ghost=restored, supervisor=self.supervisor(restored))
             from tests.support import Recorder
             replies = Recorder(self.bus, "dialogue.reply")
@@ -154,7 +158,7 @@ class PublicationTests(unittest.TestCase):
         source = exchange_record(self.ghost, correlation)
         from tests.support import Recorder
         inputs = Recorder(self.bus, "user.input")
-        recovery = ReplyRecovery("reply_recovery", self.bus, self.fail, lambda: 0, None,
+        recovery = ReplyRecovery("reply_recovery", Application(self.bus, [], clock=ManualClock(0)), None,
                                  ghost=self.ghost, supervisor=self.supervisor(self.ghost))
         recovery.resume()
         self.assertEqual(inputs.events[0].correlation_id, correlation)
@@ -163,7 +167,7 @@ class PublicationTests(unittest.TestCase):
 
     def test_rejected_task_request_asks_for_agent_written_speech(self):
         correlation = self.proxy.submit("An unavailable task request.")
-        recovery = ReplyRecovery("reply_recovery", self.bus, self.fail, lambda: 0, None,
+        recovery = ReplyRecovery("reply_recovery", Application(self.bus, [], clock=ManualClock(0)), None,
                                  ghost=self.ghost, supervisor=self.supervisor(self.ghost))
         from tests.support import Recorder
         actions = Recorder(self.bus, "action.request")

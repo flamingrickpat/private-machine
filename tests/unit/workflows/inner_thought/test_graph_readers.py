@@ -8,6 +8,8 @@ did. A linear thought keeps its legacy read.
 """
 from __future__ import annotations
 
+from pm.host.application import Application
+
 import unittest
 from datetime import datetime
 from pathlib import Path
@@ -135,7 +137,7 @@ class GraphReaderTests(unittest.TestCase):
             return build_inner_thought_tools(self.store, self.runtime_root, None,
                 inquiry_provider=refuse_private_inquiry)(environment, batch)
 
-        return PrivateThoughtLoop("inner_thought", bus, errors.append, ManualClock(), None,
+        return PrivateThoughtLoop("inner_thought", Application(bus, [], clock=ManualClock()), None,
             working_target=MemoryBashTarget(self.store, "read"), workflow=MANIFEST,
             tools_factory=tools_factory, runtime_root=self.runtime_root, ghost=self.store)
 

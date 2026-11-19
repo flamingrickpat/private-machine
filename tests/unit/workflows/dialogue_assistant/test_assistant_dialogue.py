@@ -6,6 +6,10 @@ model behavior is covered separately in ``tests/live``.
 """
 from __future__ import annotations
 
+from tests.support import ManualClock
+
+from pm.host.application import Application
+
 import json
 from contextlib import redirect_stdout
 from io import StringIO
@@ -17,7 +21,7 @@ import unittest
 from pm_workflows.runtime import WorkflowRuntime
 
 from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
-from workflows.minecraft_body.mcp_client import build_minecraft_tools
+from workflows.minecraft_body.mcp_client import MinecraftTransport, MinecraftTransportSettings
 from workflows.dialogue_assistant import steps
 from workflows.dialogue_assistant.schemas import (
     AssistantMessage,
@@ -199,18 +203,21 @@ class RepairTests(unittest.TestCase):
         self.assertIn("Reply rejected (attempt 1): claimed a cleared floor", output)
         self.assertIn("Reply accepted after 2 attempts", output)
 
-    def test_ten_followups_restart_from_the_retained_transcript(self):
-        drafts = ["The floor is clear."] * 25 + ["Nothing got cleared."]
-        text, _spoken, _trail, calls, output = self.revise(drafts, [True] * 25 + [False])
-        self.assertEqual(text, "Nothing got cleared.")
-        self.assertEqual(len(calls), 25)
-        # The 11th and the 22nd repair call read the retained transcript alone.
-        for index in (10, 21):
-            self.assertEqual([turn.role.value for turn in calls[index][0]], ["user", "assistant", "tool"])
-        self.assertEqual(max(len(call[0]) for call in calls), 3 + 2 * steps.REPAIR_FOLLOWUPS)
-        self.assertIn("Requesting correction 10/10", output)
-        self.assertEqual(output.count("Restarting from the retained transcript"), 2)
-        self.assertIn("Reply accepted after 26 attempts", output)
+    def test_repair_renders_only_the_current_diagnostic(self) -> None:
+        from pm.context_render.prompt import RenderSettings
+        from workflows.dialogue_assistant.rendering import AssistantContinuationInput, render_assistant_continuation
+
+        settings = RenderSettings(context_window=32000, input_fraction=0.8, reserved_output_tokens=2048)
+        messages = (AssistantMessage(role="user", content="Did the task finish?"),)
+        for attempt in range(1, 26):
+            problem = f"Missing evidence for claim {attempt}."
+            repair = AssistantContinuationInput(messages=messages, tools=(), problem=problem,
+                                                rejected_answer="The task finished.")
+            rendered = render_assistant_continuation(repair, settings)
+            self.assertEqual(len(rendered.turns), 2)
+            self.assertEqual(rendered.turns[0].content.text, messages[0].content)
+            self.assertIn(problem, rendered.turns[1].content.text)
+            self.assertNotIn(repair.rejected_answer, rendered.turns[1].content.text)
 
     def test_a_management_claim_without_a_receipt_is_blocked_the_same_way(self):
         request = AssistantRequest(
@@ -264,7 +271,7 @@ class KernelTests(unittest.TestCase):
         direct.update(extra_tools or {})
         # Keep the new manifest grant connected to the real client. These
         # retained dialogue fixtures do not execute the Minecraft read.
-        minecraft = build_minecraft_tools()["minecraft_call"]
+        minecraft = MinecraftTransport(MinecraftTransportSettings(), model=None).call
         direct["minecraft_observe"] = lambda include_image=False: minecraft("minecraft_observe", {"include_image": include_image})
         environment = MemoryBashEnvironment({}, {}, "read")
         runtime = WorkflowRuntime(
@@ -377,7 +384,7 @@ class AssistantModuleTests(unittest.TestCase):
 
         bus = BusSystem()
         module = AssistantDialogue(
-            "dialogue", bus, self.fail, lambda: 1.0, None,
+            "dialogue", Application(bus, [], clock=ManualClock(1.0)), None,
             working_target=MemoryBashTarget(ghost, mode="read"),
             workflow=MANIFEST,
             tools_factory=build_assistant_tools(FakeModel(), supervisor),

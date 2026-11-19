@@ -12,6 +12,8 @@ The graph path has its own contract and unit checks.
 """
 from __future__ import annotations
 
+from pm.host.application import Application
+
 import json
 import threading
 from datetime import datetime, timedelta, timezone
@@ -173,7 +175,7 @@ class ModelProposalBoundaryTests(unittest.TestCase):
         errors = []
         runtime_root = Path(root) / "runtime"
         module = FrozenInputLoop(
-            "inner_thought", bus, errors.append, ManualClock(), None,
+            "inner_thought", Application(bus, [], clock=ManualClock()), None,
             working_target=MemoryBashTarget(ghost, "read"), workflow=MANIFEST,
             tools_factory=build_inner_thought_tools(
                 ghost, runtime_root, llm_complete,

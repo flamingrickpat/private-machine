@@ -6,6 +6,8 @@ it does not establish character quality or full-cycle action selection.
 """
 from __future__ import annotations
 
+from pm.host.application import Application
+
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
@@ -105,11 +107,11 @@ class LiveEntityContextTests(unittest.TestCase):
         previous_clock = vclock.active()
         vclock.install(clock)
         bus = BusSystem()
-        control = CognitiveControl("control", bus, self.fail, time.monotonic, None, ghost=store)
+        control = CognitiveControl("control", Application(bus, []), None, ghost=store)
         control.enable_input_triage()
         owner = EntityContextOwner(store)
         control.entity_context_owner = owner
-        module = InputTriage("input_triage", bus, self.fail, time.monotonic, None, ghost=store,
+        module = InputTriage("input_triage", Application(bus, []), None, ghost=store,
             working_target=MemoryBashTarget(store, "read", recovery_only=True),
             workflow=ROOT / "workflows/input_triage/input_triage.workflow.md", runtime_root=out,
             tools_factory=build_main_cognition_tools(store, out, model.complete,
@@ -117,7 +119,7 @@ class LiveEntityContextTests(unittest.TestCase):
         module.cognitive_control = control
         module.entity_context_owner = owner
         bus.subscribe(module.module_id, module.accepts, module.deliver)
-        intake = UserInputProxy("user_input", bus, self.fail, time.monotonic, store, lambda text: None)
+        intake = UserInputProxy("user_input", Application(bus, []), store, lambda text: None)
         intake.register_triage_input = control.register_input
         observer_id = store.get_entity_id(store.get_companion_name())
         user_id = store.get_entity_id(store.get_user_name())
@@ -199,7 +201,7 @@ class LiveEntityContextTests(unittest.TestCase):
                     self.assertEqual(before_user, capture(user_id), "Peer maintenance changed Jesse's family.")
                 reopened = MemoryStore.from_checkpoint(out / "ghost.pickle")
                 self.assertEqual(entity_view, capture(source.entity_id, selected_store=reopened))
-                rebuilt = CognitiveControl("rebuilt", BusSystem(), self.fail, time.monotonic, None, ghost=reopened)
+                rebuilt = CognitiveControl("rebuilt", Application(BusSystem(), []), None, ghost=reopened)
                 rebuilt.enable_input_triage()
                 self.assertTrue(rebuilt.has_assessment(source.id))
                 self.assertFalse(store.states, "No main cycle may run in this narrow gate.")

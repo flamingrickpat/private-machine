@@ -8,13 +8,13 @@ from fastmcp import Client
 import yaml
 
 from pm.memory.store import MemoryStore
-from pm.memory.store_tools import build_mcp, build_tools
+from pm.memory.store_tools import MemoryTools, build_mcp
 from workflows.companion import build_app
 from pm.records.cycle_state import PersonaConfig
 from pm.host.application import Application, BusModule
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope
-from tests.support import ManualClock, Recorder, store_action
+from tests.support import ManualClock, Recorder, store_action, store_feature
 from pm.memory.bash_view import MemoryBashEnvironment, MemoryBashTarget
 from pm.host.folder_target import FolderTarget
 from pm.runs.workflow_module import WorkflowModule
@@ -34,7 +34,7 @@ class DesignContracts(unittest.TestCase):
                 raise ValueError("cleanup failed")
 
         app = Application(BusSystem(), [])
-        module = BrokenCleanup("broken", app.bus, app.on_error, ManualClock())
+        module = BrokenCleanup("broken", app)
         app.modules = [module]
         module.stop()
         # Exercise the actual thread boundary synchronously in the debugger.
@@ -72,11 +72,13 @@ class DesignContracts(unittest.TestCase):
         asyncio.run(exercise())
 
     def test_tool_results_cannot_mutate_the_snapshot(self):
-        env = MemoryBashEnvironment({1: {"__type__": "Feature", "data": {"id": 1, "content": "original"}}}, {}, "read")
-        tools = build_tools(env)
-        tools["ghost_get"](1)["data"]["content"] = "changed"
-        self.assertEqual(tools["ghost_get"](1)["data"]["content"], "original")
-        self.assertIn("original", env.read_text("ghost/knoxels/1.yaml"))
+        ghost = small_ghost()
+        record_id = store_feature(ghost, "original")
+        env = MemoryBashTarget(ghost, "read").open("read-record")
+        tools = MemoryTools(env)
+        reply = tools.ghost_get(record_id)
+        self.assertIn("original", reply)
+        self.assertIn("original", env.read_text(f"ghost/knoxels/{record_id}.yaml"))
 
     def test_workflow_input_cannot_bypass_ghost_scope(self):
         with TemporaryDirectory() as tmp:
@@ -119,7 +121,7 @@ class DesignContracts(unittest.TestCase):
                 encoding="utf-8",
             )
             module = PlainWorkflow(
-                "plain", BusSystem(), self.fail, ManualClock(), None,
+                "plain", Application(BusSystem(), [], clock=ManualClock()), None,
                 working_target=FolderTarget(root / "target", "bash"),
                 workflow=manifest, tools_factory=lambda env, batch: {}, runtime_root=root / "runtime",
             )

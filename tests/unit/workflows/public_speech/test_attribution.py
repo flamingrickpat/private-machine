@@ -1,4 +1,8 @@
 """Keep mixed stimuli and overlapping speech attributed to their real sources."""
+
+from tests.support import ManualClock
+
+from pm.host.application import Application
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -23,7 +27,7 @@ class AttributionTests(unittest.TestCase):
     def setUp(self):
         self.ghost = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"))
         self.bus = BusSystem()
-        self.proxy = UserInputProxy("user_input", self.bus, self.fail, lambda: 0, self.ghost, print)
+        self.proxy = UserInputProxy("user_input", Application(self.bus, [], clock=ManualClock(0)), self.ghost, print)
 
     def test_private_and_lifecycle_sources_never_become_current_user_speech(self):
         from pm.memory.bash_view import MemoryBashTarget
@@ -37,7 +41,7 @@ class AttributionTests(unittest.TestCase):
         payload = ActionRequest(stimuli=[Stimulus(knoxel_id=item.id, text=str(item.content))
                                          for item in (user, thought, lifecycle)])
         with TemporaryDirectory() as tmp:
-            module = StoryDialogue("dialogue_story", self.bus, self.fail, lambda: 0, None,
+            module = StoryDialogue("dialogue_story", Application(self.bus, [], clock=ManualClock(0)), None,
                 working_target=MemoryBashTarget(self.ghost, "read"), workflow=MANIFEST,
                 tools_factory=lambda environment, batch: {}, runtime_root=Path(tmp), ghost=self.ghost)
             self.assertEqual([item.knoxel_id for item in module.partner_stimuli(payload)], [user.id])
@@ -116,7 +120,7 @@ class AttributionTests(unittest.TestCase):
         from workflows.dialogue_story.standalone import MANIFEST
         app = Application(self.bus, [])
         with TemporaryDirectory() as tmp:
-            module = StoryDialogue("dialogue_story", self.bus, app.on_error, lambda: 0, None,
+            module = StoryDialogue("dialogue_story", app, None,
                 working_target=MemoryBashTarget(self.ghost, "read"), workflow=MANIFEST,
                 tools_factory=lambda environment, batch: {}, runtime_root=Path(tmp), ghost=self.ghost)
             app.modules = [module]

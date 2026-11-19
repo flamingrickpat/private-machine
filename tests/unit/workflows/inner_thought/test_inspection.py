@@ -5,6 +5,8 @@ commit boundary are real.
 """
 from __future__ import annotations
 
+from pm.host.application import Application
+
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -89,7 +91,7 @@ class CapabilityBeliefCommitTests(unittest.TestCase):
         bus = BusSystem()
         errors: list[BaseException] = []
         module = PrivateThoughtLoop(
-            "inner_thought", bus, errors.append, ManualClock(), None,
+            "inner_thought", Application(bus, [], clock=ManualClock()), None,
             working_target=MemoryBashTarget(ghost, "read"),
             workflow=MANIFEST,
             tools_factory=lambda environment, batch: {},

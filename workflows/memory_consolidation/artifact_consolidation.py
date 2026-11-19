@@ -19,6 +19,8 @@ files (path, digest, image id), without base64. Base64 never enters
 """
 from __future__ import annotations
 
+from pm import vclock
+
 import base64
 import hashlib
 import mimetypes
@@ -81,12 +83,18 @@ class ConsolidationReceipt:
 class Consolidator:
     """One consolidator bound to one MemoryStore."""
 
-    def __init__(self, ghost: MemoryStore, *, clock: Callable[[], float]) -> None:
+    def __init__(self, ghost: MemoryStore, *, clock: vclock.SystemClock | None = None, unix_timestamps: bool = False) -> None:
         """Retain the store whose records the consolidation commits into."""
         self.ghost = ghost
-        self.clock = clock
+        self.clock = clock if clock is not None else vclock.current_clock()
+        self.unix_timestamps = unix_timestamps
 
     # --------------------------------------------------------- inventory
+
+    def timestamp(self) -> float:
+        if self.unix_timestamps:
+            return self.clock.utc().timestamp()
+        return self.clock.monotonic()
 
     def inventory(self, artifact_path: str | Path) -> list[dict]:
         """Return the real text artifacts with their content hashes."""
@@ -141,7 +149,7 @@ class Consolidator:
                     "media_type": media_type,
                     "sha256": hashlib.sha256(raw).hexdigest(),
                     "size": len(raw),
-                    "observed_at": self.clock(),
+                    "observed_at": self.timestamp(),
                     "base64": base64.b64encode(raw).decode("ascii"),
                 })
         return items
@@ -421,7 +429,7 @@ class Consolidator:
             source_event_ids=list(source_event_ids or []),
             memory_ids=memory_ids,
             state="consolidated",
-            created_at=self.clock(),
+            created_at=self.timestamp(),
             memory_keys=memory_keys,
         )
         batch.set_consolidation_receipt(key, receipt.to_dict())

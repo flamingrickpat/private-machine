@@ -49,7 +49,7 @@ def main() -> None:
     tool_call = ToolCallConfig.model_validate({"mcp_servers": servers})
     config = load_config(args.config)
     store = MemoryStore.from_yaml(SEED, checkpoint=out / "ghost.pickle")
-    consolidator = Consolidator(store, clock=time.time)
+    consolidator = Consolidator(store, unix_timestamps=True)
     consolidations = []
     supervisor = ManagedRunSupervisor(
         store, runtime_root=out / "runtime", workflows={WORKFLOW_NAME: build_workflow_spec(tool_call)},

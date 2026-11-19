@@ -5,6 +5,10 @@ real MemoryStore commit run with the scripted model of ``cycle_support``.
 """
 from __future__ import annotations
 
+from workflows.memory_consolidation.artifact_consolidation import Consolidator
+
+from pm.host.application import Application
+
 import re
 import unittest
 from pathlib import Path
@@ -68,11 +72,11 @@ def say(ghost, speaker: str, text: str) -> int:
 def module_for(ghost, model: ScriptedModel, tmp: str) -> tuple[MainCogLoop, BusSystem, list]:
     bus = BusSystem()
     errors: list[BaseException] = []
-    module = MainCogLoop("main_cog", bus, errors.append, ManualClock(), None,
+    module = MainCogLoop("main_cog", Application(bus, [], clock=ManualClock()), None,
                          working_target=MemoryBashTarget(ghost, "read"), workflow=MANIFEST,
                          tools_factory=scripted_tools(model), runtime_root=Path(tmp) / "runtime", ghost=ghost,
                          workflow_catalogue=[{"name": "dialogue_story", "description": "speak"},
-                                             {"name": "minecraft", "description": "game body"}])
+                                             {"name": "minecraft", "description": "game body"}], consolidator=Consolidator(ghost))
     bus.subscribe(module.module_id, module.accepts, module.deliver)
     return module, bus, errors
 
@@ -213,7 +217,7 @@ class GroupDecisionTests(unittest.TestCase):
 
         with TemporaryDirectory() as tmp:
             module, bus, errors = module_for(ghost, model, tmp)
-            dialogue = StoryDialogue("dialogue", bus, errors.append, ManualClock(), None,
+            dialogue = StoryDialogue("dialogue", Application(bus, [], clock=ManualClock()), None,
                                      working_target=MemoryBashTarget(ghost, "read"), workflow=STORY_MANIFEST,
                                      tools_factory=lambda environment, batch: {"story_complete": story_complete,
                                                                                "public_complete": public_complete},
@@ -245,7 +249,7 @@ class PartnerTests(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             module, bus, errors = module_for(ghost, model, tmp)
             requests = Recorder(bus, "action.request")
-            dialogue = StoryDialogue("dialogue", bus, errors.append, ManualClock(), None,
+            dialogue = StoryDialogue("dialogue", Application(bus, [], clock=ManualClock()), None,
                                      working_target=MemoryBashTarget(ghost, "read"), workflow=STORY_MANIFEST,
                                      tools_factory=lambda environment, batch: {"story_complete": story_complete,
                                                                                "public_complete": public_complete},

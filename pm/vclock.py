@@ -5,16 +5,32 @@ Each PM process owns one clock. Only its controller advances virtual time.
 """
 from __future__ import annotations
 
+from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
+from typing import TypedDict
 import threading
 import time
 
 
-class VirtualClock:
+class VirtualClockState(TypedDict):
+    start: str
+    now: str
+    utc_offset_hours: float
+
+
+class SystemClock:
+    def monotonic(self) -> float:
+        return time.monotonic()
+
+    def utc(self) -> datetime:
+        return datetime.now(timezone.utc)
+
+
+class VirtualClock(SystemClock):
     """Advance UTC time without sleeping. Backward movement raises ValueError."""
 
-    def __init__(self, start: datetime, utc_offset_hours: float | None = None):
+    def __init__(self, start: datetime, utc_offset_hours: float | None = None) -> None:
         self._lock = threading.RLock()
         self.utc_offset = (start.utcoffset() or timedelta()) if utc_offset_hours is None else timedelta(hours=utc_offset_hours)
         self._start = self._utc(start)
@@ -48,14 +64,14 @@ class VirtualClock:
         with self._lock:
             return self._now
 
-    def state(self) -> dict:
+    def state(self) -> VirtualClockState:
         """Retain the origin, current time, and display offset for exact resume."""
         with self._lock:
             return {"start": self._start.isoformat(), "now": self._now.isoformat(),
                     "utc_offset_hours": self.utc_offset.total_seconds() / 3600}
 
     @classmethod
-    def from_state(cls, state: dict):
+    def from_state(cls, state: VirtualClockState) -> VirtualClock:
         """Restore elapsed time without moving an existing clock backward."""
         clock = cls(datetime.fromisoformat(state["start"]), state["utc_offset_hours"])
         clock.set(datetime.fromisoformat(state["now"]))
@@ -76,6 +92,11 @@ def install(clock: VirtualClock | None) -> None:
 def active() -> VirtualClock | None:
     """Return the installed virtual clock, if present."""
     return _active
+
+
+def current_clock() -> SystemClock:
+    """Select the installed simulation clock or the system clock at assembly."""
+    return _active if _active is not None else SystemClock()
 
 
 def utcnow() -> datetime:
@@ -101,7 +122,7 @@ def wait_cap(wait: float | None) -> float | None:
 
 
 @contextmanager
-def busy():
+def busy() -> Generator[None, None, None]:
     """Count work in flight. Exceptions still reach the application."""
     global _busy
     with _busy_lock:

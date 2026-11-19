@@ -1,4 +1,8 @@
 """Use real HTTP and WebSocket connections against the public transport."""
+
+from tests.support import ManualClock
+
+from pm.host.application import Application
 import json
 import unittest
 import urllib.error
@@ -20,7 +24,7 @@ class TransportTests(unittest.TestCase):
     def setUp(self):
         self.errors = []
         self.store = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"))
-        self.input = UserInputProxy("user_input", BusSystem(), self.errors.append, lambda: 0, self.store, lambda text: None)
+        self.input = UserInputProxy("user_input", Application(BusSystem(), [], clock=ManualClock(0)), self.store, lambda text: None)
         self.server = WebChatServer(self.store, self.input.submit, port=0, on_error=self.errors.append)
         self.server.start()
         self.addCleanup(self.server.stop)

@@ -3,6 +3,10 @@
 Deterministic stage reports test scheduling only. These checks do not establish
 persona behavior, model selection of Sleep, or companion quality.
 """
+
+from pm.vclock import VirtualClock
+
+from pm.host.application import Application
 from datetime import datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -19,9 +23,6 @@ from pm.records.memory_records import new_feature
 from pm.records.global_workspace import GwtTurnRecord
 from tests.support import ManualClock, Recorder
 from tests.unit.test_design_contracts import small_ghost
-from tests.unit.workflows.inner_thought.test_private_host import _module as private_module, _reports as private_reports
-from tests.unit.workflows.main_cognition.cycle_support import ScriptedModel, scripted_tools
-from tests.unit.workflows.main_cognition.test_cognition_state import _module as main_module, _reports, _store
 from workflows.cognitive_control.host import CognitiveControl
 from workflows.cognitive_control.schemas import ControlConfig, WaitRequest
 from workflows.main_cognition.cycle_work import CycleRequest, CycleWork
@@ -34,13 +35,13 @@ class WaitTests(unittest.TestCase):
     def setUp(self):
         self.ghost = small_ghost()
         self.bus = BusSystem()
-        self.now = datetime(2026, 10, 17, 12)
+        self.world_clock = VirtualClock(datetime(2026, 10, 17, 12))
         self.events = Recorder(self.bus)
         self.control = self.controller()
 
     def controller(self, ghost=None, **kwargs):
-        return CognitiveControl("cognitive_control", self.bus, self.fail, ManualClock(), 1,
-                                ghost=ghost or self.ghost, now=lambda: self.now, **kwargs)
+        return CognitiveControl("cognitive_control", Application(self.bus, [], clock=self.world_clock), 1,
+                                ghost=ghost or self.ghost, **kwargs)
 
     def arm(self, seconds=30, control=None, commit_id="wait"):
         control = control or self.control
@@ -50,6 +51,7 @@ class WaitTests(unittest.TestCase):
         return batch
 
     def external(self):
+        from tests.unit.workflows.main_cognition.test_cognition_state import _store
         key = _store(self.ghost, "a new message")
         return new_envelope("user_input", "data", "user.input", "new-input", {"knoxel_id": key})
 
@@ -99,7 +101,7 @@ class WaitTests(unittest.TestCase):
     def test_repeated_commit_does_not_rearm_or_advance_the_fence(self):
         self.arm()
         generation = self.control.generation
-        self.now += timedelta(seconds=10)
+        self.world_clock.set(self.world_clock.now() + timedelta(seconds=10))
         self.arm(commit_id="wait")
         self.assertEqual(self.control.generation, generation)
         self.assertEqual(len([record for record in self.ghost.all_features
@@ -108,7 +110,7 @@ class WaitTests(unittest.TestCase):
     def test_host_enforces_operator_maximum_on_a_valid_model_duration(self):
         control = self.controller(config=ControlConfig(maximum_wait_seconds=5))
         self.arm(seconds=100, control=control)
-        self.now += timedelta(seconds=5)
+        self.world_clock.set(self.world_clock.now() + timedelta(seconds=5))
         control.handle_batch([])
         self.assertEqual(len(self.wakes()), 1)
         self.assertEqual(self.wakes()[0].metadata["elapsed_seconds"], 5)
@@ -117,7 +119,7 @@ class WaitTests(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             self.ghost.checkpoint = Path(tmp) / "ghost.pickle"
             self.arm()
-            self.now += timedelta(seconds=50)
+            self.world_clock.set(self.world_clock.now() + timedelta(seconds=50))
             self.control.handle_batch([])
             self.control.handle_batch([])
             self.assertEqual(len(self.events.events), 1)
@@ -138,7 +140,7 @@ class WaitTests(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             self.ghost.checkpoint = Path(tmp) / "ghost.pickle"
             self.arm()
-            self.now += timedelta(seconds=30)
+            self.world_clock.set(self.world_clock.now() + timedelta(seconds=30))
             def broken_delivery(envelope, recipient):
                 raise ConnectionError("publication interrupted")
             self.bus.observer = broken_delivery
@@ -153,7 +155,7 @@ class WaitTests(unittest.TestCase):
 
     def test_startup_cannot_sleep_over_an_unconsumed_timeout(self):
         self.arm()
-        self.now += timedelta(seconds=30)
+        self.world_clock.set(self.world_clock.now() + timedelta(seconds=30))
         self.control.handle_batch([])
         wake = self.wakes()[0]
         self.control.commit(self.ghost.begin_batch("startup-sleep"), WaitRequest(seconds=30), self.control.generation)
@@ -165,7 +167,7 @@ class WaitTests(unittest.TestCase):
 
     def test_cancelled_main_releases_wake_for_replay(self):
         self.arm()
-        self.now += timedelta(seconds=30)
+        self.world_clock.set(self.world_clock.now() + timedelta(seconds=30))
         self.control.handle_batch([])
         self.control.release_wakes(self.events.events[:])
         self.control.handle_batch([])
@@ -184,7 +186,7 @@ class WaitTests(unittest.TestCase):
     def test_shutdown_at_the_timer_commit_boundary_does_not_become_an_application_error(self):
         self.arm()
         before = self.ghost.state_dict()
-        self.now += timedelta(seconds=30)
+        self.world_clock.set(self.world_clock.now() + timedelta(seconds=30))
         self.control.stop()
         self.control.handle_batch([])
         self.assertEqual(self.ghost.state_dict(), before)
@@ -236,7 +238,7 @@ class KernelWaitTests(unittest.TestCase):
         source = new_feature(ghost, "please wait", FeatureType.Dialogue, source=ghost.get_user_name(),
                              metadata={"exchange_correlation": "paused", "exchange_status": "pending"})
         with TemporaryDirectory() as tmp:
-            control = CognitiveControl("cognitive_control", BusSystem(), self.fail, ManualClock(), 1, ghost=ghost)
+            control = CognitiveControl("cognitive_control", Application(BusSystem(), [], clock=ManualClock()), 1, ghost=ghost)
             control.commit(ghost.begin_batch("accepted-wait"), WaitRequest(seconds=300), 0, source_ids=[source.id])
             for record in ghost.all_knoxels.values():
                 record.embedding = [1.0] + [0.0] * 767
@@ -254,11 +256,11 @@ class KernelWaitTests(unittest.TestCase):
         from workflows.companion import build_app
 
         ghost = small_ghost()
-        now = [datetime(2026, 10, 17)]
-        control = CognitiveControl("cognitive_control", BusSystem(), self.fail, ManualClock(), 1,
-                                   ghost=ghost, now=lambda: now[0])
+        world_clock = VirtualClock(datetime(2026, 10, 17))
+        control = CognitiveControl("cognitive_control", Application(BusSystem(), [], clock=world_clock), 1,
+                                   ghost=ghost)
         control.commit(ghost.begin_batch("wait"), WaitRequest(seconds=3), 0)
-        now[0] += timedelta(seconds=3)
+        world_clock.set(world_clock.now() + timedelta(seconds=3))
         control.handle_batch([])
         with TemporaryDirectory() as tmp:
             for record in ghost.all_knoxels.values():
@@ -276,13 +278,15 @@ class KernelWaitTests(unittest.TestCase):
                 app.join()
 
     def test_waiting_invokes_neither_private_nor_main_stages(self):
+        from tests.unit.workflows.inner_thought.test_private_host import _module as private_module, _reports as private_reports
+        from tests.unit.workflows.main_cognition.test_cognition_state import _module as main_module, _reports, _store
         ghost = small_ghost()
         source_id = _store(ghost, "old message")
         calls = []
         with TemporaryDirectory() as tmp:
             private, bus, _ = private_module(ghost, private_reports(), tmp, calls)
             main, _, _ = main_module(ghost, _reports(source_id), tmp)
-            control = CognitiveControl("cognitive_control", bus, self.fail, ManualClock(), 1, ghost=ghost)
+            control = CognitiveControl("cognitive_control", Application(bus, [], clock=ManualClock()), 1, ghost=ghost)
             private.cognitive_control = main.cognitive_control = control
             control.commit(ghost.begin_batch("wait"), WaitRequest(seconds=30), 0)
             before = ghost.state_dict()
@@ -294,13 +298,14 @@ class KernelWaitTests(unittest.TestCase):
             self.assertEqual(ghost.state_dict(), before)
 
     def test_kernel_commits_sleep_with_its_turn_and_wakes_on_new_input(self):
+        from tests.unit.workflows.main_cognition.test_cognition_state import _module as main_module, _reports, _store
         ghost = small_ghost()
         key = _store(ghost, "leave me quiet for now")
         reports = _reports(key, actions=[{"action_type": "Sleep", "workflow_name": "", "content": "wait",
                                           "arguments": {"timeout_seconds": 30}}])
         with TemporaryDirectory() as tmp:
             module, bus, errors = main_module(ghost, reports, tmp)
-            control = CognitiveControl("cognitive_control", bus, self.fail, ManualClock(), 1, ghost=ghost)
+            control = CognitiveControl("cognitive_control", Application(bus, [], clock=ManualClock()), 1, ghost=ghost)
             module.cognitive_control = control
             requests = Recorder(bus, "action.request")
             envelope = new_envelope("user_input", "data", "user.input", "quiet", {"knoxel_id": key})
@@ -320,6 +325,7 @@ class KernelWaitTests(unittest.TestCase):
             self.assertEqual(len(requests.events), 1)
 
     def test_wait_after_private_work_also_parks_the_already_appraised_user_source(self):
+        from tests.unit.workflows.main_cognition.test_cognition_state import _module as main_module, _reports
         ghost = small_ghost()
         source = new_feature(ghost, "I want silence", FeatureType.Dialogue, source=ghost.get_user_name(),
                              metadata={"exchange_correlation": "quiet", "exchange_status": "pending"})
@@ -327,7 +333,7 @@ class KernelWaitTests(unittest.TestCase):
         reports["action_selection"]["actions"] = []
         with TemporaryDirectory() as tmp:
             module, bus, errors = main_module(ghost, reports, tmp)
-            control = CognitiveControl("cognitive_control", bus, self.fail, ManualClock(), 1, ghost=ghost)
+            control = CognitiveControl("cognitive_control", Application(bus, [], clock=ManualClock()), 1, ghost=ghost)
             module.cognitive_control = control
             bus.put(new_envelope("user_input", "data", "user.input", "quiet", {"knoxel_id": source.id}))
             module.step()
@@ -342,15 +348,17 @@ class KernelWaitTests(unittest.TestCase):
             self.assertEqual(ghost.get_knoxel_by_id(source.id).metadata["exchange_status"], "pending")
 
     def test_timeout_is_system_scheduling_and_duplicate_delivery_needs_no_second_cycle(self):
+        from tests.unit.workflows.main_cognition.cycle_support import ScriptedModel, scripted_tools
+        from tests.unit.workflows.main_cognition.test_cognition_state import _module as main_module, _reports
         ghost = small_ghost()
-        now = [datetime(2026, 10, 17)]
+        world_clock = VirtualClock(datetime(2026, 10, 17))
         with TemporaryDirectory() as tmp:
             module, bus, errors = main_module(ghost, {}, tmp)
-            control = CognitiveControl("cognitive_control", bus, self.fail, ManualClock(), 1,
-                                       ghost=ghost, now=lambda: now[0])
+            control = CognitiveControl("cognitive_control", Application(bus, [], clock=world_clock), 1,
+                                       ghost=ghost)
             module.cognitive_control = control
             control.commit(ghost.begin_batch("wait"), WaitRequest(seconds=3), 0)
-            now[0] += timedelta(seconds=3)
+            world_clock.set(world_clock.now() + timedelta(seconds=3))
             control.handle_batch([])
             wake = next(record for record in ghost.all_features if record.metadata.get("origin") == "cognition.wake")
             # The real parent and child protocol use fixed reports here. Only
@@ -414,15 +422,16 @@ class WaitTierTests(unittest.TestCase):
     def setUp(self):
         self.ghost = small_ghost()
         self.bus = BusSystem()
-        self.now = datetime(2026, 10, 17, 12)
+        self.world_clock = VirtualClock(datetime(2026, 10, 17, 12))
         self.events = Recorder(self.bus)
-        self.control = CognitiveControl("cognitive_control", self.bus, self.fail, ManualClock(), 1,
-                                        ghost=self.ghost, now=lambda: self.now)
+        self.control = CognitiveControl("cognitive_control", Application(self.bus, [], clock=self.world_clock), 1,
+                                        ghost=self.ghost)
 
     def fail(self, module, error):
         raise error
 
     def poll(self):
+        from tests.unit.workflows.main_cognition.test_cognition_state import _store
         key = _store(self.ghost, "Current Minecraft observation during user silence: {}")
         return new_envelope("world_events", "data", "minecraft.world", "world-event:1", {"knoxel_id": key})
 
@@ -444,7 +453,7 @@ class WaitTierTests(unittest.TestCase):
         self.control.commit(batch, WaitRequest(seconds=600), self.control.generation)
         held = [self.poll(), self.run_event("completed")]
         self.assertEqual(self.control.admit(held), ([], self.control.generation))
-        self.now += timedelta(seconds=600)
+        self.world_clock.set(self.world_clock.now() + timedelta(seconds=600))
         self.control.handle_batch([])
         self.assertFalse(self.control.waiting())
         topics = [event.topic for event in self.events.events]
@@ -475,11 +484,12 @@ class WaitTierTests(unittest.TestCase):
         poll = self.poll()
         self.control.admit([poll])
         self.control.admit([poll])
-        self.now += timedelta(seconds=600)
+        self.world_clock.set(self.world_clock.now() + timedelta(seconds=600))
         self.control.handle_batch([])
         self.assertEqual([event.topic for event in self.events.events].count("minecraft.world"), 1)
 
     def external(self):
+        from tests.unit.workflows.main_cognition.test_cognition_state import _store
         key = _store(self.ghost, "a new message")
         return new_envelope("user_input", "data", "user.input", "new-input", {"knoxel_id": key})
 

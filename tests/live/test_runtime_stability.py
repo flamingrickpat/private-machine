@@ -6,6 +6,10 @@ Receipts and full prompts stay under a fresh ignored runtime directory.
 """
 from __future__ import annotations
 
+from tests.support import ManualClock
+
+from pm.host.application import Application
+
 import asyncio
 from datetime import datetime, timezone
 import json
@@ -172,7 +176,7 @@ class LiveRuntimeStabilityTests(unittest.TestCase):
         ghost = fresh_ghost(load_seed_state())
         bus = BusSystem()
         delivered = []
-        proxy = UserInputProxy("user_input", bus, self.fail, lambda: 0, ghost, delivered.append)
+        proxy = UserInputProxy("user_input", Application(bus, [], clock=ManualClock(0)), ghost, delivered.append)
         correlation = proxy.submit("I drew a duck drinking cold brew from a World's Okayest Employee mug. What do you think?")
         current = exchange_record(ghost, correlation)
         partner_id = ghost.get_entity_id(ghost.get_user_name())
@@ -228,7 +232,7 @@ class LiveRuntimeStabilityTests(unittest.TestCase):
                 tools["story_complete"] = faulty_prefill
             return tools
 
-        module = StoryDialogue("dialogue", bus, self.fail, lambda: 0, None,
+        module = StoryDialogue("dialogue", Application(bus, [], clock=ManualClock(0)), None,
             working_target=MemoryBashTarget(ghost, "read"),
             workflow=ROOT / "workflows/dialogue_story/dialogue_story.workflow.md",
             tools_factory=factory, runtime_root=self.case / "runs", ghost=ghost)

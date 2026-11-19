@@ -322,7 +322,7 @@ def run_specialist_session(context: RoleContext) -> dict[str, Any]:
                       "instruction_revision": gateway.revision,
                       "call_count": len(gateway.receipts), "visual_interpretation": False,
                       "initial_observation": baseline, "final_observation": final["result"],
-                      "execution_epoch": gateway.token["epoch"], "reconciliation": reconciliation,
+                      "execution_epoch": gateway.token.epoch, "reconciliation": reconciliation,
                       "gameplay": gameplay,
                       "journal": "scratch/actor-journal.jsonl", "images": image_paths,
                       "rejection_reason": "" if accepted else "The leaf completion was not independently verified."}

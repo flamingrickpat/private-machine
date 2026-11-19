@@ -8,6 +8,10 @@ check its decision. Missing endpoints fail the suite.
 """
 from __future__ import annotations
 
+from tests.support import ManualClock
+
+from pm.host.application import Application
+
 import asyncio
 import json
 import unittest
@@ -84,9 +88,9 @@ class LiveSpeechReviewTests(unittest.TestCase):
 
         ghost = MemoryStore.from_yaml("test_data/personas/spamuel/canon.yaml")
         bus = BusSystem()
-        proxy = UserInputProxy("user_input", bus, self.fail, lambda: 0, ghost, lambda text: None)
+        proxy = UserInputProxy("user_input", Application(bus, [], clock=ManualClock(0)), ghost, lambda text: None)
         correlation = proxy.submit("Tell me whether my note was saved.")
-        module = StoryDialogue("dialogue", bus, self.fail, lambda: 0, None,
+        module = StoryDialogue("dialogue", Application(bus, [], clock=ManualClock(0)), None,
                                working_target=MemoryBashTarget(ghost, "read"), workflow=MANIFEST,
                                tools_factory=lambda environment, batch: {}, runtime_root=EVIDENCE / "recovery", ghost=ghost)
         module._public_context = build_public_context(ghost, {})

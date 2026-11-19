@@ -6,6 +6,7 @@ the separate A08 console gate and does not follow from these boundary tests.
 from __future__ import annotations
 
 import asyncio
+from tests.support import ManualClock
 from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -210,10 +211,10 @@ class ExperiencedMemoryTests(unittest.TestCase):
             (root / "outbox/report.yaml").write_text("summary: method failed\n", encoding="utf-8")
             path = root / "scratch/observations.md"
             path.write_text("The report recorded an error.", encoding="utf-8")
-            first = Consolidator(self.ghost, clock=lambda: 0).consolidate("run", root)
+            first = Consolidator(self.ghost, clock=ManualClock(0)).consolidate("run", root)
             reopened = MemoryStore.from_checkpoint(self.ghost.checkpoint, raw=True)
             path.write_text("The report now includes a retry.", encoding="utf-8")
-            second = Consolidator(reopened, clock=lambda: 1).consolidate("run", root)
+            second = Consolidator(reopened, clock=ManualClock(1)).consolidate("run", root)
             self.assertEqual(len(second["memory_ids"]), 1)
             self.assertEqual(reopened.get_knoxel_by_id(second["memory_ids"][0]).metadata["kind"], "observation")
             self.assertEqual(len(first["memory_ids"]), 2)

@@ -7,15 +7,13 @@ private work. Bus publication alone is not an acknowledgment.
 """
 from __future__ import annotations
 
-from pm import vclock
-
 from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
 from threading import Condition, Event
 from typing import TYPE_CHECKING, Any
 
 from pm.bus.envelopes import Envelope, new_envelope, new_id
-from pm.host.application import BusModule
+from pm.host.application import Application, BusModule
 from pm.memory.snapshot import GhostCancelled, GhostConflict
 from pm.llm.concurrency import InferenceAdmission, InferenceRole
 from pm.memory.dependencies import source_fingerprint
@@ -39,18 +37,16 @@ if TYPE_CHECKING:
 class CognitiveControl(BusModule):
     """Own waits, external-input fences, and the wake outbox.
 
-    ``now`` supplies UTC wall time. Persisted deadlines survive process stops.
+    The process clock supplies UTC wall time. Persisted deadlines survive process stops.
     A backward clock change delays a deadline. A forward change can expire it.
     Elapsed-time receipts never claim cognition during the gap.
     """
 
-    def __init__(self, *args: Any, ghost: MemoryStore, config: ControlConfig | None = None,
-                 now: Callable[[], datetime] = vclock.utcnow, **kwargs: Any) -> None:
-        """Forward the module configuration and retain the store and clock."""
-        super().__init__(*args, **kwargs)
+    def __init__(self, module_id: str, application: Application, tick_seconds: float | None,
+                 *, ghost: MemoryStore, config: ControlConfig | None = None) -> None:
+        super().__init__(module_id, application, tick_seconds)
         self.ghost = ghost
         self.config = config or ControlConfig()
-        self.now = now
         # Accepted cycles retain the generation across process stops. Without
         # this watermark, restart can discard a valid continuing episode.
         self.generation = max([0,
@@ -360,7 +356,7 @@ class CognitiveControl(BusModule):
             self._pending_inputs.add(envelope.id)
             record = self._record()
             if record is not None and record.metadata["status"] == "waiting":
-                self._wake(record, envelope.topic, timeout=False, now=self.now())
+                self._wake(record, envelope.topic, timeout=False, now=self.application.clock.utc().replace(tzinfo=None))
                 woke = True
         if woke:
             self._flush_deferred()
@@ -438,7 +434,7 @@ class CognitiveControl(BusModule):
                         source = view.get(key)
                         if source.metadata.get("exchange_status") == "pending":
                             paused_sources.add(key)
-                now = self.now()
+                now = self.application.clock.utc().replace(tzinfo=None)
                 seconds = min(wait.seconds, self.config.maximum_wait_seconds)
                 new_feature(self.ghost, wait.reason, FeatureType.StateUpdate,
                     source=self.ghost.get_companion_name(), source_kind=SourceKind.Self,
@@ -555,7 +551,7 @@ class CognitiveControl(BusModule):
         """Commit an expired deadline before publishing its durable outbox."""
         with self.ghost.lock:
             record = self._record()
-            now = self.now()
+            now = self.application.clock.utc().replace(tzinfo=None)
             if (record is not None and record.metadata["status"] == "waiting"
                     and now >= datetime.fromisoformat(record.metadata["wake_at"])):
                 self._wake(record, "timeout", timeout=True, now=now)

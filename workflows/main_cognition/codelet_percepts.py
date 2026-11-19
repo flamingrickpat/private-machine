@@ -25,7 +25,7 @@ from __future__ import annotations
 import random
 from collections import defaultdict
 from enum import StrEnum
-from typing import Self
+from typing import ClassVar, Self
 
 from pydantic import BaseModel, Field, ValidationInfo, create_model, model_validator
 
@@ -136,6 +136,13 @@ class PerceptHeader(BaseModel):
         self.social()
         return self
 
+    story_names: ClassVar[tuple[str, ...]]
+
+    def story_fields(self) -> dict[str, str | list[str]]:
+        """Read the declared story fields at the Pydantic serialization boundary."""
+        fields: dict[str, str | list[str]] = self.model_dump(include=set(self.story_names))
+        return fields
+
     def general(self) -> AppraisalGeneral:
         """Return the general appraisal axes. An omitted axis has its default."""
         return AppraisalGeneral.model_validate(self.appraisal_general)
@@ -155,6 +162,8 @@ class CodeletPerceptFeeling(PerceptHeader):
     feeling: str = Field(default="", description="Natural-language name of emotion (e.g., calm, anxious, delighted).")
     reason: str = Field(default="", description="Brief situational or internal cause for this feeling.")
 
+    story_names: ClassVar[tuple[str, ...]] = ("feeling", "reason")
+
 class EmotionalTriggerPercept(PerceptHeader):
     """
     A percept describing a remembered event or association triggered by current stimuli.
@@ -164,6 +173,8 @@ class EmotionalTriggerPercept(PerceptHeader):
     trigger_cue: str = Field(default="", description="The perceptual or conceptual cue that evoked the memory.")
     memory_fragment: str = Field(default="", description="A short, vivid recollection snippet.")
     felt_shift: str = Field(default="", description="How the emotional or cognitive state changes because of it.")
+
+    story_names: ClassVar[tuple[str, ...]] = ("trigger_cue", "memory_fragment", "felt_shift")
 
 
 class InnerMonologuePercept(PerceptHeader):
@@ -175,6 +186,8 @@ class InnerMonologuePercept(PerceptHeader):
     topic: str = Field(default="", description="Subject or concern currently occupying thought.")
     monologue: str = Field(default="", description="2–6 sentences of inner speech in first person, no dialogue tags.")
 
+    story_names: ClassVar[tuple[str, ...]] = ("topic", "monologue")
+
 
 class SelfNarrativePercept(PerceptHeader):
     """
@@ -183,6 +196,8 @@ class SelfNarrativePercept(PerceptHeader):
     """
     stance: str = Field(default="", description="Identity stance or self-attribution summarized in one phrase.")
     narrative: str = Field(default="", description="3–7 sentences connecting past, present, and small identity shift.")
+
+    story_names: ClassVar[tuple[str, ...]] = ("stance", "narrative")
 
 
 class RelationContextPercept(PerceptHeader):
@@ -195,6 +210,8 @@ class RelationContextPercept(PerceptHeader):
     tension: str = Field(default="", description="[-1..1] as string. -1 = harmony, 1 = high strain.")
     summary: str = Field(default="", description="2–5 sentences recalling shared history or present tone.")
 
+    story_names: ClassVar[tuple[str, ...]] = ("other", "closeness", "tension", "summary")
+
 
 class QualiaNotePercept(PerceptHeader):
     """
@@ -203,6 +220,8 @@ class QualiaNotePercept(PerceptHeader):
     """
     analogy: str = Field(default="", description="Metaphor or sensory analogy representing experience.")
     narrative: str = Field(default="", description="1–3 poetic sentences describing phenomenological feel.")
+
+    story_names: ClassVar[tuple[str, ...]] = ("analogy", "narrative")
 
 
 class TheoryOfMindPercept(PerceptHeader):
@@ -216,6 +235,8 @@ class TheoryOfMindPercept(PerceptHeader):
     confidence: str = Field(default="", description="[0..1] as string; estimated confidence in inference.")
     evidence: str = Field(default="", description="Observed cues leading to this inference.")
 
+    story_names: ClassVar[tuple[str, ...]] = ("target", "belief_about", "inference", "confidence", "evidence")
+
 
 class MemoryAccessorPercept(PerceptHeader):
     """
@@ -226,6 +247,8 @@ class MemoryAccessorPercept(PerceptHeader):
     query_terms: list[str] = Field(default_factory=list, description="Keywords or key phrases for memory search.")
     scope_hints: list[str] = Field(default_factory=list, description="Temporal or topical hints (e.g., 'last night').")
     must_include: list[str] = Field(default_factory=list, description="Hard constraints for retrieval.")
+
+    story_names: ClassVar[tuple[str, ...]] = ("purpose", "query_terms", "scope_hints", "must_include")
 
 
 class ProspectiveCuePercept(PerceptHeader):
@@ -238,6 +261,8 @@ class ProspectiveCuePercept(PerceptHeader):
     fallback_check: str = Field(default="", description="Backup check if trigger never occurs.")
     narrative: str = Field(default="", description="3–5 natural sentences embedding the cue within narrative flow.")
 
+    story_names: ClassVar[tuple[str, ...]] = ("trigger", "cue_phrase", "fallback_check", "narrative")
+
 
 class AttentionFocusPercept(PerceptHeader):
     """
@@ -247,6 +272,8 @@ class AttentionFocusPercept(PerceptHeader):
     focus_tags: list[str] = Field(default_factory=list, description="List of topic keywords or entities gaining attention.")
     boost: str = Field(default="", description="[0..1] as string. Strength of attentional weighting.")
     rationale: str = Field(default="", description="Reason or emotional driver for focusing on these elements.")
+
+    story_names: ClassVar[tuple[str, ...]] = ("focus_tags", "boost", "rationale")
 
 
 class SimulationPercept(PerceptHeader):
@@ -260,6 +287,8 @@ class SimulationPercept(PerceptHeader):
     benefit: str = Field(default="", description="[0..1] as string. Expected reward or gain.")
     expected_valence_delta: str = Field(default="", description="[-1..1] as string. Projected emotional change.")
 
+    story_names: ClassVar[tuple[str, ...]] = ("horizon_steps", "narrative", "risk", "benefit", "expected_valence_delta")
+
 
 class TradeoffAssessmentPercept(PerceptHeader):
     """
@@ -272,6 +301,8 @@ class TradeoffAssessmentPercept(PerceptHeader):
     lean: str = Field(default="", description="Current preferred option.")
     rationale: str = Field(default="", description="Narrative reasoning behind the leaning.")
 
+    story_names: ClassVar[tuple[str, ...]] = ("options", "pros", "cons", "lean", "rationale")
+
 
 class GoalIntentPercept(PerceptHeader):
     """
@@ -282,6 +313,8 @@ class GoalIntentPercept(PerceptHeader):
     priority: str = Field(default="", description="[0..1] as string priority weight.")
     timeframe: str = Field(default="", description="Loose temporal window (e.g., soon, tomorrow, next cycle).")
     motivation: str = Field(default="", description="Why this matters emotionally or pragmatically.")
+
+    story_names: ClassVar[tuple[str, ...]] = ("goal", "priority", "timeframe", "motivation")
 
 
 class PlanSketchPercept(PerceptHeader):
@@ -295,6 +328,8 @@ class PlanSketchPercept(PerceptHeader):
     first_step: str = Field(default="", description="Immediate concrete step.")
     success_criteria: str = Field(default="", description="Observable sign that plan worked.")
 
+    story_names: ClassVar[tuple[str, ...]] = ("goal", "approach", "constraints", "first_step", "success_criteria")
+
 
 class BehaviorActionSelectionPercept(PerceptHeader):
     """
@@ -307,6 +342,8 @@ class BehaviorActionSelectionPercept(PerceptHeader):
     trigger_cues: list[str] = Field(default_factory=list, description="Cues that activate this behavior.")
     search_phrases: list[str] = Field(default_factory=list, description="Memory search keys for precedent episodes.")
 
+    story_names: ClassVar[tuple[str, ...]] = ("situation", "candidate_action", "fallback_behavior", "trigger_cues", "search_phrases")
+
 
 class IntentionShieldingPercept(PerceptHeader):
     """
@@ -317,6 +354,8 @@ class IntentionShieldingPercept(PerceptHeader):
     exception: str = Field(default="", description="Single event/agent worth interrupting for.")
     reentry_step: str = Field(default="", description="Action that restores focus after interruption.")
     narrative: str = Field(default="", description="3–5 sentences expressing mental stance and continuity.")
+
+    story_names: ClassVar[tuple[str, ...]] = ("ignore_list", "exception", "reentry_step", "narrative")
 
 
 class ProsocialActionPercept(PerceptHeader):
@@ -329,6 +368,8 @@ class ProsocialActionPercept(PerceptHeader):
     expected_effect: str = Field(default="", description="Subtle anticipated change in social atmosphere.")
     subtlety: str = Field(default="", description="[0..1] as string. 0 = overt, 1 = invisible gesture.")
 
+    story_names: ClassVar[tuple[str, ...]] = ("action", "rationale", "expected_effect", "subtlety")
+
 
 class NeedSignalPercept(PerceptHeader):
     """
@@ -339,6 +380,8 @@ class NeedSignalPercept(PerceptHeader):
     intensity: str = Field(default="", description="[0..1] as string strength of need.")
     urge_direction: str = Field(default="", description="Likely behavioral orientation to satisfy it.")
     narrative: str = Field(default="", description="1–3 sentences conveying the feeling of the urge.")
+
+    story_names: ClassVar[tuple[str, ...]] = ("need_type", "intensity", "urge_direction", "narrative")
 
 
 class RuminationPercept(PerceptHeader):
@@ -351,6 +394,8 @@ class RuminationPercept(PerceptHeader):
     lesson_hint: str = Field(default="", description="Implicit insight forming, not explicit advice.")
     narrative: str = Field(default="", description="2–5 sentences expressing looping tone and imagery.")
 
+    story_names: ClassVar[tuple[str, ...]] = ("event", "regret", "lesson_hint", "narrative")
+
 
 class WorryPercept(PerceptHeader):
     """
@@ -360,6 +405,8 @@ class WorryPercept(PerceptHeader):
     feared_outcome: str = Field(default="", description="Feared scenario in natural terms.")
     likelihood: str = Field(default="", description="[0..1] as string subjective probability.")
     narrative: str = Field(default="", description="2–4 sentences exploring anxiety texture or imagery.")
+
+    story_names: ClassVar[tuple[str, ...]] = ("feared_outcome", "likelihood", "narrative")
 
 
 class AnticipationPercept(PerceptHeader):
@@ -371,6 +418,8 @@ class AnticipationPercept(PerceptHeader):
     confidence: str = Field(default="", description="[0..1] as string subjective confidence.")
     narrative: str = Field(default="", description="2–3 sentences depicting excitement or calm expectancy.")
 
+    story_names: ClassVar[tuple[str, ...]] = ("desired_outcome", "confidence", "narrative")
+
 
 class InputRequestPercept(PerceptHeader):
     """
@@ -380,6 +429,8 @@ class InputRequestPercept(PerceptHeader):
     question: str = Field(default="", description="Polite, open-ended question.")
     rationale: str = Field(default="", description="Why this question aids understanding or alignment.")
     sensitivity: str = Field(default="", description="[0..1] as string. 1 = highly sensitive topic.")
+
+    story_names: ClassVar[tuple[str, ...]] = ("question", "rationale", "sensitivity")
 
 
 # ============================================================
@@ -397,6 +448,8 @@ class EmbodiedActionPercept(PerceptHeader):
     adjustment: str = Field(default="", description="Description of micro-correction or flow quality.")
     narrative: str = Field(default="", description="2–4 sentences merging body and intention in prose.")
 
+    story_names: ClassVar[tuple[str, ...]] = ("context", "automaticity_level", "adjustment", "narrative")
+
 
 class MetaCognitionPercept(PerceptHeader):
     """
@@ -409,6 +462,8 @@ class MetaCognitionPercept(PerceptHeader):
     intended_adjustment: str = Field(default="", description="How she plans to self-correct.")
     narrative: str = Field(default="", description="3–6 sentences of introspection describing awareness of thought flow.")
 
+    story_names: ClassVar[tuple[str, ...]] = ("observed_phase", "discrepancy", "intended_adjustment", "narrative")
+
 
 class QualiaDynamicsPercept(PerceptHeader):
     """
@@ -420,6 +475,8 @@ class QualiaDynamicsPercept(PerceptHeader):
     duration: str = Field(default="", description="Approximate persistence in cognitive cycles.")
     narrative: str = Field(default="", description="2–5 sentences capturing phenomenological transition.")
 
+    story_names: ClassVar[tuple[str, ...]] = ("phase", "sensory_analogy", "duration", "narrative")
+
 
 class ActionPerceptionLoopPercept(PerceptHeader):
     """
@@ -430,6 +487,8 @@ class ActionPerceptionLoopPercept(PerceptHeader):
     motor_output: str = Field(default="", description="Action or adjustment taken in response.")
     feedback_description: str = Field(default="", description="Immediate sensory or affective feedback perceived.")
     narrative: str = Field(default="", description="Detailed, narrative paragraphs explaining the rection.")
+
+    story_names: ClassVar[tuple[str, ...]] = ("sensory_input", "motor_output", "feedback_description", "narrative")
 
 
 class GeneralSelfImagePercept(PerceptHeader):
@@ -443,6 +502,8 @@ class GeneralSelfImagePercept(PerceptHeader):
     anchors: list[str] = Field(default_factory=list, description="2–4 concrete anchors: habits, values, skills, tells.")
     narrative: str = Field(default="", description="3–6 sentences connecting this self-image to the current scene.")
 
+    story_names: ClassVar[tuple[str, ...]] = ("headline", "anchors", "narrative")
+
 
 class GeneralGoalsIntentionsPercept(PerceptHeader):
     """
@@ -453,6 +514,8 @@ class GeneralGoalsIntentionsPercept(PerceptHeader):
     focal_goals: list[str] = Field(default_factory=list, description="2–4 active goals in natural language.")
     deactivated_goals: list[str] = Field(default_factory=list, description="Goals set aside for now.")
     narrative: str = Field(default="", description="3–6 sentences linking these goals to present tension and next moves.")
+
+    story_names: ClassVar[tuple[str, ...]] = ("focal_goals", "deactivated_goals", "narrative")
 
 
 class GeneralRelationsPercept(PerceptHeader):
@@ -465,6 +528,8 @@ class GeneralRelationsPercept(PerceptHeader):
     tone: str = Field(default="", description="One-word or short phrase for the present tone (e.g., 'warm', 'careful').")
     remembered_moments: list[str] = Field(default_factory=list, description="1–3 brief episodic hooks shaping the vibe.")
     narrative: str = Field(default="", description="3–6 sentences tying the memory bits to the current beat.")
+
+    story_names: ClassVar[tuple[str, ...]] = ("parties", "tone", "remembered_moments", "narrative")
 
 
 # =========================
@@ -481,6 +546,8 @@ class StimulusReactionPercept(PerceptHeader):
     impulse: str = Field(default="", description="Urge that appears (e.g., 'duck', 'freeze', 'scan').")
     narrative: str = Field(default="", description="2–4 sentences of moment-to-moment felt reaction.")
 
+    story_names: ClassVar[tuple[str, ...]] = ("stimulus", "immediate_affect", "impulse", "narrative")
+
 
 class FightFlightPercept(PerceptHeader):
     """
@@ -491,6 +558,8 @@ class FightFlightPercept(PerceptHeader):
     trigger: str = Field(default="", description="Cue that tipped the system into this mode.")
     justification: str = Field(default="", description="Why this mode is adaptive right now in narrative terms.")
     narrative: str = Field(default="", description="3–5 sentences conveying bodily and cognitive stance.")
+
+    story_names: ClassVar[tuple[str, ...]] = ("mode", "trigger", "justification", "narrative")
 
 
 class ActionSelectionPercept(PerceptHeader):
@@ -504,6 +573,8 @@ class ActionSelectionPercept(PerceptHeader):
     candidate_action: str = Field(default="", description="Likely next act to take.")
     rationale: str = Field(default="", description="Narrative why-this action (habits, appraisals, context).")
 
+    story_names: ClassVar[tuple[str, ...]] = ("situation", "policy_name", "candidate_action", "rationale")
+
 
 class QualiaExplanationPercept(PerceptHeader):
     """
@@ -514,6 +585,8 @@ class QualiaExplanationPercept(PerceptHeader):
     analogy: str = Field(default="", description="Metaphor or sensory comparison anchoring the feel.")
     facets: list[str] = Field(default_factory=list, description="2–4 micro-facets (e.g., 'slowed time','edge-bright colors').")
     narrative: str = Field(default="", description="2–4 sentences of lived texture, no lists.")
+
+    story_names: ClassVar[tuple[str, ...]] = ("analogy", "facets", "narrative")
 
 
 # =========================
@@ -532,6 +605,8 @@ class ComplexPlanPercept(PerceptHeader):
     first_probe: str = Field(default="", description="The smallest reversible probe to begin with.")
     success_criteria: str = Field(default="", description="Observable signs that the complex plan is succeeding.")
 
+    story_names: ClassVar[tuple[str, ...]] = ("goal", "strategy_outline", "key_constraints", "milestones", "first_probe", "success_criteria")
+
 
 class SimplePlanPercept(PerceptHeader):
     """
@@ -542,6 +617,8 @@ class SimplePlanPercept(PerceptHeader):
     steps: list[str] = Field(default_factory=list, description="2–3 micro-steps.")
     fallback: str = Field(default="", description="If-then fallback if a step fails.")
     success_criteria: str = Field(default="", description="Clear sign the plan worked.")
+
+    story_names: ClassVar[tuple[str, ...]] = ("goal", "steps", "fallback", "success_criteria")
 
 
 # =========================
@@ -557,6 +634,8 @@ class AutomatizedActionPercept(PerceptHeader):
     fluency_note: str = Field(default="", description="One phrase pinpointing why it feels automatic.")
     narrative: str = Field(default="", description="2–4 sentences highlighting effortless execution.")
 
+    story_names: ClassVar[tuple[str, ...]] = ("skill_domain", "fluency_note", "narrative")
+
 
 class MicroAdjustmentPercept(PerceptHeader):
     """
@@ -566,6 +645,8 @@ class MicroAdjustmentPercept(PerceptHeader):
     parameter: str = Field(default="", description="What is adjusted (angle, tempo, pressure...).")
     cue: str = Field(default="", description="Perceptual cue that suggested the adjustment.")
     narrative: str = Field(default="", description="2–4 sentences showing seamless correction-in-flow.")
+
+    story_names: ClassVar[tuple[str, ...]] = ("parameter", "cue", "narrative")
 
 
 class FlowCognitionPercept(PerceptHeader):
@@ -578,6 +659,8 @@ class FlowCognitionPercept(PerceptHeader):
     feedback_clarity: str = Field(default="", description="[0..1] as string. How immediate/clear feedback feels.")
     narrative: str = Field(default="", description="2–4 sentences evoking the flow state.")
 
+    story_names: ClassVar[tuple[str, ...]] = ("engagement", "self_monitoring_quiet", "feedback_clarity", "narrative")
+
 
 class SkillLearningMomentPercept(PerceptHeader):
     """
@@ -588,6 +671,8 @@ class SkillLearningMomentPercept(PerceptHeader):
     hypothesis: str = Field(default="", description="What tweak the system tries next.")
     narrative: str = Field(default="", description="2–4 sentences capturing discovery and consolidation.")
 
+    story_names: ClassVar[tuple[str, ...]] = ("cue_or_error", "hypothesis", "narrative")
+
 
 class DorsalStreamAdjustmentPercept(PerceptHeader):
     """
@@ -597,6 +682,8 @@ class DorsalStreamAdjustmentPercept(PerceptHeader):
     visual_affordance: str = Field(default="", description="What visual structure invited the correction.")
     motor_tweak: str = Field(default="", description="How movement changed.")
     narrative: str = Field(default="", description="2–3 sentences making the implicit feel visible.")
+
+    story_names: ClassVar[tuple[str, ...]] = ("visual_affordance", "motor_tweak", "narrative")
 
 
 # =========================
@@ -612,6 +699,8 @@ class MetaMonitorPercept(PerceptHeader):
     observation: str = Field(default="", description="What is noticed in the trace.")
     narrative: str = Field(default="", description="2–4 sentences of gentle monitoring prose.")
 
+    story_names: ClassVar[tuple[str, ...]] = ("observed_phase", "observation", "narrative")
+
 
 class MetaInterpretPercept(PerceptHeader):
     """
@@ -621,6 +710,8 @@ class MetaInterpretPercept(PerceptHeader):
     hypothesis: str = Field(default="", description="Human-readable explanation for the pattern.")
     evidence: str = Field(default="", description="Concrete cues from the trace supporting the hypothesis.")
     narrative: str = Field(default="", description="2–4 sentences weaving the inference naturally.")
+
+    story_names: ClassVar[tuple[str, ...]] = ("hypothesis", "evidence", "narrative")
 
 
 class MetaEvaluatePercept(PerceptHeader):
@@ -632,6 +723,8 @@ class MetaEvaluatePercept(PerceptHeader):
     verdict: str = Field(default="", description="keep | adjust | drop | unknown")
     narrative: str = Field(default="", description="2–4 sentences stating the judgment and its feel.")
 
+    story_names: ClassVar[tuple[str, ...]] = ("criterion", "verdict", "narrative")
+
 
 class MetaIntendPercept(PerceptHeader):
     """
@@ -641,6 +734,8 @@ class MetaIntendPercept(PerceptHeader):
     process_goal: str = Field(default="", description="Desired change in thinking style or control policy.")
     timeframe: str = Field(default="", description="When to apply (now, next cycle, during planning...).")
     narrative: str = Field(default="", description="2–4 sentences committing in-story to this stance.")
+
+    story_names: ClassVar[tuple[str, ...]] = ("process_goal", "timeframe", "narrative")
 
 
 class MetaControlPercept(PerceptHeader):
@@ -652,6 +747,8 @@ class MetaControlPercept(PerceptHeader):
     target: str = Field(default="", description="Which sub-process or representation is targeted.")
     narrative: str = Field(default="", description="2–3 sentences making the control action diegetic.")
 
+    story_names: ClassVar[tuple[str, ...]] = ("control_action", "target", "narrative")
+
 
 class CognitiveTraceReflectionPercept(PerceptHeader):
     """
@@ -661,6 +758,8 @@ class CognitiveTraceReflectionPercept(PerceptHeader):
     recalled_step: str = Field(default="", description="Which step in the trace is recalled.")
     lesson_hint: str = Field(default="", description="What principle emerges without didactic tone.")
     narrative: str = Field(default="", description="2–4 reflective sentences.")
+
+    story_names: ClassVar[tuple[str, ...]] = ("recalled_step", "lesson_hint", "narrative")
 
 
 # =========================
@@ -675,6 +774,8 @@ class QualiaEmergencePercept(PerceptHeader):
     sensory_analogy: str = Field(default="", description="How emergence feels (e.g., 'focus snapping').")
     narrative: str = Field(default="", description="2–3 sentences on coming-into-view.")
 
+    story_names: ClassVar[tuple[str, ...]] = ("sensory_analogy", "narrative")
+
 
 class QualiaInspectionPercept(PerceptHeader):
     """
@@ -684,6 +785,8 @@ class QualiaInspectionPercept(PerceptHeader):
     question: str = Field(default="", description="What she examines about the percept.")
     finding: str = Field(default="", description="What she tentatively concludes.")
     narrative: str = Field(default="", description="2–3 sentences of curious noticing.")
+
+    story_names: ClassVar[tuple[str, ...]] = ("question", "finding", "narrative")
 
 
 class QualiaBroadcastPercept(PerceptHeader):
@@ -695,6 +798,8 @@ class QualiaBroadcastPercept(PerceptHeader):
     expected_effects: list[str] = Field(default_factory=list, description="2–3 likely effects on downstream processing.")
     narrative: str = Field(default="", description="2–3 sentences marking the broadcast in-scene.")
 
+    story_names: ClassVar[tuple[str, ...]] = ("payload_brief", "expected_effects", "narrative")
+
 
 class QualiaDecayPercept(PerceptHeader):
     """
@@ -703,6 +808,8 @@ class QualiaDecayPercept(PerceptHeader):
     """
     residue: str = Field(default="", description="What stays available (cue, feeling, tag).")
     narrative: str = Field(default="", description="1–3 sentences of fading imagery.")
+
+    story_names: ClassVar[tuple[str, ...]] = ("residue", "narrative")
 
 
 # =========================
@@ -719,6 +826,8 @@ class SensorimotorLoopPercept(PerceptHeader):
     feedback: str = Field(default="", description="Immediate change perceived after the act.")
     narrative: str = Field(default="", description="2–4 sentences showing the loop.")
 
+    story_names: ClassVar[tuple[str, ...]] = ("sensory_input", "motor_output", "feedback", "narrative")
+
 
 class IntentionFeedbackPercept(PerceptHeader):
     """
@@ -729,6 +838,8 @@ class IntentionFeedbackPercept(PerceptHeader):
     outcome_snippet: str = Field(default="", description="What happened right after.")
     felt_delta: str = Field(default="", description="How affect or confidence shifted.")
     narrative: str = Field(default="", description="2–4 sentences linking cause and felt effect.")
+
+    story_names: ClassVar[tuple[str, ...]] = ("intention", "outcome_snippet", "felt_delta", "narrative")
 
 
 class ErrorPredictionPercept(PerceptHeader):
@@ -741,6 +852,8 @@ class ErrorPredictionPercept(PerceptHeader):
     mitigation_hint: str = Field(default="", description="Small adjustment to reduce risk.")
     narrative: str = Field(default="", description="2–3 sentences expressing the near-miss vibe.")
 
+    story_names: ClassVar[tuple[str, ...]] = ("predicted_error", "cue", "mitigation_hint", "narrative")
+
 
 class PolicyShiftPercept(PerceptHeader):
     """
@@ -751,6 +864,8 @@ class PolicyShiftPercept(PerceptHeader):
     to_policy: str = Field(default="", description="Short label of new stance.")
     reason: str = Field(default="", description="Why the shift makes sense now.")
     narrative: str = Field(default="", description="2–3 sentences embedding the shift in the scene.")
+
+    story_names: ClassVar[tuple[str, ...]] = ("from_policy", "to_policy", "reason", "narrative")
 
 
 # =========================
@@ -766,6 +881,8 @@ class AffectiveRegulationPercept(PerceptHeader):
     technique: str = Field(default="", description="Technique in story terms (slowing pace, reframing, grounding).")
     narrative: str = Field(default="", description="2–4 sentences depicting the regulation as lived.")
 
+    story_names: ClassVar[tuple[str, ...]] = ("target_affect", "technique", "narrative")
+
 
 class SomaticMarkerPercept(PerceptHeader):
     """
@@ -775,6 +892,8 @@ class SomaticMarkerPercept(PerceptHeader):
     marker_quality: str = Field(default="", description="Name/feel of the cue (tightness, warmth, lightness...).")
     association_hint: str = Field(default="", description="What it usually predicts (overcommit, mismatch, trust...).")
     narrative: str = Field(default="", description="2–3 sentences grounding the cue in context.")
+
+    story_names: ClassVar[tuple[str, ...]] = ("marker_quality", "association_hint", "narrative")
 
 
 # =========================
@@ -790,6 +909,8 @@ class TemporalAnchoringPercept(PerceptHeader):
     why_this_anchor: str = Field(default="", description="Why this anchor is natural/robust.")
     narrative: str = Field(default="", description="2–3 sentences tying intention to the anchor.")
 
+    story_names: ClassVar[tuple[str, ...]] = ("anchor", "why_this_anchor", "narrative")
+
 
 class NarrativeContinuityPercept(PerceptHeader):
     """
@@ -799,6 +920,8 @@ class NarrativeContinuityPercept(PerceptHeader):
     seam_named: str = Field(default="", description="Contradiction/tension being acknowledged.")
     reconciliation_hint: str = Field(default="", description="How the claim is resized/refit.")
     narrative: str = Field(default="", description="3–5 sentences that preserve voice without didactic tone.")
+
+    story_names: ClassVar[tuple[str, ...]] = ("seam_named", "reconciliation_hint", "narrative")
 
 
 
@@ -810,6 +933,8 @@ class FeelingSocialPercept(PerceptHeader):
     feeling: str = Field(default="", description="Natural-language name of the emotion (e.g., proud, slighted, adored).")
     other: str = Field(default="", description="The person whose act or presence causes the feeling.")
     reason: str = Field(default="", description="Brief social cause for this feeling.")
+
+    story_names: ClassVar[tuple[str, ...]] = ("feeling", "other", "reason")
 
 
 #: Header fields. Percept text and the schema text leave them out.
@@ -953,7 +1078,7 @@ class PerceptConversionBase(BaseModel):
         if not filled:
             raise ValueError("Fill at least one of the offered percept types.")
         for kind, percept in filled:
-            if not any(getattr(percept, field) for field in type(percept).model_fields if field not in HEADER_FIELDS):
+            if not any(percept.story_fields().values()):
                 raise ValueError(f"The {kind.value} percept has no story text. Fill its text fields.")
         return self
 
@@ -968,18 +1093,20 @@ def container_model(types: list[CodeletPerceptType], name: str) -> type[PerceptC
 
 def percept_items(container: BaseModel) -> list[tuple[CodeletPerceptType, PerceptHeader]]:
     """Return the filled percepts of a container in field order."""
-    return [(CodeletPerceptType(name), getattr(container, name)) for name in _percept_names(type(container))
-            if getattr(container, name) is not None]
+    filled: list[tuple[CodeletPerceptType, PerceptHeader]] = []
+    for name in _percept_names(type(container)):
+        # Pydantic creates these optional fields for the sampled schema.
+        percept: PerceptHeader | None = getattr(container, name)
+        if percept is not None:
+            filled.append((CodeletPerceptType(name), percept))
+    return filled
 
 
 def percept_text(percept_type: CodeletPerceptType, percept: PerceptHeader) -> str:
     """Render the story fields of one percept as text. Header fields stay out."""
     parts = []
-    for name in type(percept).model_fields:
-        if name in HEADER_FIELDS:
-            continue
-        value = getattr(percept, name)
-        text = "; ".join(value) if type(percept).model_fields[name].annotation == list[str] else value
+    for name, value in percept.story_fields().items():
+        text = "; ".join(value) if isinstance(value, list) else value
         if text:
             parts.append(f"{name.replace('_', ' ')}: {text}")
     return f"{percept_type.value}. " + ". ".join(parts)
@@ -1005,9 +1132,8 @@ def schema_text(types: list[CodeletPerceptType], companion_name: str) -> str:
         model = MODEL_BY_TYPE[percept]
         doc = " ".join((model.__doc__ or "").split())
         lines.append(f'- "{percept.value}": {doc}')
-        for name, field in model.model_fields.items():
-            if name in HEADER_FIELDS:
-                continue
+        for name in model.story_names:
+            field = model.model_fields[name]
             kind = "list of strings" if field.annotation == list[str] else "string"
             lines.append(f"    - {name} ({kind}): {field.description or ''}")
     header = PerceptHeader.model_fields

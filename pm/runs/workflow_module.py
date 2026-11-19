@@ -35,7 +35,7 @@ from fastmcp import FastMCP
 from pm_workflows.runtime import AgentModel, WorkflowRuntime
 from pm_workflows.working_target import WorkingEnvironment, WorkingTarget
 
-from pm.bus.bus import BusSystem
+from pm.host.application import Application
 from pm.bus.envelopes import Envelope, new_id
 from pm.host.mcp_listeners import serve_services, McpServerDescriptor
 from pm.host.application import BusModule
@@ -79,9 +79,7 @@ class WorkflowModule(BusModule):
     def __init__(
         self,
         module_id: str,
-        bus: BusSystem,
-        on_error: Callable[[BaseException], None],
-        clock: Callable[[], float],
+        application: Application,
         tick_seconds: float | None,
         *,
         working_target: WorkingTarget,
@@ -96,7 +94,7 @@ class WorkflowModule(BusModule):
         workflow_models: WorkflowModels | None = None,
         stage_model: LazyStageModel | None = None,
     ) -> None:
-        super().__init__(module_id, bus, on_error, clock, tick_seconds)
+        super().__init__(module_id, application, tick_seconds)
         self.working_target = working_target
         self.workflow = Path(workflow)
         self.tools_factory = tools_factory
@@ -442,9 +440,7 @@ class CognitiveWorkflow(WorkflowModule):
     def __init__(
         self,
         module_id: str,
-        bus: BusSystem,
-        on_error: Callable[[BaseException], None],
-        clock: Callable[[], float],
+        application: Application,
         tick_seconds: float | None,
         *,
         ghost: MemoryStore,
@@ -462,10 +458,7 @@ class CognitiveWorkflow(WorkflowModule):
     ) -> None:
         """Forward the module configuration and retain the memory store."""
         super().__init__(
-            module_id,
-            bus,
-            on_error,
-            clock,
+            module_id, application,
             tick_seconds,
             working_target=working_target,
             workflow=workflow,

@@ -8,6 +8,8 @@ external effect.
 """
 from __future__ import annotations
 
+from pm.host.application import Application
+
 import hashlib
 from collections.abc import MutableMapping
 from contextlib import AbstractContextManager
@@ -158,9 +160,9 @@ class RoutingAndDispatchTests(unittest.TestCase):
             root = Path(tmp)
             bus = BusSystem()
             errors: list[BaseException] = []
-            module = MainCogLoop("main_cog", bus, errors.append, ManualClock(), None,
+            module = MainCogLoop("main_cog", Application(bus, [], clock=ManualClock()), None,
                                  working_target=MemoryBashTarget(ghost, "read"), workflow=MANIFEST,
-                                 tools_factory=scripted_tools(model), runtime_root=root / "runtime", ghost=ghost)
+                                 tools_factory=scripted_tools(model), runtime_root=root / "runtime", ghost=ghost, consolidator=Consolidator(ghost))
             module.workflow_catalogue_provider = lambda: catalogue
             bus.subscribe(module.module_id, module.accepts, module.deliver)
             requests = Recorder(bus, "action.request")
@@ -178,13 +180,13 @@ class RoutingAndDispatchTests(unittest.TestCase):
             self.assertEqual(envelope.payload["arguments"], {"tool_goal": "a cat on skis"})
 
             # Self-management turns the action into a start; the supervisor runs the real workflow.
-            control = SelfManagement("self_management", bus, errors.append, time.monotonic, None,
+            control = SelfManagement("self_management", Application(bus, []), None,
                                      working_target=None, workflow=SELF_MANAGEMENT,
                                      tools_factory=lambda environment, batch: {}, runtime_root=root / "sm",
                                      ghost=ghost)
             control.managed_workflows = frozenset({"tool_call"})
             start = control.prepare_input([envelope])
-            consolidator = Consolidator(ghost, clock=time.time)
+            consolidator = Consolidator(ghost, unix_timestamps=True)
             supervisor = ManagedRunSupervisor(
                 ghost, runtime_root=root / "runs", workflows={"tool_call": build_workflow_spec(tools_config())},
                 clock=time.time, task_root=root / "tasks",
@@ -365,7 +367,7 @@ class ReportAndMemoryTests(unittest.TestCase):
         ghost = ghost_with_entities()
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
-            consolidator = Consolidator(ghost, clock=time.time)
+            consolidator = Consolidator(ghost, unix_timestamps=True)
             supervisor = ManagedRunSupervisor(
                 ghost, runtime_root=root / "runs", workflows={"tool_call": build_workflow_spec(tools_config())},
                 clock=time.time, task_root=root / "tasks",

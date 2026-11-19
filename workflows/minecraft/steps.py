@@ -10,7 +10,6 @@ base64 is the source of that file.
 """
 from __future__ import annotations
 from workflows.minecraft.runtime import require_minecraft_runtime
-from workflows.minecraft_body.mcp_client import BodyEpoch
 from workflows.minecraft_body.world_text import observation_text
 from pm.runs.managed_boundary import BoundaryReadSettings
 
@@ -265,7 +264,7 @@ def run(context: RoleContext) -> dict[str, Any]:
             try:
                 return _run_boundary_check(context)
             finally:
-                token = BodyEpoch.model_validate(BODY_LEASES.token(runtime.minecraft_transport.settings.endpoint, context.task_id))
+                token = BODY_LEASES.token(runtime.minecraft_transport.settings.endpoint, context.task_id)
                 runtime.minecraft_transport.release(token)
     from workflows.minecraft.specialist_session import run_specialist_session
     return run_specialist_session(context)

@@ -16,7 +16,7 @@ from pm.records.media import RecordImage, attach_images, with_tags
 from pm.records.memory_records import Entity, new_feature
 
 if TYPE_CHECKING:
-    from pm.bus.bus import BusSystem
+    from pm.host.application import Application
     from pm.memory.store import MemoryStore
 
 
@@ -25,11 +25,10 @@ class UserInputProxy(BusModule):
 
     DATA_TOPICS = frozenset({"dialogue.reply"})
 
-    def __init__(self, module_id: str, bus: BusSystem, on_error: Callable[[BaseException], None],
-                 clock: Callable[[], float], ghost: MemoryStore,
+    def __init__(self, module_id: str, application: Application, ghost: MemoryStore,
                  emit_reply: Callable[[str], None]) -> None:
         """Retain the store that owns the records and the public reply sink."""
-        super().__init__(module_id, bus, on_error, clock, None)
+        super().__init__(module_id, application, None)
         self.ghost = ghost
         self.emit_reply = emit_reply
         self._intake_lock = threading.RLock()

@@ -5,6 +5,8 @@ workflow. No model endpoint or module thread is required.
 """
 from __future__ import annotations
 
+from pm.host.application import Application
+
 import threading
 import json
 import time
@@ -58,7 +60,7 @@ class SelfManagementTests(unittest.TestCase):
                     LOCAL_TASK / "local_task.workflow.md", namespace="local_task",
                 ),
             },
-            clock=time.monotonic,
+            clock=None,
             task_root=self.root / "tasks",
         )
 
@@ -137,7 +139,7 @@ class SelfManagementModuleTests(unittest.TestCase):
         capture = json.loads((PROJECT_ROOT / "test_data/captures/alpha/game-existing-run-alias.json").read_text(encoding="utf-8"))["request"]
         with TemporaryDirectory() as tmp:
             ghost = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"))
-            module = SelfManagement("self_management", BusSystem(), self.fail, time.monotonic, None,
+            module = SelfManagement("self_management", Application(BusSystem(), []), None,
                 working_target=None, workflow=MANIFEST, tools_factory=lambda environment, batch: {},
                 runtime_root=Path(tmp), ghost=ghost)
             module.managed_workflows = frozenset({"minecraft_project"})
@@ -167,12 +169,12 @@ class SelfManagementModuleTests(unittest.TestCase):
                         LOCAL_TASK / "local_task.workflow.md", namespace="local_task",
                     ),
                 },
-                clock=time.monotonic,
+                clock=None,
                 task_root=root / "tasks",
             )
-            app = build_app(None, root / "app-runtime", ghost=ghost, clock=time.monotonic)
+            app = build_app(None, root / "app-runtime", ghost=ghost, clock=None)
             module = SelfManagement(
-                "self_management", app.bus, self.fail, time.monotonic, None,
+                "self_management", Application(app.bus, []), None,
                 working_target=app.main_cog.working_target,
                 workflow=MANIFEST,
                 tools_factory=lambda environment, batch: build_management_tools(supervisor),
@@ -221,7 +223,7 @@ class ManagementMcpTests(unittest.TestCase):
                         LOCAL_TASK / "local_task.workflow.md", namespace="local_task",
                     ),
                 },
-                clock=time.monotonic, task_root=root / "tasks",
+                clock=None, task_root=root / "tasks",
             )
 
             seen: dict = {}

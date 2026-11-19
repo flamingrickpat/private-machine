@@ -5,6 +5,8 @@ It uses the primary Spamuel seed with synthetic incoming test events.
 """
 from __future__ import annotations
 
+from pm.host.application import Application
+
 from datetime import datetime, timezone
 import json
 from pathlib import Path
@@ -47,16 +49,16 @@ class LiveInputTriageTests(unittest.TestCase):
         model = LazyStageModel(connection, ModelActivation(), live_test=True)
         store = MemoryStore.from_yaml(ROOT / "test_data/personas/spamuel/canon.yaml", checkpoint=out / "ghost.pickle")
         bus = BusSystem()
-        control = CognitiveControl("control", bus, self.fail, time.monotonic, None, ghost=store)
+        control = CognitiveControl("control", Application(bus, []), None, ghost=store)
         control.enable_input_triage()
-        module = InputTriage("input_triage", bus, self.fail, time.monotonic, None, ghost=store,
+        module = InputTriage("input_triage", Application(bus, []), None, ghost=store,
             working_target=MemoryBashTarget(store, "read", recovery_only=True),
             workflow=ROOT / "workflows/input_triage/input_triage.workflow.md", runtime_root=out,
             tools_factory=build_main_cognition_tools(store, out, model.complete,
                                                    cancel_provider=lambda: module.run_stop))
         module.cognitive_control = control
         bus.subscribe(module.module_id, module.accepts, module.deliver)
-        intake = UserInputProxy("user_input", bus, self.fail, time.monotonic, store, lambda text: None)
+        intake = UserInputProxy("user_input", Application(bus, []), store, lambda text: None)
         intake.register_triage_input = control.register_input
         results: list[dict[str, object]] = []
         ordinary = "Hey Spamuel, how is your afternoon going?"
@@ -85,7 +87,7 @@ class LiveInputTriageTests(unittest.TestCase):
                 with self.assertRaises(ReplySuperseded):
                     control.validate_publication(old_epoch, None)
                 reopened = MemoryStore.from_checkpoint(out / "ghost.pickle")
-                rebuilt = CognitiveControl("rebuilt", BusSystem(), self.fail, time.monotonic, None, ghost=reopened)
+                rebuilt = CognitiveControl("rebuilt", Application(BusSystem(), []), None, ghost=reopened)
                 rebuilt.enable_input_triage()
                 self.assertTrue(rebuilt.has_assessment(source_id))
                 self.assertTrue(rebuilt.reconsideration_required())

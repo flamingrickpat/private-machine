@@ -23,9 +23,9 @@ class GracefulShutdownTests(unittest.TestCase):
                 finished.set()
         bus = BusSystem()
         app = Application(bus, [])
-        worker = Worker("worker", bus, app.on_error, time.monotonic)
+        worker = Worker("worker", app)
         store = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"))
-        proxy = UserInputProxy("user_input", bus, app.on_error, time.monotonic, store, lambda text: None)
+        proxy = UserInputProxy("user_input", app, store, lambda text: None)
         app.modules = [worker, proxy]
         app.user_input = proxy
         app.ghost = store

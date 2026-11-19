@@ -109,7 +109,7 @@ class LiveMinecraftBodyTests(unittest.TestCase):
             PersonaConfig(user_name="Jesse", companion_name="Spamuel"),
             checkpoint=root / "ghost.pickle",
         )
-        consolidator = Consolidator(ghost, clock=time.monotonic)
+        consolidator = Consolidator(ghost)
         supervisor = ManagedRunSupervisor(
             ghost,
             runtime_root=root / "runtime",

@@ -82,7 +82,8 @@ from collections.abc import Iterable, Sequence, Mapping
 from datetime import datetime, timedelta
 from pathlib import Path
 from dataclasses import dataclass
-from pm.bus.bus import BusSystem
+from pm.host.application import Application
+from workflows.memory_consolidation.artifact_consolidation import Consolidator
 from pm_workflows.working_target import WorkingEnvironment, WorkingTarget
 from pm.llm.workflow_sessions import WorkflowModels
 from pm.memory.bash_view import MemoryBashEnvironment
@@ -293,15 +294,15 @@ class MainCogLoop(CognitiveWorkflow):
         "entity.action_reconsider",
     })
 
-    def __init__(self, module_id: str, bus: BusSystem,
-                 on_error: Callable[[BaseException], None], clock: Callable[[], float],
+    def __init__(self, module_id: str, application: Application,
                  tick_seconds: float | None, *, ghost: MemoryStore, working_target: WorkingTarget,
                  workflow: Path,
                  runtime_root: Path, stage_model: LazyStageModel,
-                 options: MainCognitionOptions) -> None:
-        super().__init__(module_id, bus, on_error, clock, tick_seconds, ghost=ghost,
+                 options: MainCognitionOptions, consolidator: Consolidator) -> None:
+        super().__init__(module_id, application, tick_seconds, ghost=ghost,
             working_target=working_target, workflow=workflow, tools_factory=None,
             runtime_root=runtime_root, stage_model=stage_model, workflow_models=options.workflow_models)
+        self.consolidator = consolidator
         self.codelet_embeddings = options.codelet_embeddings
         workflow_catalogue = options.workflow_catalogue
         embedding_config_path = options.embedding_config_path
@@ -947,8 +948,7 @@ class MainCogLoop(CognitiveWorkflow):
             detail = (event.detail or event.message).strip()
             artifact = event.artifact_path.strip()
             if artifact:
-                from workflows.memory_consolidation.artifact_consolidation import Consolidator
-                Consolidator(self.ghost, clock=self.clock).consolidate(run_id, artifact)
+                self.consolidator.consolidate(run_id, artifact)
             text = f"Managed run {run_id} {state}"
             if detail:
                 text += f": {detail}"

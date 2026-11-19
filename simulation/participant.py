@@ -84,7 +84,7 @@ class Participant:
         """
         return {"clock": vclock.active().state(), "environment": self.env_pending,
                 "output_cursor": self.output_cursor, "carry": self.carry,
-                "timers": {item.module_id: item._next_tick for item in self.app.modules}}
+                "timers": {item.module_id: item.next_tick_seconds for item in self.app.modules}}
 
     def save_clock(self) -> None:
         """Keep timer deadlines for restart without resetting elapsed time."""
@@ -159,7 +159,7 @@ class Participant:
                 self.carry = saved.get("carry", [])
                 for module in app.modules:
                     if module.module_id in saved["timers"]:
-                        module._next_tick = saved["timers"][module.module_id]
+                        module.next_tick_seconds = saved["timers"][module.module_id]
             app.run()
         except BaseException as error:
             self.fail(error)

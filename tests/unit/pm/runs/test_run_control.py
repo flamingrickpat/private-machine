@@ -1,4 +1,6 @@
 """Per-run cancellation and waiting-input routing at the module boundary."""
+
+from pm.host.application import Application
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import threading
@@ -35,7 +37,7 @@ class _ProbeWorkflow(WorkflowModule):
 class RunControlTests(unittest.TestCase):
     def _module(self, root, manifest, tools_factory, **kwargs):
         module = _ProbeWorkflow(
-            "probe", BusSystem(), self.fail, time.monotonic, None,
+            "probe", Application(BusSystem(), []), None,
             working_target=FolderTarget(root / "target", "bash"),
             workflow=manifest, tools_factory=tools_factory,
             runtime_root=root / "runtime", **kwargs,

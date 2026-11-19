@@ -29,22 +29,19 @@ class BusModule(ABC):
     def __init__(
         self,
         module_id: str,
-        bus: BusSystem,
-        on_error: Callable[[BaseException], None],
-        clock: Callable[[], float],
+        application: Application,
         tick_seconds: float | None = None,
     ) -> None:
         self.module_id = module_id
-        self.bus = bus
-        self.on_error = on_error
-        self.clock = clock
+        self.application = application
+        self.bus = application.bus
         self.tick_seconds = tick_seconds
         self.mailbox = Mailbox()
         self.stop_event = threading.Event()
         self.invocation_id: str | None = None
-        self._next_tick: float | None = None
+        self.next_tick_seconds: float | None = None
         if tick_seconds is not None:
-            self._next_tick = self.clock() + tick_seconds
+            self.next_tick_seconds = self.application.clock.monotonic() + tick_seconds
         self._thread: threading.Thread | None = None
         self._termination_done = False
         self.draining = False
@@ -100,7 +97,7 @@ class BusModule(ABC):
                 self._finish_termination()
         except BaseException as exc:  # a crash must reach the application
             logger.exception("Module thread crashed module=%s invocation=%s", self.module_id, self.invocation_id)
-            self.on_error(exc)
+            self.application.on_error(exc)
         finally:
             logger.info("Module thread stopped module=%s invocation=%s", self.module_id, self.invocation_id)
 
@@ -141,15 +138,15 @@ class BusModule(ABC):
 
     def step(self, *, block: bool = False) -> bool:
         """Run at most one batch or one timer tick. Returns True only on work."""
-        start = self.clock()
+        start = self.application.clock.monotonic()
         if self.stop_event.is_set():
             self._finish_termination()
             return False
 
         if block:
             wait: float | None
-            if not self.draining and self._next_tick is not None:
-                wait = max(0.0, self._next_tick - start)
+            if not self.draining and self.next_tick_seconds is not None:
+                wait = max(0.0, self.next_tick_seconds - start)
             else:
                 wait = None
         else:
@@ -169,10 +166,12 @@ class BusModule(ABC):
                 self.mailbox.release()
             return True
 
-        now = self.clock()
-        if not self.draining and self._next_tick is not None and now >= self._next_tick:
+        now = self.application.clock.monotonic()
+        if not self.draining and self.next_tick_seconds is not None and now >= self.next_tick_seconds:
+            if self.tick_seconds is None:
+                raise RuntimeError(f"Module {self.module_id} has a scheduled tick without a timer interval.")
             self.working = True
-            self._next_tick = now + self.tick_seconds
+            self.next_tick_seconds = now + self.tick_seconds
             self._logged_batch([])
             return True
 
@@ -187,10 +186,12 @@ class Application:
     to the caller. External services must remain available until join returns.
     """
 
-    def __init__(self, bus: BusSystem, modules: list[BusModule]) -> None:
+    def __init__(self, bus: BusSystem, modules: list[BusModule], *,
+                 clock: vclock.SystemClock | None = None) -> None:
         self.bus = bus
         self.capability_overlay: CapabilityOverlay | None = None
         self.modules = modules
+        self.clock: vclock.SystemClock = clock if clock is not None else vclock.current_clock()
         self.shutdown_event = threading.Event()
         self.error: BaseException | None = None
         self._error_lock = threading.Lock()
@@ -210,8 +211,8 @@ class Application:
         for module in self.modules:
             if module.working or module.mailbox.pending():
                 return False
-            if (not module.draining and module._next_tick is not None
-                    and module.clock() >= module._next_tick):
+            if (not module.draining and module.next_tick_seconds is not None
+                    and self.clock.monotonic() >= module.next_tick_seconds):
                 return False
         supervisor = getattr(self, "supervisor", None)
         return supervisor is None or supervisor.idle()

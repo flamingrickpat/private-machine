@@ -19,7 +19,7 @@ class DiagnosticsTests(unittest.TestCase):
             path = configure_logging(Path(directory))
             try:
                 app = Application(BusSystem(), [])
-                module = FailingModule("crashing-worker", app.bus, app.on_error, time.monotonic, .01)
+                module = FailingModule("crashing-worker", app, .01)
                 app.modules.append(module)
                 app.run()
                 self.assertTrue(app.shutdown_event.wait(5))

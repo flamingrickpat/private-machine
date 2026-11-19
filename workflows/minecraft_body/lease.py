@@ -1,23 +1,29 @@
 """Fence each body with an operating-system lease and a durable epoch."""
 from __future__ import annotations
 
+from pydantic import BaseModel, ConfigDict
+
 from pm.utils.operating_system import OperatingSystem
 from contextlib import contextmanager
 import hashlib
 from pathlib import Path
 import threading
 import time
-from typing import Iterator, Generator, TypedDict
+from typing import Iterator, Generator
 from urllib.parse import urlsplit, urlunsplit
 import uuid
 from pm.host.durable_files import BodyBusy, ProcessLock, atomic_json, read_json
 
 
-class BodyLeaseWire(TypedDict):
-    endpoint: str
+class BodyEpoch(BaseModel):
+    model_config = ConfigDict(extra="ignore", frozen=True)
     owner: str
     epoch: int
     session: str
+
+
+class BodyLeaseEvidence(BodyEpoch):
+    endpoint: str
     pid: int
     active: bool
     acquired_at: float
@@ -51,7 +57,7 @@ class BodyLeases:
         base = Path(OperatingSystem.environment.get("LOCALAPPDATA", str(Path.home() / ".local/share")))
         self.root = Path(root or OperatingSystem.environment.get("PM_BODY_LEASE_ROOT", base / "pm-next-v2/body-leases"))
         self._lock = threading.RLock()
-        self._tokens: dict[str, BodyLeaseWire] = {}
+        self._tokens: dict[str, BodyLeaseEvidence] = {}
 
     def path(self, endpoint: str, suffix: str) -> Path:
         """Return a stable registry path without exposing endpoint credentials."""
@@ -68,41 +74,42 @@ class BodyLeases:
             lock.close()
 
     @contextmanager
-    def acquire(self, endpoint: str, owner: str) -> Generator[BodyLeaseWire, None, None]:
+    def acquire(self, endpoint: str, owner: str) -> Generator[BodyLeaseEvidence, None, None]:
         """Issue one durable epoch after exclusive acquisition. Never expire it."""
         key = body_key(endpoint)
         lock = ProcessLock(self.path(endpoint, ".owner.lock")).acquire()
         path = self.path(endpoint, ".json")
         try:
             previous = read_json(path) if path.exists() else {}
-            token: BodyLeaseWire = {"endpoint": key, "owner": owner, "epoch": previous.get("epoch", 0) + 1,
-                     "session": uuid.uuid4().hex, "pid": OperatingSystem.process_id(), "active": True,
-                     "acquired_at": time.time()}
-            atomic_json(path, token)
+            token = BodyLeaseEvidence(
+                endpoint=key, owner=owner, epoch=previous.get("epoch", 0) + 1,
+                session=uuid.uuid4().hex, pid=OperatingSystem.process_id(), active=True, acquired_at=time.time(),
+            )
+            atomic_json(path, token.model_dump())
             with self._lock:
                 self._tokens[key] = token
-            yield dict(token)
+            yield token
         finally:
             with self._lock:
-                token = self._tokens.pop(key, None)
+                active_epoch = self._tokens.pop(key, None)
             try:
-                if token is not None:
-                    atomic_json(path, {**token, "active": False, "released_at": time.time()})
+                if active_epoch is not None:
+                    atomic_json(path, {**active_epoch.model_dump(), "active": False, "released_at": time.time()})
             finally:
                 lock.close()
 
-    def token(self, endpoint: str, owner: str) -> dict:
+    def token(self, endpoint: str, owner: str) -> BodyEpoch:
         """Return this process's active token, or reject a stale owner."""
         with self._lock:
             token = self._tokens.get(body_key(endpoint))
-            if token is None or token["owner"] != owner:
+            if token is None or token.owner != owner:
                 raise StaleEpoch("This session does not own the Minecraft body.")
-            return dict(token)
+            return token
 
-    def validate(self, endpoint: str, token: dict) -> None:
+    def validate(self, endpoint: str, token: BodyEpoch) -> None:
         """Reject an earlier session even when it reused the same owner name."""
-        current = self.token(endpoint, token["owner"])
-        if (current["epoch"], current["session"]) != (token["epoch"], token["session"]):
+        current = self.token(endpoint, token.owner)
+        if current.epoch != token.epoch or current.session != token.session:
             raise StaleEpoch("The Minecraft execution epoch changed.")
 
     def owner(self, endpoint: str) -> str | None:
@@ -110,7 +117,7 @@ class BodyLeases:
         with self._lock:
             token = self._tokens.get(body_key(endpoint))
             if token is not None:
-                return token["owner"]
+                return token.owner
         probe = ProcessLock(self.path(endpoint, ".owner.lock"))
         try:
             probe.acquire()

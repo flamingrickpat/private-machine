@@ -301,7 +301,7 @@ def run_scenario(
     ghost.checkpoint = root / "ghost.pickle"
     app = build_app(
         None, root / "runtime", ghost=ghost, cognition="real",
-        stage_model=stage_model, clock=__import__("time").monotonic,
+        stage_model=stage_model, clock=None,
         emit_reply=lambda _text: None,
     )
     facts_suffix = setup_scenario_run(app, scenario)

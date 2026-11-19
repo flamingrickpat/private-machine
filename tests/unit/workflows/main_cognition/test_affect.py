@@ -5,6 +5,10 @@ kernel and the real module adapter with a scripted model.
 """
 from __future__ import annotations
 
+from workflows.memory_consolidation.artifact_consolidation import Consolidator
+
+from pm.host.application import Application
+
 from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -103,12 +107,13 @@ def _module(ghost, reports, tmp):
     bus = BusSystem()
     errors: list[BaseException] = []
     module = MainCogLoop(
-        "main_cog", bus, errors.append, ManualClock(), None,
+        "main_cog", Application(bus, [], clock=ManualClock()), None,
         working_target=MemoryBashTarget(ghost, "read"),
         workflow=REAL_MANIFEST,
         tools_factory=scripted_tools(model),
         runtime_root=Path(tmp) / "runtime",
         ghost=ghost,
+        consolidator=Consolidator(ghost),
     )
     bus.subscribe(module.module_id, module.accepts, module.deliver)
     return module, bus, errors, model

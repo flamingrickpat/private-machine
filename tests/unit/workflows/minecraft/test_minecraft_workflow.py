@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import base64
 import threading
+from tests.support import ManualClock
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -145,7 +146,7 @@ class MinecraftConsolidationTests(MinecraftTestBase):
             environment, report = self._run(request, minecraft, root)
 
             ghost = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"))
-            consolidator = Consolidator(ghost, clock=lambda: 10.0)
+            consolidator = Consolidator(ghost, clock=ManualClock(10.0))
             receipt = consolidator.consolidate("minecraft-1", root / "task")
             self.assertTrue(receipt["memory_ids"])
             knoxels = [ghost.get_knoxel_by_id(mid) for mid in receipt["memory_ids"]]

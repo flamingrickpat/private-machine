@@ -204,9 +204,8 @@ def _cognition_modules(
     *,
     ghost: MemoryStore,
     target: MemoryBashTarget,
-    bus: BusSystem,
-    on_error: Callable[[BaseException], None],
-    clock: Callable[[], float],
+    application: Application,
+    consolidator: Consolidator,
     runtime_root: Path,
     workflow_paths: Callable[[str], DummyWorkflowPaths],
     stage_model: LazyStageModel | None,
@@ -240,12 +239,13 @@ def _cognition_modules(
             config = load_config(config_path)
             stage_model = LazyStageModel(resolve_connection(config), ModelActivation(), capture_options=config.renderer_capture)
         main_cog = MainCogLoop(
-            "main_cog", bus, on_error, clock, None,
+            "main_cog", application, None,
             working_target=target,
             workflow=PROJECT_ROOT / "workflows" / "main_cognition" / "main_cognition.workflow.md",
             runtime_root=runtime_root,
             stage_model=stage_model,
             ghost=ghost,
+            consolidator=consolidator,
             options=MainCognitionOptions(
                 workflow_catalogue=tuple(WorkflowCatalogue(supervisor, None).options()),
                 embedding_config_path=config_path, ghost_backups=load_config(config_path).ghost_backups,
@@ -254,7 +254,7 @@ def _cognition_modules(
         )
         main_cog.embedding_service = embeddings
         story = StoryDialogue(
-            "dialogue", bus, on_error, clock, None,
+            "dialogue", application, None,
             working_target=target,
             workflow=PROJECT_ROOT / "workflows" / "dialogue_story" / "dialogue_story.workflow.md",
             tools_factory=None,
@@ -263,7 +263,7 @@ def _cognition_modules(
             ghost=ghost,
         )
         assistant = AssistantDialogue(
-            "assistant", bus, on_error, clock, None,
+            "assistant", application, None,
             working_target=target,
             workflow=PROJECT_ROOT / "workflows" / "dialogue_assistant" / "dialogue_assistant.workflow.md",
             tools_factory=None,
@@ -277,7 +277,7 @@ def _cognition_modules(
         story.inference_admission = admission
         assistant.inference_admission = admission
         self_management = SelfManagement(
-            "self_management", bus, on_error, clock, None,
+            "self_management", application, None,
             working_target=target,
             workflow=PROJECT_ROOT / "workflows" / "self_management" / "self_management.workflow.md",
             tools_factory=build_self_management_tools(supervisor),
@@ -289,7 +289,7 @@ def _cognition_modules(
         # The private loop owns its timer in real mode. Its triggers decide
         # whether a tick produces a thought; an idle tick costs no model call.
         inner_thought = PrivateThoughtLoop(
-            "inner_thought", bus, on_error, clock, thought_period,
+            "inner_thought", application, thought_period,
             working_target=target,
             workflow=PROJECT_ROOT / "workflows" / "inner_thought" / "inner_thought.workflow.md",
             runtime_root=runtime_root,
@@ -302,18 +302,18 @@ def _cognition_modules(
         # This module admits the selected action and delivers its result; it
         # runs no model. Main appraisal still owns every accepted change.
         from workflows.focus_management.host import FocusManagement
-        focus_management = FocusManagement("focus_management", bus, on_error, clock, 1.0, ghost=ghost)
+        focus_management = FocusManagement("focus_management", application, 1.0, ghost=ghost)
         return CognitionModules(main_cog, story, assistant, self_management, inner_thought, focus_management)
     main_cog = DummyMainCogLoop(
-        "main_cog", bus, on_error, clock, None,
+        "main_cog", application, None,
         **workflow_paths("main_cognition"),
     )
     dialogue = DummyDialogue(
-        "dialogue", bus, on_error, clock, None,
+        "dialogue", application, None,
         **workflow_paths("dialogue"),
     )
     inner_thought = InnerThoughtLoop(
-        "inner_thought", bus, on_error, clock, thought_period,
+        "inner_thought", application, thought_period,
         **workflow_paths("inner_thought"),
     )
     return CognitionModules(main_cog, dialogue, None, None, inner_thought, None)
@@ -339,7 +339,7 @@ def build_app(
     runtime_root: str | Path,
     thought_period: float = 30.0,
     task_period: float = 0.1,
-    clock: Callable[[], float] = vclock.monotonic,
+    clock: vclock.SystemClock | None = None,
     emit_reply: Callable[[str], None] = print,
     ghost: MemoryStore | None = None,
     checkpoint_path: str | Path | None = None,
@@ -417,14 +417,14 @@ def build_app(
     target = MemoryBashTarget(ghost, mode="read")
     bus = BusSystem()
     bus.observer = bus_observer
-    tasks = TaskTable(clock)
-    app = Application(bus, [])
+    app = Application(bus, [], clock=clock)
+    tasks = TaskTable(app.clock.monotonic)
 
     on_error = app.on_error
     runtime_root = Path(runtime_root)
     app.runtime_root = runtime_root
 
-    consolidator = Consolidator(ghost, clock=clock)
+    consolidator = Consolidator(ghost, clock=app.clock)
     context_embeddings = None
     minecraft_endpoint = None
     if cognition == "real":
@@ -449,7 +449,7 @@ def build_app(
         runtime_root=runtime_root,
         workflows=_managed_workflows(stage_model, context_embeddings, ghost, tool_call, minecraft_endpoint,
                                      enable_minecraft=enable_minecraft),
-        clock=clock,
+        clock=app.clock.monotonic,
         task_root=runtime_root / "managed_tasks",
         on_error=on_error,
         workflow_models=workflow_models,
@@ -486,7 +486,7 @@ def build_app(
 
     supervisor.on_terminal = _on_terminal
     supervisor.event_sink = _event_sink
-    steward = Steward(supervisor, clock=clock)
+    steward = Steward(supervisor, clock=app.clock.monotonic)
 
     def workflow_paths(name: str) -> DummyWorkflowPaths:
         """Return the constructor keywords of the dummy prototype workflow ``name``."""
@@ -498,25 +498,25 @@ def build_app(
             "ghost": ghost,
         }
 
-    user_input = UserInputProxy("user_input", bus, on_error, clock, ghost, emit_reply)
+    user_input = UserInputProxy("user_input", app, ghost, emit_reply)
     main_cog, dialogue, assistant, self_management, inner_thought, focus_management = _cognition_modules(
-        cognition, ghost=ghost, target=target, bus=bus, on_error=on_error,
-        clock=clock, runtime_root=runtime_root, workflow_paths=workflow_paths,
+        cognition, ghost=ghost, target=target, application=app, consolidator=consolidator,
+        runtime_root=runtime_root, workflow_paths=workflow_paths,
         stage_model=stage_model, config_path=resolved_config, supervisor=supervisor,
         codelet_definitions=codelet_definitions, thought_period=thought_period,
         embeddings=context_embeddings, workflow_models=workflow_models,
         minecraft_endpoint=minecraft_endpoint,
     )
     scheduler = ScheduleSubprocesses(
-        "scheduler", bus, on_error, clock, task_period,
+        "scheduler", app, task_period,
         **workflow_paths("schedule"), tasks=tasks,
     )
     status = CheckSubprocess(
-        "status", bus, on_error, clock, None,
+        "status", app, None,
         **workflow_paths("status"), tasks=tasks,
     )
     tool_dialogue = ToolPlusDialogue(
-        "tool_dialogue", bus, on_error, clock, None,
+        "tool_dialogue", app, None,
         **workflow_paths("tool_dialogue"),
     )
     steward_module = None
@@ -524,7 +524,7 @@ def build_app(
         from workflows.steward.host import build_steward_module_tools
 
         steward_module = StewardModule(
-            "steward", bus, on_error, clock, None,
+            "steward", app, None,
             working_target=target,
             workflow=PROJECT_ROOT / "workflows" / "steward" / "steward.workflow.md",
             tools_factory=build_steward_module_tools(steward),
@@ -539,7 +539,7 @@ def build_app(
         from workflows.cognitive_control.host import CognitiveControl
 
         control = CognitiveControl(
-            "cognitive_control", bus, on_error, clock, 1.0, ghost=ghost,
+            "cognitive_control", app, 1.0, ghost=ghost,
             config=ControlConfig.model_validate(cognitive_control_config or {}),
         )
         from workflows.entity_context.owner import EntityContextOwner
@@ -573,7 +573,7 @@ def build_app(
         if stage_model is None:
             raise RuntimeError("Early input triage requires the real configured stage model.")
         input_triage = InputTriage(
-            "input_triage", bus, on_error, clock, None,
+            "input_triage", app, None,
             working_target=MemoryBashTarget(ghost, mode="read", recovery_only=True),
             workflow=PROJECT_ROOT / "workflows" / "input_triage" / "input_triage.workflow.md",
             tools_factory=None,
@@ -587,7 +587,7 @@ def build_app(
         from workflows.interaction.records import interaction_receipts
 
         interaction = Interaction(
-            "interaction", bus, on_error, clock, None,
+            "interaction", app, None,
             working_target=MemoryBashTarget(ghost, mode="read", recovery_only=True),
             workflow=PROJECT_ROOT / "workflows" / "interaction" / "interaction.workflow.md",
             tools_factory=None,
@@ -643,7 +643,7 @@ def build_app(
                     return {"ok": False, "cancelled": True}
 
             world_events = WorldEvents(
-                "world_events", bus, on_error, clock, world_poll_seconds,
+                "world_events", app, world_poll_seconds,
                 ghost=ghost, observe=observe_world,
                 journal=runtime_root / "world-events.jsonl", quiet_seconds=world_quiet_seconds,
             )
@@ -677,7 +677,7 @@ def build_app(
                           _ctx - (stage_model.connection.completion_token_limit or 0))
             dialogue.context_budget = _budget
             assistant.context_budget = _budget
-        recovery = ReplyRecovery("reply_recovery", bus, on_error, clock, None, ghost=ghost, supervisor=supervisor)
+        recovery = ReplyRecovery("reply_recovery", app, None, ghost=ghost, supervisor=supervisor)
         recovery.selection = ReplyRecoverySelection(ghost, control, main_cog)
         modules.append(recovery)
         app.reply_recovery = recovery

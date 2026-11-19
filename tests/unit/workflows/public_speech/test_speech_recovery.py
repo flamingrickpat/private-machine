@@ -36,14 +36,14 @@ class SpeechRecoveryTests(unittest.TestCase):
             self.delivered.append(text)
             self.received.set()
 
-        self.proxy = UserInputProxy("user_input", self.bus, self.app.on_error, lambda: 0, self.ghost, emit)
+        self.proxy = UserInputProxy("user_input", self.app, self.ghost, emit)
         self.receipts = Recorder(self.bus, "action.receipt")
 
     def module(self, generate, review=None):
         async def accept(*args, **kwargs):
             return '{"reason":"ok","false_task_result":false}'
 
-        module = StoryDialogue("dialogue", self.bus, self.app.on_error, lambda: 0, None,
+        module = StoryDialogue("dialogue", self.app, None,
             working_target=MemoryBashTarget(self.ghost, "read"), workflow=MANIFEST, runtime_root=self.root,
             ghost=self.ghost, tools_factory=lambda *args: {"story_complete": generate, "public_complete": review or accept})
         self.app.modules = [module, self.proxy]

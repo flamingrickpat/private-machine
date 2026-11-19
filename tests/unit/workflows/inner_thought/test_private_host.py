@@ -15,6 +15,8 @@ reached without a retained episode. It supplies no inquiry behavior.
 """
 from __future__ import annotations
 
+from pm.host.application import Application
+
 import json
 import asyncio
 from datetime import datetime, timedelta, timezone
@@ -89,7 +91,7 @@ def _module(ghost, reports, tmp, stage_called=None, *, stage_error=None, retaine
     bus = BusSystem()
     errors: list[BaseException] = []
     module = PrivateThoughtLoop(
-        "inner_thought", bus, errors.append, ManualClock(), None,
+        "inner_thought", Application(bus, [], clock=ManualClock()), None,
         working_target=MemoryBashTarget(ghost, "read"),
         workflow=MANIFEST,
         tools_factory=lambda environment, batch: {

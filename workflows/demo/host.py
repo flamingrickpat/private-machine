@@ -36,7 +36,7 @@ if TYPE_CHECKING:
     from pathlib import Path
     from typing import Any, Mapping
 
-    from pm.bus.bus import BusSystem
+    from pm.host.application import Application
     from pm.memory.store import MemoryStore
     from pm_workflows.working_target import WorkingTarget
 
@@ -203,14 +203,13 @@ class DummyDialogue(CognitiveWorkflow):
 class ScheduleSubprocesses(CognitiveWorkflow):
     DATA_TOPICS = frozenset({"action.schedule"})
 
-    def __init__(self, module_id: str, bus: BusSystem, on_error: Callable[[BaseException], None],
-                 clock: Callable[[], float], tick_seconds: float | None, *,
+    def __init__(self, module_id: str, application: Application, tick_seconds: float | None, *,
                  working_target: WorkingTarget, workflow: Path,
                  tools_factory: Callable[[Any, Any], Mapping[str, Callable[..., object]]],
                  runtime_root: Path, ghost: MemoryStore, tasks: TaskTable) -> None:
         """Forward the module configuration and retain the shared task table."""
         super().__init__(
-            module_id, bus, on_error, clock, tick_seconds,
+            module_id, application, tick_seconds,
             working_target=working_target, workflow=workflow,
             tools_factory=tools_factory, runtime_root=runtime_root, ghost=ghost,
         )
@@ -234,11 +233,11 @@ class ScheduleSubprocesses(CognitiveWorkflow):
             created = self.tasks.create(task_id, task_kind, correlation_id)
             if created is None:
                 continue
-            created["next_transition"] = self.clock() + self.tick_seconds
+            created["next_transition"] = self.application.clock.monotonic() + self.tick_seconds
             self._emit(task_id, "accepted", correlation_id)
 
     def _advance_tasks(self) -> None:
-        for record in self.tasks.due(self.clock()):
+        for record in self.tasks.due(self.application.clock.monotonic()):
             status = self.tasks.advance(record, self.tick_seconds)
             self._emit(record["task_id"], status, record["correlation_id"])
 
@@ -261,14 +260,13 @@ class ScheduleSubprocesses(CognitiveWorkflow):
 class CheckSubprocess(CognitiveWorkflow):
     DATA_TOPICS = frozenset({"action.status"})
 
-    def __init__(self, module_id: str, bus: BusSystem, on_error: Callable[[BaseException], None],
-                 clock: Callable[[], float], tick_seconds: float | None, *,
+    def __init__(self, module_id: str, application: Application, tick_seconds: float | None, *,
                  working_target: WorkingTarget, workflow: Path,
                  tools_factory: Callable[[Any, Any], Mapping[str, Callable[..., object]]],
                  runtime_root: Path, ghost: MemoryStore, tasks: TaskTable) -> None:
         """Forward the module configuration and retain the shared task table."""
         super().__init__(
-            module_id, bus, on_error, clock, tick_seconds,
+            module_id, application, tick_seconds,
             working_target=working_target, workflow=workflow,
             tools_factory=tools_factory, runtime_root=runtime_root, ghost=ghost,
         )

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import threading
 import time
+from tests.support import ManualClock
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -57,7 +58,7 @@ class ConsolidatorTests(unittest.TestCase):
             },
             clock=self._clock, task_root=self.root / "tasks",
         )
-        self.consolidator = Consolidator(self.ghost, clock=self._clock)
+        self.consolidator = Consolidator(self.ghost, clock=ManualClock(self.clock_value))
 
     def tearDown(self):
         self.supervisor.join_all(timeout=10)
@@ -221,7 +222,7 @@ class ConsolidationWorkflowTests(unittest.TestCase):
             (artifact / "scratch" / "result.md").write_text(
                 "# Result\n\nfence is upright\n", encoding="utf-8",
             )
-            consolidator = Consolidator(ghost, clock=time.monotonic)
+            consolidator = Consolidator(ghost)
 
             def invoke(run_id: str) -> ConsolidationReport:
                 environment = MemoryBashEnvironment({}, {}, "read")

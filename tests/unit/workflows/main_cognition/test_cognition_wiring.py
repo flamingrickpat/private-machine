@@ -7,6 +7,10 @@ MemoryStore commits, and the real bus are exercised.
 """
 from __future__ import annotations
 
+from workflows.memory_consolidation.artifact_consolidation import Consolidator
+
+from pm.host.application import Application
+
 import asyncio
 import json
 import unittest
@@ -80,13 +84,13 @@ class MainCogLoopWiringTests(unittest.TestCase):
                 ghost.checkpoint = root / "ghost.pickle"
                 stimulus_id = _store(ghost, "the kitchen is on fire")
                 bus = BusSystem()
-                module = MainCogLoop("main_cog", bus, self.fail, ManualClock(), None,
+                module = MainCogLoop("main_cog", Application(bus, [], clock=ManualClock()), None,
                     working_target=MemoryBashTarget(ghost, "read"), workflow=REAL_MANIFEST,
                     tools_factory=scripted_tools(ScriptedModel(reports=_fake_reports(stimulus_id, stimulus_id))),
-                    runtime_root=root / "runtime", ghost=ghost, ghost_backups=True)
+                    runtime_root=root / "runtime", ghost=ghost, ghost_backups=True, consolidator=Consolidator(ghost))
                 if use_control:
                     module.cognitive_control = CognitiveControl(
-                        "cognitive_control", bus, self.fail, ManualClock(), None, ghost=ghost)
+                        "cognitive_control", Application(bus, [], clock=ManualClock()), None, ghost=ghost)
 
                 def receive(envelope):
                     backups = list(root.glob("ghost_*.pickle"))
@@ -126,9 +130,9 @@ class MainCogLoopWiringTests(unittest.TestCase):
         source = ghost.store_knoxel(source)
         with TemporaryDirectory() as directory:
             bus = BusSystem()
-            module = MainCogLoop("main_cog", bus, self.fail, ManualClock(), None,
+            module = MainCogLoop("main_cog", Application(bus, [], clock=ManualClock()), None,
                 working_target=MemoryBashTarget(ghost, "read"), workflow=REAL_MANIFEST,
-                tools_factory=lambda *args: {}, runtime_root=Path(directory), ghost=ghost)
+                tools_factory=lambda *args: {}, runtime_root=Path(directory), ghost=ghost, consolidator=Consolidator(ghost))
             module.last_environment = module.working_target.open("request")
             rejected = Recorder(bus, "mental.rejected")
             envelope = Envelope(id=new_id(), source="focus_management", kind="data", topic="thought.created",
@@ -156,11 +160,11 @@ class MainCogLoopWiringTests(unittest.TestCase):
             topic=progress["topic"], correlation_id=progress["correlation_id"], payload=progress["payload"])]
         with TemporaryDirectory() as directory:
             bus = BusSystem()
-            module = MainCogLoop("main_cog", bus, self.fail, ManualClock(), None,
+            module = MainCogLoop("main_cog", Application(bus, [], clock=ManualClock()), None,
                 working_target=MemoryBashTarget(ghost, "read"), workflow=REAL_MANIFEST,
                 tools_factory=scripted_tools(ScriptedModel(reports=reports)),
                 runtime_root=Path(directory), ghost=ghost,
-                workflow_catalogue=[{"name": proposed["workflow_name"], "description": "game project"}])
+                workflow_catalogue=[{"name": proposed["workflow_name"], "description": "game project"}], consolidator=Consolidator(ghost))
             requests, receipts = Recorder(bus, "action.request"), Recorder(bus, "action.receipt")
             module.handle_batch(batch)
             self.assertFalse(requests.events)
@@ -188,10 +192,10 @@ class MainCogLoopWiringTests(unittest.TestCase):
             raise StageOutputError("The retained model result failed its protocol contract.")
         with TemporaryDirectory() as directory:
             bus = BusSystem()
-            module = MainCogLoop("main_cog", bus, self.fail, ManualClock(), None,
+            module = MainCogLoop("main_cog", Application(bus, [], clock=ManualClock()), None,
                 working_target=MemoryBashTarget(ghost, "read"), workflow=REAL_MANIFEST,
                 tools_factory=lambda environment, batch: {**ScriptedModel().tools(), "llm_complete": failed_model},
-                runtime_root=Path(directory), ghost=ghost)
+                runtime_root=Path(directory), ghost=ghost, consolidator=Consolidator(ghost))
             receipts = Recorder(bus, "action.receipt")
             with self.assertRaisesRegex(StageOutputError, "protocol contract"):
                 module.handle_batch([
@@ -222,10 +226,10 @@ class MainCogLoopWiringTests(unittest.TestCase):
             ghost.checkpoint = Path(tmp) / "ghost.pickle"
             bus = BusSystem()
             errors = []
-            module = MainCogLoop("main_cog", bus, errors.append, ManualClock(), None,
+            module = MainCogLoop("main_cog", Application(bus, [], clock=ManualClock()), None,
                 working_target=MemoryBashTarget(ghost, "read"), workflow=REAL_MANIFEST,
                 tools_factory=lambda environment, batch: {**scripted.tools(), "llm_complete": model},
-                runtime_root=Path(tmp), ghost=ghost)
+                runtime_root=Path(tmp), ghost=ghost, consolidator=Consolidator(ghost))
             rejected = Recorder(bus, "cycle.rejected")
             requests = Recorder(bus, "action.request")
             module.handle_batch([Envelope(id=new_id(), source="user_input", kind="data", topic="user.input",
@@ -255,10 +259,10 @@ class MainCogLoopWiringTests(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             bus = BusSystem()
             errors = []
-            module = MainCogLoop("main_cog", bus, errors.append, ManualClock(), None,
+            module = MainCogLoop("main_cog", Application(bus, [], clock=ManualClock()), None,
                 working_target=MemoryBashTarget(ghost, "read"), workflow=REAL_MANIFEST,
                 tools_factory=lambda environment, batch: {**scripted.tools(), "llm_complete": model},
-                runtime_root=Path(tmp), ghost=ghost)
+                runtime_root=Path(tmp), ghost=ghost, consolidator=Consolidator(ghost))
             rejected = Recorder(bus, "cycle.rejected")
             requests = Recorder(bus, "action.request")
             module.handle_batch([Envelope(id=new_id(), source="user_input", kind="data", topic="user.input",
@@ -281,10 +285,10 @@ class MainCogLoopWiringTests(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             ghost.checkpoint = Path(tmp) / "ghost.pickle"
             bus = BusSystem()
-            module = MainCogLoop("main_cog", bus, self.fail, ManualClock(), None,
+            module = MainCogLoop("main_cog", Application(bus, [], clock=ManualClock()), None,
                 working_target=MemoryBashTarget(ghost, "read"), workflow=REAL_MANIFEST,
                 tools_factory=lambda environment, batch: {**ScriptedModel().tools(), "llm_complete": model},
-                runtime_root=Path(tmp), ghost=ghost)
+                runtime_root=Path(tmp), ghost=ghost, consolidator=Consolidator(ghost))
             requests = Recorder(bus, "action.request")
             module.handle_batch([Envelope(id=new_id(), source="user_input", kind="data", topic="user.input",
                 correlation_id="cancelled-user", payload={"knoxel_id": stimulus_id})])
@@ -303,12 +307,13 @@ class MainCogLoopWiringTests(unittest.TestCase):
             bus = BusSystem()
             errors: list[BaseException] = []
             module = MainCogLoop(
-                "main_cog", bus, errors.append, ManualClock(), None,
+                "main_cog", Application(bus, [], clock=ManualClock()), None,
                 working_target=MemoryBashTarget(ghost, "read"),
                 workflow=REAL_MANIFEST,
                 tools_factory=scripted_tools(ScriptedModel(reports=reports)),
                 runtime_root=Path(tmp) / "runtime",
                 ghost=ghost,
+                consolidator=Consolidator(ghost),
             )
             bus.subscribe(module.module_id, module.accepts, module.deliver)
             requests = Recorder(bus, "action.request")
@@ -346,12 +351,13 @@ class MainCogLoopWiringTests(unittest.TestCase):
             bus = BusSystem()
             errors: list[BaseException] = []
             module = MainCogLoop(
-                "main_cog", bus, errors.append, ManualClock(), None,
+                "main_cog", Application(bus, [], clock=ManualClock()), None,
                 working_target=MemoryBashTarget(ghost, "read"),
                 workflow=REAL_MANIFEST,
                 tools_factory=scripted_tools(model),
                 runtime_root=Path(tmp) / "runtime",
                 ghost=ghost,
+                consolidator=Consolidator(ghost),
             )
             bus.subscribe(module.module_id, module.accepts, module.deliver)
             question = Envelope(
@@ -385,7 +391,7 @@ class StoryDialogueWiringTests(unittest.TestCase):
                                "false_task_result": claimed, "findings": []})
 
         module = StoryDialogue(
-            "dialogue", bus, errors.append, ManualClock(), None,
+            "dialogue", Application(bus, [], clock=ManualClock()), None,
             working_target=MemoryBashTarget(ghost, "read"),
             workflow=STORY_MANIFEST,
             tools_factory=lambda environment, batch: {"story_complete": story_complete, "public_complete": public_complete},
@@ -525,21 +531,22 @@ class MultiExchangeTests(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
             main_cog = MainCogLoop(
-                "main_cog", bus, errors.append, ManualClock(), None,
+                "main_cog", Application(bus, [], clock=ManualClock()), None,
                 working_target=MemoryBashTarget(ghost, "read"),
                 workflow=REAL_MANIFEST,
                 tools_factory=scripted_tools(model),
                 runtime_root=root / "main", ghost=ghost,
+                consolidator=Consolidator(ghost),
             )
             dialogue = StoryDialogue(
-                "dialogue", bus, errors.append, ManualClock(), None,
+                "dialogue", Application(bus, [], clock=ManualClock()), None,
                 working_target=MemoryBashTarget(ghost, "read"),
                 workflow=STORY_MANIFEST,
                 tools_factory=lambda environment, batch: {"story_complete": story_complete, "public_complete": public_complete},
                 runtime_root=root / "story", ghost=ghost,
             )
             replies: list[str] = []
-            user_input = UserInputProxy("user_input", bus, errors.append, ManualClock(), ghost, replies.append)
+            user_input = UserInputProxy("user_input", Application(bus, [], clock=ManualClock()), ghost, replies.append)
             for module in (user_input, main_cog, dialogue):
                 bus.subscribe(module.module_id, module.accepts, module.deliver)
 

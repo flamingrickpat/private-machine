@@ -22,7 +22,7 @@ from fastmcp.tools import Tool, ToolResult
 from jsonschema.validators import validator_for
 from pydantic import Field
 
-from workflows.minecraft_body.lease import BODY_LEASES, StaleEpoch
+from workflows.minecraft_body.lease import BodyEpoch, BODY_LEASES, StaleEpoch
 from workflows.minecraft_body.call_outcomes import GameplayEvidence
 from workflows.minecraft_body.journal import read_actor_journal
 
@@ -126,7 +126,7 @@ class BodyGateway:
         self._lock = threading.Lock()
         self._journal_lock = threading.RLock()
         self.receipts: list[dict] = []
-        self.token: dict | None = None
+        self.token: BodyEpoch | None = None
         self.observed_epoch = False
         path = environment._path("scratch/actor-journal.jsonl")
         self.previous = read_actor_journal(path)
@@ -166,11 +166,11 @@ class BodyGateway:
             BODY_LEASES.validate(self.endpoint, self.token)
         elif BODY_LEASES.owner(self.endpoint) == self.owner:
             self.token = BODY_LEASES.token(self.endpoint, self.owner)
-            claim = self.transport.claim_wire(self.token)
+            claim = self.transport.claim(self.token)
             if not claim["ok"]:
                 raise StaleEpoch("The Minecraft server refused this execution epoch.")
-            self._append({"event": "epoch_acquired", "epoch": self.token["epoch"],
-                          "session": self.token["session"], "owner": self.owner, "time": time.time()})
+            self._append({"event": "epoch_acquired", "epoch": self.token.epoch,
+                          "session": self.token.session, "owner": self.owner, "time": time.time()})
         current = self.runtime.instructions(BoundaryReadSettings(close=close))
         if current["revision"] != self.revision:
             self.revision = current["revision"]
@@ -201,8 +201,8 @@ class BodyGateway:
         seq = self.sequence
         start = {"seq": seq, "event": "dispatch", "tool": name,
                  "arguments": arguments, "revision": self.revision, "time": time.time(),
-                 "epoch": self.token["epoch"] if self.token else None,
-                 "session": self.token["session"] if self.token else None}
+                 "epoch": self.token.epoch if self.token else None,
+                 "session": self.token.session if self.token else None}
         managed = self.runtime.managed_boundary if isinstance(self.runtime, PMWorkflowRuntime) else None
         if managed is not None:
             with managed.authorize(self.revision) as authorized:
@@ -223,7 +223,7 @@ class BodyGateway:
             watcher.start()
         try:
             if self.token is not None:
-                result = self.transport.fenced_call_wire(name, arguments, self.token)
+                result = self.transport.fenced_call(name, arguments, self.token)
             else:
                 result = self.transport.call(name, arguments)
         except Exception as error:
@@ -342,7 +342,7 @@ class BodyGateway:
         reads = [self.call("minecraft_inspect_block", {"position": point}) for point in positions.values()]
         if any(not observed_target(row, point) for row, point in zip(reads, positions.values())):
             raise RuntimeError("An interrupted action target could not be observed. Do not resume mutation.")
-        receipt = {"schema": "pm.body-reconciliation.v1", "epoch": self.token["epoch"] if self.token else None,
+        receipt = {"schema": "pm.body-reconciliation.v1", "epoch": self.token.epoch if self.token else None,
                    "instruction_revision": self.revision, "observation_seq": next(
                        row["seq"] for row in reversed(self.receipts) if row["tool"] == "minecraft_observe"),
                    "uncertain_world_effects": uncertain,
@@ -356,9 +356,9 @@ class BodyGateway:
         with self._lock:
             if self.token is not None:
                 try:
-                    self.transport.release_wire(self.token)
+                    self.transport.release(self.token)
                 except Exception as error:
-                    self._append({"event": "release_uncertain", "epoch": self.token["epoch"],
+                    self._append({"event": "release_uncertain", "epoch": self.token.epoch,
                                   "error": f"{type(error).__name__}: {error}", "time": time.time()})
 
     def server(self, schemas: list[dict]) -> FastMCP:
@@ -387,12 +387,12 @@ class CommandCancellation:
         while not self.finished.wait(0.05):
             boundary = gateway.runtime.managed_boundary
             if gateway.runtime.stop_event.is_set() or (boundary is not None and boundary.cancelled()):
-                gateway._append({"event": "stop_dispatch", "epoch": token["epoch"], "time": time.time()})
+                gateway._append({"event": "stop_dispatch", "epoch": token.epoch, "time": time.time()})
                 try:
-                    stopped = gateway.transport.fenced_call_wire("minecraft_stop", {"scope": "both"}, token)
-                    gateway._append({"event": "stop_result", "epoch": token["epoch"], "result": stopped, "time": time.time()})
+                    stopped = gateway.transport.fenced_call("minecraft_stop", {"scope": "both"}, token)
+                    gateway._append({"event": "stop_result", "epoch": token.epoch, "result": stopped, "time": time.time()})
                 except Exception as error:
-                    gateway._append({"event": "stop_uncertain", "epoch": token["epoch"],
+                    gateway._append({"event": "stop_uncertain", "epoch": token.epoch,
                         "error": f"{type(error).__name__}: {error}", "time": time.time()})
                 return
 

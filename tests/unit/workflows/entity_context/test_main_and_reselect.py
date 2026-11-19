@@ -5,6 +5,11 @@ exercises model extraction; these checks establish atomic state and recovery.
 """
 from __future__ import annotations
 
+from pm.vclock import VirtualClock
+
+from workflows.memory_consolidation.artifact_consolidation import Consolidator
+from pm.host.application import Application
+
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Literal
@@ -87,9 +92,9 @@ class MainAndReselectTests(unittest.TestCase):
         self.events: list[Envelope] = []
         self.bus.subscribe("evidence", lambda envelope: True, self.events.append)
         self.owner = EntityContextOwner(self.store)
-        self.input = UserInputProxy("user_input", self.bus, self.fail, time.monotonic, self.store, lambda text: None)
+        self.input = UserInputProxy("user_input", Application(self.bus, []), self.store, lambda text: None)
         self.target = MemoryBashTarget(self.store, recovery_only=True)
-        self.main = MainBoundary("main_cog", self.bus, self.fail, time.monotonic, None,
+        self.main = MainBoundary("main_cog", self.input.application, None, consolidator=Consolidator(self.store),
             ghost=self.store, working_target=self.target, tools_factory=build_tools,
             workflow=ROOT / "workflows/main_cognition/main_cognition.workflow.md", runtime_root=Path(self.directory.name))
         self.main.entity_context_owner = self.owner
@@ -208,7 +213,7 @@ class MainAndReselectTests(unittest.TestCase):
     def test_stale_ordinary_reply_gets_new_semantic_selection_identity(self) -> None:
         source = self.submit("I cannot answer for now.")
         self.maintain(source, "I cannot answer for now.", "cannot", review_after_utc=vclock.utcnow() + timedelta(minutes=1))
-        control = CognitiveControl("control", self.bus, self.fail, time.monotonic, None, ghost=self.store)
+        control = CognitiveControl("control", Application(self.bus, []), None, ghost=self.store)
         control.enable_input_triage()
         source_id = InputSourcePayload.model_validate(source.payload).knoxel_id
         view = self.store.recovery_snapshot(capture=False)
@@ -217,7 +222,7 @@ class MainAndReselectTests(unittest.TestCase):
             guidance_tick=self.store.states[-1].tick_id,
             evidence=TriageEvidence(record_fingerprints=fingerprints, commit_ids=sorted(view.commit_ids), current_head_ids=[source_id]),
             result=TriageResult(items=[TriageItem(knoxel_id=source_id, category="Moderate", reasoning="Boundary input.")])))
-        module = Interaction("interaction", self.bus, self.fail, time.monotonic, None, ghost=self.store,
+        module = Interaction("interaction", Application(self.bus, []), None, ghost=self.store,
             working_target=self.target, tools_factory=build_tools, runtime_root=Path(self.directory.name),
             workflow=ROOT / "workflows/interaction/interaction.workflow.md")
         module.cognitive_control = control

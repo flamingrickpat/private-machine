@@ -3,6 +3,10 @@
 The world fixture is a captured real-server response. Constructed rows and
 sentinels exercise projection rules; they do not establish companion behavior.
 """
+
+from tests.support import ManualClock
+
+from pm.host.application import Application
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -38,7 +42,7 @@ class CognitiveRunnerTests(unittest.TestCase):
         source = new_feature(ghost, "please leave it quiet", FeatureType.Dialogue,
             source=ghost.get_user_name(), metadata={"exchange_correlation": "pause-current",
                                                    "exchange_status": "pending"})
-        control = CognitiveControl("control", BusSystem(), lambda error: None, ManualClock(), None, ghost=ghost)
+        control = CognitiveControl("control", Application(BusSystem(), [], clock=ManualClock()), None, ghost=ghost)
         self.assertIsNone(accepted_pause(ghost, "pause-current"))
         control.commit(ghost.begin_batch("accepted-pause"), WaitRequest(seconds=60),
                        control.generation, source_ids=[source.id])

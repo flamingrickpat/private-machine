@@ -13,6 +13,8 @@ side.
 """
 from __future__ import annotations
 
+from pm.host.application import Application
+
 from pathlib import Path
 from datetime import datetime, timedelta
 from tempfile import TemporaryDirectory
@@ -73,10 +75,10 @@ def _module(ghost, tmp, reports, config=None, *, retained=True, episode=None):
 
     bus = BusSystem()
     errors: list[BaseException] = []
-    control = CognitiveControl("cognitive_control", bus, errors.append, ManualClock(), None,
+    control = CognitiveControl("cognitive_control", Application(bus, [], clock=ManualClock()), None,
                                ghost=ghost, config=config or ControlConfig())
     module = PrivateThoughtLoop(
-        "inner_thought", bus, errors.append, ManualClock(), None,
+        "inner_thought", Application(bus, [], clock=ManualClock()), None,
         working_target=MemoryBashTarget(ghost, "read"), workflow=MANIFEST,
         tools_factory=lambda environment, batch: {
             **build_inner_thought_tools(ghost, Path(tmp) / "runtime", None,

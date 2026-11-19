@@ -168,16 +168,22 @@ def _tier_salience(tier: TriageContextTier, position: int, count: int) -> float:
     return tier + 0.9 * (position + 1) / count
 
 
-def _offer(offers: dict[int, tuple[TriageContextTier, float]], record_id: int,
+@dataclass(frozen=True, slots=True)
+class TriageOffer:
+    tier: TriageContextTier
+    salience: float
+
+
+def _offer(offers: dict[int, TriageOffer], record_id: int,
            tier: TriageContextTier, salience: float) -> None:
     """Keep the strongest offer of a record that the story shows in more than one place."""
-    if record_id in offers and offers[record_id][1] >= salience:
+    if record_id in offers and offers[record_id].salience >= salience:
         return
-    offers[record_id] = (tier, salience)
+    offers[record_id] = TriageOffer(tier=tier, salience=salience)
 
 
 def _shard_offers(work: CycleWork, shard: WorkspaceShard, required_ids: set[int],
-                  offers: dict[int, tuple[TriageContextTier, float]]) -> None:
+                  offers: dict[int, TriageOffer]) -> None:
     """Rank the tail and the items of one shown shard for the triage prompt."""
     # ``tail_ids`` is oldest first, so a later position is a newer line.
     tail_ids = list(dict.fromkeys(shard.tail_ids))
@@ -211,19 +217,19 @@ def triage_context(work: CycleWork) -> TriageContext:
     shown workspace record and every retrieved evidence row is optional.
     """
     required_ids: set[int] = set()
-    offers: dict[int, tuple[TriageContextTier, float]] = {}
+    offers: dict[int, TriageOffer] = {}
     for shard in shown_shards(work):
         _shard_offers(work, shard, required_ids, offers)
 
     candidates: dict[str, TriageCandidate] = {}
     groups = [ContextGroup(name="required triage context", content=Content(""), salience=0, required=True,
                            source_ids=tuple(sorted(required_ids)))]
-    for record_id, (tier, salience) in offers.items():
+    for record_id, offer in offers.items():
         if record_id in required_ids:
             continue
-        name = f"{tier.name}:{record_id}"
-        candidates[name] = TriageCandidate(record_id=record_id, place="workspace", tier=tier)
-        groups.append(ContextGroup(name=name, content=Content(""), salience=salience, source_ids=(record_id,)))
+        name = f"{offer.tier.name}:{record_id}"
+        candidates[name] = TriageCandidate(record_id=record_id, place="workspace", tier=offer.tier)
+        groups.append(ContextGroup(name=name, content=Content(""), salience=offer.salience, source_ids=(record_id,)))
 
     return TriageContext(required_ids=frozenset(required_ids), candidates=candidates, groups=tuple(groups))
 

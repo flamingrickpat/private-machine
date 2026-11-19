@@ -26,9 +26,15 @@ _ACTION_TYPE = {
 }
 
 
-class ManualClock:
+from pm.vclock import SystemClock
+
+
+class ManualClock(SystemClock):
     def __init__(self, start: float = 0.0):
         self.value = start
+
+    def monotonic(self) -> float:
+        return self.value
 
     def __call__(self) -> float:
         return self.value

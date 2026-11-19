@@ -1,6 +1,10 @@
 """Actual-store checks for ordinary interaction evidence and publication races."""
 from __future__ import annotations
 
+from tests.support import ManualClock
+
+from pm.host.application import Application
+
 import unittest
 from typing import Literal
 from uuid import uuid4
@@ -38,7 +42,7 @@ class InteractionDependencyTests(unittest.TestCase):
         self.partner_id = self.store.store_knoxel(Entity(content="Jesse", aliases=[], entity_class=EntityClass.Human)).id
         self.observer_id = self.store.store_knoxel(Entity(content="Spamuel", aliases=[], entity_class=EntityClass.Self)).id
         self.store.accept_import()
-        self.proxy = UserInputProxy("user_input", BusSystem(), self.fail, lambda: 0,
+        self.proxy = UserInputProxy("user_input", Application(BusSystem(), [], clock=ManualClock(0)),
                                     self.store, lambda text: None)
 
     def action(self, text: str) -> int:
@@ -50,7 +54,7 @@ class InteractionDependencyTests(unittest.TestCase):
         return action.id
 
     def test_missing_selection_owner_fails_before_publication(self) -> None:
-        control = CognitiveControl("control", BusSystem(), self.fail, lambda: 0, None, ghost=self.store)
+        control = CognitiveControl("control", Application(BusSystem(), [], clock=ManualClock(0)), None, ghost=self.store)
         publication_control = control.publication_control()
         publication_control.validate_selection("")
         with self.assertRaisesRegex(RuntimeError, "injected selection owner"):

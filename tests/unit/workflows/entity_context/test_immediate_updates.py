@@ -6,6 +6,8 @@ gate. All collaborators below are production stores, bus modules, and adapters.
 """
 from __future__ import annotations
 
+from pm.host.application import Application
+
 from datetime import datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -68,7 +70,7 @@ class ImmediateEntityUpdateTests(unittest.TestCase):
         self.owner: EntityContextOwner = EntityContextOwner(self.store)
         self.control: CognitiveControl = self.controller(self.store)
         self.replies: list[str] = []
-        self.input: UserInputProxy = UserInputProxy("input", self.bus, self.runtime_error, time.monotonic,
+        self.input: UserInputProxy = UserInputProxy("input", Application(self.bus, []),
             self.store, self.replies.append)
         self.input.register_triage_input = self.control.register_input
 
@@ -78,7 +80,7 @@ class ImmediateEntityUpdateTests(unittest.TestCase):
 
     def controller(self, store: MemoryStore) -> CognitiveControl:
         """Construct the real control owner and rebuild durable assessments."""
-        control = CognitiveControl("control", self.bus, self.runtime_error, time.monotonic, None, ghost=store)
+        control = CognitiveControl("control", Application(self.bus, []), None, ghost=store)
         control.entity_context_owner = EntityContextOwner(store)
         control.enable_input_triage()
         return control

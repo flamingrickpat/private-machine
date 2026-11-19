@@ -5,6 +5,8 @@ so no thread is ever started.
 """
 from __future__ import annotations
 
+from pm.host.application import Application
+
 import unittest
 from pathlib import Path
 
@@ -36,7 +38,7 @@ class _EchoModule(BusModule):
     DATA_TOPICS = frozenset({"ping"})
 
     def __init__(self, bus):
-        super().__init__("echo", bus, lambda exc: None, ManualClock(), None)
+        super().__init__("echo", Application(bus, [], clock=ManualClock()), None)
         self.batch_sizes: list[int] = []
 
     def handle_batch(self, batch: list[Envelope]) -> None:

@@ -48,20 +48,17 @@ an admission has to wait for a reason other than an accepted hold.
 """
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from pm import vclock
-from pm.bus.bus import BusSystem
+from pm.host.application import Application
 from pm.bus.envelopes import Envelope, JsonObject, new_envelope
 from pm.host.application import BusModule
-from pm.memory.read_scope import ReadScope
 from pm.memory.snapshot import GhostCancelled, GhostConflict, Snapshot
 from pm.memory.store import MemoryStore
-from pm.memory.write_batch import WriteBatch
 from pm.records.base import Provenance
 from pm.records.enums import FeatureType, InterlocusType, SourceKind
 from pm.records.lineage import RecordLineage
@@ -249,10 +246,9 @@ class FocusManagement(BusModule):
             return True
         return super().accepts(envelope)
 
-    def __init__(self, module_id: str, bus: BusSystem, on_error: Callable[[BaseException], None],
-                 clock: Callable[[], float], tick_seconds: float | None = None, *, ghost: MemoryStore) -> None:
+    def __init__(self, module_id: str, application: Application, tick_seconds: float | None = None, *, ghost: MemoryStore) -> None:
         """Bind the module to the shared memory store. The timer retries admission and delivery."""
-        super().__init__(module_id, bus, on_error, clock, tick_seconds)
+        super().__init__(module_id, application, tick_seconds)
         self.ghost: MemoryStore = ghost
         self.cognitive_control: CognitiveControl | None = None
         # Results already put on the bus, so a timer tick never publishes twice.

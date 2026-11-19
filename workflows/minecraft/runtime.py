@@ -4,24 +4,12 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from workflows.minecraft_project.services import ProjectAuditOwner
-from pydantic import BaseModel, ConfigDict
 from typing import Generator
 from pm_workflows.runtime import WorkflowRuntime
 from pm.runs.role_runtime import PMWorkflowRuntime
 from pm.runs.managed_boundary import BoundaryReadSettings, BoundaryInstructions
 from workflows.minecraft_body.mcp_client import MinecraftTransport
-from workflows.minecraft_body.lease import BODY_LEASES
-
-
-class BodyLeaseEvidence(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
-    endpoint: str
-    owner: str
-    epoch: int
-    session: str
-    pid: int
-    active: bool
-    acquired_at: float
+from workflows.minecraft_body.lease import BODY_LEASES, BodyLeaseEvidence
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,7 +20,7 @@ class MinecraftBodyLease:
     @contextmanager
     def acquire(self) -> Generator[BodyLeaseEvidence, None, None]:
         with BODY_LEASES.acquire(self.endpoint, self.owner) as token:
-            yield BodyLeaseEvidence.model_validate(token)
+            yield token
 
 
 @dataclass(kw_only=True)

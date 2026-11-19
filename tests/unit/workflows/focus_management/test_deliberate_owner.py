@@ -9,6 +9,8 @@ mechanics only. They make no claim about generated thought quality; the recorded
 """
 from __future__ import annotations
 
+from pm.host.application import Application
+
 from datetime import datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -92,7 +94,7 @@ class DeliberateOwnerCase(unittest.TestCase):
 
     def build_module(self, store: MemoryStore) -> FocusManagement:
         """Construct the real deliberate owner over a store, without a control module."""
-        return FocusManagement("focus_management", self.bus, self.module_error, time.monotonic, None, ghost=store)
+        return FocusManagement("focus_management", Application(self.bus, []), None, ghost=store)
 
     def private_owner(self, store: MemoryStore, *, limits: ControlConfig | None = None) -> PrivateInquiryOwner:
         """Build the private loop's owner, which commits the executed steps."""
@@ -505,10 +507,10 @@ class DeliberateControlFenceTests(DeliberateOwnerCase):
 
     def setUp(self) -> None:
         super().setUp()
-        self.control: CognitiveControl = CognitiveControl("control", self.bus, self.module_error, time.monotonic, None,
+        self.control: CognitiveControl = CognitiveControl("control", Application(self.bus, []), None,
                                                           ghost=self.store)
         self.control.enable_input_triage()
-        self.input: UserInputProxy = UserInputProxy("user_input", self.bus, self.module_error, time.monotonic, self.store,
+        self.input: UserInputProxy = UserInputProxy("user_input", Application(self.bus, []), self.store,
                                                     lambda text: None)
         self.input.register_triage_input = self.control.register_input
         self.module.cognitive_control = self.control

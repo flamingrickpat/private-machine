@@ -1,4 +1,6 @@
 """Role-scoped MemoryStore proposals over a real write batch."""
+
+from pm.host.application import Application
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import asyncio
@@ -156,7 +158,7 @@ class GhostProposalTests(unittest.TestCase):
                     self.receipt = ghost.commit(self.last_proposal_batch)
 
             module = CommitWorkflow(
-                "commit", BusSystem(), self.fail, time.monotonic, None,
+                "commit", Application(BusSystem(), []), None,
                 working_target=MemoryBashTarget(ghost),
                 workflow=manifest, tools_factory=build_tools,
                 runtime_root=root / "runtime",

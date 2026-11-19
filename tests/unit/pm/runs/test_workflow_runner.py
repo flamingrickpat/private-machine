@@ -1,4 +1,8 @@
 """Run actual Python workflows synchronously on real and virtual targets."""
+
+from tests.support import ManualClock
+
+from pm.host.application import Application
 from pathlib import Path
 import json
 from tempfile import TemporaryDirectory
@@ -175,7 +179,7 @@ class WorkflowRunnerTests(unittest.TestCase):
                 self.published.append(report)
 
         module = ProbeWorkflow(
-            "probe", BusSystem(), self.fail, lambda: 0, None,
+            "probe", Application(BusSystem(), [], clock=ManualClock(0)), None,
             working_target=FolderTarget(self.root / "module-target", "bash"),
             workflow=runner.workflow, tools_factory=lambda environment, batch: {},
             runtime_root=self.root / "runtime",

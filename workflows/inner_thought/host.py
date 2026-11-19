@@ -44,8 +44,8 @@ from pm.llm.stage_model import LazyStageModel
 from pm.records.copying import pickle_copy
 from pm.records.base import RecordBase
 
-from collections.abc import Callable, Sequence
-from pm.bus.bus import BusSystem
+from collections.abc import Sequence
+from pm.host.application import Application
 from pm_workflows.working_target import WorkingTarget
 from datetime import datetime, timedelta
 import json
@@ -173,11 +173,10 @@ class PrivateThoughtLoop(CognitiveWorkflow):
     # cycle cannot cascade into an inner cycle into another main cycle.
     DATA_TOPICS = frozenset()
 
-    def __init__(self, module_id: str, bus: BusSystem, on_error: Callable[[BaseException], None],
-                 clock: Callable[[], float], tick_seconds: float | None, *, ghost: MemoryStore,
+    def __init__(self, module_id: str, application: Application, tick_seconds: float | None, *, ghost: MemoryStore,
                  working_target: WorkingTarget, workflow: Path,
                  runtime_root: Path, stage_model: LazyStageModel, thought_delay: float = 0.0) -> None:
-        super().__init__(module_id, bus, on_error, clock, tick_seconds, ghost=ghost,
+        super().__init__(module_id, application, tick_seconds, ghost=ghost,
             working_target=working_target, workflow=workflow, tools_factory=None,
             runtime_root=runtime_root, stage_model=stage_model)
         # Thoughts already put on the bus, so a resume never publishes twice.

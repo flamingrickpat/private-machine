@@ -85,7 +85,8 @@ def protocol_worker(args):
             threading.Event().wait()
         return result
     gateway.raw_tools["minecraft_fenced_call"] = transport
-    with BODY_LEASES.acquire(gateway.endpoint, gateway.owner) as token:
+    with BODY_LEASES.acquire(gateway.endpoint, gateway.owner) as lease:
+        token = lease.model_dump(mode="json")
         initial = gateway.call("minecraft_observe", {"include_image": False})
         atomic_json(out / "token.json", token)
         atomic_json(out / "initial.json", initial)
@@ -313,7 +314,8 @@ def protocol_controls(out, stack, tools, receipt, save):
     target.mkdir()
     runtime = WorkflowRuntime(FolderEnvironment(target, "bash"), threading.Event(), {"managed_instructions": instructions})
     gateway = BodyGateway(stack.mcp_url, "a12-before-mcp-restart", runtime.environment, runtime, tools)
-    with BODY_LEASES.acquire(stack.mcp_url, gateway.owner) as token:
+    with BODY_LEASES.acquire(stack.mcp_url, gateway.owner) as lease:
+        token = lease.model_dump(mode="json")
         before = gateway.call("minecraft_observe", {"include_image": False})
         atomic_json(target / "old-token.json", token)
         kill_worker(stack.mcp)
@@ -337,9 +339,9 @@ def protocol_controls(out, stack, tools, receipt, save):
         after = gateway.call("minecraft_observe", {"include_image": False})
         reconciliation = gateway.reconcile([])
         gateway.wait_idle()
-    receipt["mcp_restart"] = {"old_token": token, "replacement": replacement, "rejection": rejection,
+    receipt["mcp_restart"] = {"old_token": token, "replacement": replacement.model_dump(mode="json"), "rejection": rejection,
                               "before": before, "after": after, "reconciliation": reconciliation}
-    receipt["checks"]["mcp_process_restart"] = after["ok"] and replacement["epoch"] > token["epoch"]
+    receipt["checks"]["mcp_process_restart"] = after["ok"] and replacement.epoch > token["epoch"]
     save()
     print("Passed active-call cancellation and MCP-process restart.", flush=True)
 

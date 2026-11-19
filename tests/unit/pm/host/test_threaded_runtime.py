@@ -63,7 +63,7 @@ class ThreadedRuntimeTests(unittest.TestCase):
             app = Application(bus, [])
             started = threading.Event()
             module = WaitingWorkflow(
-                "waiting", bus, app.on_error, time.monotonic, None,
+                "waiting", app, None,
                 working_target=MemoryBashTarget(small_ghost()), workflow=manifest,
                 tools_factory=lambda env, batch: {"started": started.set}, runtime_root=root / "runtime",
             )
