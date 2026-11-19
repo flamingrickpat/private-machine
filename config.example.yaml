@@ -5,6 +5,7 @@ ghost_backups: false
 chat:
   Default:
     disable_threading: false
+    require_reasoning: false
     max_concurrent_requests: 8
     request_timeout_seconds: 99999
     override_context: 65536
@@ -15,6 +16,7 @@ chat:
     context_input_fraction: 0.85
   UnitTestEvaluator:
     disable_threading: false
+    require_reasoning: false
     max_concurrent_requests: 8
     request_timeout_seconds: 99999
     override_context: 65536
@@ -51,3 +53,5 @@ embedding:
 # cognitive_control:
 #   post_reply_seconds: 600
 #   wait_seconds: 1800
+
+thought_delay: 60

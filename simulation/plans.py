@@ -20,11 +20,31 @@ from typing import Self
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
+class ActorPacing(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    delayed_probability: float = Field(default=1.0, ge=0, le=1)
+    ignored_probability: float = Field(default=0.0, ge=0, le=1)
+    delay_min_seconds: float = Field(default=30.0, ge=0, allow_inf_nan=False)
+    delay_max_seconds: float = Field(default=3600.0, ge=0, allow_inf_nan=False)
+    ignored_seconds: float = Field(default=1800.0, ge=0, allow_inf_nan=False)
+    unanswered_wait_seconds: float = Field(default=1800.0, gt=0, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def validate_pacing(self) -> Self:
+        if self.delayed_probability + self.ignored_probability > 1:
+            raise ValueError("Delayed and ignored probabilities must sum to at most one.")
+        if self.delay_max_seconds < self.delay_min_seconds:
+            raise ValueError("Actor maximum delay must be at least the minimum delay.")
+        return self
+
+
 class SimulationTiming(BaseModel):
     """Clock speed: simulated seconds per wall-clock second."""
 
     time_multiplier: float = Field(default=1.0, gt=0, allow_inf_nan=False,
         description="2 means twice real time; 0.5 means half real time. Actor delays use simulated seconds.")
+    actor_pacing: ActorPacing = Field(default_factory=ActorPacing)
 
 
 class FactKind(StrEnum):

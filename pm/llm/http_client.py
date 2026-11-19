@@ -60,6 +60,10 @@ class ModelError(RuntimeError):
     pass
 
 
+class ModelRequestRejected(RuntimeError):
+    pass
+
+
 class EmptyCompletionError(ModelError):
     """The provider returned neither usable text nor a tool call."""
 
@@ -243,6 +247,8 @@ class JsonClient:
         cached_chat = chat and OperatingSystem.environment.get("PM_COMPLETION_CACHE", "1") != "0"
         if chat:
             payload = {**(payload or {}), "seed": secrets.randbelow(2**31)}
+            if self.connection.require_reasoning:
+                payload["reasoning"] = {"enabled": True}
             if urlsplit(self.connection.base_url).hostname == "openrouter.ai":
                 if self.connection.provider is not None:
                     payload["provider"] = {"only": [self.connection.provider], "allow_fallbacks": False}
@@ -284,7 +290,7 @@ class JsonClient:
                     if response.status_code == 429 or response.status_code >= 500:
                         failure = f"Model service returned HTTP {response.status_code}."
                     elif not response.is_success:
-                        raise ModelError(f"Model request failed (HTTP {response.status_code}). Check credentials, credit, and request config.")
+                        raise ModelRequestRejected(f"Model request failed (HTTP {response.status_code}). Check credentials, credit, and request config.")
                     else:
                         try:
                             data = TypeAdapter[dict[str, JsonValue]](dict[str, JsonValue]).validate_json(response.content)

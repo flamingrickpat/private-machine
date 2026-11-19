@@ -2,6 +2,7 @@
 chat:
   Default:
     disable_threading: false
+    require_reasoning: false
     provider: null
     base_url: https://openrouter.ai/api/v1
     model: qwen/qwen3.8-flash
@@ -12,6 +13,7 @@ chat:
     context_input_fraction: 0.8
   UnitTestEvaluator:
     disable_threading: false
+    require_reasoning: false
     provider: null
     base_url: https://openrouter.ai/api/v1
     model: qwen/qwen3.8-flash
@@ -33,3 +35,5 @@ embedding:
 # cognitive_control:
 #   post_reply_seconds: 600
 #   wait_seconds: 1800
+
+thought_delay: 60

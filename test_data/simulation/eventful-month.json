@@ -1771,5 +1771,13 @@
       "guidance": "An eventful adult month with ordinary life between consequential moments. No predetermined companion feelings or relationship outcome.",
       "actor_guidance": "Jesse is an adult. Match her full historical voice: casual, emotionally responsive, teasing, sometimes messy. Develop conversation beyond reporting a fact. Do not repeat established facts as announcements. She knows Spamuel is an AI companion. She can flirt, desire him, argue, apologize and be vulnerable. Use Spamuel's actual replies to determine the relationship. Invite rather than presume mutual romance. No later scene has happened yet. Do not narrate Spamuel's actions or make his decisions for him."
     }
+  },
+  "actor_pacing": {
+    "delayed_probability": 0.04,
+    "ignored_probability": 0.01,
+    "delay_min_seconds": 30.0,
+    "delay_max_seconds": 180.0,
+    "ignored_seconds": 900.0,
+    "unanswered_wait_seconds": 1800.0
   }
 }

@@ -295,6 +295,7 @@ def _cognition_modules(
             runtime_root=runtime_root,
             stage_model=stage_model,
             ghost=ghost,
+            thought_delay=load_config(config_path).thought_delay,
         )
         inner_thought.inference_admission = admission
         # Deliberate mental work enters the private slot of the loop above.

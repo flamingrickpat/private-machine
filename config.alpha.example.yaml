@@ -4,6 +4,7 @@ ghost_backups: false
 chat:
   Default:
     disable_threading: false
+    require_reasoning: false
     base_url: http://127.0.0.1:8080/v1
     model: qwen
     api_key: ""
@@ -14,6 +15,7 @@ chat:
     override_context: 98000
   UnitTestEvaluator:
     disable_threading: false
+    require_reasoning: false
     base_url: http://127.0.0.1:8080/v1
     model: qwen
     api_key: ""
@@ -34,3 +36,5 @@ embedding:
 # cognitive_control:
 #   post_reply_seconds: 600
 #   wait_seconds: 1800
+
+thought_delay: 60

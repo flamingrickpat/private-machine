@@ -36,6 +36,8 @@ its finding. This loop only executes the episode on its timer.
 """
 from __future__ import annotations
 
+from time import monotonic
+
 from pm import vclock
 from pm.llm.stage_model import LazyStageModel
 
@@ -174,7 +176,7 @@ class PrivateThoughtLoop(CognitiveWorkflow):
     def __init__(self, module_id: str, bus: BusSystem, on_error: Callable[[BaseException], None],
                  clock: Callable[[], float], tick_seconds: float | None, *, ghost: MemoryStore,
                  working_target: WorkingTarget, workflow: Path,
-                 runtime_root: Path, stage_model: LazyStageModel) -> None:
+                 runtime_root: Path, stage_model: LazyStageModel, thought_delay: float = 0.0) -> None:
         super().__init__(module_id, bus, on_error, clock, tick_seconds, ghost=ghost,
             working_target=working_target, workflow=workflow, tools_factory=None,
             runtime_root=runtime_root, stage_model=stage_model)
@@ -185,6 +187,8 @@ class PrivateThoughtLoop(CognitiveWorkflow):
         self._episode_thought_id: int | None = None
         self._read_revisions: dict[int, int] = {}
         self._active_goal_ids: list[int] = []
+        self.thought_delay: float = thought_delay
+        self.last_graph_thought_at: float | None = None
 
     def create_runtime(self, environment: WorkingEnvironment, proposal_batch: WriteBatch | None,
                        descriptors: dict[str, McpServerDescriptor] | None) -> PrivateThoughtRuntime:
@@ -287,12 +291,15 @@ class PrivateThoughtLoop(CognitiveWorkflow):
             frozenset({(observer.scope.reality_id, observer.scope.frame.value)}), self.run_stop)
 
         try:
-            return run_graph_opportunity(request, owner=owner, grant=grant, run_stage=run_stage,
+            result = run_graph_opportunity(request, owner=owner, grant=grant, run_stage=run_stage,
                 reflection=reflection, inspection=inspection,
                 mental_state=self._mental_state, control_generation=generation,
                 pending_input_ids=tuple(sorted(record.id for record in view.all_knoxels.values()
                     if isinstance(record, Feature) and record.metadata.get("exchange_status") == "pending")), focus=focus,
                 memory_access=memory_access)
+            if result.receipt_id is not None:
+                self.last_graph_thought_at = monotonic()
+            return result
         except GhostCancelled:
             return PrivateGraphResult(summary="Private graph work was held or cancelled before acceptance.")
         except GhostConflict as error:
@@ -364,6 +371,10 @@ class PrivateThoughtLoop(CognitiveWorkflow):
         period is the retry delay and there is no attempt cap. Other errors
         propagate.
         """
+        if self.last_graph_thought_at is not None:
+            remaining_seconds = self.thought_delay - (monotonic() - self.last_graph_thought_at)
+            if remaining_seconds > 0 and self.stop_event.wait(remaining_seconds):
+                return
         self.yield_requested.clear()
         control = self.cognitive_control
         if control is not None:

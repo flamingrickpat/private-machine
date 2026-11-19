@@ -42,6 +42,8 @@ class Connection(BaseModel):
     model: str = Field(min_length=1)
     disable_threading: bool = Field(default=False, strict=True)
     provider: str | None = Field(default=None, min_length=1)
+    require_reasoning: bool = Field(default=False, strict=True,
+        description="Force reasoning on for endpoints that reject requests with reasoning disabled.")
     api_key: SecretStr = SecretStr("")
     startup_script: Path | None = None
     # Remote services can omit serving limits. This optional bound applies
@@ -111,6 +113,7 @@ class ConnectionConfig(Connection):
             key = SecretStr(value)
         return Connection(base_url=self.base_url, model=self.model, api_key=key, startup_script=self.startup_script,
                           disable_threading=self.disable_threading, provider=self.provider,
+                          require_reasoning=self.require_reasoning,
                           context_window=self.context_window, context_input_fraction=self.context_input_fraction,
                           override_context=self.override_context,
                           completion_token_limit=self.completion_token_limit,
@@ -166,6 +169,8 @@ class ModelConfig(BaseModel):
     ghost_backups: bool = Field(default=False, strict=True,
         description="Write an extra ghost copy after each accepted cognition cycle. The current checkpoint is always saved.")
     renderer_capture: RendererCaptureOptions = Field(default_factory=RendererCaptureOptions)
+    thought_delay: float = Field(default=0.0, ge=0, allow_inf_nan=False,
+        description="Wall-clock seconds to wait between accepted private graph operations; zero disables the delay.")
     cognitive_control: dict = Field(default_factory=dict)
 
     @model_validator(mode="after")

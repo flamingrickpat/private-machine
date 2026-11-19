@@ -22,7 +22,7 @@ from simulation.analysis import AnalysisSettings, analyze_run
 from simulation.actors import ActorProfile, load_profile, suggested_start
 from simulation.engine import ParticipantSelection, RunEngine
 from simulation.personas import DEFAULT_RUNS
-from simulation.plans import DirectorSettings, Fact, ScenarioPlan, SimulationTiming, Step
+from simulation.plans import ActorPacing, DirectorSettings, Fact, ScenarioPlan, SimulationTiming, Step
 
 
 class TemplateParticipant(BaseModel):
@@ -71,6 +71,7 @@ class SimulationTemplate(BaseModel):
     schema_id: Literal["pm.simulation-template.v1"] = "pm.simulation-template.v1"
     time_multiplier: float = Field(default=1.0, gt=0, allow_inf_nan=False,
         description="Simulated seconds per wall-clock second. Actor cadence scales with this clock.")
+    actor_pacing: ActorPacing = Field(default_factory=ActorPacing)
     title: str = "New simulation"
     brief: str = Field(min_length=1)
     start_time: AwareDatetime | None = None
@@ -182,7 +183,8 @@ def create_run(template: SimulationTemplate, root: Path, config: str) -> RunEngi
     participants = [ParticipantSelection(id=item.id, home=item.home, minecraft_mcp_url=item.minecraft_mcp_url)
                     for item in template.participants]
     edges = [{"source": item.source, "target": item.target, "name": item.name} for item in template.edges]
-    engine = RunEngine.create(root, plan, participants, edges, config, time_multiplier=template.time_multiplier)
+    engine = RunEngine.create(root, plan, participants, edges, config, time_multiplier=template.time_multiplier,
+        actor_pacing=template.actor_pacing)
     retained_template = template.model_copy()
     retained_template.plan = plan
     atomic_json(root / "template.json", retained_template.model_dump(mode="json"))

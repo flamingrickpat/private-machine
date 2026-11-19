@@ -44,24 +44,20 @@ from simulation.evidence import capture_participant
 #: keeps the clock within a second of real time without flooding the controls.
 ADVANCE_TICK_SECONDS = 1.0
 
-#: How long Jesse takes to write her next line when Spamuel answered. A person
-#: answers when she next looks at a phone or a screen. Simulated user pacing,
-#: not an architectural claim.
-ACTOR_TURN_LATENCY_SECONDS = (30.0, 3600.0)
-#: The least Jesse waits before writing again when Spamuel said nothing back.
-#: She is not blocked by him; she simply gives him a real chance first.
-ACTOR_UNANSWERED_WAIT_SECONDS = 1800.0
-
-
-def actor_turn_latency(delivery_id: str) -> float:
+def actor_turn_latency(delivery_id: str, pacing: ActorPacing) -> float:
     """Return Jesse's thinking time for one turn, derived from the turn identity.
 
     Deterministic on purpose: a resumed run keeps the same rhythm, and a failure
     receipt can be replayed against the same pacing.
     """
-    low, high = ACTOR_TURN_LATENCY_SECONDS
     digest = hashlib.sha256(delivery_id.encode("utf-8")).digest()
-    return low + (high - low) * int.from_bytes(digest[:8], "big") / 2 ** 64
+    choice = int.from_bytes(digest[:8], "big") / 2 ** 64
+    if choice < pacing.ignored_probability:
+        return pacing.ignored_seconds
+    if choice < pacing.ignored_probability + pacing.delayed_probability:
+        fraction = int.from_bytes(digest[8:16], "big") / 2 ** 64
+        return pacing.delay_min_seconds + (pacing.delay_max_seconds - pacing.delay_min_seconds) * fraction
+    return 0.0
 
 
 def replied_after(rows: Sequence[Mapping[str, JsonValue]], delivery_id: str, source: str) -> bool:
@@ -75,7 +71,7 @@ def replied_after(rows: Sequence[Mapping[str, JsonValue]], delivery_id: str, sou
             return True
     return False
 from simulation.personas import fork_home
-from simulation.plans import ScenarioPlan, SimulationTiming, facts_for_scene
+from simulation.plans import ActorPacing, ScenarioPlan, SimulationTiming, facts_for_scene
 from simulation.source import freeze_source
 from simulation.analysis import AnalysisSettings, analyze_run
 
@@ -127,6 +123,7 @@ class RunEngine:
         # its rows grow with the run. ``view`` documents the keys.
         self.state: dict[str, JsonValue] = json.loads(self.state_path.read_text(encoding="utf-8"))
         self.time_multiplier: float = SimulationTiming.model_validate(self.state).time_multiplier
+        self.actor_pacing: ActorPacing = SimulationTiming.model_validate(self.state).actor_pacing
         self.plan: ScenarioPlan = ScenarioPlan.model_validate_json((root / "plan.json").read_text(encoding="utf-8"))
         self.processes: dict[str, PMProcess] = {}
         self.thread: threading.Thread | None = None
@@ -137,7 +134,8 @@ class RunEngine:
 
     @classmethod
     def create(cls, root: Path, plan: ScenarioPlan, participants: Sequence[ParticipantSelection],
-               edges: Sequence[Mapping[str, str]], config: str, *, time_multiplier: float = 1.0) -> RunEngine:
+               edges: Sequence[Mapping[str, str]], config: str, *, time_multiplier: float = 1.0,
+               actor_pacing: ActorPacing = ActorPacing()) -> RunEngine:
         """Fork every source home, then publish the new run as ready.
 
         ``participants`` are selections that each name run-local ``id``, the
@@ -164,7 +162,7 @@ class RunEngine:
             raise ValueError("Each connection must join distinct registered participants.")
         if any(not item.id.replace("-", "").replace("_", "").isalnum() for item in participants):
             raise ValueError("Participant IDs must contain letters, numbers, underscores, or hyphens.")
-        timing = SimulationTiming(time_multiplier=time_multiplier)
+        timing = SimulationTiming(time_multiplier=time_multiplier, actor_pacing=actor_pacing)
         profiles: dict[str, ActorProfile] = {}
         for item in participants:
             profile = load_profile(Path(item.home))
@@ -188,7 +186,8 @@ class RunEngine:
         atomic_json(root / "plan.json", plan.model_dump(mode="json"))
         atomic_json(root / "analysis-settings.json", AnalysisSettings().model_dump(mode="json"))
         initial_state: dict[str, JsonValue] = {
-            "id": root.name, "title": plan.title, "time_multiplier": timing.time_multiplier, "status": "ready",
+            "id": root.name, "title": plan.title, "time_multiplier": timing.time_multiplier,
+            "actor_pacing": timing.actor_pacing.model_dump(mode="json"), "status": "ready",
             "created_at": datetime.now(timezone.utc).isoformat(), "config": str(Path(config).resolve()),
             "participants": prepared, "edges": list(edges), "step_index": 0, "turn": 0, "attempt": 0,
             "clock": plan.start_time.isoformat(), "timeline": [], "transit": [], "facts": {},
@@ -501,18 +500,30 @@ class RunEngine:
         actor blocks the other. Speech arriving during the wait is still
         collected and routed.
         """
-        sampled = actor_turn_latency(delivery_id)
+        sampled = actor_turn_latency(delivery_id, self.actor_pacing)
         states = {key: item.state() for key, item in self.processes.items()}
         base = max(datetime.fromisoformat(item["clock"]) for item in states.values())
         started = time.monotonic()
+        answered_at: float | None = None
 
-        def turn_over() -> bool:
-            elapsed = (time.monotonic() - started) * self.time_multiplier
+        while not self.request.is_set():
+            now = time.monotonic()
+            elapsed = (now - started) * self.time_multiplier
+            clock = base + timedelta(seconds=elapsed)
+            for process in self.processes.values():
+                process.post("/control/advance-step", {"to": clock.isoformat()})
+            self.state["clock"] = clock.isoformat()
+            self.collect(route=True)
+            self.save()
             answered = replied_after(self.state["timeline"], delivery_id, source)
-            limit = sampled if answered else max(sampled, ACTOR_UNANSWERED_WAIT_SECONDS)
-            return elapsed >= limit
-
-        self._drive_clock(base, until=None, done=turn_over)
+            if answered:
+                if answered_at is None:
+                    answered_at = now
+                if (now - answered_at) * self.time_multiplier >= sampled:
+                    return
+            elif elapsed >= max(sampled, self.actor_pacing.unanswered_wait_seconds):
+                return
+            time.sleep(ADVANCE_TICK_SECONDS)
 
     def _stage(self, agents: Agents) -> None:
         """Run one conversational turn and review actual recorded responses."""
