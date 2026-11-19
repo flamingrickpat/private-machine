@@ -98,7 +98,8 @@ def history_request(request: StoryRequest, items: tuple[TemporalHistoryItem, ...
 
 def history_turns(request: StoryRequest, prompts: StoryPrompts, repairs: Sequence[Turn]) -> tuple[Turn, ...]:
     from workflows.dialogue_story.steps import build_story_messages
-    return resolve_media((*build_story_messages(request, prompts), *repairs), ImageCatalog(request.images))
+    original = resolve_media(tuple(build_story_messages(request, prompts)), ImageCatalog(request.images))
+    return (*original, *repairs)
 
 
 def select_story_history(request: StoryRequest, prompts: StoryPrompts, repairs: Sequence[Turn],

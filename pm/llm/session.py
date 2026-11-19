@@ -33,6 +33,7 @@ class ModelSession:
                 input_fraction=connection.context_input_fraction, reserved_output_tokens=output_tokens)
         return RenderSettings(context_window=self._settings.context_window, input_fraction=self._settings.input_fraction,
             reserved_output_tokens=output_tokens, protocol_tokens=self._settings.protocol_tokens,
+            correction_tokens=self._settings.correction_tokens,
             estimate_factor=self._settings.estimate_factor)
 
     def renderer_settings_for(self, generation: GenerationSettings) -> RenderSettings:
@@ -46,6 +47,7 @@ class ModelSession:
         output_tokens = generation.output_allowance(self.model.connection.completion_token_limit)
         settings = RenderSettings(context_window=resolved.context_window, input_fraction=resolved.input_fraction,
             reserved_output_tokens=output_tokens, protocol_tokens=resolved.protocol_tokens,
+            correction_tokens=resolved.correction_tokens,
             estimate_factor=resolved.estimate_factor)
         return reserve_protocol(settings, generation)
 

@@ -20,7 +20,7 @@ can select a verbatim speech span when narration surrounds it.
 """
 from __future__ import annotations
 
-from pm.context_render.correction import answer_correction_instruction
+from pm.context_render.correction import render_regeneration_feedback
 
 from pathlib import Path
 from dataclasses import dataclass, field
@@ -233,20 +233,27 @@ class SpeechReviewRenderInput:
     prompts: ReviewPrompts
     conversation: tuple[DialogueTurn, ...] = ()
     receipts: tuple[ToolEvidence, ...] = ()
-    correction_turns: tuple[Turn, ...] = ()
+    problem: str = ""
+    rejected_answer: str = ""
     images: tuple[RecordImage, ...] = ()
 
 
 def render_speech_review(input: SpeechReviewRenderInput, settings: RenderSettings) -> RenderedPrompt:
     from pm.memory.retrieval import distinctive_terms
+    feedback_turns: tuple[Turn, ...] = ()
+    if input.problem:
+        feedback = render_regeneration_feedback("speech review", input.problem, settings)
+        feedback_turns = (Turn(Role.User, feedback.text),)
+        settings = settings.without_correction_reserve()
     estimator = TokenEstimator(estimate_factor=settings.estimate_factor)
     selected_context = input.context.model_copy(deep=True)
     selected_context.evidence = []
     selected_context.memories = []
     conversation = input.conversation[-4:]
     images = ImageCatalog(input.images)
-    turns = resolve_media((*build_review_messages(input.candidate, selected_context, input.prompts,
-              conversation=conversation, receipts=list(input.receipts)), *input.correction_turns), images)
+    original = resolve_media(tuple(build_review_messages(input.candidate, selected_context, input.prompts,
+              conversation=conversation, receipts=list(input.receipts))), images)
+    turns = (*original, *feedback_turns)
     require_rendered_prompt("speech review", turns, settings)
     terms = set(distinctive_terms(input.candidate))
     ranked: list[RankedReviewEvidence] = []
@@ -267,8 +274,9 @@ def render_speech_review(input: SpeechReviewRenderInput, settings: RenderSetting
         seen.add(text)
         trial_context = selected_context.model_copy(deep=True)
         trial_context.evidence = [*selected, item]
-        trial_turns = resolve_media((*build_review_messages(input.candidate, trial_context, input.prompts,
-                    conversation=conversation, receipts=list(input.receipts)), *input.correction_turns), images)
+        original = resolve_media(tuple(build_review_messages(input.candidate, trial_context, input.prompts,
+                    conversation=conversation, receipts=list(input.receipts))), images)
+        trial_turns = (*original, *feedback_turns)
         included = estimator.estimate(trial_turns) <= settings.input_ceiling
         decisions.append(EvidenceDecision(record_id, score, included, "draft relevance" if included else "budget"))
         if included:
@@ -286,10 +294,11 @@ async def review_speech(complete: ModelSession, candidate: str, context: PublicC
     from pm.llm.structured import JsonOutputError
     from pydantic import ValidationError
     selected_prompts = prompts if prompts is not None else load_prompts()
-    corrections: tuple[Turn, ...] = ()
+    problem = ""
+    rejected_answer = ""
     while True:
         input = SpeechReviewRenderInput(candidate, context, selected_prompts, tuple(conversation),
-                                       tuple(receipts), corrections, images)
+                                       tuple(receipts), problem, rejected_answer, images)
         with RendererCapture(complete.capture_settings("speech_review"), RendererInput("speech_review", input, complete.settings)) as capture:
             rendered = render_speech_review(input, complete.settings)
             capture.save_output(rendered)
@@ -299,7 +308,8 @@ async def review_speech(complete: ModelSession, candidate: str, context: PublicC
             select_spoken_text(candidate, result)
             return result
         except (JsonOutputError, ValidationError, ValueError) as error:
-            corrections = (Turn(Role.Assistant, raw), Turn(Role.User, answer_correction_instruction("speech review", str(error))))
+            problem = str(error)
+            rejected_answer = raw
 
 
 

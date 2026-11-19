@@ -38,7 +38,10 @@ from pm.llm.prompt_encoding import TurnInput
 from pm.llm.session import ModelSession
 from pm.llm.generation import GenerationSettings
 from pm.context_render.prompt import require_rendered_prompt, RendererCapture, RendererInput
-from pm.context_render.correction import JsonCorrectionInput, render_json_correction
+from pm.context_render.correction import (
+    AgentReportCorrectionInput, CorrectionHistory, JsonCorrectionInput, render_agent_report_correction,
+    render_json_correction,
+)
 from pm.llm.prompt_encoding import normalize_turns
 
 T = TypeVar("T", bound=BaseModel)
@@ -168,6 +171,7 @@ def complete_json(session: ModelSession, messages: Sequence[TurnInput], schema: 
     original = tuple(normalize_turns(messages))
     render_settings = session.renderer_settings_for(settings)
     prompt = require_rendered_prompt(schema.__name__, original, render_settings)
+    corrections = CorrectionHistory()
     while True:
         if cancel is not None and cancel.is_set():
             raise asyncio.CancelledError
@@ -176,7 +180,8 @@ def complete_json(session: ModelSession, messages: Sequence[TurnInput], schema: 
         try:
             return parse_response(raw, schema, validation_context=validation_context)
         except (JsonOutputError, ValidationError) as error:
-            correction = JsonCorrectionInput(schema.__name__, original, raw, str(error))
+            diagnostic = corrections.record_rejection(str(error))
+            correction = JsonCorrectionInput(schema.__name__, original, raw, diagnostic)
             with RendererCapture(session.capture_settings("json correction"),
                                  RendererInput("json correction", correction, render_settings)) as capture:
                 prompt = render_json_correction(correction, render_settings)
@@ -190,6 +195,7 @@ async def complete_json_async(session: ModelSession, messages: Sequence[TurnInpu
     original = tuple(normalize_turns(messages))
     render_settings = session.resolved_renderer_settings_for(settings)
     prompt = require_rendered_prompt(schema.__name__, original, render_settings)
+    corrections = CorrectionHistory()
     while True:
         if cancel is not None and cancel.is_set():
             raise asyncio.CancelledError
@@ -198,7 +204,8 @@ async def complete_json_async(session: ModelSession, messages: Sequence[TurnInpu
         try:
             return parse_response(raw, schema, validation_context=validation_context)
         except (JsonOutputError, ValidationError) as error:
-            correction = JsonCorrectionInput(schema.__name__, original, raw, str(error))
+            diagnostic = corrections.record_rejection(str(error))
+            correction = JsonCorrectionInput(schema.__name__, original, raw, diagnostic)
             with RendererCapture(session.capture_settings("json correction"),
                                  RendererInput("json correction", correction, render_settings)) as capture:
                 prompt = render_json_correction(correction, render_settings)
@@ -217,6 +224,13 @@ def repair_agent_result(result: AgentResult, schema: type[T], model: AgentModel,
     parsed mapping and the raw answer, so a workflow can apply checks that the
     schema alone cannot express.
     """
+    if cancel is not None and cancel.is_set():
+        raise asyncio.CancelledError
+    raw = json.dumps(result.result_json, ensure_ascii=False) if result.result_json is not None else result.stdout
+    try:
+        return parse_response(raw, schema)
+    except (JsonOutputError, ValidationError) as error:
+        initial_problem = str(error)
     from pm.llm.activation import ModelActivation
     from pm.llm.config import Connection
     from pm.llm.stage_model import LazyStageModel
@@ -225,12 +239,14 @@ def repair_agent_result(result: AgentResult, schema: type[T], model: AgentModel,
     connection = Connection(base_url=model.base_url, model=model.model, api_key=SecretStr(model.api_key),
                             context_window=model.context_window)
     stage = LazyStageModel(connection, ModelActivation(), live_test=model.live_test)
-    from pm.context_render.turns import Role, Turn
-    messages = (Turn(Role.System,
-        "Correct the final report of a completed agent session. No tools are available. "
-        "Keep recorded facts and source IDs. Do not invent tool results or repeat actions. "
-        "The required JSON schema is: " + json.dumps(schema.model_json_schema(), ensure_ascii=False)),
-        Turn(Role.User, instruction))
-    initial = InitialResponse(json.dumps(result.result_json, ensure_ascii=False) if result.result_json is not None else result.stdout)
-    return complete_json(ModelSession(stage, cancel), messages, schema, initial=initial, cancel=cancel,
-                         settings=GenerationSettings(enable_thinking=False))
+    session = ModelSession(stage, cancel)
+    generation = GenerationSettings(enable_thinking=model.enable_thinking)
+    render_settings = session.renderer_settings_for(generation)
+    input = AgentReportCorrectionInput(schema.__name__, instruction,
+        json.dumps(schema.model_json_schema(), ensure_ascii=False), raw, initial_problem)
+    with RendererCapture(session.capture_settings("agent report correction"),
+                         RendererInput("agent report correction", input, render_settings)) as capture:
+        prompt = render_agent_report_correction(input, render_settings)
+        capture.save_output(prompt)
+    return complete_json(session, prompt.turns, schema, initial=InitialResponse(raw), cancel=cancel,
+                         settings=generation)

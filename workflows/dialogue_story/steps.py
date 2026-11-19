@@ -50,7 +50,7 @@ from typing import Literal, TypedDict
 from pydantic import TypeAdapter
 
 from pm_workflows.python_role import RoleContext
-from pm.context_render.turns import Role, Turn
+from pm.context_render.turns import Turn
 from pm.context_render.prompt import RendererCapture, RendererInput
 from pm.llm.session import ModelSession
 from pm.llm.generation import GenerationSettings
@@ -541,9 +541,8 @@ def generate_reviewed(request: StoryRequest, prompts: StoryPrompts, generate: Mo
     context = review_deps.context or request.public_context or review_context(request)
     review_prompts = review_deps.review_prompts or load_review_prompts()
     conversation = review_deps.conversation or review_conversation(request)
-    original_messages = build_story_messages(request, prompts)
-    messages = original_messages
-    repair_turns: list[Turn] = []
+    problem = ""
+    rejected_answer = ""
     prefill = ""  # The interleaved layout has no assistant prefill.
     recorder = review_deps.recorder
     attempts: list[StoryAttempt] = []
@@ -554,7 +553,7 @@ def generate_reviewed(request: StoryRequest, prompts: StoryPrompts, generate: Mo
             selection = None
             from workflows.dialogue_story.context import StoryRenderInput, render_story
             from pm.context_render.budget import SelectionReceipt
-            render_input = StoryRenderInput(request, prompts, tuple(repair_turns))
+            render_input = StoryRenderInput(request, prompts, problem, rejected_answer)
             with RendererCapture(generate.capture_settings("story"), RendererInput("story", render_input, generate.settings)) as capture:
                 rendered = render_story(render_input, generate.settings)
                 capture.save_output(rendered)
@@ -581,8 +580,9 @@ def generate_reviewed(request: StoryRequest, prompts: StoryPrompts, generate: Mo
                 break
             if index == 0:
                 # Keep the full context and request only new speech after empty output.
-                repair_turns.append(Turn(Role.User, prompts["empty_completion_recovery"].format(
-                    companion_name=request.companion_name, partner_name=request.partner_name)))
+                problem = prompts["empty_completion_recovery"].format(
+                    companion_name=request.companion_name, partner_name=request.partner_name)
+                rejected_answer = raw
         else:
             raise SpeechOutputError("The Story completion returned no new speech after two generation attempts.")
         review_messages = None
@@ -610,13 +610,14 @@ def generate_reviewed(request: StoryRequest, prompts: StoryPrompts, generate: Mo
                 print(f"[dialogue_story] Giving up after {len(attempts)} attempts.", flush=True)
                 return attempts, attempt
             print("[dialogue_story] Ten follow-ups failed. Restarting from the original context.", flush=True)
-            repair_turns = []
+            problem = ""
+            rejected_answer = ""
             followups = 0
             restarts += 1
         else:
             print(f"[dialogue_story] Requesting correction {followups + 1}/{FOLLOWUPS_PER_RESTART}.", flush=True)
-            repair_turns.extend([Turn(Role.Assistant, raw),
-                                 Turn(Role.User, prompts["rejected_reply_recovery"].format(reason=reason))])
+            problem = prompts["rejected_reply_recovery"].format(reason=reason)
+            rejected_answer = raw
             followups += 1
 
 

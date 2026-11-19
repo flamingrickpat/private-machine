@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from pm.context_render.budget import TokenEstimator
-from pm.context_render.correction import regeneration_instruction
+from pm.context_render.correction import render_regeneration_feedback
 from pm.context_render.prompt import EvidenceDecision, RenderedPrompt, RenderSettings, require_rendered_prompt
 from pm.context_render.records import RecordEvidence, render_record
 from pm.context_render.turns import Role, Turn
@@ -51,7 +51,9 @@ def select_private_evidence(input: PrivatePromptInput, settings: RenderSettings)
         else:
             optional.append(block)
     if input.correction:
-        selected.append(regeneration_instruction(input.operation, input.correction))
+        feedback = render_regeneration_feedback(input.operation, input.correction, settings)
+        selected.append(feedback.text)
+        settings = settings.without_correction_reserve()
     turns = (Turn(Role.System, input.system), Turn(Role.User, "\n\n".join(selected)))
     require_rendered_prompt(input.operation, turns, settings, tuple(decisions))
     estimator = TokenEstimator(estimate_factor=settings.estimate_factor)

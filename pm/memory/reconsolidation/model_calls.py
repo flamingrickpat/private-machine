@@ -21,7 +21,7 @@ from pm.constants import RECONSOLIDATION_TEMPERATURE, RECONSOLIDATION_WORKERS
 from pm.llm.stage_model import LazyStageModel
 from pm.llm.session import ModelSession
 from pm.context_render.prompt import RenderedPrompt, RendererCapture, RendererInput
-from pm.context_render.correction import JsonCorrectionInput, render_json_correction
+from pm.context_render.correction import CorrectionHistory, JsonCorrectionInput, render_json_correction
 from pm.llm.structured import parse_response, JsonOutputError, extract_json as extract_object, ModelFormatError as ReconsolidationOutputError
 from pm.memory.reconsolidation.schemas import SummaryAnswer, MentalStateAnswer, FactsAnswer, FilingAnswer, NarrativeAnswer, FactExtractionValidation, FactClassificationValidation
 from pm.memory.reconsolidation.rendering import (
@@ -59,6 +59,8 @@ class ModelCalls:
 
     def json(self, rendered: RenderedPrompt, schema: type[T], *, context: BaseModel | None = None) -> T:
         original = rendered.turns
+        operation = rendered.operation
+        corrections = CorrectionHistory()
         settings = self.session.renderer_settings_for(self.generation)
         while True:
             with self._lock:
@@ -67,7 +69,8 @@ class ModelCalls:
             try:
                 return parse_response(raw, schema, validation_context=context)
             except (JsonOutputError, ValidationError) as error:
-                input = JsonCorrectionInput(rendered.operation, original, raw, str(error))
+                diagnostic = corrections.record_rejection(str(error))
+                input = JsonCorrectionInput(operation, original, raw, diagnostic)
                 with RendererCapture(self.session.capture_settings("memory.correction"),
                         RendererInput("memory.correction", input, settings)) as capture:
                     rendered = render_json_correction(input, settings)

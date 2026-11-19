@@ -23,12 +23,23 @@ class RenderSettings(BaseModel):
     input_fraction: float = Field(gt=0, lt=1)
     reserved_output_tokens: int = Field(gt=0)
     protocol_tokens: int = Field(default=0, ge=0)
+    correction_tokens: int = Field(default=1024, ge=0,
+        description="Input tokens held back before evidence selection for bounded validation feedback.")
     estimate_factor: float = Field(default=1.5, ge=1)
 
     @property
     def input_ceiling(self) -> int:
+        return self.transport_input_ceiling - self.correction_tokens
+
+    @property
+    def transport_input_ceiling(self) -> int:
         return min(int(self.context_window * self.input_fraction),
                    self.context_window - self.reserved_output_tokens) - self.protocol_tokens
+
+    def without_correction_reserve(self) -> RenderSettings:
+        return RenderSettings(context_window=self.context_window, input_fraction=self.input_fraction,
+            reserved_output_tokens=self.reserved_output_tokens, protocol_tokens=self.protocol_tokens,
+            correction_tokens=0, estimate_factor=self.estimate_factor)
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,7 +81,7 @@ def require_rendered_prompt(operation: str, turns: tuple[Turn, ...], settings: R
         raise RequiredContextTooLarge(
             f"{operation}: estimated input {estimated_tokens}, ceiling {settings.input_ceiling}, "
             f"context {settings.context_window}, reserved output {settings.reserved_output_tokens}, "
-            f"protocol {settings.protocol_tokens}.")
+            f"protocol {settings.protocol_tokens}, correction reserve {settings.correction_tokens}.")
     rendered_turns: list[str] = []
     for turn in turns:
         parts: list[str] = list(turn.content.notes)

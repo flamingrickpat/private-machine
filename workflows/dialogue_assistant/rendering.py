@@ -6,11 +6,12 @@ from dataclasses import dataclass
 from typing import TypedDict, NotRequired
 
 from pm.context_render.budget import TokenEstimator
+from pm.context_render.correction import render_regeneration_feedback
 from pm.llm.generation import GenerationSettings, ToolSchema
 from pm.llm.protocol_context import reserve_protocol
 from pm.context_render.images import ImageCatalog, resolve_media
 from pm.context_render.prompt import RenderSettings, RenderedPrompt, EvidenceDecision, require_rendered_prompt
-from pm.context_render.turns import Text, Media, MediaKind
+from pm.context_render.turns import Text, Media, MediaKind, Role, Turn
 from pm.records.media import RecordImage
 from workflows.dialogue_assistant.schemas import AssistantRequest, AssistantMessage, AssistantToolCall, AssistantFunctionCall
 from workflows.public_speech.public_context import MemoryLaneTemplate, EvidenceItem
@@ -41,6 +42,8 @@ class AssistantContinuationInput:
     tools: tuple[ToolSchema, ...]
     images: tuple[RecordImage, ...] = ()
     generation: GenerationSettings = GenerationSettings()
+    problem: str = ""
+    rejected_answer: str = ""
 
 
 def render_assistant_prompt(input: AssistantRenderInput, settings: RenderSettings) -> RenderedPrompt:
@@ -122,7 +125,7 @@ def assistant_protocol_settings(settings: RenderSettings, tools: tuple[ToolSchem
     output_tokens = actual_generation.output_allowance(settings.reserved_output_tokens)
     resolved = RenderSettings(context_window=settings.context_window, input_fraction=settings.input_fraction,
         reserved_output_tokens=output_tokens, protocol_tokens=settings.protocol_tokens,
-        estimate_factor=settings.estimate_factor)
+        correction_tokens=settings.correction_tokens, estimate_factor=settings.estimate_factor)
     return reserve_protocol(resolved, actual_generation)
 
 
@@ -131,6 +134,10 @@ def render_assistant_continuation(input: AssistantContinuationInput, settings: R
     messages = input.messages
     effective_settings = assistant_protocol_settings(settings, input.tools, input.generation)
     turns = resolve_media(tuple(completion_turns(list(messages))), ImageCatalog(input.images))
+    if input.problem:
+        feedback = render_regeneration_feedback("assistant dialogue", input.problem, effective_settings)
+        turns = (*turns, Turn(Role.User, feedback.text))
+        effective_settings = effective_settings.without_correction_reserve()
     return require_rendered_prompt("assistant tool continuation", turns, effective_settings)
 
 

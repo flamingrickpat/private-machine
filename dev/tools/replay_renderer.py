@@ -6,7 +6,9 @@ from pathlib import Path
 from typing import cast
 
 from pm.context_render.prompt import RendererInput, RenderedPrompt, require_rendered_prompt
-from pm.context_render.correction import JsonCorrectionInput, render_json_correction
+from pm.context_render.correction import (
+    AgentReportCorrectionInput, JsonCorrectionInput, render_agent_report_correction, render_json_correction,
+)
 from pm.memory.media_alt import AltTextRenderInput
 from pm.memory.reconsolidation.rendering import (
     SceneSummaryInput, TemporalSummaryInput, RecordedStateInput, FactExtractionInput,
@@ -40,7 +42,7 @@ from workflows.minecraft.rendering import (LeafRenderInput, SpecialistRenderInpu
 from workflows.minecraft_project.planning.context_contracts import GameplayHistory
 
 
-type CapturedRendererInput = StoryEvaluationInput | StoryRenderInput | SpeechReviewRenderInput | AssistantRenderInput | AssistantContinuationInput | SimulationPromptInput | CognitionStoryInput | MainAttentionRenderInput | ExperienceRenderInput | TriageRenderInput | FocusRenderInput | CodeletAgentRenderInput | QueryRenderInput | NominationRenderInput | TriggerRenderInput | AttentionRenderInput | ThoughtRenderInput | GraphRenderInput | IntegrationRenderInput | ReflectionRenderInput | SceneSummaryInput | TemporalSummaryInput | RecordedStateInput | FactExtractionInput | FactClassificationInput | NarrativeRenderInput | AltTextRenderInput | JsonCorrectionInput | ToolSessionRenderInput | NoteRenderInput | MinecraftActionRenderInput | ProjectDecisionRenderInput | LeafRenderInput | SpecialistRenderInput | ReconciliationEvidence | GameplayHistory
+type CapturedRendererInput = StoryEvaluationInput | StoryRenderInput | SpeechReviewRenderInput | AssistantRenderInput | AssistantContinuationInput | SimulationPromptInput | CognitionStoryInput | MainAttentionRenderInput | ExperienceRenderInput | TriageRenderInput | FocusRenderInput | CodeletAgentRenderInput | QueryRenderInput | NominationRenderInput | TriggerRenderInput | AttentionRenderInput | ThoughtRenderInput | GraphRenderInput | IntegrationRenderInput | ReflectionRenderInput | SceneSummaryInput | TemporalSummaryInput | RecordedStateInput | FactExtractionInput | FactClassificationInput | NarrativeRenderInput | AltTextRenderInput | JsonCorrectionInput | AgentReportCorrectionInput | ToolSessionRenderInput | NoteRenderInput | MinecraftActionRenderInput | ProjectDecisionRenderInput | LeafRenderInput | SpecialistRenderInput | ReconciliationEvidence | GameplayHistory
 
 
 def replay_renderer(packet: RendererInput[CapturedRendererInput]) -> RenderedPrompt:
@@ -81,6 +83,8 @@ def replay_renderer(packet: RendererInput[CapturedRendererInput]) -> RenderedPro
             return replay_memory_capture(input, settings)
         case JsonCorrectionInput() as input:
             return render_json_correction(input, settings)
+        case AgentReportCorrectionInput() as input:
+            return render_agent_report_correction(input, settings)
         case ToolSessionRenderInput() as input:
             return render_tool_session(input, settings)
         case NoteRenderInput() as input:

@@ -31,7 +31,7 @@ from pm.llm.stage_model import LazyStageModel
 from pm.runs.role_runtime import PMWorkflowRuntime
 from pm.context_render.prompt import (RenderSettings, RenderedPrompt, RendererInput, RendererCapture,
     RendererCaptureOptions, RendererCaptureSettings, require_rendered_prompt)
-from pm.context_render.correction import answer_correction_instruction
+from pm.context_render.correction import render_regeneration_feedback
 from pm.context_render.turns import Role, Turn
 from threading import Event
 from pm.runs.workflow_runner import WorkflowRequest, WorkflowResult, WorkflowRunner, WorkflowStatus
@@ -126,14 +126,19 @@ class StoryEvaluationInput:
     prompts: EvaluationPrompts
     prior_dialogue: str = ""
     memories: str = ""
-    correction_turns: tuple[Turn, ...] = ()
+    problem: str = ""
+    rejected_answer: str = ""
 
 
 def render_story_evaluation(input: StoryEvaluationInput, settings: RenderSettings) -> RenderedPrompt:
     user = input.prompts.user_template.format(companion_name=input.companion_name,
         current_user_message=input.current_user_message, candidate=input.candidate,
         prior_dialogue=input.prior_dialogue or "(none)", memories=input.memories or "(none)")
-    turns = (Turn(Role.System, input.prompts.system_prompt), Turn(Role.User, user), *input.correction_turns)
+    turns = (Turn(Role.System, input.prompts.system_prompt), Turn(Role.User, user))
+    if input.problem:
+        feedback = render_regeneration_feedback("story evaluation", input.problem, settings)
+        turns = (*turns, Turn(Role.User, feedback.text))
+        settings = settings.without_correction_reserve()
     return require_rendered_prompt("story evaluation", turns, settings)
 
 
@@ -158,10 +163,11 @@ async def evaluate_candidate(
         raise ValueError("Story evaluation requires a configured output allowance.")
     settings = RenderSettings(context_window=capacity, input_fraction=evaluator.connection.context_input_fraction,
                               reserved_output_tokens=output_tokens)
-    corrections: tuple[Turn, ...] = ()
+    problem = ""
+    rejected_answer = ""
     while True:
         input = StoryEvaluationInput(companion_name, current_user_message, candidate, evaluator_prompt,
-                                     prior_dialogue, memories, corrections)
+                                     prior_dialogue, memories, problem, rejected_answer)
         capture_settings = RendererCaptureSettings(capture_options.directory / "story_evaluation" / uuid4().hex,
             capture_options.capture_input, capture_options.capture_output)
         with RendererCapture(capture_settings, RendererInput("story_evaluation", input, settings)) as capture:
@@ -171,7 +177,8 @@ async def evaluate_candidate(
         try:
             return StoryQualityScore.model_validate(extract_json(raw))
         except (JsonOutputError, ValidationError) as error:
-            corrections = (Turn(Role.Assistant, raw), Turn(Role.User, answer_correction_instruction("story evaluation", str(error))))
+            problem = str(error)
+            rejected_answer = raw
 
 
 

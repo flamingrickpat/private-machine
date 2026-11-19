@@ -24,12 +24,13 @@ from typing import TYPE_CHECKING
 
 from pm.memory.embeddings import EmbeddingService
 from pm.memory.retrieval import distinctive_terms
-from workflows.dialogue_story.history_rendering import select_story_history
+from workflows.dialogue_story.history_rendering import select_story_history, history_turns
 from pm.memory.temporal_context import TemporalCoverageSelection
 
+from pm.context_render.correction import render_regeneration_feedback
+from pm.context_render.turns import Role
 from pm.context_render.budget import PromptSelection, TokenEstimator, RequiredContextTooLarge
 from pm.context_render.turns import Turn
-from pm.context_render.images import ImageCatalog, resolve_media
 from pm.context_render.prompt import RenderSettings, RenderedPrompt, EvidenceDecision, TemporalHistoryMeasurement, require_rendered_prompt
 
 from workflows.dialogue_story.schemas import StoryPrompts, StoryRequest, StorySituation
@@ -52,13 +53,19 @@ class StoryPrompt:
 class StoryRenderInput:
     request: StoryRequest
     prompts: StoryPrompts
-    repair_turns: tuple[Turn, ...] = ()
+    problem: str = ""
+    rejected_answer: str = ""
 
 
 def render_story(input: StoryRenderInput, settings: RenderSettings) -> RenderedPrompt:
+    feedback_turns: tuple[Turn, ...] = ()
+    if input.problem:
+        feedback = render_regeneration_feedback("story generation", input.problem, settings)
+        feedback_turns = (Turn(Role.User, feedback.text),)
+        settings = settings.without_correction_reserve()
     request = input.request.model_copy(deep=True)
     request.input_budget_tokens = settings.input_ceiling
-    planned = select_story_prompt(request, input.prompts, input.repair_turns, settings=settings)
+    planned = select_story_prompt(request, input.prompts, feedback_turns, settings=settings)
     selected_ids = set(planned.selection.source_ids)
     evidence = input.request.public_context.evidence if input.request.public_context is not None else []
     decisions = tuple(EvidenceDecision(item.knoxel_id, item.score, item.knoxel_id in selected_ids,
@@ -82,13 +89,10 @@ def select_story_prompt(
     repair_turns: Sequence[Turn] = (),
     settings: RenderSettings | None = None,
 ) -> StoryPrompt:
-    from workflows.dialogue_story.steps import build_story_messages
-
     if request.input_budget_tokens is None:
         raise ValueError("Story rendering requires an explicit input ceiling.")
     estimator = TokenEstimator(estimate_factor=settings.estimate_factor if settings is not None else 1.5)
     context = request.public_context
-    images = ImageCatalog(request.images)
     evidence = list(context.evidence) if context is not None else []
     required_ids = set(request.required_evidence_ids)
     if request.current_message_id is not None:
@@ -123,7 +127,7 @@ def select_story_prompt(
     selected.prior_dialogue = selected_dialogue
     selected.public_context = selected_context
     selected.memories = []
-    turns = resolve_media((*build_story_messages(selected, prompts), *repair_turns), images)
+    turns = history_turns(selected, prompts, repair_turns)
     mandatory_tokens = estimator.estimate(turns)
     if mandatory_tokens > request.input_budget_tokens:
         raise RequiredContextTooLarge(f"Story mandatory input uses {mandatory_tokens} estimated tokens; ceiling {request.input_budget_tokens}.")
@@ -160,7 +164,7 @@ def select_story_prompt(
         trial_dialogue = [item for item in speech_history if item == turn or item in selected_dialogue]
         trial = selected.model_copy(deep=True)
         trial.prior_dialogue = trial_dialogue
-        trial_turns = resolve_media((*build_story_messages(trial, prompts), *repair_turns), images)
+        trial_turns = history_turns(trial, prompts, repair_turns)
         cost = estimator.estimate(trial_turns) - estimator.estimate(turns)
         if dialogue_cost + cost > dialogue_budget:
             omitted.append(f"dialogue:{turn.knoxel_id}")
@@ -196,7 +200,7 @@ def select_story_prompt(
         trial_context.evidence = trial_evidence
         trial = selected.model_copy(deep=True)
         trial.public_context = trial_context
-        trial_turns = resolve_media((*build_story_messages(trial, prompts), *repair_turns), images)
+        trial_turns = history_turns(trial, prompts, repair_turns)
         trial_tokens = estimator.estimate(trial_turns)
         cost = trial_tokens - estimator.estimate(turns)
         if lane_used[lane] + cost > int(remaining * shares[lane]) or trial_tokens > request.input_budget_tokens:
@@ -211,7 +215,7 @@ def select_story_prompt(
         for memory in rank_memory_texts(request.memories, request.current_user_message):
             trial = selected.model_copy(deep=True)
             trial.memories = [*selected.memories, memory.text]
-            trial_turns = resolve_media((*build_story_messages(trial, prompts), *repair_turns), images)
+            trial_turns = history_turns(trial, prompts, repair_turns)
             if estimator.estimate(trial_turns) <= request.input_budget_tokens:
                 selected, turns = trial, trial_turns
                 included.append(f"plain-memory:{memory.position}")

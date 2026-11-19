@@ -329,7 +329,6 @@ def review_and_revise(request: AssistantRequest, candidate: str, messages: list[
     receipt_payloads = tuple(item.evidence() for item in receipts)
     retained = list(messages)
     trail: list[AssistantMessage] = []
-    repairs: list[AssistantMessage] = []
     text = candidate
     followups = 0
     attempts = 0
@@ -353,14 +352,13 @@ def review_and_revise(request: AssistantRequest, candidate: str, messages: list[
         if followups >= REPAIR_FOLLOWUPS:
             print("[dialogue_assistant] Ten follow-ups failed. Restarting from the retained transcript.",
                   flush=True)
-            repairs = []
             followups = 0
         else:
             print(f"[dialogue_assistant] Requesting correction {followups + 1}/{REPAIR_FOLLOWUPS}.", flush=True)
-            repairs = [*repairs, *correction]
             followups += 1
         message = parse_completion(asyncio.run(
-            complete.complete_tools_async(capture_assistant_continuation(complete, AssistantContinuationInput(tuple([*retained, *repairs]), (), request.images, prompts.get("generation", GenerationSettings()))).turns, tools=(), settings=prompts.get("generation", GenerationSettings()))))
+            complete.complete_tools_async(capture_assistant_continuation(complete, AssistantContinuationInput(tuple(retained), (), request.images, prompts.get("generation", GenerationSettings()),
+                problem=prompts["rejected_reply_recovery"].format(reason=reason), rejected_answer=text)).turns, tools=(), settings=prompts.get("generation", GenerationSettings()))))
         text = final_public_speech(message.content.strip(), request)
 
 

@@ -30,4 +30,5 @@ def reserve_protocol(settings: RenderSettings, generation: GenerationSettings) -
     allowance = protocol_token_allowance(generation, TokenEstimator(estimate_factor=settings.estimate_factor))
     return RenderSettings(context_window=settings.context_window, input_fraction=settings.input_fraction,
         reserved_output_tokens=settings.reserved_output_tokens, protocol_tokens=settings.protocol_tokens + allowance,
+        correction_tokens=settings.correction_tokens,
         estimate_factor=settings.estimate_factor)

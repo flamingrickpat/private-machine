@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pm.context_render.correction import render_regeneration_feedback
+
 from dataclasses import dataclass, field
 import json
 import re
@@ -58,19 +60,9 @@ def render_simulation_prompt(input: SimulationPromptInput, settings: RenderSetti
         "\nReturn a JSON data instance matching this schema, not the schema itself:\n" + input.output_schema)
     correction: tuple[Turn, ...] = ()
     if input.correction:
-        rejected_excerpt = input.rejected_answer[:4096]
-        if len(input.rejected_answer) > len(rejected_excerpt):
-            rejected_excerpt += f"\n[Rejected answer excerpt; {len(input.rejected_answer) - len(rejected_excerpt)} characters omitted.]"
-        diagnostic_excerpt = input.correction[:2048]
-        if len(input.correction) > len(diagnostic_excerpt):
-            diagnostic_excerpt += f"\n[Validation diagnostic excerpt; {len(input.correction) - len(diagnostic_excerpt)} characters omitted.]"
-        repair_instruction = (
-            "The preceding assistant answer was rejected. Answer the ORIGINAL task using its instructions "
-            "and context above. Return the complete corrected JSON data instance. Preserve the intended "
-            "answer when only its JSON format was wrong. The validation diagnostic below is feedback "
-            "about the failed answer, not replacement answer content. Never copy this diagnostic into "
-            "the requested content or other answer fields.\nValidation diagnostic:\n" + diagnostic_excerpt)
-        correction = (Turn(Role.Assistant, rejected_excerpt), Turn(Role.User, repair_instruction))
+        feedback = render_regeneration_feedback(input.operation, input.correction, settings)
+        correction = (Turn(Role.User, feedback.text),)
+        settings = settings.without_correction_reserve()
     required_turns = (Turn(Role.System, system), Turn(Role.User, input.required), *correction)
     require_rendered_prompt(input.operation, required_turns, settings)
     estimator = TokenEstimator(estimate_factor=settings.estimate_factor)
@@ -163,9 +155,10 @@ def actor_draft_input(request: DraftRequest, instruction: str, schema: str) -> S
     context = request.context
     required = actor_required(context)
     required += "\nLatest exchange:\n" + "\n".join(conversation_text(turn) for turn in context.conversation[-2:])
-    for rejected in request.rejected_drafts:
-        required += f"\nRejected draft: {rejected.draft.content}\nReason: {rejected.reason}"
-    return SimulationPromptInput("simulation actor", instruction, schema, required, actor_evidence(context))
+    latest = request.rejected_drafts[-1] if request.rejected_drafts else None
+    return SimulationPromptInput("simulation actor", instruction, schema, required, actor_evidence(context),
+        correction=latest.reason if latest is not None else "",
+        rejected_answer=latest.draft.content if latest is not None else "")
 
 
 def actor_review_input(request: ReviewRequest, instruction: str, schema: str) -> SimulationPromptInput:
@@ -182,15 +175,15 @@ def actor_review_input(request: ReviewRequest, instruction: str, schema: str) ->
 
 def facts_input(request: PlanRequest, instruction: str, schema: str) -> SimulationPromptInput:
     required = (f"User: {request.speaker_name}\nCompanion: {request.companion_name}\n"
-                f"Start time: {request.start_time.isoformat()}\nBrief:\n{request.brief}\nCorrection: {request.correction}")
-    return SimulationPromptInput("simulation fact extraction", instruction, schema, required)
+                f"Start time: {request.start_time.isoformat()}\nBrief:\n{request.brief}")
+    return SimulationPromptInput("simulation fact extraction", instruction, schema, required, correction=request.correction)
 
 
 def planning_input(request: PlanningRequest, instruction: str, schema: str) -> SimulationPromptInput:
     base = facts_input(request, instruction, schema)
     required = base.required + "\nExtracted facts:\n" + "\n".join(fact_text(fact) for fact in request.extracted.facts)
     required += "\nChronology:\n" + "\n".join(f"{event.at.isoformat()}: {event.event}" for event in request.extracted.chronology)
-    return SimulationPromptInput("simulation scene planning", instruction, schema, required)
+    return SimulationPromptInput("simulation scene planning", instruction, schema, required, correction=base.correction)
 
 
 def plan_review_input(plan: ScenarioPlan, instruction: str, schema: str) -> SimulationPromptInput:

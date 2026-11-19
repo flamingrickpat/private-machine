@@ -347,7 +347,7 @@ def fit_prompt(work: CycleWork, budget: ContextBudget, *, prompts: PhasePrompts,
                appended: Sequence[Turn] = ()) -> TriagePrompt:
     selectable = triage_context(work)
     settings = RenderSettings(context_window=budget.context_window, input_fraction=budget.input_fraction,
-                              reserved_output_tokens=1, estimate_factor=budget.estimate_factor)
+                              reserved_output_tokens=1, correction_tokens=0, estimate_factor=budget.estimate_factor)
     chosen = [group for group in selectable.groups if group.required]
     optional = sorted(RankedTriageGroup(-group.salience, group.name, group)
                       for group in selectable.groups if not group.required)
