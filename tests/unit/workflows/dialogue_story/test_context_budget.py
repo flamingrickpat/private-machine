@@ -128,3 +128,26 @@ class StoryContextBudgetTests(unittest.TestCase):
         self.assertTrue(fitted.history.items)
         self.assertTrue(fitted.history.omitted_feature_ids)
         self.assertLessEqual(fitted.selection.estimated_tokens, request.input_budget_tokens)
+
+    def test_summary_can_cover_a_verbatim_required_event(self) -> None:
+        request = self.request([])
+        prompts = load_prompts()
+        moment = datetime(2026, 1, 1, tzinfo=UTC)
+        pinned = TemporalHistoryItem(record_id=51, started_at=moment, ended_at=moment, kind="feature",
+            level=0, content="My promise to Jesse.", source="Spamuel", feature_type=FeatureType.Dialogue,
+            relevance=1.0, token_cost=20)
+        later = pinned.model_copy(update={"record_id": 52, "started_at": moment + timedelta(days=1),
+            "ended_at": moment + timedelta(days=1), "content": "A much longer background memory. " * 500})
+        summary = TemporalHistoryItem(record_id=53, started_at=moment, ended_at=later.ended_at, kind="summary",
+            level=1, content="A promise and its aftermath.", source="history", feature_type=None,
+            relevance=0.5, token_cost=30)
+        assert request.public_context is not None
+        request.public_context.temporal_history = TemporalHistoryInput(items=(pinned, later, summary))
+        request.required_evidence_ids = (51,)
+        request.input_budget_tokens = TokenEstimator().estimate(build_story_messages(request, prompts)) + 500
+        fitted = select_story_prompt(request, prompts)
+        assert fitted.history is not None
+        self.assertEqual(fitted.history.covered_feature_ids, (51, 52))
+        self.assertIn(51, fitted.selection.source_ids)
+        self.assertIn(53, fitted.selection.source_ids)
+        self.assertNotIn(52, fitted.selection.source_ids)

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from math import ceil
 
 import tiktoken
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from pm.context_render.turns import Content, Text, Turn
 from pm.constants import PROMPT_IMAGE_TOKENS
@@ -29,7 +29,6 @@ class TokenEstimator(BaseModel):
         Unsupported binary modalities need an explicit planning estimate.
         """
         total = 32
-        encoders = (tiktoken.get_encoding("o200k_base"), tiktoken.get_encoding("cl100k_base"))
         for turn in turns:
             text_parts = [turn.role.value, *turn.content.notes,
                           *(part.text for part in turn.content.parts if isinstance(part, Text)),
@@ -43,7 +42,7 @@ class TokenEstimator(BaseModel):
                 if state.reasoning_details_json is not None:
                     text_parts.append(state.reasoning_details_json)
             text = "\n".join(text_parts)
-            total += 16 + max(len(encoder.encode(text, disallowed_special=())) for encoder in encoders)
+            total += 16 + self.text_tokens(text)
             for part in turn.content.parts:
                 if not isinstance(part, Text):
                     from pm.context_render.turns import Media, MediaKind, VideoFrames
@@ -55,6 +54,10 @@ class TokenEstimator(BaseModel):
                         raise TypeError("This media type needs an explicit token planning estimate.")
         return ceil(total * self.estimate_factor)
 
+    def text_tokens(self, text: str) -> int:
+        encoders = (tiktoken.get_encoding("o200k_base"), tiktoken.get_encoding("cl100k_base"))
+        return max(len(encoder.encode(text, disallowed_special=())) for encoder in encoders)
+
     def measurement_label(self, turns: Sequence[Turn]) -> str:
         """Name the estimator and explicit media allowance in execution receipts."""
         from pm.context_render.turns import Media, MediaKind, VideoFrames
@@ -62,6 +65,17 @@ class TokenEstimator(BaseModel):
                      for turn in turns for part in turn.content.parts)
         label = f"estimated.tiktoken.conservative.max_o200k_cl100k.x{self.estimate_factor:g}"
         return label + ".images_by_constant" if images else label
+
+
+class StoryTokenEstimator(TokenEstimator):
+    _counts: dict[str, int] = PrivateAttr(default_factory=dict[str, int])
+
+    def text_tokens(self, text: str) -> int:
+        cached = self._counts.get(text)
+        if cached is None:
+            cached = super().text_tokens(text)
+            self._counts[text] = cached
+        return cached
 
 
 class ContextBudget(TokenEstimator):

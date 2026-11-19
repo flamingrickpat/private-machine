@@ -286,6 +286,14 @@ def _build_temporal_graph(input: TemporalHistoryInput) -> _TemporalGraph:
         raw_total_tokens, index_by_feature_id, item_token_count, candidates_by_start, candidates_by_id)
 
 
+@dataclass(frozen=True, slots=True, order=True)
+class OmissionPriority:
+    relevance: float
+    negative_tokens: int
+    position: int
+    record_id: int
+
+
 class TemporalCoverageProblem:
     def __init__(self, input: TemporalHistoryInput) -> None:
         ids = [item.record_id for item in input.items]
@@ -294,6 +302,14 @@ class TemporalCoverageProblem:
         self.input = input
         self.graph = _build_temporal_graph(input)
         self.minimum_state = self.compute_min_token_cover()
+
+        priorities: list[OmissionPriority] = []
+        for position, item in enumerate(self.minimum_state.items):
+            candidate = self.graph.candidates_by_id[item.record_id]
+            scores = self.graph.feature_scores[candidate.start_index:candidate.end_index + 1]
+            relevance = 0.55 * sum(scores) / len(scores) + 0.45 * max(scores)
+            priorities.append(OmissionPriority(relevance, -candidate.tokens, position, item.record_id))
+        self.omission_order = tuple(sorted(priorities))
 
     def minimum_cover(self) -> TemporalCoverageSelection:
         if self.graph.features:
@@ -337,27 +353,16 @@ class TemporalCoverageProblem:
     def omit_least_relevant_units(self, max_tokens: int) -> TemporalCoverageSelection:
         if max_tokens < 0 or max_tokens >= self.minimum_state.total_tokens:
             raise ValueError("Temporal omissions require a nonnegative budget below the cheapest complete cover.")
-        minimum = self.minimum_cover()
-        items = list(minimum.items)
         total_tokens = self.minimum_state.total_tokens
         omitted: list[int] = []
-        while total_tokens > max_tokens:
-            lowest: TemporalHistoryItem | None = None
-            lowest_relevance: float | None = None
-            for item in items:
-                candidate = self.graph.candidates_by_id[item.record_id]
-                scores = self.graph.feature_scores[candidate.start_index:candidate.end_index + 1]
-                relevance = 0.55 * sum(scores) / len(scores) + 0.45 * max(scores)
-                if lowest is None or lowest_relevance is None or relevance < lowest_relevance:
-                    lowest = item
-                    lowest_relevance = relevance
-                elif relevance == lowest_relevance and candidate.tokens > self.graph.candidates_by_id[lowest.record_id].tokens:
-                    lowest = item
-            assert lowest is not None
-            items.remove(lowest)
-            omitted.append(lowest.record_id)
-            total_tokens -= self.graph.candidates_by_id[lowest.record_id].tokens
-        return self.selection(tuple(items), tuple(omitted))
+        for priority in self.omission_order:
+            if total_tokens <= max_tokens:
+                break
+            omitted.append(priority.record_id)
+            total_tokens -= self.graph.candidates_by_id[priority.record_id].tokens
+        omitted_ids = set(omitted)
+        kept = tuple(item for item in self.minimum_state.items if item.record_id not in omitted_ids)
+        return self.selection(kept, tuple(omitted))
 
     def compute_min_token_cover(self) -> _State:
         features = self.graph.features

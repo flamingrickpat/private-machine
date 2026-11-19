@@ -29,7 +29,7 @@ from pm.memory.temporal_context import TemporalCoverageSelection
 
 from pm.context_render.correction import render_regeneration_feedback
 from pm.context_render.turns import Role
-from pm.context_render.budget import PromptSelection, TokenEstimator, RequiredContextTooLarge
+from pm.context_render.budget import PromptSelection, StoryTokenEstimator, RequiredContextTooLarge
 from pm.context_render.turns import Turn
 from pm.context_render.prompt import RenderSettings, RenderedPrompt, EvidenceDecision, TemporalHistoryMeasurement, require_rendered_prompt
 
@@ -64,7 +64,7 @@ def render_story(input: StoryRenderInput, settings: RenderSettings) -> RenderedP
         feedback = render_regeneration_feedback("story generation", input.problem, settings)
         feedback_turns = (Turn(Role.User, feedback.text),)
         settings = settings.without_correction_reserve()
-    request = input.request.model_copy(deep=True)
+    request = input.request.model_copy()
     request.input_budget_tokens = settings.input_ceiling
     planned = select_story_prompt(request, input.prompts, feedback_turns, settings=settings)
     selected_ids = set(planned.selection.source_ids)
@@ -93,7 +93,7 @@ def select_story_prompt(
 ) -> StoryPrompt:
     if request.input_budget_tokens is None:
         raise ValueError("Story rendering requires an explicit input ceiling.")
-    estimator = TokenEstimator(estimate_factor=settings.estimate_factor if settings is not None else 1.5)
+    estimator = StoryTokenEstimator(estimate_factor=settings.estimate_factor if settings is not None else 1.5)
     context = request.public_context
     evidence = list(context.evidence) if context is not None else []
     required_ids = set(request.required_evidence_ids)
@@ -122,11 +122,11 @@ def select_story_prompt(
     selected_evidence = [item for item in evidence if item.knoxel_id in required_ids]
     selected_dialogue = [turn for turn in request.prior_dialogue
                          if turn in required_dialogue or turn.knoxel_id in required_ids]
-    selected_context = context.model_copy(deep=True) if context is not None else None
+    selected_context = context.model_copy() if context is not None else None
     if selected_context is not None:
         selected_context.evidence = selected_evidence
         selected_context.memories = []
-    selected = request.model_copy(deep=True)
+    selected = request.model_copy()
     selected.prior_dialogue = selected_dialogue
     selected.public_context = selected_context
     selected.memories = []
@@ -144,6 +144,7 @@ def select_story_prompt(
     history_measurement: TemporalHistoryMeasurement | None = None
     remaining = request.input_budget_tokens - mandatory_tokens
     dialogue_budget = int(remaining * 0.45)
+    accepted_tokens = mandatory_tokens
     dialogue_cost = 0
     omitted: list[str] = []
     included: list[str] = []
@@ -160,10 +161,11 @@ def select_story_prompt(
             omitted.append(f"dialogue:{turn.knoxel_id}")
             continue
         trial_dialogue = order_dialogue([*selected_dialogue, turn])
-        trial = selected.model_copy(deep=True)
+        trial = selected.model_copy()
         trial.prior_dialogue = trial_dialogue
         trial_turns = history_turns(trial, prompts, repair_turns)
-        cost = estimator.estimate(trial_turns) - estimator.estimate(turns)
+        trial_tokens = estimator.estimate(trial_turns)
+        cost = trial_tokens - accepted_tokens
         if dialogue_cost + cost > dialogue_budget:
             omitted.append(f"dialogue:{turn.knoxel_id}")
             continue
@@ -171,6 +173,7 @@ def select_story_prompt(
         represented_terms.update(new_terms)
         dialogue_cost += cost
         selected, turns = trial, trial_turns
+        accepted_tokens = trial_tokens
     shares = {"history": 0.25, "facts": 0.10, "inner": 0.10, "narratives": 0.06, "rules": 0.04}
     lane_used = {lane: 0 for lane in shares}
     seen_texts = {" ".join(turn.text.casefold().split()) for turn in selected_dialogue}
@@ -194,23 +197,24 @@ def select_story_prompt(
         group = [row for row in evidence if row.knoxel_id in support_ids and row not in selected_evidence]
         trial_evidence = [*selected_evidence, *group]
         assert selected.public_context is not None
-        trial_context = selected.public_context.model_copy(deep=True)
+        trial_context = selected.public_context.model_copy()
         trial_context.evidence = trial_evidence
-        trial = selected.model_copy(deep=True)
+        trial = selected.model_copy()
         trial.public_context = trial_context
         trial_turns = history_turns(trial, prompts, repair_turns)
         trial_tokens = estimator.estimate(trial_turns)
-        cost = trial_tokens - estimator.estimate(turns)
+        cost = trial_tokens - accepted_tokens
         if lane_used[lane] + cost > int(remaining * shares[lane]) or trial_tokens > request.input_budget_tokens:
             omitted.append(f"memory:{item.knoxel_id}")
             continue
         selected_evidence = trial_evidence
         selected, turns = trial, trial_turns
+        accepted_tokens = trial_tokens
         lane_used[lane] += cost
         seen_texts.add(text_key)
     if context is None:
         for memory in rank_memory_texts(request.memories, request.current_user_message):
-            trial = selected.model_copy(deep=True)
+            trial = selected.model_copy()
             trial.memories = [*selected.memories, memory.text]
             trial_turns = history_turns(trial, prompts, repair_turns)
             if estimator.estimate(trial_turns) <= request.input_budget_tokens:

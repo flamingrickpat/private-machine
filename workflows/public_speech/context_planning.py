@@ -38,7 +38,7 @@ from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, JsonValue
 from pm.utils import yaml_util
 
 from pm.records.base import RecordBase
-from pm.records.memory_records import Feature
+from pm.records.memory_records import ActionSchemaRecord, Feature
 from pm.memory.context_plan import Focus, PlanSpec, WeightedFocusText, WeightedFocusVector, plan_context
 from pm.memory.temporal_context import TemporalHistoryInput, TemporalHistoryItem
 from pm.records.memory_records import MemoryClusterRecord
@@ -69,6 +69,7 @@ class FocusInput(BaseModel):
     required_ids: list[int] = Field(default_factory=list[int])
     exclude_ids: list[int] = Field(default_factory=list[int])
     current_ids: tuple[int, ...] = ()
+    selected_action_id: int | None = None
 
 
 class PlannedContext(BaseModel):
@@ -147,6 +148,21 @@ async def _embed_focus(
 def freeze_temporal_history(view: Snapshot, records: dict[int, RecordBase], focus: FocusInput,
                             embedded: EmbeddedFocus) -> TemporalHistoryInput:
     items: list[TemporalHistoryItem] = []
+    anchors = set(focus.current_ids)
+    intention_ids: set[int] = set()
+    direct_causes: set[int] = set()
+    if focus.selected_action_id is not None:
+        anchors.add(focus.selected_action_id)
+    for anchor_id in anchors:
+        if anchor_id not in view.revisions:
+            continue
+        anchor = view.get(anchor_id)
+        if isinstance(anchor, ActionSchemaRecord):
+            intention_ids.update(anchor.intention_ids)
+        if anchor.lineage is not None:
+            direct_causes.update(anchor.lineage.parent_record_ids)
+            direct_causes.update(anchor.lineage.source_event_ids)
+            intention_ids.update(anchor.lineage.intention_ids)
     for record_id, record in records.items():
         if record_id in focus.current_ids:
             continue
@@ -178,6 +194,15 @@ def freeze_temporal_history(view: Snapshot, records: dict[int, RecordBase], focu
                     raise ValueError(f"History source {record_id} embedding dimension differs from focus.")
                 similarity = sum(left * right for left, right in zip(query.vector, record.embedding, strict=True))
                 relevance = max(relevance, query.weight * similarity)
+        if isinstance(record, Feature):
+            linked = record_id in direct_causes
+            lineage = record.lineage
+            if lineage is not None:
+                linked = (linked or not anchors.isdisjoint(lineage.parent_record_ids)
+                          or not anchors.isdisjoint(lineage.source_event_ids)
+                          or not intention_ids.isdisjoint(lineage.intention_ids))
+            if linked:
+                relevance += 0.10
         items.append(TemporalHistoryItem(record_id=record_id, started_at=utc_time(record.timestamp_world_begin),
             ended_at=utc_time(record.timestamp_world_end), kind=kind, level=level, content=content, source=source,
             feature_type=feature_type, evidence_role=evidence_role(view, record),

@@ -110,13 +110,9 @@ def select_story_history(request: StoryRequest, prompts: StoryPrompts, repairs: 
     baseline_turns = history_turns(request, prompts, repairs)
     baseline_tokens = estimator.estimate(baseline_turns)
     represented = {item.knoxel_id for item in context.evidence} | {turn.knoxel_id for turn in request.prior_dialogue}
-    mandatory_times = [item.started_at for item in context.temporal_history.items
-                       if item.kind == "feature" and item.record_id in represented]
     priced: list[TemporalHistoryItem] = []
     images = ImageCatalog(request.images)
     for item in context.temporal_history.items:
-        if item.kind == "summary" and any(item.started_at <= moment <= item.ended_at for moment in mandatory_times):
-            continue
         if item.record_id in represented:
             cost = 0
         elif item.kind == "feature" and item.feature_type == FeatureType.Dialogue:

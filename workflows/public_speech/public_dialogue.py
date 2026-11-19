@@ -141,6 +141,7 @@ class PublicDialogue(CognitiveWorkflow):
         focus = FocusInput(
             workspace=request.workspace or "",
             current_message=" ".join(stimulus_texts),
+            selected_action_id=request.knoxel_id,
             current_ids=tuple(stimulus.knoxel_id for stimulus in request.stimuli),
             attention_texts=[request.content] if request.content else [],
             exclude_ids=[s.knoxel_id for s in request.stimuli if s.knoxel_id],
