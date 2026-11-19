@@ -16,18 +16,26 @@ completes alt text before it embeds a text that holds image tags.
 """
 from __future__ import annotations
 
+from pm.llm.stage_model import LazyStageModel
+from pm.llm.session import ModelSession
+from pm.llm.generation import GenerationSettings
+from pm.context_render.prompt import require_rendered_prompt, RenderSettings, RenderedPrompt, RendererCapture, RendererInput
+from pm.context_render.turns import Turn, Role, Content, Media, MediaKind
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from pm.memory.store import MemoryStore
+
 import asyncio
-import base64
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from pathlib import Path
 from threading import Event, Lock
 
 from pydantic import BaseModel
 
-from pm.llm.multimodal import _to_png
+from pm.llm.multimodal import image_bytes_for_prompt
 
-from pm.constants import ALT_TEXT_ATTEMPTS, ALT_TEXT_MAX_CHARS, ALT_TEXT_TEMPERATURE
-from pm.llm.http_client import ModelError
+from pm.constants import ALT_TEXT_MAX_CHARS, ALT_TEXT_TEMPERATURE
 from pm.records.media import IMAGE_TAG, RecordImage
 from pm.utils import yaml_util
 
@@ -46,19 +54,24 @@ def alt_text_prompts() -> AltTextPrompts:
     return AltTextPrompts.model_validate(yaml_util.safe_load(path.read_text(encoding="utf-8")))
 
 
-def alt_text_messages(image: RecordImage, prompts: AltTextPrompts) -> list[dict]:
-    """Return the system message and one user message with the instruction and the image.
+@dataclass(frozen=True, slots=True)
+class AltTextRenderInput:
+    system_prompt: str
+    instruction: str
+    image_bytes: bytes
+    repair_template: str
+    problem: str = ""
+    rejected_output: str = ""
 
-    The messages use the OpenAI wire shape. Image bytes are converted to PNG
-    when the original format (WebP, BMP, etc.) is not natively supported by
-    llama.cpp's stb_image loader.
-    """
-    raw = image.data()
-    converted, mime_type = _to_png(raw)
-    data_url = f"data:{mime_type};base64,{base64.b64encode(converted).decode('ascii')}"
-    return [{"role": "system", "content": prompts.system_prompt.strip()},
-            {"role": "user", "content": [{"type": "text", "text": prompts.instruction.strip()},
-                                         {"type": "image_url", "image_url": {"url": data_url}}]}]
+
+def render_alt_text(input: AltTextRenderInput, settings: RenderSettings) -> RenderedPrompt:
+    converted, mime_type = image_bytes_for_prompt(input.image_bytes)
+    content = Content(input.instruction.strip()) + Content(Media(MediaKind.Image, mime_type, data=converted))
+    turns = [Turn(Role.System, input.system_prompt.strip()), Turn(Role.User, content)]
+    if input.problem:
+        turns.extend((Turn(Role.Assistant, input.rejected_output),
+            Turn(Role.User, input.repair_template.strip().format(problem=input.problem))))
+    return require_rendered_prompt("image description", tuple(turns), settings)
 
 
 def clean_alt_text(raw: str) -> str:
@@ -81,7 +94,7 @@ def clean_alt_text(raw: str) -> str:
     return text
 
 
-def describe_image(image: RecordImage, complete: Callable[..., str], *, cancel: Event | None = None,
+def describe_image(image: RecordImage, complete: LazyStageModel, *, cancel: Event | None = None,
                    prompts: AltTextPrompts | None = None) -> str:
     """Return a model alt text for one image. This call blocks.
 
@@ -92,26 +105,27 @@ def describe_image(image: RecordImage, complete: Callable[..., str], *, cancel: 
     Cancellation propagates from the client.
     """
     prompts = prompts or alt_text_prompts()
-    original = alt_text_messages(image, prompts)
-    turns = original
-    last: Exception | None = None
-    for _ in range(ALT_TEXT_ATTEMPTS):
-        try:
-            raw = complete(turns, cancel=cancel, temperature=ALT_TEXT_TEMPERATURE, enable_thinking=False)
-        except ModelError as error:
-            last = error
-            turns = original
-            continue
+    image_bytes = image.data()
+    session = ModelSession(complete, cancel)
+    settings = session.render_settings()
+    problem = ""
+    rejected_output = ""
+    while True:
+        input = AltTextRenderInput(prompts.system_prompt, prompts.instruction, image_bytes,
+            prompts.repair, problem, rejected_output)
+        with RendererCapture(session.capture_settings("memory.image_description"),
+                RendererInput("memory.image_description", input, settings)) as capture:
+            rendered = render_alt_text(input, settings)
+            capture.save_output(rendered)
+        raw = session.complete(rendered.turns, settings=GenerationSettings(temperature=ALT_TEXT_TEMPERATURE, enable_thinking=False))
         try:
             return clean_alt_text(raw)
         except ValueError as error:
-            last = error
-            turns = [*original, {"role": "assistant", "content": raw},
-                     {"role": "user", "content": prompts.repair.strip().format(problem=str(error))}]
-    raise last
+            problem = str(error)
+            rejected_output = raw
 
 
-def complete_alt_text(store, image_ids: Sequence[str], complete: Callable[..., str], *,
+def complete_alt_text(store: MemoryStore, image_ids: Sequence[str], complete: LazyStageModel, *,
                       cancel: Event | None = None) -> dict[str, str]:
     """Write a model alt text for each listed image that has none. This call blocks.
 
@@ -120,7 +134,7 @@ def complete_alt_text(store, image_ids: Sequence[str], complete: Callable[..., s
     alt text goes into every record that holds the image
     (``MemoryStore.annotate_alt_text``). Returns the new alt texts by id.
     """
-    written = {}
+    written: dict[str, str] = {}
     for image_id in dict.fromkeys(image_ids):
         image = store.find_image(image_id)
         if image is None or image.alt_text:
@@ -139,7 +153,7 @@ class MediaLibrary:
     threads that embed the same new image ask the model only once.
     """
 
-    def __init__(self, store, complete: Callable[..., str]) -> None:
+    def __init__(self, store: MemoryStore, complete: LazyStageModel) -> None:
         self.store = store
         self.complete = complete
         self._locks: dict[str, Lock] = {}
@@ -167,5 +181,5 @@ class MediaLibrary:
                 await asyncio.to_thread(self._complete_one, image_id, cancel)
 
 
-__all__ = ["AltTextPrompts", "MediaLibrary", "alt_text_messages", "alt_text_prompts", "clean_alt_text",
+__all__ = ["AltTextPrompts", "MediaLibrary", "render_alt_text", "AltTextRenderInput", "alt_text_prompts", "clean_alt_text",
            "complete_alt_text", "describe_image"]

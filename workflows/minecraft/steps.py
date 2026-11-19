@@ -9,6 +9,10 @@ Screenshot pixels are written as files, never into a prompt. The tool result
 base64 is the source of that file.
 """
 from __future__ import annotations
+from workflows.minecraft.runtime import require_minecraft_runtime
+from workflows.minecraft_body.mcp_client import BodyEpoch
+from workflows.minecraft_body.world_text import observation_text
+from pm.runs.managed_boundary import BoundaryReadSettings
 
 import asyncio
 import base64
@@ -168,16 +172,13 @@ def _run_boundary_check(context: RoleContext) -> dict[str, Any]:
     prompts = load_prompts()
     from workflows.minecraft_body.lease import BODY_LEASES
     from workflows.minecraft_body.gateway import BodyGateway
-    endpoint = context.runtime.tools["minecraft_endpoint"]()
-    gateway = BodyGateway(endpoint, context.task_id, environment, context.runtime, dict(context.runtime.tools))
-    def call(name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
-        """Call one body tool through the leased gateway of this run."""
-        return gateway.call(name, arguments or {})
-    boundary = context.runtime.tools["managed_instructions"]
-    initial = boundary()
+    runtime = require_minecraft_runtime(context.runtime)
+    endpoint = runtime.minecraft_transport.settings.endpoint
+    gateway = BodyGateway(endpoint, context.task_id, environment, runtime)
+    initial = runtime.instructions()
     request.goal = initial["instruction"] or request.goal or request.instruction
     context.runtime.check_cancelled()
-    observation = call("minecraft_observe", {"include_image": request.include_image})
+    observation = gateway.call("minecraft_observe", {"include_image": request.include_image})
     observations = [summarize(observation)]
     images = list(observation.get("images") or [])
 
@@ -188,7 +189,7 @@ def _run_boundary_check(context: RoleContext) -> dict[str, Any]:
         build_world(request, observation, None, image_paths), sort_keys=False,
     ))
     environment.write_text("scratch/observations.md", observations[0] + "\n")
-    revision = boundary(wait=request.wait_for_update, close=True)
+    revision = runtime.instructions(BoundaryReadSettings(wait=request.wait_for_update, close=True))
     gateway.revision = revision["revision"]
     request.goal = revision["instruction"] or request.goal
     context.runtime.check_cancelled()
@@ -202,24 +203,23 @@ def _run_boundary_check(context: RoleContext) -> dict[str, Any]:
     final_observation = observation
     if observation["ok"]:
         if not action_tool and request.goal:
-            schemas = context.runtime.tools["minecraft_tool_schemas"]()
-            allowed = set(request.allowed_tools) if request.allowed_tools else {s["name"] for s in schemas}
-            schemas = [schema for schema in schemas if schema["name"] in allowed]
-            plan = context.runtime.tools["minecraft_plan"](
-                json.dumps(observation["result"], ensure_ascii=False), schemas, request.goal,
-            )
+            schemas = runtime.minecraft_transport.tool_schemas()
+            allowed = set(request.allowed_tools) if request.allowed_tools else {schema.name for schema in schemas}
+            schemas = [schema for schema in schemas if schema.name in allowed]
+            plan = runtime.minecraft_transport.planner.choose_action(
+                observation_text(observation["result"]), tuple(schemas), request.goal)
             action_tool, action_arguments = parse_plan(plan)
-            if action_tool not in {schema["name"] for schema in schemas}:
+            if action_tool not in {schema.name for schema in schemas}:
                 raise ValueError(f"The Minecraft planner selected an unavailable action: {action_tool}")
         if action_tool:
             if request.allowed_tools and action_tool not in request.allowed_tools:
                 raise ValueError(f"The Minecraft action is not granted: {action_tool}")
             context.runtime.check_cancelled()
-            action = call(action_tool, action_arguments)
+            action = gateway.call(action_tool, action_arguments)
             observations.append(summarize(action))
             images.extend(action.get("images") or [])
             context.runtime.check_cancelled()
-            final_observation = call("minecraft_observe", {"include_image": request.include_image})
+            final_observation = gateway.call("minecraft_observe", {"include_image": request.include_image})
             observations.append(summarize(final_observation))
             images.extend(final_observation.get("images") or [])
 
@@ -260,17 +260,13 @@ def run(context: RoleContext) -> dict[str, Any]:
     narrow = payload.get("mode") == "boundary_check" or payload.get("action_tool") or payload.get("wait_for_cancel") or payload.get("wait_for_update")
     if narrow:
         from workflows.minecraft_body.lease import BODY_LEASES
-        lease = context.runtime.tools.get("minecraft_lease")
-        if lease is not None:
-            with lease():
-                try:
-                    return _run_boundary_check(context)
-                finally:
-                    token = BODY_LEASES.token(context.runtime.tools["minecraft_endpoint"](), context.task_id)
-                    release = getattr(context.runtime.tools["minecraft_call"], "release", None)
-                    if release is not None:
-                        release(token)
-        return _run_boundary_check(context)
+        runtime = require_minecraft_runtime(context.runtime)
+        with runtime.body_lease.acquire():
+            try:
+                return _run_boundary_check(context)
+            finally:
+                token = BodyEpoch.model_validate(BODY_LEASES.token(runtime.minecraft_transport.settings.endpoint, context.task_id))
+                runtime.minecraft_transport.release(token)
     from workflows.minecraft.specialist_session import run_specialist_session
     return run_specialist_session(context)
 

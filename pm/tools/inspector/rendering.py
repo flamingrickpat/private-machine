@@ -24,6 +24,7 @@ here writes to the store, calls a model, or embeds text.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
@@ -204,6 +205,28 @@ class RecordRender(BaseModel):
     in_shards: int = 0
 
 
+
+@dataclass(frozen=True, slots=True)
+class InspectorStoryTemplateValues:
+    character_card: Content | str
+    shards: Content | str
+    feeling: Content | str
+    new: Content | str
+
+    def field_value(self, name: str) -> Content | str | int | float:
+        match name:
+            case "character_card":
+                return self.character_card
+            case "shards":
+                return self.shards
+            case "feeling":
+                return self.feeling
+            case "new":
+                return self.new
+            case _:
+                raise KeyError(f"Unknown InspectorStoryTemplateValues field: {name}")
+
+
 def _load_labels(path: Path) -> ShardLabels:
     """Return the ``shard_labels`` block of one prompt file, or empty labels."""
     data = yaml_util.safe_load(path.read_text(encoding="utf-8")) or {}
@@ -340,7 +363,7 @@ class StoryRenderer:
         line = story_line(view, with_id=False)
         with_id = story_line(view, with_id=True)
         record = self.index.records.get(record_id)
-        context_text = render_context([record], ContextKind.All).text if record is not None else ""
+        context_text = render_context(record, ContextKind.All).text if record is not None else ""
         content_tokens = story_tokens(view.content)
         return RecordRender(
             record_id=record_id, kind=view.kind or label.kind, record_class=view.record_class or label.record_class,
@@ -512,12 +535,12 @@ class StoryRenderer:
         text = ""
         if self.prompts.story_template:
             filled = fill_story_names(self.prompts.story_template, self.companion, others)
-            text = format_content(filled,
-                                  character_card=(card or "").strip() or "(no character card)",
-                                  shards="\n\n".join(block.block_text for block in blocks),
-                                  feeling=feeling or "(no feeling recorded)",
-                                  new=render_story(self.index.views(new_ids), new_ids, with_id=False)
-                                  or "(nothing new happens)").text.strip()
+            text = format_content(filled, InspectorStoryTemplateValues(
+        character_card=(card or "").strip() or "(no character card)",
+        shards="\n\n".join(block.block_text for block in blocks),
+        feeling=feeling or "(no feeling recorded)",
+        new=render_story(self.index.views(new_ids), new_ids, with_id=False)
+                                  or "(nothing new happens)")).text.strip()
         return StoryRender(text=text, tokens=story_tokens(text), shards=[shard.key for shard in shown],
                            notes=notes, other_characters=others)
 

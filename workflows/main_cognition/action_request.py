@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pm.records.copying import pickle_copy
 
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable
 
 from pm.records.workspace import SELF_SHARD, GlobalWorkspace, ShardKey
 
@@ -29,7 +29,7 @@ def partner_key(group: ShardKey, user_entity_id: int | None) -> ShardKey | None:
 
 
 def request_shards(workspace: GlobalWorkspace, group: ShardKey, partner: ShardKey | None,
-                   label: Callable[[ShardKey], str], hidden: Iterable[int] = ()) -> list[RequestShard]:
+                   labels: dict[ShardKey, str], hidden: Iterable[int] = ()) -> list[RequestShard]:
     """Return the shards that a request carries: self, the partner, and a workflow group.
 
     The shards are copies, so a later cycle cannot change a stored request.
@@ -43,12 +43,12 @@ def request_shards(workspace: GlobalWorkspace, group: ShardKey, partner: ShardKe
     left_out = set(hidden)
     keys = [SELF_SHARD, *([partner] if partner is not None else []),
             *([group] if group.kind == "workflow" else [])]
-    shards = []
+    shards: list[RequestShard] = []
     for key in dict.fromkeys(keys):
         shard = (pickle_copy(workspace.shard(key)) if workspace.has_shard(key)
                  else GlobalWorkspace().ensure_shard(key))
         shard.tail_ids = [record_id for record_id in shard.tail_ids if record_id not in left_out]
-        shards.append(RequestShard(name=label(key), shard=shard))
+        shards.append(RequestShard(name=labels[key], shard=shard))
     return shards
 
 

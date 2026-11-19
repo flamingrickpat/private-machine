@@ -6,7 +6,7 @@ state_policy: {mutation_model: append_only}
 roles:
   body:
     skill: workflows/minecraft/steps.py
-    tools: [minecraft_call, minecraft_plan, minecraft_list_tools, minecraft_tool_schemas, minecraft_endpoint, minecraft_lease, managed_instructions]
+    tools: []
     result_contract:
       type: json
       schema:

@@ -39,6 +39,7 @@ Reading map: ``_managed_workflows`` (managed run specifications),
 """
 from __future__ import annotations
 
+
 from pm.utils.operating_system import OperatingSystem
 from pm import vclock
 
@@ -50,7 +51,6 @@ from typing import TYPE_CHECKING, Any, NamedTuple, TypedDict
 
 from pm.constants import Sampler
 from pm.memory.store import MemoryStore
-from pm.memory.store_tools import build_tools
 from workflows.dialogue_assistant.host import AssistantDialogue
 from workflows.demo.host import CheckSubprocess, DummyDialogue, DummyMainCogLoop, ScheduleSubprocesses, TaskTable, ToolPlusDialogue
 from workflows.main_cognition.host import InnerThoughtLoop, MainCogLoop
@@ -67,6 +67,7 @@ from pm.host.application import Application
 from workflows.steward.gate import Steward
 from pm.llm.workflow_sessions import WorkflowModels
 from pm.memory.bash_view import MemoryBashTarget
+from workflows.main_cognition.catalogue import WorkflowCatalogue
 from pm.runs.workflow_module import PROJECT_ROOT, CognitiveWorkflow, WorkflowModule
 from pm.app.operator_config import default_config_path
 from pm.paths import REPO_ROOT
@@ -118,8 +119,7 @@ def _managed_workflows(
     ``stage_model`` and ``embeddings`` are None in dummy cognition; the tool
     factories then report the missing model when a run actually needs one.
     """
-    from workflows.minecraft.host import build_minecraft_module_tools, persona_context, project_memory_config
-    from workflows.note_task.steps import build_note_tools
+    from workflows.minecraft.host import build_minecraft_module_tools, MinecraftContextOwner, ProjectMemoryOwner
     from workflows.memory_reconsolidation.host import build_reconsolidation_tools
 
     base = PROJECT_ROOT / "workflows" / "local_task"
@@ -134,38 +134,32 @@ def _managed_workflows(
         ),
         "note_task": WorkflowSpec(
             PROJECT_ROOT / "workflows" / "note_task" / "note_task.workflow.md",
-            namespace="note_task", tools_factory=build_note_tools(stage_model),
+            namespace="note_task",
         ),
         # The character sorts through its memories ("sleeps on it"). The tool
         # runs pm.memory.reconsolidation on the live store; one run at a time.
         "memory_reconsolidation": WorkflowSpec(
             PROJECT_ROOT / "workflows" / "memory_reconsolidation" / "memory_reconsolidation.workflow.md",
             namespace="memory_reconsolidation",
-            tools_factory=build_reconsolidation_tools(ghost, stage_model, embeddings),
+            runtime_owner=build_reconsolidation_tools(ghost, stage_model, embeddings),
             singleton=True,
         ),
         "minecraft": WorkflowSpec(
             PROJECT_ROOT / "workflows" / "minecraft" / "minecraft.workflow.md",
             namespace="minecraft",
-            tools_factory=build_minecraft_module_tools(
-                stage_model.complete if stage_model is not None else None,
-                stage_model.measure_context if stage_model is not None else None,
-                mcp_url=minecraft_endpoint,
-            ),
             resumable=True,
             singleton=True, singleton_key="minecraft_body",
-            request_context=persona_context,
+            request_context_owner=MinecraftContextOwner(),
+            runtime_owner=build_minecraft_module_tools(stage_model, mcp_url=minecraft_endpoint),
         ),
         "minecraft_project": WorkflowSpec(
             PROJECT_ROOT / "workflows" / "minecraft_project" / "minecraft_project.workflow.md",
             namespace="minecraft_project",
-            tools_factory=build_minecraft_module_tools(stage_model.complete if stage_model is not None else None,
-                stage_model.measure_context if stage_model is not None else None, mcp_url=minecraft_endpoint),
             resumable=True,
             singleton=True, singleton_key="minecraft_body",
-            request_context=persona_context,
-            memory_config_factory=(lambda store, cancel: project_memory_config(store, cancel, embeddings))
-                if stage_model is not None else None,
+            request_context_owner=MinecraftContextOwner(),
+            runtime_owner=build_minecraft_module_tools(stage_model, mcp_url=minecraft_endpoint),
+            memory_config_owner=ProjectMemoryOwner(embeddings) if stage_model is not None else None,
         ),
     }
     if not enable_minecraft:
@@ -174,50 +168,6 @@ def _managed_workflows(
     return result
 
 
-def _cognition_workflow_options(
-    supervisor: ManagedRunSupervisor,
-    tool_catalogue: ToolCatalogue | None = None,
-) -> list[dict[str, str]]:
-    """Build the main-cognition action space from the live configuration.
-
-    Every entry is one ``{"name", "description"}`` option that the route prompt
-    shows and that ``WorkflowOption`` validates; the description is prose for
-    the model, never an execution contract.
-
-    Dialogue and self-management are always available. Managed workflow names
-    come from the supervisor, so a configured workflow can steer work without
-    a code change. The assistant entry stays in this catalogue for task reply
-    recovery; the decide phase removes disabled workflows from the action
-    space. ``tool_catalogue`` (a ``ToolCatalogue``) lists the MCP
-    tools in the ``tool_call`` description. Only the route prompt shows the
-    descriptions; the decide prompt never names tools.
-    """
-    options: list[dict[str, str]] = [
-        {"name": "dialogue_story", "description": "Generate one in-character Story reply."},
-        {"name": "dialogue_assistant", "description": "Assistant reply with scoped tools. Inventory questions use arguments.minecraft_read=inventory; position, health, and surroundings use minecraft_read=state. Both make one live read without a managed task."},
-        {"name": "self_management", "description": "Start, status, update, terminate, or explicitly resume an interrupted body run."},
-        {"name": "focus_management", "description": "Private deliberate mental work: scoped recall of preferences, conversations, or goals, and a temporary focus or goal proposal. Set arguments.instruction to the mental task. Advice returns through ordinary appraisal. It commits no emotion or memory change directly."},
-        {"name": "theory_of_mind", "description": "Private thinking about another person or agent: what they usually do, what they know or believe, what they may want, and how uncertain that is. Set arguments.instruction to one bounded question. It sends no message and asks nobody. Its result returns through ordinary appraisal."},
-    ]
-    for name in sorted(supervisor.workflows):
-        descriptions = {"local_task": "Control worker. Writes task telemetry; cannot execute arbitrary instructions or create a requested note.",
-                        "note_task": "Exact UTF-8 note writer with independent byte verification. Optional arguments.note_spec has path and text; path stays in outbox/.",
-                        "memory_reconsolidation": "Sort through memories and sleep on them: builds topic and day summaries, facts, and updated self and relationship narratives from the stored history. Slow; runs in the background. Use ToolCall when the character decides to sort through memories, sleep on what happened, or reflect on the past days.",
-                        "minecraft": "One sustained survival specialist leaf. Standalone completion requires an explicit supported verifier, currently wood_return. Use minecraft_project for other goals that need verified completion.",
-                        "minecraft_project": "Generic Minecraft project planner. Durable subtasks, verified prerequisites, fresh specialists, and independent world verification. Use for multi-step goals."}
-        description: str = descriptions.get(name, f"Managed workflow {name}.")
-        if name == "tool_call":
-            from workflows.tool_call.host import WORKFLOW_DESCRIPTION
-            # Without a catalogue (the static list at construction), no
-            # discovery runs; the route-time provider adds the tools.
-            description = WORKFLOW_DESCRIPTION + ("\n" + tool_catalogue.describe() if tool_catalogue is not None
-                                                  else " (listed at route time)")
-        spec = supervisor.workflows[name]
-        if spec.singleton:
-            description += (f" One active run for {spec.singleton_key or name}. "
-                            "A busy start returns its owner; choose wait, update, or terminate through self_management.")
-        options.append({"name": name, "description": description})
-    return options
 
 
 class DummyWorkflowPaths(TypedDict):
@@ -229,7 +179,7 @@ class DummyWorkflowPaths(TypedDict):
 
     working_target: MemoryBashTarget
     workflow: Path
-    tools_factory: Callable[..., Mapping[str, Callable[..., object]]]
+    tools_factory: None
     runtime_root: Path
     ghost: MemoryStore
 
@@ -277,11 +227,10 @@ def _cognition_modules(
     """
     if cognition == "real":
         from pm.llm.config import load_config
-        from workflows.dialogue_story.host import build_story_tools
-        from workflows.dialogue_assistant.host import build_assistant_tools
-        from workflows.main_cognition.host import build_main_cognition_tools
+        from workflows.dialogue_assistant.host import AssistantMcpServices
+        from workflows.main_cognition.host import MainCognitionOptions
         from workflows.self_management.host import build_self_management_tools
-        from workflows.inner_thought.host import PrivateThoughtLoop, build_inner_thought_tools
+        from workflows.inner_thought.host import PrivateThoughtLoop
 
         if stage_model is None:
             from pm.llm.stage_model import LazyStageModel
@@ -289,38 +238,38 @@ def _cognition_modules(
             from pm.llm.config import load_config, resolve_connection
 
             config = load_config(config_path)
-            stage_model = LazyStageModel(resolve_connection(config), ModelActivation())
+            stage_model = LazyStageModel(resolve_connection(config), ModelActivation(), capture_options=config.renderer_capture)
         main_cog = MainCogLoop(
             "main_cog", bus, on_error, clock, None,
             working_target=target,
             workflow=PROJECT_ROOT / "workflows" / "main_cognition" / "main_cognition.workflow.md",
-            tools_factory=build_main_cognition_tools(ghost, runtime_root, stage_model.complete,
-                                                   cancel_provider=lambda: main_cog.run_stop,
-                                                   embeddings=embeddings),
             runtime_root=runtime_root,
+            stage_model=stage_model,
             ghost=ghost,
-            workflow_catalogue=_cognition_workflow_options(supervisor),
-            embedding_config_path=config_path,
-            ghost_backups=load_config(config_path).ghost_backups,
-            codelet_definitions=codelet_definitions,
-            # Agent codelets open pm-coder sessions through classification sessions.
-            workflow_models=workflow_models,
+            options=MainCognitionOptions(
+                workflow_catalogue=tuple(WorkflowCatalogue(supervisor, None).options()),
+                embedding_config_path=config_path, ghost_backups=load_config(config_path).ghost_backups,
+                codelet_definitions=codelet_definitions, workflow_models=workflow_models,
+                codelet_embeddings=embeddings),
         )
+        main_cog.embedding_service = embeddings
         story = StoryDialogue(
             "dialogue", bus, on_error, clock, None,
             working_target=target,
             workflow=PROJECT_ROOT / "workflows" / "dialogue_story" / "dialogue_story.workflow.md",
-            tools_factory=build_story_tools(stage_model, cancel_provider=lambda: story.run_stop),
+            tools_factory=None,
             runtime_root=runtime_root,
+            stage_model=stage_model,
             ghost=ghost,
         )
         assistant = AssistantDialogue(
             "assistant", bus, on_error, clock, None,
             working_target=target,
             workflow=PROJECT_ROOT / "workflows" / "dialogue_assistant" / "dialogue_assistant.workflow.md",
-            tools_factory=build_assistant_tools(stage_model, supervisor, cancel_provider=lambda: assistant.run_stop,
-                                                minecraft_endpoint=minecraft_endpoint),
+            tools_factory=None,
+            mcp_services=AssistantMcpServices(supervisor, minecraft_endpoint),
             runtime_root=runtime_root,
+            stage_model=stage_model,
             ghost=ghost,
         )
         admission = getattr(stage_model, "admission", None)
@@ -333,6 +282,7 @@ def _cognition_modules(
             workflow=PROJECT_ROOT / "workflows" / "self_management" / "self_management.workflow.md",
             tools_factory=build_self_management_tools(supervisor),
             runtime_root=runtime_root,
+            stage_model=stage_model,
             ghost=ghost,
         )
         self_management.managed_workflows = frozenset(supervisor.workflows)
@@ -342,12 +292,8 @@ def _cognition_modules(
             "inner_thought", bus, on_error, clock, thought_period,
             working_target=target,
             workflow=PROJECT_ROOT / "workflows" / "inner_thought" / "inner_thought.workflow.md",
-            tools_factory=build_inner_thought_tools(ghost, runtime_root, stage_model.complete,
-                                                  cancel_provider=lambda: inner_thought.run_stop,
-                                                  embeddings=embeddings,
-                                                  inquiry_provider=lambda request, runner: inner_thought.run_inquiry(request, runner),
-                                                  yield_provider=lambda: inner_thought.yield_requested.is_set()),
             runtime_root=runtime_root,
+            stage_model=stage_model,
             ghost=ghost,
         )
         inner_thought.inference_admission = admission
@@ -446,7 +392,7 @@ def build_app(
 
         model_config = load_config(resolved_config)
         model_owner = ModelActivation()
-        stage_model = LazyStageModel(resolve_connection(model_config), model_owner)
+        stage_model = LazyStageModel(resolve_connection(model_config), model_owner, capture_options=model_config.renderer_capture)
         if workflow_models is None:
             workflow_models = WorkflowModels(model_config, model_owner)
 
@@ -466,7 +412,7 @@ def build_app(
     # (dummy cognition), no lookup is installed and tags stay unresolved.
     from pm.memory.media_alt import MediaLibrary
     from pm.records.media import install_media_lookup
-    install_media_lookup(MediaLibrary(ghost, stage_model.complete) if stage_model is not None else None)
+    install_media_lookup(MediaLibrary(ghost, stage_model) if stage_model is not None else None)
     target = MemoryBashTarget(ghost, mode="read")
     bus = BusSystem()
     bus.observer = bus_observer
@@ -506,6 +452,7 @@ def build_app(
         task_root=runtime_root / "managed_tasks",
         on_error=on_error,
         workflow_models=workflow_models,
+        stage_model=stage_model,
     )
 
     def _on_terminal(receipt: dict[str, Any]) -> None:
@@ -545,7 +492,7 @@ def build_app(
         return {
             "working_target": target,
             "workflow": PROJECT_ROOT / "workflows" / "demo" / f"{name}.workflow.md",
-            "tools_factory": build_tools,
+            "tools_factory": None,
             "runtime_root": runtime_root,
             "ghost": ghost,
         }
@@ -580,7 +527,7 @@ def build_app(
             working_target=target,
             workflow=PROJECT_ROOT / "workflows" / "steward" / "steward.workflow.md",
             tools_factory=build_steward_module_tools(steward),
-            runtime_root=runtime_root, ghost=ghost,
+            runtime_root=runtime_root, ghost=ghost, stage_model=stage_model,
         )
 
     modules = [
@@ -620,7 +567,7 @@ def build_app(
                 assistant.defer_for_critical(epoch)
         control.cancel_public_drafts = cancel_public_drafts
         from workflows.input_triage.host import InputTriage
-        from workflows.main_cognition.host import build_main_cognition_tools
+        from workflows.main_cognition.host import MainCognitionOptions
 
         if stage_model is None:
             raise RuntimeError("Early input triage requires the real configured stage model.")
@@ -628,9 +575,8 @@ def build_app(
             "input_triage", bus, on_error, clock, None,
             working_target=MemoryBashTarget(ghost, mode="read", recovery_only=True),
             workflow=PROJECT_ROOT / "workflows" / "input_triage" / "input_triage.workflow.md",
-            tools_factory=build_main_cognition_tools(ghost, runtime_root, stage_model.complete,
-                cancel_provider=lambda: input_triage.run_stop),
-            runtime_root=runtime_root, ghost=ghost,
+            tools_factory=None,
+            runtime_root=runtime_root, ghost=ghost, stage_model=stage_model,
         )
         input_triage.cognitive_control = control
         input_triage.entity_context_owner = entity_context_owner
@@ -643,10 +589,10 @@ def build_app(
             "interaction", bus, on_error, clock, None,
             working_target=MemoryBashTarget(ghost, mode="read", recovery_only=True),
             workflow=PROJECT_ROOT / "workflows" / "interaction" / "interaction.workflow.md",
-            tools_factory=build_main_cognition_tools(ghost, runtime_root, stage_model.complete,
-                cancel_provider=lambda: interaction.run_stop, embeddings=context_embeddings),
-            runtime_root=runtime_root, ghost=ghost,
+            tools_factory=None,
+            runtime_root=runtime_root, ghost=ghost, stage_model=stage_model,
         )
+        interaction.embedding_service = context_embeddings
         interaction.cognitive_control = control
         control.validate_selection = interaction.validate_selection
         control.refresh_selection = interaction.refresh_selection
@@ -659,9 +605,7 @@ def build_app(
             elif request.knoxel_id is not None:
                 main_cog.defer_public_action(request)
         control.refresh_action = refresh_public_action
-        interaction.workflow_catalogue_provider = lambda: (
-            main_cog.workflow_catalogue_provider() if main_cog.workflow_catalogue_provider is not None
-            else main_cog.workflow_catalogue)
+        interaction.main_cognition = main_cog
         main_cog.interaction_enabled = True
         modules.insert(2, interaction)
         main_cog.cognitive_control = control
@@ -682,10 +626,10 @@ def build_app(
         app.cognitive_control = control
         if world_poll_seconds is not None and minecraft_endpoint is not None:
             from workflows.minecraft_body.world_events import WorldEvents
-            from workflows.minecraft_body.mcp_client import build_minecraft_tools
+            from workflows.minecraft_body.mcp_client import MinecraftTransport, MinecraftTransportSettings
             from workflows.minecraft_body.lease import BODY_LEASES
             endpoint = minecraft_endpoint
-            transport = build_minecraft_tools(endpoint, request_timeout_seconds=30)["minecraft_call"]
+            transport = MinecraftTransport(MinecraftTransportSettings(endpoint=endpoint, request_timeout_seconds=30), None)
 
             def observe_world() -> dict[str, Any]:
                 # Reads share the command lock with actor calls. They never
@@ -693,7 +637,7 @@ def build_app(
                 from pm_workflows.runtime import WorkflowTerminated
                 try:
                     with BODY_LEASES.command(endpoint, cancel=world_events.stop_event):
-                        return transport("minecraft_observe", {"include_image": False})
+                        return transport.call("minecraft_observe", {"include_image": False})
                 except WorkflowTerminated:
                     return {"ok": False, "cancelled": True}
 
@@ -704,54 +648,20 @@ def build_app(
             )
             modules.append(world_events)
             app.world_events = world_events
-        from workflows.minecraft_body.capabilities import capability_snapshot
-        from workflows.introspection.snapshot import build_capability_overlay, overlay_public
-        from workflows.public_speech.reply_recovery import ReplyRecovery
-
-        def provider() -> dict[str, Any]:
-            # The overlay is rebuilt by the private loop and cached on the app.
-            # A public reply reads the cache, so no repository scan delays speech.
-            snapshot = capability_snapshot(ghost, supervisor.workflows)
-            snapshot["self_model"] = overlay_public(getattr(app, "capability_overlay", None))
-            return snapshot
-
-        main_cog.capability_provider = provider
+        from workflows.minecraft_body.capabilities import CapabilitySnapshotOwner
+        from workflows.public_speech.reply_recovery import ReplyRecovery, ReplyRecoverySelection
+        capability_owner = CapabilitySnapshotOwner(ghost, supervisor, app)
+        main_cog.capability_owner = capability_owner
         if "tool_call" in supervisor.workflows:
             # The tool list is discovered at route time and cached, so a
             # server that starts later becomes visible without a restart.
-            from workflows.main_cognition.schemas import WorkflowOption
             from workflows.tool_call.catalogue import ToolCatalogue
             catalogue = ToolCatalogue(tool_call)
-            main_cog.workflow_catalogue_provider = lambda: [
-                WorkflowOption.model_validate(item) for item in _cognition_workflow_options(supervisor, catalogue)]
-        def retrieval_query(text: str) -> dict[str, str]:
-            from workflows.main_cognition.model_json import StageOutputError, extract_json
-            raw = stage_model.complete([
-                {"role": "system", "content": "Rewrite this message as a short memory search query. "
-                 "Search for original user reports or concrete executed events, not earlier answers to recall requests. "
-                 "Remove boilerplate about remembering, recorded history, and supporting conversations. "
-                 "Retain actual topics, outcomes, corrections, and dates. For an unspecified failed method, search for a practical attempt "
-                 "that did not work and its reported outcome. Never invent a specific topic. "
-                 "Also choose evidence_use: event for factual recall, preferences, or past events; utterance for what someone said; "
-                 "general for other requests or uncertainty. A request to evaluate newly reported advice is general, "
-                 "even when it mentions a familiar topic. What do you actually know about that claim asks for supported "
-                 "knowledge, not a past conversation. Use event only when the user asks to recall an event, retained "
-                 "preference, name, or plan; use utterance when recalling what someone previously said. "
-                 "Return only JSON with query and evidence_use."},
-                {"role": "user", "content": text},
-            ], temperature=Sampler.TempInstruct, enable_thinking=False, cancel=main_cog.run_stop)
-            try:
-                result = extract_json(raw)
-            except StageOutputError:
-                return {"query": text, "evidence_use": "general", "status": "literal_fallback"}
-            query = result.get("query")
-            use = result.get("evidence_use")
-            if not isinstance(query, str) or not query.strip() or use not in {"event", "utterance", "general"}:
-                return {"query": text, "evidence_use": "general", "status": "literal_fallback"}
-            return {"query": query, "evidence_use": use, "status": "rewritten"}
-        main_cog.retrieval_query_provider = retrieval_query
-        dialogue.capability_provider = provider
-        assistant.capability_provider = provider
+            main_cog.workflow_catalogue_owner = WorkflowCatalogue(supervisor, catalogue)
+        from workflows.main_cognition.retrieval_query import QueryRewriter
+        main_cog.retrieval_query_provider = QueryRewriter(stage_model)
+        dialogue.capability_owner = capability_owner
+        assistant.capability_owner = capability_owner
         # Context planning for public replies shares one embedding service and
         # its disk cache. Construction makes no network request.
         dialogue.context_embeddings = context_embeddings
@@ -762,12 +672,12 @@ def build_app(
             from threading import Event as _Evt
             from pm.llm.workflow_sessions import serving_context as _serving
             _ctx, _ = _aio.run(_serving(stage_model.connection, app.shutdown_event))
-            _budget = int(_ctx * stage_model.connection.context_input_fraction)
+            _budget = min(int(_ctx * stage_model.connection.context_input_fraction),
+                          _ctx - (stage_model.connection.completion_token_limit or 0))
             dialogue.context_budget = _budget
             assistant.context_budget = _budget
         recovery = ReplyRecovery("reply_recovery", bus, on_error, clock, None, ghost=ghost, supervisor=supervisor)
-        recovery.paused_source_ids = lambda: control.paused_source_ids() | main_cog.entity_reconsider_source_ids()
-        recovery.selected_source_ids = lambda: set(interaction_receipts(ghost.recovery_snapshot(capture=False)))
+        recovery.selection = ReplyRecoverySelection(ghost, control, main_cog)
         modules.append(recovery)
         app.reply_recovery = recovery
     if assistant is not None:
@@ -814,24 +724,12 @@ def build_app(
     # The dialogue modules read the cached public projection; the loop rebuilds
     # it each cycle, so a source or configuration change becomes visible.
     if cognition == "real":
-        from workflows.introspection.snapshot import build_capability_overlay
-
-        active_module_ids = frozenset(module.module_id for module in modules)
-
-        def rebuild_overlay() -> CapabilityOverlay:
-            previous = getattr(app, "capability_overlay", None)
-            overlay = build_capability_overlay(
-                ghost=ghost, active_modules=active_module_ids, config_path=resolved_config)
-            # Keep the prior overlay as history so a changed source or
-            # configuration revision marks its dependent belief stale.
-            overlay.previous = previous
-            app.capability_overlay = overlay
-            return overlay
-
-        app.rebuild_capability_overlay = rebuild_overlay
-        rebuild_overlay()
+        from workflows.introspection.inspection_owner import CapabilityInspectionOwner
+        inspection_owner = CapabilityInspectionOwner(ghost,
+            frozenset(module.module_id for module in modules), Path(resolved_config), app)
+        inspection_owner.refresh()
         if inner_thought is not None:
-            inner_thought.inspector_provider = rebuild_overlay
+            inner_thought.inspection_owner = inspection_owner
 
     # Durable lifecycle evidence. The boot event feeds the first main cycle so
     # the companion can appraise a real offline gap. Only real cognition runs

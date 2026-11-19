@@ -8,23 +8,16 @@ Runtime ownership is described in [the Story host overview][workflows.dialogue_s
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal, NotRequired, TypedDict
+from typing import Literal, NotRequired
 
+from pm.records.media import RecordImage
+from pm.llm.generation import GenerationSettings
 from pydantic import BaseModel, ConfigDict, Field, with_config
 from pm.context_render.budget import SelectionReceipt
 from pm.memory.dependencies import SourceDependency
 from workflows.public_speech.public_context import DialogueTurn, MemoryLaneTemplate, PublicContext, TimeTemplates
 from workflows.public_speech.story_rendering import DialogueTemplates
 from workflows.public_speech.speech_review import SpeechReview
-
-
-@with_config(ConfigDict(extra="forbid"))
-class StoryGenerationParameters(TypedDict, total=False):
-    """Supported provider parameters in the Story prompt configuration."""
-
-    temperature: float
-    top_p: float
-    enable_thinking: bool
 
 
 @with_config(ConfigDict(extra="forbid"))
@@ -58,7 +51,23 @@ class StoryPrompts(TimeTemplates, DialogueTemplates):
     reply_prefix: str
     empty_completion_recovery: str
     rejected_reply_recovery: str
-    generation: NotRequired[StoryGenerationParameters]
+    generation: NotRequired[GenerationSettings]
+
+
+class StorySituation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = "operator"
+    now: str = ""
+    current_user_message: str
+    workspace: str = ""
+    prior_dialogue: list[DialogueTurn] = Field(default_factory=list[DialogueTurn])
+
+
+class EvaluationPrompts(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    version: str
+    system_prompt: str
+    user_template: str
 
 
 class StoryGuidance(BaseModel):
@@ -88,6 +97,7 @@ class StoryRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     schema_version: Literal["pm.story-request.v1"] = "pm.story-request.v1"
+    images: tuple[RecordImage, ...] = Field(default_factory=tuple)
     companion_name: str = Field(min_length=1)
     partner_name: str = Field(min_length=1)
     character_card_story: str

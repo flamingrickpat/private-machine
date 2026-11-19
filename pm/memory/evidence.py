@@ -108,3 +108,50 @@ def evidence_role(view: Snapshot, raw: RecordBase | Mapping[str, object]) -> str
     if kind in {"speculation", "interpretation"}:
         return "interpretation"
     return "derived" if referenced_ids(view.get(data.id)) else "background"
+
+
+class EvidenceScoreComponents(BaseModel):
+    """Why retrieval ranked one record where it did.
+
+    ``lexical`` is the normalized term-match share and ``semantic`` is the
+    embedding similarity. ``semantic`` is absent when the provider was
+    unavailable or the caller asked for lexical retrieval only, so a missing
+    value means "this leg did not contribute", never "zero similarity".
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    lexical: float = Field(default=0.0, ge=0.0, le=1.0, description="Normalized lexical term-match share.")
+    semantic: float | None = Field(default=None, description="Embedding similarity, or None when the semantic leg did not run.")
+
+
+class EvidenceItem(BaseModel):
+    """One record of the public context, as ``pm.memory.retrieval.candidate`` renders it.
+
+    ``text`` starts with a machine label (kind, source, evidence id, time).
+    ``memory_lines`` turns the label into words. ``lane`` names where the
+    record came from: a context-plan lane, ``shard:<name>`` for a workspace
+    shard of the cycle, or ``private_state`` for a disclosed private state.
+    ``lifecycle_event`` is ``startup`` for a startup event of the runtime.
+    ``score_components`` is present only when retrieval produced a ranking
+    explanation for this record.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    knoxel_id: int = 0
+    text: str = ""
+    revision: int = 1
+    memory_kind: str = ""
+    scope: RecordScope = Field(default_factory=RecordScope)
+    provenance: Provenance | None = None
+    source_ids: list[int] = Field(default_factory=list[int])
+    timestamp: str | None = None
+    historical: bool = False
+    score: float = 0.0
+    reasons: list[str] = Field(default_factory=list)
+    deception_intent_id: int | None = None
+    evidence_role: str = ""
+    lane: str = ""
+    lifecycle_event: str = ""
+    score_components: EvidenceScoreComponents | None = None

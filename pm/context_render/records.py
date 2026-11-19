@@ -9,15 +9,12 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import StrEnum
-from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue
-from typing import cast, TypedDict
-import json
+from pydantic import BaseModel, ConfigDict, Field
 
 from pm.context_render import ContextKind, render_context
 from pm.context_render.turns import Content
-from pm.records.base import Provenance, RecordBase, persisted_type_name
+from pm.records.base import Provenance, RecordBase
 
 
 class CitedMemory(BaseModel):
@@ -100,24 +97,17 @@ class KnoxelCollection(ABC):
         """Describe the collection without inventing evidence or source links."""
         return f"Evidence collection: {self.mode.value}"
 
-    @property
-    def schema_path(self) -> Path | None:
-        """Use the ordinary profile unless this collection has a specialized one."""
-        return None
-
-    def render(self, kinds: ContextKind = ContextKind.All, *, schema_path: str | Path | None = None,
-               dedupe: bool = True) -> Content:
+    def render(self, kinds: ContextKind = ContextKind.All, *, dedupe: bool = True) -> Content:
         """Render each source through the same central record renderer."""
         result = Content(self.render_header())
-        profile = self.schema_path if schema_path is None else schema_path
         seen: dict[int, RecordEvidence] = {}
         for record in self.records:
             result += "\n"
             if dedupe and record.knoxel_id in seen and record == seen[record.knoxel_id]:
-                result += render_context(RecordReference(record_ref=record.knoxel_id), kinds, schema_path=profile)
+                result += f"[source {record.knoxel_id}; already shown]"
             else:
                 seen[record.knoxel_id] = record
-                result += render_context(record, kinds, schema_path=profile, dedupe=dedupe)
+                result += render_context(record, kinds, dedupe=dedupe)
         return result
 
 
@@ -146,94 +136,31 @@ class ArchitecturalEvidence(KnoxelCollection):
         """Return the projection that keeps explicit architecture fields."""
         return EvidenceMode.ArchitecturalReflection
 
-    @property
-    def schema_path(self) -> Path:
-        """Return the field schema of the architectural projection."""
-        return Path(__file__).with_name("architectural.json")
 
-
-@render_context.register(RecordEvidence)
-def render_record(value: RecordEvidence, kinds: ContextKind = ContextKind.All, *,
-                  schema_path: str | Path | None = None, dedupe: bool = True) -> Content:
+def render_record(value: RecordEvidence, kinds: ContextKind = ContextKind.All, *, dedupe: bool = True) -> Content:
     """Render the named evidence projection. Omit unused optional model fields."""
-    projection = value.model_dump(mode="python", exclude_defaults=True)
-    return render_context(projection, kinds, schema_path=schema_path, dedupe=dedupe)
+    header = f"[source {value.knoxel_id}; revision {value.revision}; tick {value.tick_id}; {value.kind}]"
+    if value.source:
+        header += " " + value.source
+    if value.evidence_role:
+        header += " (" + value.evidence_role + ")"
+    text = header + "\n" + value.text
+    if value.reference_ids:
+        text += "\nSupporting sources: " + ", ".join(str(key) for key in value.reference_ids)
+    return Content(text)
 
 
-@render_context.register(KnoxelCollection)
-def render_collection(value: KnoxelCollection, kinds: ContextKind = ContextKind.All, *,
-                      schema_path: str | Path | None = None, dedupe: bool = True) -> Content:
+def render_collection(value: KnoxelCollection, kinds: ContextKind = ContextKind.All, *, dedupe: bool = True) -> Content:
     """Dispatch collections through their typed rendering contract."""
-    return value.render(kinds, schema_path=schema_path, dedupe=dedupe)
+    return value.render(kinds, dedupe=dedupe)
 
 
-class PromptMetadata(RecordArchitecture):
-    """Named cognitive metadata available in ordinary model-facing record files."""
 
-    memory_kind: str = ""
-    reality: str = ""
-    uncertainty: JsonValue = None
-    reason: str = ""
-    affect_summary: JsonValue = None
-    evidence_ids: list[int] = Field(default_factory=list[int])
-    source_ids: list[int] = Field(default_factory=list[int])
-    execution_status: str = ""
-    exchange_status: str = ""
-    experiment_id: int | None = None
-    effective_record_id: int | None = None
-    state: str = ""
-    result: str = ""
-    plan: JsonValue = None
-    previous: JsonValue = None
-    history: list[JsonValue] = Field(default_factory=list[JsonValue])
-    observation_ids: list[int] = Field(default_factory=list[int])
-
-
-class StoredRecordContext(BaseModel):
-    """The record-file wire format after deliberate prompt projection.
-
-    Only this serializer handles heterogeneous semantic fields. Internal users
-    keep their concrete record types. Full runtime metadata stays on disk.
-    """
-
-    record_kind: str = Field(serialization_alias="__type__")
-    data: dict[str, JsonValue]
-
-
-def _stored_projection(value: RecordBase) -> StoredRecordContext:
-    """Project one concrete record at the model-facing serialization boundary."""
-    fields = cast(dict[str, JsonValue], value.model_dump(mode="json", serialize_as_any=True,
-        exclude={"metadata", "embedding", "embedding_model", "embedding_query_hint", "last_accessed"}))
-    metadata = PromptMetadata.model_validate(value.metadata)
-    fields["metadata"] = metadata.model_dump(mode="json", by_alias=True, exclude_defaults=True)
-    return StoredRecordContext(record_kind=persisted_type_name(type(value)), data=fields)
-
-
-@render_context.register(RecordBase)
-def render_stored_record(value: RecordBase, kinds: ContextKind = ContextKind.All, *,
-                         schema_path: str | Path | None = None, dedupe: bool = True) -> Content:
-    """Render semantic record fields and an explicit metadata projection."""
-    return render_context(_stored_projection(value).data, kinds, schema_path=schema_path, dedupe=dedupe)
+def render_stored_record(value: RecordBase, kinds: ContextKind = ContextKind.All, *, dedupe: bool = True) -> Content:
+    from pm.context_render.memory_tool import render_memory_record
+    return Content(render_memory_record(value))
 
 
 def render_record_file(value: RecordBase) -> str:
-    """Keep virtual record files valid JSON while applying central prompt policy."""
-    projected = _stored_projection(value)
-    return render_context(projected.model_dump(by_alias=True), ContextKind.Facts, schema_path=record_file_schema()).text
-
-
-def record_file_schema() -> Path:
-    """Locate the precise, machine-readable profile shared by model-facing files."""
-    return Path(__file__).with_name("record_file.json")
-
-
-class RecordFile(TypedDict):
-    """The model-facing JSON envelope at legacy tool transport boundaries."""
-
-    __type__: str
-    data: dict[str, JsonValue]
-
-
-def record_file_payload(value: RecordBase) -> RecordFile:
-    """Reuse the exact central file projection for object-valued tool responses."""
-    return cast(RecordFile, json.loads(render_record_file(value)))
+    from pm.context_render.memory_tool import render_memory_record, MemoryRecordRenderSettings, RecordPurpose
+    return render_memory_record(value, MemoryRecordRenderSettings(purpose=RecordPurpose.Inspection))

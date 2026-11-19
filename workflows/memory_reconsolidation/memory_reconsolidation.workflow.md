@@ -7,7 +7,7 @@ state_policy: {mutation_model: append_only}
 roles:
   reconsolidate:
     skill: workflows/memory_reconsolidation/steps.py
-    tools: [reconsolidate_memory]
+    tools: []
     result_contract:
       type: json
       schema:

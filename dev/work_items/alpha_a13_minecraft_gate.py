@@ -310,11 +310,34 @@ def iron_chain(root: Path, initial: dict) -> dict:
             "initial_iron": initial_iron, "forbidden": forbidden, "chain": chain}
 
 
+
+from dataclasses import dataclass
+from workflows.minecraft_project.services import CallerAuditEnvironment
+from workflows.minecraft_project.planning.context_contracts import CallerAuditResult
+from workflows.minecraft_project.schemas import TaskTree
+
+
+@dataclass(frozen=True, slots=True)
+class M3ProjectAudit:
+    environment: CallerAuditEnvironment | None = None
+
+    def bind(self, environment: CallerAuditEnvironment) -> M3ProjectAudit:
+        return M3ProjectAudit(environment)
+
+    def plan_constraints(self, tree: TaskTree) -> CallerAuditResult:
+        return CallerAuditResult.model_validate_json(json.dumps(m3_plan_constraints(tree)))
+
+    def check(self, root: Path, tree: TaskTree) -> CallerAuditResult:
+        if self.environment is None:
+            raise RuntimeError("M3 publication audit requires its original observation and character directory.")
+        return CallerAuditResult.model_validate_json(json.dumps(m3_project_check(root, tree,
+            self.environment.initial_observation, self.environment.character)))
+
 def run(args) -> None:
     """Retain the generic project receipt even when M3 or provenance fails."""
     from dev.work_items.alpha_a11_minecraft_gate import run as run_project
     args.item, args.goal, args.plan_only, args.source_tree = "A13", GOAL, False, None
-    args.plan_constraints, args.project_check = m3_plan_constraints, m3_project_check
+    args.audit_owner = M3ProjectAudit()
     args.out = args.out.resolve()
     if args.out.exists():
         raise FileExistsError("Use a fresh evidence directory; retained receipts cannot be overwritten.")

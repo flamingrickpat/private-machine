@@ -8,13 +8,13 @@ resolves each record lazily from the snapshot instead of copying it.
 from __future__ import annotations
 
 import posixpath
-import json
 import shlex
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict
 
 from pm.records.base import RecordBase
+from pm.context_render.memory_tool import MemoryIndexEntry, MemoryIndexInput, render_memory_index
 from pm.records.global_workspace import GwtTurnRecord
 from pm.memory.snapshot import Snapshot, RecordPayloads
 from pm.memory.yaml_codec import RecordPayload
@@ -26,25 +26,10 @@ if TYPE_CHECKING:
     from pm.memory.store import MemoryStore
 
 
-class RecordIndexEntry(TypedDict):
-    """One visible record in the virtual ``index.yaml`` listing."""
-
-    id: int
-    type: str
-    summary: str
-
-
-class GhostIndex(TypedDict):
-    """The virtual ``index.yaml``: the view mode and one entry per record."""
-
-    mode: str
-    knoxels: list[RecordIndexEntry]
-
-
 class _LazyRecordFile:
     """Render a shared record as JSON when a tool reads the virtual file."""
 
-    def __init__(self, data: RecordBase | GwtTurnRecord | GhostIndex | dict[str, Any]) -> None:
+    def __init__(self, data: RecordBase | GwtTurnRecord | MemoryIndexInput) -> None:
         self._data = data
 
     def content(self) -> str:
@@ -53,22 +38,18 @@ class _LazyRecordFile:
             from pm.context_render.records import render_record_file
             return render_record_file(data)
         elif isinstance(data, GwtTurnRecord):
-            from pm.context_render import ContextKind, render_context
-            from pm.context_render.records import record_file_schema
-            return render_context(data, ContextKind.Facts, schema_path=record_file_schema()).text
-        return json.dumps(data, ensure_ascii=False, indent=2)
+            from pm.context_render.memory_tool import render_workspace_turn
+            return render_workspace_turn(data)
+        return render_memory_index(data)
 
 
-def _index_entry(knoxel_id: int, record: RecordBase) -> RecordIndexEntry:
+def _index_entry(knoxel_id: int, record: RecordBase) -> MemoryIndexEntry:
     """Describe one visible record in the virtual ``index.yaml`` listing."""
     summary = record.content
     if len(summary) > 80:
         summary = summary[:77] + "..."
-    return {
-        "id": knoxel_id,
-        "type": record.type.value,
-        "summary": summary,
-    }
+    return MemoryIndexEntry(knoxel_id, record.type.value, summary)
+
 
 
 class MemoryBashEnvironment(WorkingEnvironment):
@@ -108,20 +89,20 @@ class MemoryBashEnvironment(WorkingEnvironment):
         if result.exit_code != 0:
             raise RuntimeError(result.stderr)
 
-        index: GhostIndex = {"mode": mode, "knoxels": []}
+        index_entries: list[MemoryIndexEntry] = []
         files = {}
         for knoxel_id in sorted(self.records):
             record = self.records[knoxel_id]
             path = f"/work/ghost/knoxels/{knoxel_id}.yaml"
             files[path] = _LazyRecordFile(record)
-            index["knoxels"].append(_index_entry(knoxel_id, record))
+            index_entries.append(_index_entry(knoxel_id, record))
         for tick in sorted(self.turns):
             path = f"/work/ghost/gwt/{tick}.yaml"
             files[path] = _LazyRecordFile(self.turns[tick])
         if ghost_view is not None:
             for record_id, record in ghost_view.historical_records.items():
                 files[f"/work/ghost/history/{record_id}.yaml"] = _LazyRecordFile(record)
-        files["/work/ghost/index.yaml"] = _LazyRecordFile(index)
+        files["/work/ghost/index.yaml"] = _LazyRecordFile(MemoryIndexInput(mode, tuple(index_entries)))
         self.machine.write_texts(files, access=Access.R)
 
         self.machine.add_user("workflow", cwd="/work")

@@ -29,7 +29,7 @@ import hashlib
 import math
 import random
 from pathlib import Path
-from typing import Callable, Literal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -78,7 +78,7 @@ class CodeletDefinition(BaseModel):
 
     name: str = ""
     description: str = ""
-    families: list[CodeletFamily] = Field(default_factory=list)
+    families: list[CodeletFamily] = Field(default_factory=list[CodeletFamily])
     data_aquisation: list[str] = Field(default_factory=list)
     prompt: str = ""
     execution: Literal["", "chain", "agent"] = ""
@@ -106,7 +106,7 @@ class CodeletDefinitions(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     version: str = ""
-    codelets: list[CodeletDefinition] = Field(default_factory=list)
+    codelets: list[CodeletDefinition] = Field(default_factory=list[CodeletDefinition])
 
 
 class LoadedDefinitions(BaseModel):
@@ -151,30 +151,40 @@ def _supply_pressure(state: FullMentalState) -> float:
 #: How strongly the mental state calls for each family, in [0, 1].
 #: The old generation left this match as a placeholder. These readouts are an
 #: engineering choice of A19F step 5. Tune them with replays.
-FAMILY_STATE: dict[CodeletFamily, Callable[[FullMentalState], float]] = {
-    CodeletFamily.Appraisals: lambda s: max(value for name, value in s.state_emotions.model_dump().items()
-                                            if name != "propriety_inhibition"),
-    CodeletFamily.MemoryAccessors: lambda s: (s.state_cognition.mental_aperture + 1.0) / 2.0,
-    CodeletFamily.ImaginationSimulation: lambda s: max(s.state_emotions.curiosity, s.state_emotions.playfulness,
-                                                       s.state_emotions.amusement, s.state_emotions.surprise),
-    CodeletFamily.ValuationTradeOffs: lambda s: 1.0 - s.appraisal_general.certainty,
-    CodeletFamily.MetaMonitoringIdentity: lambda s: max(s.state_emotions.pride, s.state_emotions.shame,
-                                                        s.state_emotions.guilt, s.appraisal_social.embarrassment),
-    CodeletFamily.RegulationCoping: lambda s: max(s.state_emotions.anger, s.state_emotions.fear,
-                                                  s.state_emotions.sadness, s.state_emotions.disgust,
-                                                  s.state_emotions.resentment, s.state_emotions.jealousy),
-    CodeletFamily.DriversHomeostatis: _supply_pressure,
-    CodeletFamily.Attention: lambda s: s.state_core.arousal,
-    CodeletFamily.ActionTendencies: lambda s: max(s.state_expression_ext.model_dump().values()),
-    CodeletFamily.Narratives: lambda s: s.state_cognition.ego_strength,
-}
+def family_state_pressure(family: CodeletFamily, state: FullMentalState) -> float:
+    match family:
+        case CodeletFamily.Appraisals:
+            values = state.state_emotions.model_dump()
+            return max(value for name, value in values.items() if name != "propriety_inhibition")
+        case CodeletFamily.MemoryAccessors:
+            return (state.state_cognition.mental_aperture + 1.0) / 2.0
+        case CodeletFamily.ImaginationSimulation:
+            return max(state.state_emotions.curiosity, state.state_emotions.playfulness,
+                       state.state_emotions.amusement, state.state_emotions.surprise)
+        case CodeletFamily.ValuationTradeOffs:
+            return 1.0 - state.appraisal_general.certainty
+        case CodeletFamily.MetaMonitoringIdentity:
+            return max(state.state_emotions.pride, state.state_emotions.shame,
+                       state.state_emotions.guilt, state.appraisal_social.embarrassment)
+        case CodeletFamily.RegulationCoping:
+            return max(state.state_emotions.anger, state.state_emotions.fear, state.state_emotions.sadness,
+                       state.state_emotions.disgust, state.state_emotions.resentment, state.state_emotions.jealousy)
+        case CodeletFamily.DriversHomeostatis:
+            return _supply_pressure(state)
+        case CodeletFamily.Attention:
+            return state.state_core.arousal
+        case CodeletFamily.ActionTendencies:
+            return max(state.state_expression_ext.model_dump().values())
+        case CodeletFamily.Narratives:
+            return state.state_cognition.ego_strength
+    raise ValueError(f"Unsupported codelet family: {family}.")
 
 
 def family_state_match(families: list[CodeletFamily], state: FullMentalState) -> float:
     """Return the mean of the family readouts of ``state``, clamped to [0, 1]."""
     if not families:
         return 0.0
-    return max(0.0, min(1.0, math.fsum(FAMILY_STATE[family](state) for family in families) / len(families)))
+    return max(0.0, min(1.0, math.fsum(family_state_pressure(family, state) for family in families) / len(families)))
 
 
 # ---- activation -----------------------------------------------------------
@@ -293,7 +303,7 @@ def wave_sizes(budget: int, waves: int) -> list[int]:
     gives ``[1]``.
     """
     size = math.ceil(budget / waves)
-    sizes = []
+    sizes: list[int] = []
     left = budget
     while left > 0 and len(sizes) < waves:
         sizes.append(min(size, left))
@@ -321,7 +331,7 @@ def pathway_boosts(source: str, registered: set[str], pathways: dict[str, list[C
     A chain without a registered successor gives no boost. ``pathways``
     defaults to :func:`~workflows.main_cognition.codelet_pathways.get_codelet_pathways`.
     """
-    boosts = []
+    boosts: list[PathwayBoost] = []
     for name, chains in (pathways if pathways is not None else get_codelet_pathways()).items():
         for chain in chains:
             if source not in chain:
@@ -330,8 +340,10 @@ def pathway_boosts(source: str, registered: set[str], pathways: dict[str, list[C
             following = chain[start + 1:]
             if not following:
                 continue
-            strength = following[0].strength
-            skipped = []
+            activation = following[0]
+            assert isinstance(activation, CodeletActivation)
+            strength = activation.strength
+            skipped: list[str] = []
             for step in following[1:]:
                 if isinstance(step, CodeletActivation):
                     continue
@@ -355,7 +367,7 @@ __all__ = [
     "CodeletDefinition",
     "CodeletDefinitions",
     "DEFAULT_DEFINITIONS",
-    "FAMILY_STATE",
+    "family_state_pressure",
     "LoadedDefinitions",
     "activation_score",
     "add_activation",

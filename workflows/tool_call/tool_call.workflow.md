@@ -6,7 +6,6 @@ state_policy: {mutation_model: append_only}
 roles:
   execute:
     skill: workflows/tool_call/steps.py
-    tools: [tool_call_settings, managed_instructions]
     result_contract:
       type: json
       schema:

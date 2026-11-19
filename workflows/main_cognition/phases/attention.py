@@ -8,8 +8,8 @@ self shard and the shard of each current stimulus group. Steps:
    (``resolve_focus``). Accepted advice becomes CSM endorsements with the
    endorser ``deliberate_focus``. Each endorsement adds at most
    ``FOCUS_ACTIVATION_WEIGHT``. A reduced record loses at most that much.
-2. Rating (model). Story-framed batches for each shard rate every
-   structure from 0 to 1 for that shard. Each call keeps its
+2. Rating (model). One story-framed call for each shard rates every
+   structure from 0 to 1 for that shard. One call per shard keeps each
    prompt about one kind of awareness. The calls read the character card
    (in the shared prefix), the AttentionFocus narrative, the state of mind
    in words, and the mental aperture instruction of the old code. The calls
@@ -32,10 +32,15 @@ Exhausted repairs of a rating call raise ``ModelFormatError``, and the host
 retries the whole cycle.
 """
 from __future__ import annotations
-from workflows.main_cognition.model_json import batch_internal_prompt, fit_internal_prompt
+
+from pm.llm.role_model import role_model
+from dataclasses import dataclass, field
+from workflows.main_cognition.attention_rendering import AttentionRenderInput, AttentionStructure, render_attention
+from pm.context_render.prompt import RendererCapture, RendererInput, RendererCaptureSettings
+from pm.context_render.prompt import RenderedPrompt
 
 from pm_workflows.python_role import RoleContext
-from pydantic import BaseModel, Field, model_validator
+from workflows.main_cognition.response_checks import CheckedStructureRatings, StructureRatingCheck
 
 from pm.constants import (
     ATTENTION_APERTURE_THRESHOLD,
@@ -49,61 +54,34 @@ from pm.constants import (
     WORKSPACE_HOME_BONUS,
 )
 from pm.context_render.story import shard_focus
-from pm.context_render.turns import format_content
-from collections.abc import Sequence
-from dataclasses import dataclass, field
-from typing import Self
-from pathlib import Path
-from pm.context_render import ContextKind, render_context
-from pm.context_render.budget import optional_text
-from pm.context_render.turns import ContextTag
-from pm.context_render.budget import ContextBudget, ContextGroup, RequiredContextTooLarge, context_recency
-from pm.context_render.turns import Content, Turn
-from pm.llm.concurrency import ordered_parallel_map
+from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
+from pm.llm.concurrency import wait_model_futures
 from pm.records.global_workspace import ShardChange
-from pm.records.situational_model import SituationalItem
+from pm.records.situational_model import SituationalItem, SituationalBoostSettings
 from pm.records.workspace import SELF_SHARD, ShardKey, WorkspaceShard
 
 from workflows.cognitive_control.attention import resolve_focus
+from workflows.cognitive_control.rendering import FocusEvidence
 from workflows.cognitive_control.schemas import FocusState
 from workflows.inference_settings import ATTENTION_WORKERS
 from workflows.main_cognition.codelet_registry import reinforce
 from workflows.main_cognition.csm_view import (
-    Embedder, match_context, record_tokens, story_line, workspace_requirements,
+    Embedder, match_context, record_tokens, workspace_requirements,
 )
 from workflows.main_cognition.cycle_work import CycleWork, provisional_tick
-from workflows.main_cognition.model_json import PhasePrompts, model_context_budget
-from workflows.main_cognition.structure_context import review_structure
+from workflows.main_cognition.prompt_config import PhasePrompts
 from workflows.main_cognition.phases.model import complete, phase_prompts
 from workflows.main_cognition.schemas import (
-    AppraisalView, AttentionResult, RatedStructure, ShardRatings, Stimulus, StructureDraft, StructureRatings,
+    AttentionResult, RatedStructure, ShardRatings, StructureDraft, StructureRatings,
 )
 from workflows.main_cognition.story_prefix import StoryPrefix, shard_label, shown_shards
-from workflows.main_cognition.workspace_selection import Candidate, SelectionInput, select_shards, selector_matches
+from workflows.main_cognition.workspace_selection import Candidate, SelectionInput, select_shards, WorkspaceSelectionPolicy
 
 #: The endorser name of deliberate focus in the CSM.
 DELIBERATE_FOCUS = "deliberate_focus"
 
 
-class FocusEvidence(BaseModel):
-    """The cycle context that the focus decision reads beside each proposal."""
-
-    appraisal: AppraisalView = Field(default_factory=AppraisalView)
-    codelet_notes: list[str] = Field(default_factory=list)
-    goals: list[str] = Field(default_factory=list)
-    stimuli: list[Stimulus] = Field(default_factory=list)
-
-
-@render_context.register(FocusEvidence)
-def render_focus_evidence(value: FocusEvidence, kinds: ContextKind = ContextKind.All, *,
-                          schema_path: str | Path | None = None, dedupe: bool = True) -> Content:
-    """Keep the proposal's state and stimuli required while optional impulses compete."""
-    result = render_context(value.model_dump(mode="json", exclude={"codelet_notes"}), kinds,
-                            schema_path=schema_path, dedupe=dedupe)
-    result += "\nCurrent codelet impulses (private proposals, not observations):\n"
-    for index, note in enumerate(value.codelet_notes):
-        result += optional_text("\n" + note, ContextTag(f"focus-impulse:{index}", 0))
-    return result
 
 
 def focus_evidence(work: CycleWork) -> FocusEvidence:
@@ -137,7 +115,8 @@ def apply_focus(work: CycleWork, focus: FocusState | None, embedder: Embedder, *
         if record_id not in work.records:
             continue
         item = csm.add_or_boost(SituationalItem(record_id=record_id, entered_tick=tick, last_boost_tick=tick,
-                                                activation=amount), DELIBERATE_FOCUS, embedder.record, boost=amount)
+                                                activation=amount), DELIBERATE_FOCUS, embedder.comparison_vectors(csm, record_id),
+                                settings=SituationalBoostSettings(amount=amount))
         bonus[item.record_id] = amount
     for record_id in [] if danger else focus.reduce_ids:
         if record_id in csm.items:
@@ -154,7 +133,13 @@ def attention_narrative(work: CycleWork) -> str:
                   and self_id in view.entity_ids]
     if not narratives:
         return "(no narrative yet)"
-    return max(narratives, key=lambda view: (view.timestamp is not None, view.timestamp or 0, view.record_id)).content
+    latest = narratives[0]
+    for candidate in narratives[1:]:
+        if candidate.timestamp is not None and (latest.timestamp is None or candidate.timestamp > latest.timestamp):
+            latest = candidate
+        elif candidate.timestamp == latest.timestamp and candidate.record_id > latest.record_id:
+            latest = candidate
+    return latest.content
 
 
 def aperture_text(work: CycleWork, prompts: PhasePrompts) -> str:
@@ -221,75 +206,43 @@ def aux_rating(work: CycleWork, structure: StructureDraft) -> float:
     return total
 
 
-@dataclass(slots=True)
+@dataclass(frozen=True, slots=True)
 class ShardJob:
-    """One rating call: the shard, its labels, and its instruction."""
-
-    key: ShardKey = field(default_factory=ShardKey)
-    labels: list[str] = field(default_factory=list[str])
-    instruction: str = ""
-    context_turns: tuple[Turn, ...] | None = None
-
-
-def render_structures(work: CycleWork, structures: list[StructureDraft], labels: list[str] | None = None,
-                      views: dict[int, str] | None = None) -> str:
-    """Render the structures with labels ``S1``, ``S2``, ... for a rating call.
-
-    Each record remains a whole story line without its id. Complete
-    structures are distributed across prompts when one prompt cannot fit.
-    """
-    blocks: list[str] = []
-    names = labels if labels is not None else [f"S{index}" for index in range(1, len(structures) + 1)]
-    for label, structure in zip(names, structures, strict=True):
-        if views is not None and structure.record_id in views:
-            blocks.append(f"### {label}: {structure.theme}\nWhy: {structure.reason}\n{views[structure.record_id]}")
-            continue
-        lines = [story_line(work.records[record_id], with_id=False)
-                 for record_id in structure.record_ids]
-        blocks.append("\n".join([f"### {label}: {structure.theme}", f"Why: {structure.reason}",
-                                 *(f"- {line}" for line in lines)]))
-    return "\n\n".join(blocks)
+    key: ShardKey
+    labels: tuple[str, ...]
+    structure_ids: tuple[int, ...]
+    prompt: RenderedPrompt
+    render_input: AttentionRenderInput
 
 
 def shard_job(work: CycleWork, prefix: StoryPrefix, prompts: PhasePrompts, shard: WorkspaceShard,
-              structures: list[StructureDraft], labels: list[str] | None = None,
-              views: dict[int, str] | None = None) -> ShardJob:
-    """Build one complete rating instruction with its exact candidate labels."""
+              structures: list[StructureDraft], capture_settings: RendererCaptureSettings) -> ShardJob:
+    """Return the rating call of one shard."""
     name = shard_label(shard.key, work.request)
-    names = labels if labels is not None else [f"S{index}" for index in range(1, len(structures) + 1)]
-    instruction = format_content(prefix.fill(prompts.user_template),
-        attention_narrative=attention_narrative(work),
-        mental_state=work.affect.felt or work.state_summary or "(no feeling recorded)",
-        shard_focus=shard_focus(shard.key, name, prefix.companion, prompts.shard_labels),
-        structures=render_structures(work, structures, names, views),
-        aperture=prefix.fill(aperture_text(work, prompts)), winners=str(winner_count(work)), count=str(len(structures)))
-    return ShardJob(key=shard.key, labels=names, instruction=instruction.text)
-
-
-def shard_batches(context: RoleContext, work: CycleWork, prefix: StoryPrefix, prompts: PhasePrompts, shard: WorkspaceShard,
-                  structures: list[StructureDraft], budget: ContextBudget, views: dict[int, str]) -> list[ShardJob]:
-    """Evaluate all structures in batches sharing the same fitted story."""
-    by_label = {f"S{index}": structure for index, structure in enumerate(structures, start=1)}
-    groups = [ContextGroup(label, Content(""), aux_rating(work, structure),
-                           recency=max((context_recency(work.records[key].timestamp) for key in structure.record_ids), default=0))
-              for label, structure in by_label.items()]
-
-    def instruction(chosen: Sequence[ContextGroup]) -> Content:
-        included = {group.name for group in chosen}
-        labels = [label for label in by_label if label in included]
-        text = shard_job(work, prefix, prompts, shard,
-                         [by_label[label] for label in labels], labels, views).instruction
-        return Content(text + "\nUse the same absolute importance scale across batches, relative to this shared moment. "
-                       "Do not promote a weak structure just because its batch has no stronger rival. "
-                       "The mind chooses winners only after every batch is rated.")
-
-    batches = batch_internal_prompt(context, prefix.turns, groups, budget, instruction)
-    result: list[ShardJob] = []
-    for batch in batches:
-        included = set(batch.included)
-        result.append(ShardJob(key=shard.key, labels=[label for label in by_label if label in included],
-                               instruction=batch.turns[-1].content.text, context_turns=batch.turns[:-1]))
-    return result
+    record_priority = {record_id: item.activation + (5.0 if record_id in prefix.render_input.new_ids else 0.0)
+                       for record_id, item in work.state.csm.items.items()}
+    for structure in structures:
+        for record_id in structure.record_ids:
+            if record_id not in record_priority:
+                record_priority[record_id] = 0.0
+    candidates: list[AttentionStructure] = []
+    for index, structure in enumerate(structures, start=1):
+        member_priority = sum(record_priority[record_id] for record_id in structure.record_ids) / max(1, len(structure.record_ids))
+        priority = structure.salience + abs(structure.valence) + member_priority
+        if structure.target_shard == shard.key:
+            priority += 2.0
+        candidates.append(AttentionStructure(structure.record_id, f"S{index}", structure.theme, structure.reason,
+            tuple(structure.record_ids), priority))
+    render_input = AttentionRenderInput(prefix.render_input, prefix.fill(prompts.user_template),
+        attention_narrative(work), work.affect.felt or work.state_summary or "(no feeling recorded)",
+        shard_focus(shard.key, name, prefix.companion, prompts.shard_labels),
+        prefix.fill(aperture_text(work, prompts)), winner_count(work), tuple(candidates),
+        work.records, record_priority)
+    with RendererCapture(capture_settings, RendererInput("attention", render_input, prefix.settings)) as capture:
+        rendered = render_attention(render_input, prefix.settings)
+        capture.save_output(rendered.prompt)
+    return ShardJob(shard.key, tuple(item.label for item in rendered.selection.structures),
+        tuple(item.structure_id for item in rendered.selection.structures), rendered.prompt, render_input)
 
 
 def rate(context: RoleContext, work: CycleWork, prefix: StoryPrefix, job: ShardJob) -> StructureRatings:
@@ -298,18 +251,15 @@ def rate(context: RoleContext, work: CycleWork, prefix: StoryPrefix, job: ShardJ
     A missing, repeated, or unknown label is invalid output and gets a
     repair turn.
     """
-    wanted = job.labels
+    return complete(context, job.prompt.turns, CheckedStructureRatings,
+                    validation_context=StructureRatingCheck(labels=tuple(job.labels)))
 
-    class StructureRatingsChecked(StructureRatings):
-        @model_validator(mode="after")
-        def check(self) -> Self:
-            """Reject a missing, repeated, or out-of-batch structure label."""
-            given = [item.structure for item in self.ratings]
-            if sorted(given) != sorted(wanted):
-                raise ValueError(f"Rate each label exactly once: {', '.join(wanted)}.")
-            return self
-    turns = job.context_turns if job.context_turns is not None else tuple(prefix.turns)
-    return complete(context, work, [*turns, Turn("user", job.instruction)], StructureRatingsChecked)
+
+@dataclass(order=True, frozen=True, slots=True)
+class StructureRatingRank:
+    negative_score: float
+    label: str
+    rated: RatedStructure = field(compare=False)
 
 
 def scored(work: CycleWork, job: ShardJob, answer: StructureRatings,
@@ -319,12 +269,13 @@ def scored(work: CycleWork, job: ShardJob, answer: StructureRatings,
     ``score = rating + aux / max_aux * COALITION_AUX_RATING_FACTOR``. When
     every auxiliary rating is 0, the score is the rating.
     """
+    by_id = {structure.record_id: structure for structure in structures}
+    structures = [by_id[structure_id] for structure_id in job.structure_ids]
     by_label = {item.structure: item for item in answer.ratings}
-    selected_structures = [structures[int(label[1:]) - 1] for label in job.labels]
-    aux = [aux_rating(work, structure) for structure in selected_structures]
+    aux = [aux_rating(work, structure) for structure in structures]
     top = max(aux, default=0.0)
     ratings: list[RatedStructure] = []
-    for label, structure, value in zip(job.labels, selected_structures, aux, strict=True):
+    for label, structure, value in zip(job.labels, structures, aux, strict=True):
         rating = by_label[label]
         bonus = value / top * COALITION_AUX_RATING_FACTOR if top > 0.0 else 0.0
         ratings.append(RatedStructure(structure_id=structure.record_id, label=label, rating=rating.rating,
@@ -332,8 +283,9 @@ def scored(work: CycleWork, job: ShardJob, answer: StructureRatings,
                                       reasoning=rating.reasoning.strip()))
     # Only the best structures of the shard win. The others stay below
     # awareness in this cycle, even with a high rating.
-    for rated in sorted(ratings, key=lambda item: (-item.score, item.label))[:winner_count(work)]:
-        rated.won = True
+    ranked = sorted(StructureRatingRank(-rated.score, rated.label, rated) for rated in ratings)
+    for rank in ranked[:winner_count(work)]:
+        rank.rated.won = True
     return ShardRatings(key=job.key, ratings=ratings)
 
 
@@ -404,7 +356,7 @@ def newcomers(work: CycleWork, ratings: list[ShardRatings], bonus: dict[int, flo
     """
     structures = {draft.record_id: draft for draft in work.structures.structures}
     updated = {shard.key for shard in ratings}
-    result = []
+    result: list[Candidate] = []
     for shard in ratings:
         for rated in shard.ratings:
             if not rated.won:
@@ -444,9 +396,13 @@ def select(work: CycleWork, ratings: list[ShardRatings], bonus: dict[int, float]
         newcomers=offered, activation={record_id: item.activation for record_id, item in csm.items.items()},
         tokens={record_id: record_tokens(work.records, record_id) for record_id in ids},
         blocked=sorted(blocked), focus_ids=sorted(record_id for record_id, value in bonus.items() if value > 0.0))
-    changes = select_shards(selection, lambda requirement, record_id, key: selector_matches(
-        requirement.select, work.records[record_id], key, context),
-        lambda key, record_id: admits(work, key, record_id, updated))
+    home_shards: dict[int, ShardKey] = {}
+    for record_id in ids:
+        home = record_home(work, record_id)
+        if home is not None:
+            home_shards[record_id] = home
+    policy = WorkspaceSelectionPolicy(work.records, context, home_shards, frozenset(updated))
+    changes = select_shards(selection, policy)
     for change in changes:
         change.tail_ids = list(work.state.workspace.shard(change.key).tail_ids)
     return changes
@@ -463,46 +419,26 @@ def reinforce_entries(work: CycleWork, result: AttentionResult) -> list[str]:
 
 
 def run(context: RoleContext, work: CycleWork) -> CycleWork:
-    assert context.runtime is not None
     prompts = phase_prompts("attention")
     # The prefix reads the workspace and the feeling only. The focus check
     # changes neither, so the rating calls get the same prefix bytes.
-    prefix = StoryPrefix(work)
+    prefix = StoryPrefix(work, settings=role_model(context.runtime).render_settings(),
+            capture_settings=role_model(context.runtime).capture_settings("main-cognition"))
     focus = resolve_focus(context, work.request.active_focus, work.request.focus_proposals, focus_evidence(work),
                           prefix.turns)
     danger = work.appraisal.general().bodily_threat >= THREAT_APPRAISAL_THRESHOLD
     bonus = apply_focus(work, focus, Embedder(context, work.records), danger=danger)
     structures = work.structures.structures
-    budget = model_context_budget(context)
-    shards = shown_shards(work)
-    required_story = fit_internal_prompt(context, prefix.turns, budget, include_optional=False)
-    overhead = max((budget.estimate([Turn("user", shard_job(work, prefix, prompts, shard, []).instruction)])
-                    for shard in shards), default=0)
-    maximum_view = budget.input_ceiling - required_story.estimated_tokens - overhead
-    if maximum_view <= 0:
-        raise RequiredContextTooLarge("Attention instructions and required story leave no room for structure evidence.")
-    views: dict[int, str] = {}
-    for structure in structures:
-        raw = render_structures(work, [structure])
-        if budget.estimate([Turn("user", raw)]) > maximum_view:
-            views[structure.record_id] = review_structure(context, work, structure, prefix.turns, budget, maximum_view)
-    work.receipt("structure-context", f"{len(views)} oversized structures reviewed with all original members retained")
-    jobs: list[ShardJob] = []
-    for shard in shards:
-        jobs.extend(shard_batches(context, work, prefix, prompts, shard, structures, budget, views))
-    work.receipt("attention-context", f"{len(structures)} structures, {len(jobs)} rating batches; none omitted")
-    answers = ordered_parallel_map(lambda job: rate(context, work, prefix, job), jobs,
-                                   workers=ATTENTION_WORKERS, cancel=context.runtime.stop_event)
-    merged: dict[ShardKey, StructureRatings] = {}
-    for job, answer in zip(jobs, answers, strict=True):
-        merged.setdefault(job.key, StructureRatings()).ratings.extend(answer.ratings)
-    ratings: list[ShardRatings] = []
-    labels = [f"S{index}" for index in range(1, len(structures) + 1)]
-    for key, answer in merged.items():
-        actual = [item.structure for item in answer.ratings]
-        if sorted(actual) != sorted(labels):
-            raise ValueError("Attention batches must rate every structure exactly once per shard.")
-        ratings.append(scored(work, ShardJob(key=key, labels=labels), answer, structures))
+    session = role_model(context.runtime)
+    jobs = [shard_job(work, prefix, prompts, shard, structures, session.capture_settings("attention"))
+            for shard in shown_shards(work)] if structures else []
+    if session.model.connection.disable_threading:
+        answers = [rate(context, work, prefix, job) for job in jobs]
+    else:
+        with ThreadPoolExecutor(max_workers=ATTENTION_WORKERS) as executor:
+            futures = [executor.submit(copy_context().run, rate, context, work, prefix, job) for job in jobs]
+            answers = wait_model_futures(futures, session.cancel)
+    ratings = [scored(work, job, answer, structures) for job, answer in zip(jobs, answers, strict=True)]
     result = AttentionResult(ratings=ratings, focus=focus, calls=len(jobs),
                              focus_ids=sorted(record_id for record_id, value in bonus.items() if value > 0.0))
     result.changes = select(work, ratings, bonus)
@@ -537,7 +473,6 @@ __all__ = [
     "newcomers",
     "rate",
     "reinforce_entries",
-    "render_structures",
     "run",
     "scored",
     "select",

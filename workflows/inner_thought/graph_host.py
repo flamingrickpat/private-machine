@@ -34,7 +34,11 @@ sample, so a later accepted state never rewrites an earlier felt state.
 """
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from workflows.cognitive_control.host import CognitiveControl
+
+from collections.abc import Sequence
 from datetime import datetime
 from threading import Event
 
@@ -304,13 +308,29 @@ def pending_findings(store: MemoryStore) -> tuple[Feature, ...]:
                      and record.metadata.get(MENTAL_ACTION_KEY) is None and record.id not in appraised)
 
 
+class PrivateCommitOwner:
+    def __init__(self, store: MemoryStore, control: CognitiveControl | None, generation: int) -> None:
+        self.store = store
+        self.control = control
+        self.generation = generation
+
+    def commit(self, changes: WriteBatch) -> None:
+        from pm.memory.read_scope import ReadScope
+        with ReadScope() as reads:
+            reads.collecting = False
+            if self.control is None:
+                self.store.commit(changes)
+            else:
+                self.control.commit_private(changes, self.generation)
+
+
 class PrivateInquiryOwner:
     """Use the host's control fence for graph allocation and executed inner turns."""
 
-    def __init__(self, store: MemoryStore, *, commit: Callable[[WriteBatch], None],
+    def __init__(self, store: MemoryStore, *, commit_owner: PrivateCommitOwner,
                  cancel: Event, limits: ControlConfig) -> None:
         self.store: MemoryStore = store
-        self.commit: Callable[[WriteBatch], None] = commit
+        self.commit_owner: PrivateCommitOwner = commit_owner
         self.cancel: Event = cancel
         self.limits: ControlConfig = limits
 
@@ -321,12 +341,12 @@ class PrivateInquiryOwner:
             batch = self.store.begin_batch("nomination:" + batch_id, embed=False, cancel=self.cancel)
             accepted = stage_nomination_batch(batch, result, grant=grant, batch_id=batch_id)
             batch.preserve_on_recovery()
-            self.commit(batch)
+            self.commit_owner.commit(batch)
             return accepted
 
     def accept_attention(self, nomination_ids: Sequence[int], decision: ThoughtAttentionDecision, *,
                          commit_id: str, episode_id: str, now_utc: datetime,
-                         validate_context: Callable[[], None] | None = None,
+                         focus: CapturedPrivateFocus,
                          displaced_selection: RetainedOfferSelection | None = None) -> AttentionRecord:
         """Commit selection separately; it cannot fabricate an executed thought.
 
@@ -334,13 +354,12 @@ class PrivateInquiryOwner:
         beside these nominations was the one offered, when one was.
         """
         with self.store.lock:
-            if validate_context is not None:
-                validate_context()
+            validate_private_focus(self.store.snapshot(capture=False), focus, now_utc=vclock.utcnow())
             batch = self.store.begin_batch(commit_id, embed=False, cancel=self.cancel)
             selected = stage_attention(batch, nomination_ids, decision, episode_id=episode_id, now_utc=now_utc,
                                        displaced_selection=displaced_selection)
             batch.preserve_on_recovery()
-            self.commit(batch)
+            self.commit_owner.commit(batch)
             return selected
 
     def admit_parked_inquiry(self, parked: InquiryRecord, decision: InquiryResumeDecision,
@@ -366,7 +385,7 @@ class PrivateInquiryOwner:
             accepted = stage_inquiry_resume(batch, parent_receipt_id=parked.record.id, decision=decision,
                 attention=attention, grant=grant, now_utc=now_utc, limits=self.limits)
             batch.preserve_on_recovery()
-            self.commit(batch)
+            self.commit_owner.commit(batch)
             return accepted
 
     def displace_superseded(self, *, observer_entity_id: int, critical_epoch: int) -> tuple[InquiryRecord, ...]:
@@ -392,7 +411,7 @@ class PrivateInquiryOwner:
                 closed = stage_inquiry_displacement(batch, parent_receipt_id=head.record.id,
                     superseding_critical_epoch=critical_epoch)
                 batch.preserve_on_recovery()
-                self.commit(batch)
+                self.commit_owner.commit(batch)
                 displaced.append(closed)
         return tuple(displaced)
 
@@ -421,7 +440,7 @@ class PrivateInquiryOwner:
                 batch = self.store.begin_batch(f"inquiry-outdated:{head.record.id}", embed=False, cancel=self.cancel)
                 outdated = stage_inquiry_outdated(batch, parent_receipt_id=head.record.id)
                 batch.preserve_on_recovery()
-                self.commit(batch)
+                self.commit_owner.commit(batch)
                 closed.append(outdated)
         return tuple(closed)
 
@@ -464,7 +483,7 @@ class PrivateInquiryOwner:
             accepted = stage_displaced_inquiry(batch, displaced_receipt_id=displaced.record.id,
                 attention=attention, grant=grant, episode_id=episode_id, now_utc=now_utc)
             batch.preserve_on_recovery()
-            self.commit(batch)
+            self.commit_owner.commit(batch)
             return accepted
 
     def record_attention_outcome(self, *, batch_id: str, nomination_ids: Sequence[int],
@@ -483,7 +502,7 @@ class PrivateInquiryOwner:
             record = stage_attention_outcome(batch, batch_id=batch_id, nomination_ids=tuple(nomination_ids),
                 decision=decision, grant=grant, displaced_selection=displaced_selection)
             batch.preserve_on_recovery()
-            self.commit(batch)
+            self.commit_owner.commit(batch)
             return record
 
     def execution_grant(self, parent: InquiryRecord, *, source_ids: Sequence[int] = ()) -> InquiryGrant:
@@ -509,7 +528,7 @@ class PrivateInquiryOwner:
             accepted = stage_inquiry_resume(batch, parent_receipt_id=parent.record.id, decision=decision,
                 attention=attention, grant=grant, now_utc=now_utc, limits=self.limits)
             batch.preserve_on_recovery()
-            self.commit(batch)
+            self.commit_owner.commit(batch)
             return accepted
 
     def accept_deliberate_entry(self, admission: DeliberateAdmission, *, grant: InquiryGrant,
@@ -524,7 +543,7 @@ class PrivateInquiryOwner:
             batch = self.store.begin_batch(commit_id, embed=False, cancel=self.cancel)
             accepted = stage_deliberate_inquiry(batch, admission=admission, grant=grant, now_utc=now_utc)
             batch.preserve_on_recovery()
-            self.commit(batch)
+            self.commit_owner.commit(batch)
             return accepted
 
     def admit_deliberate_action(self, admission: DeliberateAdmission, *, grant: InquiryGrant,
@@ -563,7 +582,7 @@ class PrivateInquiryOwner:
                 stage_inquiry_preemption(batch, parent_receipt_id=holder.record.id,
                     action_record_id=admission.action_record_id, now_utc=now_utc)
                 batch.preserve_on_recovery()
-                self.commit(batch)
+                self.commit_owner.commit(batch)
             return self.accept_deliberate_entry(admission, grant=grant,
                 commit_id=f"deliberate-entry:{admission.action_record_id}", now_utc=now_utc)
 
@@ -612,7 +631,7 @@ class PrivateInquiryOwner:
                 operation.metadata.update({MENTAL_ACTION_KEY: action.id, MENTAL_CORRELATION_KEY: correlation})
             batch.revise(operation)
             batch.preserve_on_recovery()
-            self.commit(batch)
+            self.commit_owner.commit(batch)
             self.ensure_inner_turn(accepted)
             return accepted
 
@@ -670,4 +689,4 @@ class PrivateInquiryOwner:
                     mental_state=projection.mental_state, qualia_channels=dict(sample.channels))
             batch.set_gwt(GwtTurnRecord(tick_id=batch.tick_id, slot_id="inner",
                 knoxel_ids=[operation_id, *quale_ids, *stale_note_ids], summary=step.thought), cycle)
-            self.commit(batch)
+            self.commit_owner.commit(batch)

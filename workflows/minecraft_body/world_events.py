@@ -5,10 +5,14 @@ from pm import vclock
 
 from datetime import datetime, timezone
 import json
+import hashlib
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, JsonValue
+from dataclasses import dataclass, field
+from workflows.minecraft_body.world_text import WorldObservation, WorldItem, NearbyBlock, render_world_observation
+from workflows.minecraft_project.schemas import Point
 from pm.bus.envelopes import Envelope, new_envelope, new_id
 from pm.host.application import BusModule
 from pm.memory.snapshot import GhostCancelled
@@ -27,26 +31,130 @@ class GwtUpdate(BaseModel):
     slot: str = "main"
 
 
-def world_conditions(observation: dict) -> dict:
-    """Select structured body facts that can invalidate a survival decision.
+class WorldConditionPlayer(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="ignore")
+    health: float | None = None
+    food: int | None = None
+    food_level: int | None = None
+    on_ground: bool | None = None
+    in_water: bool | None = None
+    in_lava: bool | None = None
+    alive: bool | None = None
+    life_id: str | int | None = None
+    nutrition: JsonValue = None
+    sleep: JsonValue = None
+    dimension: str | None = None
+    oxygen: float | None = None
+    biome: str | None = None
 
-    Images and camera rotation do not enter this comparison. World time uses
-    day phases, so each server tick does not cause a cognition cycle.
-    """
-    player = observation.get("player", {})
-    world = observation.get("world", player)
-    return {
-        "position": observation.get("camera", {}).get("block_position"),
-        "player": {key: player[key] for key in (
-            "health", "food", "food_level", "on_ground", "in_water", "in_lava",
-            "alive", "life_id", "nutrition", "sleep", "dimension", "oxygen", "biome",
-        ) if key in player},
-        "inventory": sorted(observation.get("inventory", []), key=lambda item: json.dumps(item, sort_keys=True)),
+
+class WorldConditionEnvironment(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="ignore")
+    dimension: str | None = None
+    weather: str | None = None
+    is_raining: bool | None = None
+
+
+class WorldConditionLife(BaseModel):
+    model_config = ConfigDict(frozen=True)
+    body_session: str | None
+    death_count: int | None
+
+
+class WorldConditions(BaseModel):
+    model_config = ConfigDict(frozen=True)
+    comparison_fingerprint: str
+    position: Point | None
+    player: WorldConditionPlayer
+    inventory: tuple[WorldItem, ...]
+    world: WorldConditionEnvironment
+    day_phase: int | None
+    life: WorldConditionLife
+    nearby_blocks: tuple[NearbyBlock, ...]
+
+
+@dataclass(frozen=True, order=True, slots=True)
+class InventoryConditionOrder:
+    canonical: str
+    item: WorldItem = field(compare=False)
+
+
+@dataclass(frozen=True, slots=True)
+class WorldEventRenderInput:
+    observation: WorldObservation
+    conditions: WorldConditions
+    user_silent: bool
+
+
+def render_world_event(input: WorldEventRenderInput) -> str:
+    circumstance = "during user silence" if input.user_silent else "during active game work"
+    environment = input.conditions.world
+    world = f"World phase {input.conditions.day_phase}; dimension {environment.dimension}; weather {environment.weather}; raining={environment.is_raining}"
+    return "Current Minecraft observation " + circumstance + ":\n" + world + "\n" + render_world_observation(input.observation)
+
+
+
+def normalized_comparison_numbers(value: JsonValue) -> JsonValue:
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, dict):
+        return {key: normalized_comparison_numbers(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [normalized_comparison_numbers(item) for item in value]
+    return value
+
+
+@dataclass(frozen=True, order=True, slots=True)
+class RawInventoryOrder:
+    canonical: str
+    item: JsonValue = field(compare=False)
+
+
+
+def world_day_phase(world: dict[str, JsonValue]) -> int | None:
+    from pydantic import TypeAdapter
+    if "time_of_day" not in world:
+        return None
+    clock = TypeAdapter[str | int | float](str | int | float).validate_python(world["time_of_day"])
+    return int(clock) // 6000
+
+def condition_fingerprint(observation: dict[str, JsonValue]) -> str:
+    from pydantic import TypeAdapter
+    player = TypeAdapter[dict[str, JsonValue]](dict[str, JsonValue]).validate_python(observation.get("player", {}))
+    world = TypeAdapter[dict[str, JsonValue]](dict[str, JsonValue]).validate_python(observation.get("world", player))
+    camera = TypeAdapter[dict[str, JsonValue]](dict[str, JsonValue]).validate_python(observation.get("camera", {}))
+    inventory = TypeAdapter[list[JsonValue]](list[JsonValue]).validate_python(observation.get("inventory", []))
+    ranked = sorted(RawInventoryOrder(json.dumps(item, sort_keys=True), item) for item in inventory)
+    selected: dict[str, JsonValue] = {
+        "position": camera.get("block_position"),
+        "player": {key: player[key] for key in ("health", "food", "food_level", "on_ground", "in_water", "in_lava",
+            "alive", "life_id", "nutrition", "sleep", "dimension", "oxygen", "biome") if key in player},
+        "inventory": [item.item for item in ranked],
         "world": {key: world[key] for key in ("dimension", "weather", "is_raining") if key in world},
-        "day_phase": int(world["time_of_day"]) // 6000 if "time_of_day" in world else None,
+        "day_phase": world_day_phase(world),
         "life": [observation.get("body_session"), observation.get("death_count")],
         "nearby_blocks": observation.get("nearby_blocks", []),
     }
+    # Python's original deep equality treats integral floats and booleans as their integer values.
+    canonical = json.dumps(normalized_comparison_numbers(selected), sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+def world_conditions(observation: dict[str, JsonValue]) -> WorldConditions:
+    parsed = WorldObservation.model_validate(observation)
+    player = observation.get("player", {})
+    world = observation.get("world", player)
+    environment = WorldConditionEnvironment.model_validate(world)
+    from pydantic import TypeAdapter
+    world_values = TypeAdapter[dict[str, JsonValue]](dict[str, JsonValue]).validate_python(world)
+    ranked = sorted(InventoryConditionOrder(json.dumps(item.model_dump(mode="json"), sort_keys=True), item)
+        for item in parsed.inventory)
+    return WorldConditions(comparison_fingerprint=condition_fingerprint(observation), position=parsed.camera.block_position,
+        player=WorldConditionPlayer.model_validate(player), inventory=tuple(rank.item for rank in ranked),
+        world=environment, day_phase=world_day_phase(world_values),
+        life=WorldConditionLife(body_session=parsed.body_session, death_count=parsed.death_count),
+        nearby_blocks=parsed.nearby_blocks)
 
 
 class WorldEvents(BusModule):
@@ -70,7 +178,7 @@ class WorldEvents(BusModule):
         self.quiet_seconds = quiet_seconds
         self.pending_id: int | None = None
         self.pending_correlation = ""
-        self.last_conditions: dict | None = None
+        self.last_conditions: WorldConditions | None = None
         self.retry_observation = False
         self.last_user_at = self.clock()
 
@@ -128,13 +236,14 @@ class WorldEvents(BusModule):
         if not response.get("ok"):
             self._record({"status": "unavailable", "observed_at": observed_at, "response": response})
             return
+        observation = WorldObservation.model_validate(response["result"])
         conditions = world_conditions(response["result"])
         if conditions == self.last_conditions and not self.retry_observation:
             return
         previous = self.last_conditions
         correlation = "world-event:" + new_id()
-        circumstance = "during user silence" if silent else "during active game work"
-        text = "Current Minecraft observation " + circumstance + ": " + json.dumps(conditions, ensure_ascii=False)
+        text = render_world_event(WorldEventRenderInput(observation, conditions, silent))
+        previous_wire = previous.model_dump(mode="json") if previous is not None else None
         changes = self.ghost.begin_batch("world-observation:" + correlation, cancel=self.stop_event)
         try:
             feature = new_feature(
@@ -143,7 +252,7 @@ class WorldEvents(BusModule):
                 changes=changes,
                 metadata={"origin": "minecraft.world", "executed_at": observed_at,
                           "requested_at": requested_at, "user_silent": silent,
-                          "evidence": response["result"], "previous_conditions": previous,
+                          "evidence": response["result"], "previous_conditions": previous_wire,
                           "correlation_id": correlation, "self_origin": True},
             )
             self.ghost.commit(changes)
@@ -153,7 +262,7 @@ class WorldEvents(BusModule):
         self.retry_observation = False
         self.pending_id, self.pending_correlation = feature.id, correlation
         self._record({"status": "committed", "observed_at": observed_at, "knoxel_id": feature.id,
-                      "correlation_id": correlation, "conditions": conditions, "previous_conditions": previous})
+                      "correlation_id": correlation, "conditions": conditions.model_dump(mode="json"), "previous_conditions": previous_wire})
         self.bus.put(new_envelope(self.module_id, "data", "minecraft.world", correlation,
                                   {"knoxel_id": feature.id}))
 

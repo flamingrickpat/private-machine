@@ -35,29 +35,29 @@ story:
   priority: [dialogue, history, facts, inner, narratives, rules]
   lanes:
     - name: dialogue
-      budget_share: 0.30
+      budget_share: 0.45
       max_tokens: 10000
       select: recent
       record_types: [Feature]
-      feature_types: [Dialogue, Thought, InnerMonologue]
+      feature_types: [Dialogue]
     - name: focus
-      budget_share: 0.05
+      budget_share: 0.0
       select: focus
       record_types: [Feature, MemoryClusterKnoxel, DeclarativeFactKnoxel, Narrative, CauseEffectKnoxel, SemanticRecordKnoxel]
     - name: history
-      budget_share: 0.40
+      budget_share: 0.25
       select: score
       order: time
       record_types: [MemoryClusterKnoxel, Feature]
       cluster_types: [temporal, topical, graph_episode]
-      feature_types: [Dialogue, Thought, InnerMonologue, WorldEvent, StateUpdate]
+      feature_types: [Dialogue, WorldEvent]
       before_lane: dialogue
       max_similarity: 0.93
       temporal_mode: preserve_history
       raw_ratio: 0.5
       weights: {semantic: 1.0, lexical: 0.35}
     - name: facts
-      budget_share: 0.08
+      budget_share: 0.10
       select: score
       order: score
       record_types: [DeclarativeFactKnoxel, SemanticRecordKnoxel]
@@ -65,7 +65,7 @@ story:
       max_similarity: 0.95
       weights: {semantic: 1.0, lexical: 0.35, importance: 0.3}
     - name: inner
-      budget_share: 0.05
+      budget_share: 0.10
       select: score
       order: score
       record_types: [SemanticRecordKnoxel]
@@ -81,7 +81,7 @@ story:
       max_similarity: 0.95
       weights: {semantic: 1.0, lexical: 0.3, importance: 0.2}
     - name: narratives
-      budget_share: 0.08
+      budget_share: 0.06
       select: score
       order: score
       record_types: [Narrative]

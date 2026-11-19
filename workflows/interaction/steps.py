@@ -8,6 +8,7 @@ from __future__ import annotations
 from pm_workflows.python_role import RoleContext
 
 from pm.context_render.turns import Role, Turn
+from pm.llm.role_model import role_model
 from pm.records.copying import pickle_copy
 from pm.records.cycle_records import ActionDecision
 from pm.utils import yaml_util
@@ -17,7 +18,7 @@ from workflows.interaction.schemas import (
 from workflows.public_speech.situational_guidance import GuidanceDisposition
 from workflows.main_cognition.affect import describe_mental_state, regulation_mode
 from workflows.main_cognition.cycle_work import CycleWork
-from workflows.main_cognition.model_json import write_report
+from pm.runs.role_io import write_report
 from workflows.main_cognition.phases import decide, intake, route, triage
 from workflows.main_cognition.phases.model import complete, phase_prompts
 from workflows.main_cognition.schemas import AppraisalAffect, DecisionCheck, DecisionInhibition
@@ -56,7 +57,8 @@ def select_interaction(context: RoleContext, request: InteractionRequest) -> Int
     if len(work.state.stimulus_groups) != 1:
         raise ValueError("An ordinary selection must cover exactly one partner group.")
     group = work.state.stimulus_groups[0]
-    prefix = StoryPrefix(work, group=group.key)
+    prefix = StoryPrefix(work, group=group.key, settings=role_model(context.runtime).render_settings(),
+        capture_settings=role_model(context.runtime).capture_settings("interaction"))
     messages = decide.build_messages(work, phase_prompts("decide"), prefix, group)
     messages.append(Turn(Role.User,
         "This is an ordinary exchange after the accepted main context above. "
@@ -70,7 +72,7 @@ def select_interaction(context: RoleContext, request: InteractionRequest) -> Int
         "This local choice does not rewrite durable intentions or establish a permanent wait. "
         "Keep consequential task choices available. Main cognition will reconsider them before execution."))
     check = DecisionCheck(workflow_names=[item.name for item in decide.available_workflows(work)])
-    answer = complete(context, work, messages, InteractionDecision, validation_context=check.model_dump())
+    answer = complete(context, messages, InteractionDecision, validation_context=check)
     source_ids = [item.knoxel_id for item in request.cycle.stimuli]
     inhibition: DecisionInhibition | None = None
     if answer.variants:

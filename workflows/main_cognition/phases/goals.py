@@ -11,21 +11,23 @@ change kind outside :data:`ALLOWED_CHANGES` fails validation. The commit
 applies the changes. This phase never writes memory.
 """
 from __future__ import annotations
-from workflows.main_cognition.context_reduction import evidence_text
+
+from workflows.main_cognition.prompt_values import GoalsTemplateValues
+
+from pm.llm.role_model import role_model
 
 from pm_workflows.python_role import RoleContext
-from pydantic import create_model, model_validator
+from workflows.main_cognition.response_checks import CheckedGoals
 
-from pm.context_render import render_context
 from pm.context_render.turns import Turn, format_content
 
+from workflows.main_cognition.rendering import render_managed_runs
 from workflows.main_cognition.cycle_work import CycleWork
 from workflows.main_cognition.interval_review import render_interval_review
-from workflows.main_cognition.model_json import PhasePrompts
+from workflows.main_cognition.prompt_config import PhasePrompts
 from workflows.main_cognition.phases.model import complete, phase_prompts
 from workflows.main_cognition.schemas import GoalsResult, MentalProposal
 from workflows.main_cognition.story_prefix import StoryPrefix, conscious_percepts
-from workflows.main_cognition.phases.retrieve import render_memories
 
 ALLOWED_CHANGES = ("retain", "add", "complete", "reprioritize", "defer", "refuse")
 
@@ -44,7 +46,7 @@ def render_deliberate_proposals(proposals: list[MentalProposal]) -> str:
     A mental agent contributes a private plan. Its goal changes are suggestions
     that this phase may accept, change, or decline. They never apply directly.
     """
-    lines = []
+    lines: list[str] = []
     for item in proposals:
         if item.disposition != "propose":
             continue
@@ -66,18 +68,17 @@ def build_messages(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix) 
     review = request.interval_review
     if review is None:
         raise ValueError("The goals phase requires the cycle's interval review.")
-    user = format_content(prefix.fill(prompts.user_template),
-        interval_review=evidence_text(render_interval_review(review, companion_name=request.companion_name), "goals-interval"),
+    user = format_content(prefix.fill(prompts.user_template), GoalsTemplateValues(
+        interval_review=render_interval_review(review, companion_name=request.companion_name),
         affect=work.affect.felt or work.state_summary or "(no feeling recorded)",
         regulation_words=prompts.regulation_words[work.affect.regulation],
-        current_goals=evidence_text(render_goals(request.active_goals), "goals-current"),
+        current_goals=render_goals(request.active_goals),
         appraisal=work.appraisal.feeling or "(no judgement recorded)",
-        context=render_memories(work.selected_memories),
-        managed_runs=evidence_text(render_context(request.managed_runs) if request.managed_runs else "(none)", "goals-runs"),
-        inner_proposals=evidence_text(render_inner_proposals(conscious_percepts(work)), "goals-inner-proposals"),
-        deliberate_proposals=evidence_text(render_deliberate_proposals(request.mental_proposals), "goals-plans"),
-    )
-    return prefix.ask(user)
+        context=render_goals(work.context.memories),
+        managed_runs=render_managed_runs(request.managed_runs) if request.managed_runs else "(none)",
+        inner_proposals=render_inner_proposals(conscious_percepts(work)),
+        deliberate_proposals=render_deliberate_proposals(request.mental_proposals)))
+    return prefix.ask(user.text)
 
 
 def validate_changes(result: GoalsResult) -> GoalsResult:
@@ -95,15 +96,13 @@ def validate_changes(result: GoalsResult) -> GoalsResult:
 
 
 #: The answer model of the goals call: ``GoalsResult`` with the change kinds checked.
-CheckedGoals = create_model("CheckedGoals", __base__=GoalsResult,
-                            __validators__={"allowed": model_validator(mode="after")(validate_changes)})
 
 
 def run(context: RoleContext, work: CycleWork) -> CycleWork:
-    prefix = StoryPrefix(work)
-    answer = complete(context, work, build_messages(work, phase_prompts("goals"), prefix), CheckedGoals,
-                      grounded=True, emotion=False, grounding_at=len(prefix.turns))
-    result = GoalsResult.model_validate(answer.model_dump())
+    prefix = StoryPrefix(work, settings=role_model(context.runtime).render_settings(),
+            capture_settings=role_model(context.runtime).capture_settings("main-cognition"))
+    answer = complete(context, build_messages(work, phase_prompts("goals"), prefix), CheckedGoals)
+    result = GoalsResult(changes=list(answer.changes))
     work.goals = result
     work.receipt("goals", f"proposed {len(result.changes)} goal changes")
     return work

@@ -15,17 +15,18 @@ from __future__ import annotations
 
 from pm.utils.operating_system import OperatingSystem
 import asyncio
-import json
 import secrets
 import sys
 import time
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable
 from pathlib import Path
 from threading import Event
 from typing import TypeVar
+from urllib.parse import urlsplit
 
 import httpx
+from pydantic import JsonValue, TypeAdapter, BaseModel, ValidationError
 
 from pm.llm.config import Connection
 from pm.llm.cache import completion_path, publish
@@ -67,35 +68,42 @@ class ProviderCompletionError(ModelError):
     """The provider failed or filtered generation. Partial text is not a result."""
 
 
-def completion_error(data: object) -> ProviderCompletionError | None:
-    """Recognize a failed completion inside a successful HTTP response.
+class CompletionChoiceStatus(BaseModel):
+    finish_reason: str | None = None
+    error: JsonValue = None
 
-    Some providers return partial content with finish_reason=error and HTTP
-    200. Do not pass that fragment to a stage parser or retry a content filter.
-    An ordinary completed refusal remains a valid model response.
-    """
-    if not isinstance(data, dict) or not isinstance(data.get("choices"), list):
+
+class CompletionStatus(BaseModel):
+    choices: tuple[CompletionChoiceStatus, ...] = ()
+
+
+class ProviderErrorMessage(BaseModel):
+    message: str = ""
+
+
+class ProviderErrorEnvelope(BaseModel):
+    error: ProviderErrorMessage
+
+
+def completion_error(data: JsonValue | None) -> ProviderCompletionError | None:
+    try:
+        status = CompletionStatus.model_validate(data)
+    except ValidationError:
         return None
-    for choice in data["choices"]:
-        if isinstance(choice, dict) and (choice.get("error") is not None
-                or choice.get("finish_reason") in {"error", "content_filter"}):
+    for choice in status.choices:
+        if choice.error is not None or choice.finish_reason in {"error", "content_filter"}:
             return ProviderCompletionError("The model provider failed or filtered generation. No partial completion was accepted.")
     return None
 
 
 def rejected_message_protocol(response: httpx.Response) -> bool:
-    """Identify llama.cpp's deterministic parser rejection without exposing text.
-
-    A malformed tool transcript cannot recover through transport retries.
-    Other server errors retain the existing transient retry behavior.
-    """
     if response.status_code < 500:
         return False
     try:
-        error = response.json().get("error", {})
-    except (ValueError, AttributeError):
+        envelope = ProviderErrorEnvelope.model_validate_json(response.content)
+    except ValidationError:
         return False
-    return isinstance(error, dict) and str(error.get("message", "")).startswith("Failed to parse messages:")
+    return envelope.error.message.startswith("Failed to parse messages:")
 
 
 async def cancellable(awaitable: Awaitable[T], cancel: Event | None) -> T:
@@ -116,39 +124,26 @@ async def cancellable(awaitable: Awaitable[T], cancel: Event | None) -> T:
         await asyncio.gather(task, return_exceptions=True)
 
 
-async def wait_until_ready(step: Callable[[], Awaitable[T]], cancel: Event | None = None, *,
-                           live_test: bool = False, delay_seconds: float = 30,
-                           label: str = "Model endpoint") -> T:
-    """Call ``step`` again and again until it succeeds. This wait has no limit.
+class EndpointRetry:
+    def __init__(self, label: str, cancel: Event | None, *, live_test: bool = False,
+                 delay_seconds: float = 30) -> None:
+        self.label = label
+        self.cancel = cancel
+        self.live_test = live_test
+        self.delay_seconds = delay_seconds
+        self.attempts = 0
 
-    ``step`` is an async callable that talks to a model endpoint. A closed
-    port, a model that is still loading, and a broken endpoint answer all mean
-    "not ready yet". Print one line, sleep, and call ``step`` again. The
-    program never fails here. The operator can restart the server and the
-    paused call continues on its own, so no work is lost.
-
-    ``cancel`` ends the wait with ``asyncio.CancelledError``.
-    ``live_test=True`` raises the first error instead of waiting. Tests,
-    startup probes, and one-shot diagnostics use that mode. Any other
-    exception type is a code fault and propagates unchanged.
-    """
-    attempts = 0
-    while True:
-        try:
-            return await step()
-        except (ModelError, httpx.HTTPError) as error:
-            if live_test:
-                raise
-            # Never put response bodies or credentials in this reason.
-            reason = str(error) if isinstance(error, ModelError) else "The connection failed."
-        # The endpoint is not ready. Wait, then repeat the same call.
-        if cancel is not None and cancel.is_set():
+    async def wait(self, error: ModelError | httpx.HTTPError) -> None:
+        if self.live_test:
+            raise error
+        if self.cancel is not None and self.cancel.is_set():
             raise asyncio.CancelledError
-        attempts += 1
-        logging.getLogger(__name__).warning("Endpoint wait label=%s attempt=%s reason=%s", label, attempts, reason)
-        print(f"{label} is not ready: {reason} Retrying in {delay_seconds:g} seconds "
-              f"(attempt {attempts}; this wait has no limit).", file=sys.stderr)
-        await cancellable(asyncio.sleep(delay_seconds), cancel)
+        self.attempts += 1
+        reason = str(error) if isinstance(error, ModelError) else "The connection failed."
+        logging.getLogger(__name__).warning("Endpoint wait label=%s attempt=%s reason=%s", self.label, self.attempts, reason)
+        print(f"{self.label} is not ready: {reason} Retrying in {self.delay_seconds:g} seconds "
+              f"(attempt {self.attempts}; until cancellation).", file=sys.stderr)
+        await cancellable(asyncio.sleep(self.delay_seconds), self.cancel)
 
 
 class JsonClient:
@@ -171,7 +166,7 @@ class JsonClient:
         self.cache_hits = 0
 
     async def _send(self, client: httpx.AsyncClient, method: str, route: str, headers: dict[str, str],
-                    payload: dict[str, object] | None, cancel: Event | None, cache_path: Path | None = None,
+                    payload: dict[str, JsonValue] | None, cancel: Event | None, cache_path: Path | None = None,
                     transcript_path: Path | None = None) -> httpx.Response:
         """Log each inference attempt before dispatch, including retries.
 
@@ -180,6 +175,7 @@ class JsonClient:
         Cancellation leaves the prompt and an error receipt. Logging failures
         cannot change the HTTP result. Readiness requests have no prompt log.
         """
+
         from pm.llm.prompt_log import start_prompt_log, finish_prompt_log
         started = time.monotonic()
         replayed = replay_response(cache_path) if cache_path is not None else None
@@ -203,7 +199,7 @@ class JsonClient:
                 raise
             self._store(cache_path, response)
         try:
-            data = response.json()
+            data = TypeAdapter[dict[str, JsonValue]](dict[str, JsonValue]).validate_json(response.content)
         except ValueError:
             data = None
         error = completion_error(data) if response.is_success else ModelError(f"HTTP {response.status_code}")
@@ -219,14 +215,14 @@ class JsonClient:
         if path is None or not response.is_success:
             return
         try:
-            data = response.json()
+            data = TypeAdapter[dict[str, JsonValue]](dict[str, JsonValue]).validate_json(response.content)
         except ValueError:
             return
-        if isinstance(data, dict) and "error" not in data and completion_error(data) is None:
+        if "error" not in data and completion_error(data) is None:
             store_response(path, response.content)
 
-    async def request(self, method: str, route: str, *, payload: dict[str, object] | None = None,
-                      cancel: Event | None = None, transcript_path: Path | None = None) -> dict:
+    async def request(self, method: str, route: str, *, payload: dict[str, JsonValue] | None = None,
+                      cancel: Event | None = None, transcript_path: Path | None = None) -> dict[str, JsonValue]:
         """Wait through temporary failures until recovery or cancellation.
 
         Production waits have no retry quota. An explicit transient_retries
@@ -238,7 +234,7 @@ class JsonClient:
         because each route has its own shape; the caller validates it (for chat
         through :class:`~pm.llm.activation.ChatResult`) or reads named fields.
         """
-        headers = {}
+        headers: dict[str, str] = {}
         key = self.connection.api_key.get_secret_value()
         if key:
             headers["Authorization"] = f"Bearer {key}"
@@ -247,6 +243,9 @@ class JsonClient:
         cached_chat = chat and OperatingSystem.environment.get("PM_COMPLETION_CACHE", "1") != "0"
         if chat:
             payload = {**(payload or {}), "seed": secrets.randbelow(2**31)}
+            if urlsplit(self.connection.base_url).hostname == "openrouter.ai":
+                if self.connection.provider is not None:
+                    payload["provider"] = {"only": [self.connection.provider], "allow_fallbacks": False}
         # The read timeout includes time queued inside a local inference server.
         async with httpx.AsyncClient(timeout=httpx.Timeout(self.connection.request_timeout_seconds, connect=10.0)) as client:
             retries = 0
@@ -269,6 +268,17 @@ class JsonClient:
                     # have reached the model, and the wait has no quota.
                     failure = "Model connection failed. Check the endpoint."
                 else:
+                    if response.is_error:
+                        provider_error_text = response.text.lower()
+                        context_overflow_markers = (
+                            "context_length_exceeded", "maximum context length",
+                            "exceed_context_size", "prompt is too long", "input is too long",
+                            "exceeds the available context", "exceeds the context window",
+                        )
+                        if any(marker in provider_error_text for marker in context_overflow_markers):
+                            from pm.context_render.budget import RequiredContextTooLarge
+                            raise RequiredContextTooLarge(
+                                f"The model rejected the rendered prompt as too large (HTTP {response.status_code}).")
                     if rejected_message_protocol(response):
                         raise ModelError("The model rejected the message protocol. Inspect the tool-call transcript.")
                     if response.status_code == 429 or response.status_code >= 500:
@@ -277,15 +287,15 @@ class JsonClient:
                         raise ModelError(f"Model request failed (HTTP {response.status_code}). Check credentials, credit, and request config.")
                     else:
                         try:
-                            data = response.json()
+                            data = TypeAdapter[dict[str, JsonValue]](dict[str, JsonValue]).validate_json(response.content)
                         except ValueError:
                             raise ModelError("The model service returned invalid JSON.") from None
-                        if not isinstance(data, dict) or "error" in data:
+                        if "error" in data:
                             raise ModelError("The model service returned an invalid result or an API error.")
                         provider_error = completion_error(data)
                         if provider_error is not None:
                             raise provider_error
-                        return data
+                        return TypeAdapter[dict[str, JsonValue]](dict[str, JsonValue]).validate_python(data)
                 # Exhaustion is only reachable through an explicit diagnostic
                 # bound. Production keeps the same request until cancellation.
                 if self.transient_retries is not None and retries >= self.transient_retries:

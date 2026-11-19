@@ -7,7 +7,7 @@ failure_policy: {max_attempts_per_phase: 1}
 roles:
   select:
     skill: workflows/interaction/steps.py
-    tools: [llm_complete, embed_texts]
+    tools: []
     result_contract:
       type: json
       schema:

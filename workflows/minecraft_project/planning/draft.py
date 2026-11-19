@@ -1,137 +1,186 @@
-"""Edit a private task draft through small MCP operations."""
 from __future__ import annotations
+from workflows.minecraft.runtime import require_minecraft_runtime
 
-from pm.records.copying import pickle_copy
-
-from itertools import product
-from typing import Callable, Literal
-
+from dataclasses import dataclass
+from typing import Literal
 from fastmcp import FastMCP
-from pydantic import create_model, ValidationError
-
+from pydantic import BaseModel, ConfigDict, ValidationError
+from pm_workflows.runtime import WorkflowRuntime
 from pm.runs.draft_session import DraftValidation
-from workflows.minecraft_project.schemas import Condition, Contract, Node, PlanProposal, Point, TaskTree
+from workflows.minecraft_project.schemas import Condition, PlanProposal, Point, TaskTree
 from workflows.minecraft_project.tree_store import TreeStore, node_digest, validate_tree
 from workflows.minecraft_project.evidence_selection import protect_accepted_specifications
+from workflows.minecraft_project.planning.run_context import InstructionsChanged
+from workflows.minecraft_project.planning.draft_contracts import (
+    DraftNode, NodeEdit, TaskAddRequest, ConditionSetRequest,
+    ConditionCopyRequest, PlanOutcomeRequest, DraftToolResult, DraftSnapshot)
 
 
-class CellBox(Contract):
-    """Two inclusive corners of an explicitly requested block surface."""
-
-    min: Point
-    max: Point
+class InstructionRevision(BaseModel):
+    model_config = ConfigDict(extra="ignore", frozen=True)
+    revision: int
 
 
-ConditionInput = create_model("ConditionInput", __base__=Contract, **{
-    **{name: (field.annotation, pickle_copy(field)) for name, field in Condition.model_fields.items()},
-    "id": (str, ""), "description": (str, ""), "box": (CellBox | None, None)})
-ConditionInput.__doc__ = "A condition edit with backend-owned defaults and an optional exact block box."
+@dataclass(frozen=True, slots=True)
+class PlanningBoundary:
+    runtime: WorkflowRuntime
+    instruction_revision: int
+
+    def check_current(self) -> None:
+        self.runtime.check_cancelled()
+        instruction = InstructionRevision.model_validate(require_minecraft_runtime(self.runtime).instructions())
+        if instruction.revision != self.instruction_revision:
+            raise InstructionsChanged("Project instructions changed during planning. Retain effects and read the new request.")
+
+
+@dataclass(frozen=True, slots=True)
+class DraftSettings:
+    base: TaskTree | None = None
+    scope: frozenset[str] | None = None
+    refinement_target: str = ""
+    require_leaf_change: bool = False
 
 
 class TaskDraft:
-    """Own uncommitted edits; the existing project store owns accepted plans.
-
-    Each tool saves the draft. New IDs and reciprocal child references come
-    from this service. Existing fields stay exact unless an edit names them.
-    Failed validation retains edits without committing a specification or proof.
-    """
-
-    def __init__(self, store: TreeStore, goal: str, save: Callable[[dict[str, object]], None],
-                 check_cancelled: Callable[[], None], *, base: TaskTree | None = None,
-                 scope: set[str] | None = None, refinement_target: str = "") -> None:
-        """Open one draft over the goal, or over the retained base tree.
-
-        ``save`` writes the draft after each tool call, so a crash retains the
-        edits made so far. ``scope`` limits which nodes the draft may edit;
-        ``refinement_target`` names the node a refinement edit belongs to.
-        """
-        self.store, self.save, self.check_cancelled = store, save, check_cancelled
-        self.base = base
-        self.scope, self.refinement_target = scope, refinement_target
-        self.goal_id = base.goal_id if base else "goal"
-        self.nodes = {node.id: node.model_dump(mode="json") for node in base.nodes} if base else {
-            "goal": {"id": "goal", "kind": "goal", "parent": None, "children": [], "depends_on": [],
-                     "instruction": goal, "criteria": [], "assumptions": [], "specialist": "builder"}}
-        self.counter, self.status, self.summary = len(self.nodes), "planned", ""
-        self.queries, self.recipe_queries, self.restore_nodes = [], [], []
+    def __init__(self, store: TreeStore, goal: str, artifact_path: str, boundary: PlanningBoundary,
+                 settings: DraftSettings = DraftSettings()) -> None:
+        self.store = store
+        self.artifact_path = artifact_path
+        self.boundary = boundary
+        self.base = settings.base
+        self.scope = settings.scope
+        self.refinement_target = settings.refinement_target
+        self.require_leaf_change = settings.require_leaf_change
+        self.goal_id = settings.base.goal_id if settings.base is not None else "goal"
+        self.nodes: dict[str, DraftNode] = ({node.id: DraftNode.from_node(node) for node in settings.base.nodes}
+            if settings.base is not None else {"goal": DraftNode(id="goal", kind="goal", instruction=goal, specialist="builder")})
+        self.counter = len(self.nodes)
+        self.status: Literal["planned", "survey", "waiting", "blocked"] = "planned"
+        self.summary = ""
+        self.queries: list[Condition] = []
+        self.recipe_queries: list[str] = []
+        self.restore_nodes: list[str] = []
         self._save()
+
+    def check_cancelled(self) -> None:
+        self.boundary.check_current()
 
     def _save(self) -> None:
         self.check_cancelled()
-        self.save({"goal_id": self.goal_id, "nodes": list(self.nodes.values()), "status": self.status,
-                   "summary": self.summary, "queries": self.queries, "recipe_queries": self.recipe_queries,
-                   "restore_nodes": self.restore_nodes})
+        snapshot = DraftSnapshot(goal_id=self.goal_id, nodes=tuple(self.nodes.values()), status=self.status,
+            summary=self.summary, queries=tuple(self.queries), recipe_queries=tuple(self.recipe_queries),
+            restore_nodes=tuple(self.restore_nodes))
+        self.store.write(self.artifact_path, snapshot)
 
-    def _node(self, node_id: str) -> dict:
+    def _node(self, node_id: str) -> DraftNode:
         if node_id not in self.nodes:
             raise ValueError(f"Unknown task {node_id!r}. Use task_list to read existing IDs.")
         return self.nodes[node_id]
 
-    def _call(self, operation: Callable[[], dict]) -> dict:
+    def task_list(self) -> DraftSnapshot:
         self.check_cancelled()
-        try:
-            result = operation()
-        except ValidationError as error:
-            return {"ok": False, "errors": error.errors(include_input=False, include_url=False, include_context=False)}
-        except ValueError as error:
-            return {"ok": False, "error": str(error)}
-        self._save()
-        return {"ok": True, **result}
+        return DraftSnapshot(goal_id=self.goal_id, nodes=tuple(self.nodes.values()), status=self.status,
+            summary=self.summary, queries=tuple(self.queries), recipe_queries=tuple(self.recipe_queries),
+            restore_nodes=tuple(self.restore_nodes))
 
-    def add(self, kind: str, instruction: str, parent: str, specialist: str, depends_on: list[str]) -> dict:
-        """Allocate a task ID and attach it to its named parent."""
+    def task_get(self, node_id: str) -> DraftToolResult:
+        self.check_cancelled()
+        return DraftToolResult(task=self._node(node_id).model_copy(deep=True))
+
+    def task_add(self, request: TaskAddRequest) -> DraftToolResult:
+        self.check_cancelled()
+        parent = request.parent or self.goal_id
         owner = self._node(parent)
         self.counter += 1
         node_id = f"task_{self.counter}"
         while node_id in self.nodes:
             self.counter += 1
             node_id = f"task_{self.counter}"
-        self.nodes[node_id] = {"id": node_id, "kind": kind, "parent": parent, "children": [],
-            "depends_on": list(depends_on), "instruction": instruction, "specialist": specialist,
-            "criteria": [], "assumptions": []}
-        if owner["kind"] == "leaf":
-            owner["kind"] = "story"
-        owner["children"].append(node_id)
-        return {"node_id": node_id, "parent": parent}
+        self.nodes[node_id] = DraftNode(id=node_id, kind=request.kind, instruction=request.instruction,
+            parent=parent, specialist=request.specialist, depends_on=list(request.depends_on))
+        if owner.kind == "leaf":
+            owner.kind = "story"
+        owner.children.append(node_id)
+        self._save()
+        return DraftToolResult(node_id=node_id, parent=parent)
 
-    def edit(self, node_id: str, fields: dict) -> dict:
-        """Patch named fields without copying the node's other specifications."""
-        allowed = set(Node.model_fields) - {"id", "revision", "parent", "children"}
-        unknown = set(fields) - allowed
-        if unknown:
-            raise ValueError(f"These fields belong to the backend: {sorted(unknown)}. Editable fields: {sorted(allowed)}.")
-        self._node(node_id).update(pickle_copy(fields))
-        return {"node_id": node_id, "changed_fields": sorted(fields)}
-
-    def condition(self, node_id: str, condition: dict, assumption: bool = False) -> dict:
-        """Set one condition; expand an explicit block box into exact cells."""
+    def task_edit(self, node_id: str, fields: NodeEdit) -> DraftToolResult:
+        self.check_cancelled()
         node = self._node(node_id)
-        field = "assumptions" if assumption else "criteria"
-        value = pickle_copy(condition)
-        value.setdefault("id", f"condition_{len(node[field]) + 1}")
-        value.setdefault("description", f"{value.get('kind', 'condition')} outcome for {node_id}.")
-        box = value.pop("box", None)
-        if box is not None:
-            if value.get("kind") != "block" or value.get("position") or value.get("positions"):
-                raise ValueError("A box supplies exact block positions. Do not combine it with other cell operands.")
-            corners = CellBox.model_validate(box)
-            start, end = corners.min, corners.max
-            value["positions"] = [{"x": x, "y": y, "z": z} for x, y, z in product(*(
-                range(min(getattr(start, axis), getattr(end, axis)), max(getattr(start, axis), getattr(end, axis)) + 1)
-                for axis in ("x", "y", "z")))]
-        checked = Condition.model_validate(value).model_dump(mode="json")
-        node[field] = [row for row in node[field] if row.get("id") != checked["id"]] + [checked]
-        return {"node_id": node_id, "condition_id": checked["id"], "exact_cells": len(checked["positions"])}
+        if any(value is None for value in fields.model_dump(exclude_unset=True).values()):
+            raise ValueError("Editable task fields cannot be null.")
+        if fields.kind is not None:
+            node.kind = fields.kind
+        if fields.depends_on is not None:
+            node.depends_on = list(fields.depends_on)
+        if fields.instruction is not None:
+            node.instruction = fields.instruction
+        if fields.specialist is not None:
+            node.specialist = fields.specialist
+        if fields.deferred is not None:
+            node.deferred = fields.deferred
+        if fields.defer_reason is not None:
+            node.defer_reason = fields.defer_reason
+        if fields.criteria is not None:
+            node.criteria = [condition.model_copy(deep=True) for condition in fields.criteria]
+        if fields.assumptions is not None:
+            node.assumptions = [condition.model_copy(deep=True) for condition in fields.assumptions]
+        self._save()
+        return DraftToolResult(node_id=node_id, changed_fields=tuple(sorted(fields.model_fields_set)))
 
-    def copy_conditions(self, target_id: str, source_id: str, condition_ids: list[str]) -> dict:
-        """Copy selected exact conditions without asking the model to rewrite them."""
-        source, target = self._node(source_id), self._node(target_id)
-        selected = [row for row in source["criteria"] if not condition_ids or row["id"] in condition_ids]
-        for row in selected:
-            copied = pickle_copy(row)
-            copied["id"] = source_id + "_" + row["id"]
-            target["criteria"] = [old for old in target["criteria"] if old["id"] != copied["id"]] + [copied]
-        return {"node_id": target_id, "copied_conditions": [source_id + "_" + row["id"] for row in selected]}
+    def condition_set(self, request: ConditionSetRequest) -> DraftToolResult:
+        self.check_cancelled()
+        node = self._node(request.node_id)
+        current = node.assumptions if request.assumption else node.criteria
+        value = request.condition
+        positions = list(value.positions)
+        if value.box is not None:
+            if value.kind != "block" or value.position is not None or value.positions:
+                raise ValueError("A box supplies exact block positions. Do not combine it with other cell operands.")
+            start, end = value.box.min, value.box.max
+            for x in range(min(start.x, end.x), max(start.x, end.x) + 1):
+                for y in range(min(start.y, end.y), max(start.y, end.y) + 1):
+                    for z in range(min(start.z, end.z), max(start.z, end.z) + 1):
+                        positions.append(Point(x=x, y=y, z=z))
+        checked = Condition(id=value.id or f"condition_{len(current) + 1}",
+            description=value.description or f"{value.kind} outcome for {request.node_id}.", kind=value.kind,
+            node_id=value.node_id, names=list(value.names), minimum=value.minimum, position=value.position,
+            positions=positions, end=value.end, radius=value.radius, dimension=value.dimension)
+        remaining = [condition for condition in current if condition.id != checked.id]
+        remaining.append(checked)
+        if request.assumption:
+            node.assumptions = remaining
+        else:
+            node.criteria = remaining
+        self._save()
+        return DraftToolResult(node_id=node.id, condition_id=checked.id, exact_cells=len(checked.positions))
+
+    def condition_copy(self, request: ConditionCopyRequest) -> DraftToolResult:
+        self.check_cancelled()
+        source, target = self._node(request.source_id), self._node(request.target_id)
+        selected = [condition for condition in source.criteria if not request.condition_ids or condition.id in request.condition_ids]
+        copied_ids: list[str] = []
+        for condition in selected:
+            copied = condition.model_copy(deep=True)
+            copied.id = request.source_id + "_" + condition.id
+            target.criteria = [previous for previous in target.criteria if previous.id != copied.id]
+            target.criteria.append(copied)
+            copied_ids.append(copied.id)
+        self._save()
+        return DraftToolResult(node_id=target.id, copied_conditions=tuple(copied_ids))
+
+    def plan_outcome(self, request: PlanOutcomeRequest) -> DraftToolResult:
+        self.check_cancelled()
+        self.status = request.status
+        self.summary = request.summary
+        self.queries = list(request.queries)
+        self.recipe_queries = list(request.recipe_queries)
+        self.restore_nodes = list(request.restore_nodes)
+        self._save()
+        return DraftToolResult()
+
+    def plan_check(self) -> DraftValidation[PlanProposal]:
+        return self.validate(self.summary or "Draft check.")
 
     def validate(self, response: str) -> DraftValidation[PlanProposal]:
         """Validate a turn against the actual tree and retained proof boundaries."""
@@ -141,10 +190,10 @@ class TaskDraft:
                 proposal = PlanProposal(status=self.status, summary=self.summary or response,
                     queries=self.queries, recipe_queries=self.recipe_queries)
                 return DraftValidation(True, proposal)
-            tree = TaskTree(goal_id=self.goal_id, nodes=list(self.nodes.values()))
+            tree = TaskTree(goal_id=self.goal_id, nodes=[node.specification() for node in self.nodes.values()])
             validate_tree(tree)
             tree = self.store.restore_specifications(tree, self.restore_nodes)
-            if self.store.state["revision"]:
+            if self.base is not None:
                 protect_accepted_specifications(self.store, tree)
             self.store.check_revision(tree, target=self.refinement_target)
             if self.base is not None:
@@ -159,72 +208,26 @@ class TaskDraft:
                     changed = next(node for node in tree.nodes if node.id == self.refinement_target)
                     if prior.criteria != changed.criteria:
                         raise ValueError("Refinement retains the target's original criteria. Split its remaining work beneath the same ID.")
-                if self.store.state.get("require_leaf_change") and not any(node.kind == "leaf" and (
+                if self.require_leaf_change and not any(node.kind == "leaf" and (
                         node.id not in old or node_digest(node) != node_digest(old[node.id])) for node in tree.nodes):
                     raise ValueError("Revise a concrete leaf after the failed method. An explanation alone cannot release another attempt.")
-            values = ({"updates": [node for node in tree.nodes if node.id not in self.restore_nodes],
-                       "restore_nodes": self.restore_nodes} if self.restore_nodes else {"tree": tree})
-            return DraftValidation(True, PlanProposal(status="planned", summary=self.summary or response, **values))
+            if self.restore_nodes:
+                return DraftValidation(True, PlanProposal(status="planned", summary=self.summary or response,
+                    updates=[node for node in tree.nodes if node.id not in self.restore_nodes], restore_nodes=list(self.restore_nodes)))
+            return DraftValidation(True, PlanProposal(status="planned", summary=self.summary or response, tree=tree))
         except ValidationError as error:
             return DraftValidation(False, feedback=str(error.errors(include_input=False, include_url=False, include_context=False)))
         except ValueError as error:
             return DraftValidation(False, feedback=str(error))
 
     def server(self) -> FastMCP:
-        """Expose draft operations; none accepts work or changes the game world."""
         server = FastMCP("Minecraft task draft")
-
-        @server.tool()
-        def task_list() -> dict:
-            """List task IDs, hierarchy, instructions, and condition IDs."""
-            return {"goal_id": self.goal_id, "tasks": [{key: node.get(key) for key in
-                ("id", "kind", "parent", "children", "depends_on", "instruction")} | {
-                "condition_ids": [row.get("id") for row in node["criteria"]]} for node in self.nodes.values()]}
-
-        @server.tool()
-        def task_get(node_id: str) -> dict:
-            """Read one complete current task before editing it."""
-            return self._call(lambda: {"task": pickle_copy(self._node(node_id))})
-
-        @server.tool()
-        def task_add(kind: Literal["story", "leaf"], instruction: str, parent: str = "",
-                     specialist: Literal["gatherer", "navigator", "recovery", "builder", "miner"] = "gatherer",
-                     depends_on: list[str] = []) -> dict:
-            """Add an outcome. The backend assigns its ID and parent child link."""
-            return self._call(lambda: self.add(kind, instruction, parent or self.goal_id, specialist, depends_on))
-
-        @server.tool()
-        def task_edit(node_id: str, fields: dict) -> dict:
-            """Change only named fields, such as instruction, depends_on, or specialist."""
-            return self._call(lambda: self.edit(node_id, fields))
-
-        @server.tool()
-        def condition_set(node_id: str, condition: ConditionInput, assumption: bool = False) -> dict:
-            """Set one criterion or assumption. Omit id and description to use defaults.
-
-            For a rectangular block surface, box={min:{x,y,z},max:{x,y,z}} expands
-            every inclusive cell. Other operands use the normal Condition schema.
-            """
-            return self._call(lambda: self.condition(node_id, condition.model_dump(exclude_defaults=True), assumption))
-
-        @server.tool()
-        def condition_copy(target_id: str, source_id: str, condition_ids: list[str] = []) -> dict:
-            """Copy exact selected criteria into an aggregate task. Empty IDs copies all."""
-            return self._call(lambda: self.copy_conditions(target_id, source_id, condition_ids))
-
-        @server.tool()
-        def plan_outcome(status: Literal["planned", "survey", "waiting", "blocked"], summary: str,
-                         queries: list[dict] = [], recipe_queries: list[str] = [], restore_nodes: list[str] = []) -> dict:
-            """Choose a plan, read-only survey, external question, blocker, or proof restoration."""
-            self.status, self.summary = status, summary
-            self.queries, self.recipe_queries, self.restore_nodes = queries, recipe_queries, restore_nodes
-            self._save()
-            return {"ok": True, "status": status}
-
-        @server.tool()
-        def plan_check() -> dict:
-            """Read deterministic validation errors without ending this conversation."""
-            decision = self.validate(self.summary or "Draft check.")
-            return {"accepted": decision.accepted, "feedback": decision.feedback}
-
+        server.tool(name="task_list")(self.task_list)
+        server.tool(name="task_get")(self.task_get)
+        server.tool(name="task_add")(self.task_add)
+        server.tool(name="task_edit")(self.task_edit)
+        server.tool(name="condition_set")(self.condition_set)
+        server.tool(name="condition_copy")(self.condition_copy)
+        server.tool(name="plan_outcome")(self.plan_outcome)
+        server.tool(name="plan_check")(self.plan_check)
         return server

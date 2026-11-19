@@ -14,29 +14,27 @@ correction feedback; a model-quality failure is retained, never accepted.
 from __future__ import annotations
 
 from asyncio import CancelledError
-from collections.abc import Callable
-import json
 from pathlib import Path
 import threading
 from uuid import uuid4
 from datetime import datetime
-from typing import TypeVar
+from typing import TypeVar, cast
+from dataclasses import dataclass, replace
+from enum import StrEnum
 from pydantic import BaseModel, Field, JsonValue, ValidationError
 
 from pm.llm.activation import ModelActivation
 from pm.llm.http_client import ModelError
 from pm.llm.config import LlmPreset, load_config, resolve_connection
 from pm.llm.stage_model import LazyStageModel
-from pm.llm.context_window import estimate_tokens
+from pm.llm.session import ModelSession
+from pm.context_render.prompt import RendererCaptureOptions, RendererCapture, RendererCaptureSettings, RendererInput
+from simulation import rendering
 from pm.host.durable_files import atomic_json
 from simulation.plans import ScenarioPlan, ExtractedFacts, ActorTurn, ActorDraftReview, Fact, Step, StageJudgment
 from simulation.actors import ActorIdentity, ActorProfile, ConversationTurn, DeliveryEvidence, HistoricalTurn
-from simulation.history import HistoryIndex, HistoryQuery, bound_conversation, conversation_tokens
+from simulation.history import HistoryIndex, HistoryQuery
 from pm.llm.prompt_log import log_scope
-from pm.context_render import render_context
-from pm.context_render.budget import context_recency, fit_turns, optional_content
-from pm.context_render.turns import Content, ContextTag, Role, Turn
-from pm.llm.prompt_fitting import prompt_budget
 
 #: First delay before a failed scenario-agent completion is asked again, in seconds.
 AGENT_RETRY_DELAY_SECONDS = 30.0
@@ -66,12 +64,15 @@ ACTOR_INSTRUCTION = (
 )
 
 
-def _turns(instruction: str, payload: BaseModel, schema: type[BaseModel]) -> list[Turn]:
-    """Build the exact system and user turns that the provider receives."""
-    required = " Required JSON schema: " + json.dumps(schema.model_json_schema())
-    return [Turn(Role.System, instruction +
-                 " Return a JSON data instance matching the schema. Do not return the schema itself." + required),
-            Turn(Role.User, payload_content(payload))]
+class SimulationOperation(StrEnum):
+    Actor = "participant_actor"
+    ActorReview = "actor_draft_check"
+    Facts = "scenario_facts"
+    Plan = "scenario_plan"
+    PlanReview = "scenario_plan_check"
+    DayPlan = "plan_day"
+    Stage = "stage_director"
+    Rating = "conversation_rating"
 
 
 class ActorContext(BaseModel):
@@ -85,7 +86,7 @@ class ActorContext(BaseModel):
     conversation: list[ConversationTurn]
     history: list[HistoricalTurn] = Field(default_factory=list[HistoricalTurn])
     history_omitted: int = 0
-    history_salience: dict[int, float] = Field(default_factory=dict[int, float], description="Optional embedding scores for selected historical turns.")
+    history_priority: dict[int, float] = Field(default_factory=dict[int, float])
     guidance: str = ""
 
 
@@ -144,30 +145,10 @@ class PlanDraftReview(BaseModel):
     reason: str
 
 
-def payload_content(payload: BaseModel) -> Content:
-    """Keep task constraints required; select whole historical conversation turns."""
-    if isinstance(payload, (DraftRequest, ReviewRequest)):
-        content = Content(payload.model_dump_json(exclude={"context": {"conversation", "history", "history_salience"}}))
-        content += "\ncontext.history (original public utterances):\n"
-        for position, row in enumerate(payload.context.history):
-            content += "\n" + optional_content(render_context(row),
-                ContextTag(f"history:{row.record_id}", payload.context.history_salience.get(row.record_id, 0),
-                           record_id=row.record_id, recency=context_recency(row.at)))
-        content += "\ncontext.conversation (current run, chronological):\n"
-        for position, row in enumerate(payload.context.conversation):
-            content += "\n" + optional_content(render_context(row),
-                ContextTag(f"conversation:{position}", 2,
-                           required=position >= len(payload.context.conversation) - 4, recency=context_recency(row.at)))
-        return content
-    if isinstance(payload, StageContext):
-        content = Content(payload.model_dump_json(exclude={"conversation"}))
-        content += "\nconversation (actual public deliveries, chronological):\n"
-        for position, row in enumerate(payload.conversation):
-            content += "\n" + optional_content(render_context(row),
-                ContextTag(f"delivery:{position}", 0,
-                           required=row.timestamp >= payload.stage.at, recency=context_recency(row.timestamp)))
-        return content
-    return render_context(payload)
+@dataclass(frozen=True, slots=True)
+class SimulationAgentSettings:
+    preset: LlmPreset = LlmPreset.Default
+    renderer_capture: RendererCaptureOptions | None = None
 
 
 class Agents:
@@ -178,16 +159,93 @@ class Agents:
     """
 
     def __init__(self, config: str, evidence: Path, cancel: threading.Event | None = None,
-                 *, preset: LlmPreset = LlmPreset.Default) -> None:
-        self.model: LazyStageModel = LazyStageModel(resolve_connection(load_config(config), preset=preset), ModelActivation())
+                 *, settings: SimulationAgentSettings = SimulationAgentSettings()) -> None:
+        configuration = load_config(config)
+        self.capture_options = settings.renderer_capture if settings.renderer_capture is not None else configuration.renderer_capture
+        self.model: LazyStageModel = LazyStageModel(resolve_connection(configuration, preset=settings.preset),
+            ModelActivation(), capture_options=self.capture_options)
         self.evidence: Path = evidence
         self.cancel: threading.Event | None = cancel
         self.config_path: str = config
         self._history: dict[str, HistoryIndex] = {}
-        self._budget: int | None = None
+        self.session = ModelSession(self.model, cancel)
 
-    def call(self, role: str, instruction: str, payload: BaseModel, *, schema: type[T],
-             prepare: Callable[[T], T] | None = None) -> T:
+    def prompt_input(self, operation: SimulationOperation, instruction: str, payload: BaseModel,
+                     schema: str) -> rendering.SimulationPromptInput:
+        from simulation.analysis import RatingInput
+        from simulation.templates import DayRequest
+        match operation:
+            case SimulationOperation.Actor:
+                assert isinstance(payload, DraftRequest)
+                return rendering.actor_draft_input(payload, instruction, schema)
+            case SimulationOperation.ActorReview:
+                assert isinstance(payload, ReviewRequest)
+                return rendering.actor_review_input(payload, instruction, schema)
+            case SimulationOperation.Facts:
+                assert isinstance(payload, PlanRequest)
+                return rendering.facts_input(payload, instruction, schema)
+            case SimulationOperation.Plan:
+                assert isinstance(payload, PlanningRequest)
+                return rendering.planning_input(payload, instruction, schema)
+            case SimulationOperation.PlanReview:
+                assert isinstance(payload, ScenarioPlan)
+                return rendering.plan_review_input(payload, instruction, schema)
+            case SimulationOperation.DayPlan:
+                assert isinstance(payload, DayRequest)
+                return rendering.day_input(payload, instruction, schema)
+            case SimulationOperation.Stage:
+                assert isinstance(payload, StageContext)
+                return rendering.stage_input(payload, instruction, schema)
+            case SimulationOperation.Rating:
+                assert isinstance(payload, RatingInput)
+                return rendering.rating_input(payload, instruction, schema)
+
+    def validate_result(self, operation: SimulationOperation, result: BaseModel, payload: BaseModel) -> BaseModel:
+        from pm.llm.structured import JsonOutputError
+        from simulation.analysis import RatingInput, SectionRating
+        from simulation.templates import DayRequest
+        match operation:
+            case SimulationOperation.Plan:
+                assert isinstance(result, ScenarioPlan) and isinstance(payload, PlanningRequest)
+                return ScenarioPlan(title=result.title, brief=payload.brief, start_time=payload.start_time,
+                                    facts=payload.extracted.facts, steps=result.steps)
+            case SimulationOperation.DayPlan:
+                assert isinstance(result, ScenarioPlan) and isinstance(payload, DayRequest)
+                if len(result.steps) != len(payload.scene_times) or [step.at for step in result.steps] != payload.scene_times:
+                    raise JsonOutputError("Use exactly the supplied scene_times, one scene per time, in order.")
+                if any(step.speaker != payload.speaker or step.target != payload.target for step in result.steps):
+                    raise JsonOutputError("Use the supplied target and speaker for every scene.")
+            case SimulationOperation.Rating:
+                assert isinstance(result, SectionRating) and isinstance(payload, RatingInput)
+                evidence = {row.index: row.delivery.content for row in payload.section}
+                for citation in result.citations:
+                    if citation.index not in evidence or citation.quote not in evidence[citation.index]:
+                        raise JsonOutputError("A rating citation must quote an exact delivery in this section.")
+            case SimulationOperation.Stage:
+                assert isinstance(result, StageJudgment) and isinstance(payload, StageContext)
+                facts = {fact.id: fact for fact in payload.scenario.facts}
+                delivered = set(payload.delivered_fact_ids)
+                supported = set(result.supported_fact_ids)
+                unknown = supported - set(facts)
+                if unknown:
+                    raise JsonOutputError(f"Unknown supported facts: {sorted(unknown)}.")
+                outside = supported - set(payload.stage.fact_ids) - delivered
+                if outside:
+                    raise JsonOutputError(f"Facts outside this stage: {sorted(outside)}.")
+                messages = {turn.delivery_id: turn for turn in payload.conversation if turn.kind == "actor"}
+                for fact_id in sorted(supported - delivered):
+                    for delivery_id in result.fact_evidence[fact_id]:
+                        message = messages.get(delivery_id)
+                        if message is None or message.target != payload.stage.target:
+                            raise JsonOutputError(f"{delivery_id!r} is not an actor delivery to {payload.stage.target}.")
+                        at = facts[fact_id].at
+                        if at is not None and message.timestamp != at:
+                            raise JsonOutputError(f"{delivery_id!r} was not delivered at {at.isoformat()}.")
+            case SimulationOperation.Actor | SimulationOperation.ActorReview | SimulationOperation.Facts | SimulationOperation.PlanReview:
+                pass
+        return result
+
+    def call(self, role: SimulationOperation, instruction: str, payload: BaseModel, *, schema: type[T]) -> T:
         """Run one focused JSON task. Invalid output retains its failed receipt.
 
         ``schema`` is the accepted contract; an unparsable or invalid answer is
@@ -203,11 +261,21 @@ class Agents:
         Cancellation pauses the run through the model's own cancel path.
         """
         from pm.llm.structured import extract_json, JsonOutputError
-        original = _turns(instruction, payload, schema)
-        turns = original
+        settings = self.session.render_settings()
+        prompt_input = self.prompt_input(role, instruction, payload, rendering.output_schema(schema))
+        correction = ""
+        rejected_answer = ""
+        rejected_diagnostics: list[str] = []
         failure_delay = AGENT_RETRY_DELAY_SECONDS
         while True:
             call_id = uuid4().hex
+            captured_input = replace(prompt_input, correction=correction, rejected_answer=rejected_answer)
+            capture_settings = RendererCaptureSettings(self.evidence / "renderer-captures" / call_id,
+                                                       self.capture_options.capture_input, self.capture_options.capture_output)
+            with RendererCapture(capture_settings, RendererInput(str(role), captured_input, settings)) as capture:
+                rendered = rendering.render_simulation_prompt(captured_input, settings)
+                capture.save_output(rendered)
+            turns = rendered.turns
             request: dict[str, JsonValue] = {"role": role, "messages": [
                 {"role": turn.role.value, "content": turn.content.text} for turn in turns]}
             path = self.evidence / "agents" / f"{call_id}.json"
@@ -216,22 +284,13 @@ class Agents:
             try:
                 from pm.llm.prompt_log import invocation_scope
                 with log_scope(self.evidence / "model-logs"), invocation_scope(role, call_id):
-                    capacity = self.model.measure_context([], cancel=self.cancel)
-                    selection = fit_turns(turns, prompt_budget(capacity, internal=False))
-                    request["messages"] = [{"role": turn.role.value, "content": turn.content.text}
-                                           for turn in selection.turns]
-                    atomic_json(path, {"id": call_id, "status": "running", "request": request,
-                                       "selection": selection.receipt().model_dump(mode="json")})
-                    output = self.model.complete(selection.turns, cancel=self.cancel)
+                    output = self.session.complete(turns)
                 result = schema.model_validate(extract_json(output))
-                if prepare is not None:
-                    try:
-                        result = prepare(result)
-                    except ValueError as error:
-                        # ``prepare`` checks the answer against facts the schema
-                        # cannot hold (known fact IDs, recorded deliveries). A
-                        # broken rule is a model mistake and is asked again.
-                        raise JsonOutputError(str(error)) from error
+                if isinstance(result, ActorTurn) and result.content.strip() in rejected_diagnostics:
+                    raise JsonOutputError(
+                        "The chat message copies a validation diagnostic. Write the simulated user's "
+                        "actual next message from the original scene and conversation instead.")
+                result = cast(T, self.validate_result(role, result, payload))
             except CancelledError:
                 atomic_json(path, {"id": call_id, "status": "cancelled", "request": request, "output": output})
                 raise
@@ -253,8 +312,9 @@ class Agents:
             except (JsonOutputError, ValidationError) as error:
                 atomic_json(path, {"id": call_id, "status": "rejected", "request": request,
                                    "output": output, "error": str(error)})
-                turns = [*original, Turn(Role.Assistant, output),
-                         Turn(Role.User, "Correct only this response to satisfy the schema: " + str(error))]
+                correction = str(error)
+                rejected_diagnostics.append(correction.strip())
+                rejected_answer = output
                 continue
             except BaseException as error:
                 atomic_json(path, {"id": call_id, "status": "failed", "request": request,
@@ -266,9 +326,10 @@ class Agents:
 
     def review(self, context: ActorContext, draft: ActorTurn, future_facts: list[Fact]) -> ActorDraftReview:
         """Require historical voice, correct identity, natural chat, and consistency."""
-        return self.call("actor_draft_check",
+        return self.call(SimulationOperation.ActorReview,
             "Review the user's next message to their AI companion. Immersion is the highest priority. "
             "Compare with the exact public history: cadence, informality, emotional stance and relationship. "
+            "Reject parser diagnostics or model/transport error messages presented as the user's own dialogue. "
             "Reject logbook reports, checklist recitation, evaluator language, robotic commitments, or addressing PM "
             "as a name when the companion has another name. They are user and AI companion; do not invent physical "
             "co-presence. Names are context.identity.speaker_name and context.identity.companion_name. Natural unnamed address is fine. "
@@ -281,13 +342,6 @@ class Agents:
             "Return four independent checks and accepted=true only when all pass, with a specific reason.",
             ReviewRequest(context=context, draft=draft, future_facts=future_facts), schema=ActorDraftReview)
 
-    def _input_budget(self) -> int:
-        """Resolve the configured input ceiling once from the serving context."""
-        if self._budget is None:
-            measurement = self.model.measure_context([{"role": "user", "content": "x"}], cancel=self.cancel)
-            self._budget = measurement["input_budget_tokens"]
-        return self._budget
-
     def _history_index(self, profile: ActorProfile, home: Path) -> HistoryIndex:
         """Build one in-memory index per source checkpoint and reuse it."""
         index = self._history.get(profile.source_checkpoint_sha256)
@@ -296,35 +350,22 @@ class Agents:
             self._history[profile.source_checkpoint_sha256] = index
         return index
 
-    def _fit_context(self, context: ActorContext, profile: ActorProfile, home: Path) -> ActorContext:
-        """Fill the configured input budget with recent dialogue and retrieved history."""
-        budget = self._input_budget()
-        empty = context.model_copy(update={"conversation": [], "history": [], "history_omitted": 0})
-        base = estimate_tokens(self.model.connection.model,
-                               _turns(ACTOR_INSTRUCTION, DraftRequest(context=empty), ActorTurn))[0]
-        reserve = max(1024, budget // 20)
-        available = budget - base - reserve
-        if available <= 0:
-            raise ValueError("The scenario actor prompt leaves no room for conversation or history.")
-        conversation_budget = available // 2
-        conversation = bound_conversation(context.conversation, conversation_budget)
-        # The conversation may use less than its half; history takes the rest.
-        history_budget = available - conversation_tokens(conversation)
-        selection = self._history_index(profile, home).select(
-            HistoryQuery(scene=context.scene, intent=context.intent, recent=tuple(conversation)),
-            history_budget, cancel=self.cancel)
-        return context.model_copy(update={"conversation": conversation,
-                                          "history": list(selection.turns),
-                                          "history_omitted": selection.omitted_turns,
-                                          "history_salience": selection.salience})
+    def _prepare_context(self, context: ActorContext, profile: ActorProfile, home: Path) -> ActorContext:
+        selection = self._history_index(profile, home).rank(
+            HistoryQuery(scene=context.scene, intent=context.intent, recent=tuple(context.conversation[-4:])),
+            cancel=self.cancel)
+        selected = context.model_copy()
+        selected.history = list(selection.turns)
+        selected.history_priority = selection.priority
+        return selected
 
     def actor(self, context: ActorContext, future_facts: list[Fact], *,
               profile: ActorProfile, home: Path) -> ActorTurn:
         """Sample grounded user speech until the immersion check accepts it."""
-        context = self._fit_context(context, profile, home)
+        context = self._prepare_context(context, profile, home)
         rejected: list[RejectedDraft] = []
         while True:
-            draft = self.call("participant_actor", ACTOR_INSTRUCTION,
+            draft = self.call(SimulationOperation.Actor, ACTOR_INSTRUCTION,
                 DraftRequest(context=context, rejected_drafts=rejected[-3:]), schema=ActorTurn)
             review = self.review(context, draft, future_facts)
             if review.accepted:
@@ -337,7 +378,7 @@ class Agents:
         while True:
             payload = PlanRequest(brief=brief, start_time=start_time, speaker_name=profile.speaker_name,
                                   companion_name=profile.companion_name, correction=correction)
-            facts = self.call("scenario_facts",
+            facts = self.call(SimulationOperation.Facts,
                 "Extract mandatory events and commitments. kind is event or commitment. Keep semantic meaning, "
                 "not required wording. Use string IDs and ISO timestamps with explicit UTC offsets. Interpret "
                 "hours in start_time's zone. Set at=null only when no time is stated. "
@@ -347,11 +388,7 @@ class Agents:
                 "No mandatory clock announcements, confrontational oaths, or invented requirements. "
                 "Apply correction feedback when present.", payload, schema=ExtractedFacts)
 
-            def pin_facts(value: ScenarioPlan) -> ScenarioPlan:
-                return ScenarioPlan(title=value.title, brief=brief, start_time=start_time,
-                                    facts=facts.facts, steps=value.steps)
-
-            plan = self.call("scenario_plan",
+            plan = self.call(SimulationOperation.Plan,
                 "Build chronological scenes from the extracted facts. Retain every fact ID, kind and timestamp. "
                 "target is primary; speaker is speaker_name. companion_name is an AI companion. "
                 "instruction describes ONLY current circumstances; actor_intent is a private human goal. "
@@ -363,8 +400,8 @@ class Agents:
                 "Retain timed events exactly; no model-call or execution-time limits. Apply correction feedback.",
                 PlanningRequest(brief=payload.brief, start_time=payload.start_time,
                     speaker_name=payload.speaker_name, companion_name=payload.companion_name,
-                    correction=payload.correction, extracted=facts), schema=ScenarioPlan, prepare=pin_facts)
-            review = self.call("scenario_plan_check",
+                    correction=payload.correction, extracted=facts), schema=ScenarioPlan)
+            review = self.call(SimulationOperation.PlanReview,
                 "Check a text-based companion simulation plan for immersive execution. Public user messages "
                 "are how the harness represents every event and commitment; requiring semantic public evidence "
                 "is correct. A natural report or choice counts. Do not reject 'tell', 'make clear', or 'report' "
@@ -385,14 +422,13 @@ class Agents:
                 return plan
             correction = review.reason
 
-    def judge(self, context: StageContext, *,
-              check: Callable[[StageJudgment], StageJudgment] | None = None) -> StageJudgment:
+    def judge(self, context: StageContext) -> StageJudgment:
         """Judge semantic facts against recorded public deliveries and their times.
 
         ``check`` validates the cited facts and deliveries against the run; a
         rule it breaks is re-asked inside the call.
         """
-        return self.call("stage_director", "Review this stage against the actual delivered messages and PM replies. "
+        return self.call(SimulationOperation.Stage, "Review this stage against the actual delivered messages and PM replies. "
             "Return {step_complete:boolean,supported_fact_ids:[string],fact_evidence:{fact_id:[delivery_id]},reason:string,failure:string|null}. "
             "Facts need semantic evidence in delivered conversation. Time is delivery metadata, not required spoken wording. "
             "Commitments are natural choices or stance, not formal oaths. The companion is named companion_name, not PM. "
@@ -404,4 +440,4 @@ class Agents:
             "Failure means the actor contradicts the required facts or an engineering failure prevents execution. "
             "A timed future event must not be introduced before its stage time. "
             "Do not rate companion quality; human review remains separate.",
-            context, schema=StageJudgment, prepare=check)
+            context, schema=StageJudgment)

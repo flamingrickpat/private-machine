@@ -11,6 +11,10 @@ import time
 from typing import Any
 
 from pm_workflows.runtime import WorkflowRuntime
+from pm.runs.role_runtime import PMWorkflowRuntime
+from workflows.minecraft.runtime import MinecraftWorkflowRuntime, require_minecraft_runtime
+from pm.runs.managed_boundary import BoundaryReadSettings
+from dataclasses import dataclass
 from pm_workflows.working_target import WorkingEnvironment
 
 from fastmcp import FastMCP
@@ -105,7 +109,7 @@ class BodyGateway:
     """
 
     def __init__(self, endpoint: str, owner: str, environment: WorkingEnvironment,
-                 runtime: WorkflowRuntime, raw_tools: dict[str, Any],
+                 runtime: MinecraftWorkflowRuntime,
                  *, visual: bool = False) -> None:
         """Bind one leased gateway for one run's environment and tools.
 
@@ -114,21 +118,9 @@ class BodyGateway:
         """
         self.endpoint, self.owner = endpoint, owner
         self.environment, self.runtime = environment, runtime
-        self.raw_tools = dict(raw_tools)
-        transport = raw_tools["minecraft_call"]
-        for name, attribute in (("minecraft_claim", "claim"), ("minecraft_release", "release"),
-                                ("minecraft_fenced_call", "fenced_call")):
-            capability = getattr(transport, attribute, None)
-            if capability is not None:
-                self.raw_tools.setdefault(name, capability)
-        authorization = getattr(raw_tools.get("managed_instructions"), "authorize", None)
-        if authorization is not None:
-            self.raw_tools.setdefault("managed_authorize", authorization)
-        cancellation = getattr(raw_tools.get("managed_instructions"), "cancelled", None)
-        if cancellation is not None:
-            self.raw_tools.setdefault("managed_cancelled", cancellation)
+        self.transport = runtime.minecraft_transport
         self.visual = visual
-        self.tool_schemas = raw_tools["minecraft_tool_schemas"]()
+        self.tool_schemas = self.transport.tool_schema_wire()
         self._argument_schemas = {row["name"]: row["parameters"] for row in self.tool_schemas}
         self._tool_names = frozenset(row["name"] for row in self.tool_schemas) - {"minecraft_execute_typescript", "minecraft_suicide"}
         self._lock = threading.Lock()
@@ -144,12 +136,12 @@ class BodyGateway:
             self.gameplay.consume(row, self.journal_source)
         self.receipts = [row for row in self.previous if row.get("event") == "result"]
         self.sequence = max((row.get("seq", 0) for row in self.previous), default=0)
-        self.revision = runtime.tools["managed_instructions"]()["revision"]
+        self.revision = runtime.instructions()["revision"]
 
     def boundary(self) -> dict:
         """Return the current instruction and revision without a world call."""
         self.runtime.check_cancelled()
-        current = self.runtime.tools["managed_instructions"]()
+        current = self.runtime.instructions()
         self.revision = current["revision"]
         return {**current, "body_owner": BODY_LEASES.owner(self.endpoint)}
 
@@ -174,13 +166,12 @@ class BodyGateway:
             BODY_LEASES.validate(self.endpoint, self.token)
         elif BODY_LEASES.owner(self.endpoint) == self.owner:
             self.token = BODY_LEASES.token(self.endpoint, self.owner)
-            if "minecraft_claim" in self.raw_tools:
-                claim = self.raw_tools["minecraft_claim"](self.token)
-                if not claim["ok"]:
-                    raise StaleEpoch("The Minecraft server refused this execution epoch.")
+            claim = self.transport.claim_wire(self.token)
+            if not claim["ok"]:
+                raise StaleEpoch("The Minecraft server refused this execution epoch.")
             self._append({"event": "epoch_acquired", "epoch": self.token["epoch"],
                           "session": self.token["session"], "owner": self.owner, "time": time.time()})
-        current = self.runtime.tools["managed_instructions"](close=close)
+        current = self.runtime.instructions(BoundaryReadSettings(close=close))
         if current["revision"] != self.revision:
             self.revision = current["revision"]
             self._append({"event": "instruction_changed", "tool": name, "arguments": arguments,
@@ -212,38 +203,29 @@ class BodyGateway:
                  "arguments": arguments, "revision": self.revision, "time": time.time(),
                  "epoch": self.token["epoch"] if self.token else None,
                  "session": self.token["session"] if self.token else None}
-        authorize = self.raw_tools.get("managed_authorize")
-        if authorize is not None and not authorize(self.revision, lambda: self._append(start)):
-            current = self.runtime.tools["managed_instructions"]()
-            self.revision = current["revision"]
-            return {"ok": False, "reason": "instruction_changed", **current,
-                    "message": "No action was sent. Choose again from the new instruction."}
-        if authorize is None:
+        managed = self.runtime.managed_boundary if isinstance(self.runtime, PMWorkflowRuntime) else None
+        if managed is not None:
+            with managed.authorize(self.revision) as authorized:
+                if authorized:
+                    self._append(start)
+            if not authorized:
+                current = managed.read()
+                self.revision = current["revision"]
+                return {"ok": False, "reason": "instruction_changed", **current,
+                        "message": "No action was sent. Choose again from the new instruction."}
+        else:
             self._append(start)
         finished = threading.Event()
         watcher = None
-        if name not in READ_TOOLS and self.token is not None and "minecraft_fenced_call" in self.raw_tools:
-            def cancel_command() -> None:
-                """Stop only this epoch's active command after accepted cancellation."""
-                while not finished.wait(0.05):
-                    poll = self.raw_tools.get("managed_cancelled")
-                    if self.runtime.stop_event.is_set() or (poll is not None and poll()):
-                        self._append({"event": "stop_dispatch", "epoch": self.token["epoch"], "time": time.time()})
-                        try:
-                            stopped = self.raw_tools["minecraft_fenced_call"]("minecraft_stop", {"scope": "both"}, self.token)
-                            self._append({"event": "stop_result", "epoch": self.token["epoch"],
-                                          "result": stopped, "time": time.time()})
-                        except Exception as error:
-                            self._append({"event": "stop_uncertain", "epoch": self.token["epoch"],
-                                          "error": f"{type(error).__name__}: {error}", "time": time.time()})
-                        return
-            watcher = threading.Thread(target=cancel_command, name="body-cancel", daemon=True)
+        if name not in READ_TOOLS and self.token is not None:
+            cancellation = CommandCancellation(self, finished)
+            watcher = threading.Thread(target=cancellation.watch, name="body-cancel", daemon=True)
             watcher.start()
         try:
-            if self.token is not None and "minecraft_fenced_call" in self.raw_tools:
-                result = self.raw_tools["minecraft_fenced_call"](name, arguments, self.token)
+            if self.token is not None:
+                result = self.transport.fenced_call_wire(name, arguments, self.token)
             else:
-                result = self.raw_tools["minecraft_call"](name, arguments)
+                result = self.transport.call(name, arguments)
         except Exception as error:
             self._append({**start, "event": "uncertain", "error": f"{type(error).__name__}: {error}"})
             self.runtime.stop_event.set()
@@ -372,9 +354,9 @@ class BodyGateway:
     def wait_idle(self) -> None:
         """Wait for an external call before releasing its body lease."""
         with self._lock:
-            if self.token is not None and "minecraft_release" in self.raw_tools:
+            if self.token is not None:
                 try:
-                    self.raw_tools["minecraft_release"](self.token)
+                    self.transport.release_wire(self.token)
                 except Exception as error:
                     self._append({"event": "release_uncertain", "epoch": self.token["epoch"],
                                   "error": f"{type(error).__name__}: {error}", "time": time.time()})
@@ -390,6 +372,29 @@ class BodyGateway:
         server.add_tool(Tool.from_function(self.diagnose, name="actor_diagnose"))
         return server
 
+
+
+@dataclass(frozen=True, slots=True)
+class CommandCancellation:
+    gateway: BodyGateway
+    finished: threading.Event
+
+    def watch(self) -> None:
+        gateway = self.gateway
+        token = gateway.token
+        if token is None:
+            raise RuntimeError("Command cancellation requires the dispatched body epoch.")
+        while not self.finished.wait(0.05):
+            boundary = gateway.runtime.managed_boundary
+            if gateway.runtime.stop_event.is_set() or (boundary is not None and boundary.cancelled()):
+                gateway._append({"event": "stop_dispatch", "epoch": token["epoch"], "time": time.time()})
+                try:
+                    stopped = gateway.transport.fenced_call_wire("minecraft_stop", {"scope": "both"}, token)
+                    gateway._append({"event": "stop_result", "epoch": token["epoch"], "result": stopped, "time": time.time()})
+                except Exception as error:
+                    gateway._append({"event": "stop_uncertain", "epoch": token["epoch"],
+                        "error": f"{type(error).__name__}: {error}", "time": time.time()})
+                return
 
 def target_block_cell(point: dict) -> dict[str, int]:
     """Map a world position to its containing integer block cell.

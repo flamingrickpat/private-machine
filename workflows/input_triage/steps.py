@@ -6,7 +6,6 @@ The prompt is fitted to the fast triage budget of
 extraction turn is required and always follows the triage instruction.
 """
 from __future__ import annotations
-from workflows.main_cognition.context_reduction import evidence_text
 
 from pm_workflows.python_role import RoleContext
 from pathlib import Path
@@ -17,10 +16,10 @@ from pm.context_render.turns import Role, Turn
 from pm.llm.structured import ModelFormatError
 from workflows.input_triage.schemas import EarlyTriageAssessment, InputTriageAnswer, InputTriageRequest
 from workflows.input_triage.entity_updates import hydrate_entity_extraction, render_extraction_context
-from workflows.main_cognition.model_json import write_report
+from pm.runs.role_io import write_report
 from workflows.main_cognition.phases import intake, triage
 from workflows.main_cognition.phases.model import complete
-from workflows.main_cognition.schemas import TriageResult
+from workflows.main_cognition.schemas import TriageResult, TriageCheck
 
 
 class ExtractionPrompts(BaseModel):
@@ -42,12 +41,12 @@ def run(context: RoleContext) -> dict[str, str]:
     else:
         prompts = ExtractionPrompts.model_validate(yaml_util.safe_load(
             Path(__file__).with_name("prompts.yaml").read_text(encoding="utf-8")))
-        extraction = Turn(Role.User, evidence_text(render_extraction_context(request.entity_extraction_input), "triage-entity-context")
-                          + "\n\n" + prompts.extraction)
+        extraction = Turn(Role.User, render_extraction_context(request.entity_extraction_input) + "\n\n" + prompts.extraction)
         prompt = triage.fit_messages(context, work, appended=[extraction])
         work.receipt("triage-context", prompt.summary())
-        answer = complete(context, work, prompt.turns, InputTriageAnswer,
-            validation_context={"stimulus_ids": [item.knoxel_id for item in request.cycle.stimuli]})
+        answer = complete(context, prompt.turns, InputTriageAnswer,
+            validation_context=TriageCheck(stimulus_ids=tuple(item.knoxel_id for item in request.cycle.stimuli),
+                shown_evidence_ids=frozenset(prompt.selection.source_ids) | {item.knoxel_id for item in request.cycle.stimuli}))
         work.triage = TriageResult(items=answer.items, codelet_budget=answer.codelet_budget)
         try:
             entity_proposals = hydrate_entity_extraction(request.entity_extraction_input, answer.entity_extraction,

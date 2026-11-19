@@ -14,25 +14,32 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import nullcontext
-from dataclasses import replace
+from dataclasses import replace, dataclass
 import hashlib
 import json
 from pathlib import Path
-import traceback
-from typing import Any
+from typing import TypedDict, cast
+from collections.abc import Sequence
+from pydantic_ai.messages import BinaryContent, ToolReturnContent
+from pm_workflows.python_role import RoleContext
+from pm.host.folder_target import FolderEnvironment
+from pm.runs.role_runtime import PMWorkflowRuntime
+from pm.runs.role_io import read_request
+from pm.runs.managed_boundary import BoundaryReadSettings
+from pm.context_render.prompt import RenderSettings, RenderedPrompt, RendererCapture, RendererInput
+from pm.context_render.turns import Text, Media, MediaKind
+from pm.llm.mcp_config import McpServerConfig
+from workflows.tool_call.rendering import ToolSessionRenderInput, render_tool_session
 
 import httpx
 from pm_workflows.drivers import PmCoderDriver
 from pm_workflows.inputs import InputError
 from pm_workflows.runtime import WorkflowTerminated
 
-from pm.llm.http_client import ModelError
 from pm.llm.structured import repair_agent_result
-from pm.llm.multimodal import agent_images
+from pm.llm.multimodal import ImageAttachment
 from pm.llm.mcp_config import ToolCallConfig
 from pm.records.media import IMAGE_TYPES
-from pm.runs.errors import TaskServiceError
-from pm.utils import yaml_util
 
 from workflows.tool_call.report import dump_report
 from workflows.tool_call.schemas import (
@@ -48,7 +55,43 @@ SKILL = Path(__file__).with_name("resources") / "execute.md"
 MCP_PROBE_TIMEOUT_SECONDS = 3.0
 
 
-def probe_mcp_servers(servers: list[Any], timeout_seconds: float = MCP_PROBE_TIMEOUT_SECONDS) -> tuple[list[str], list[str]]:
+@dataclass(frozen=True, slots=True)
+class McpProbeSettings:
+    timeout_seconds: float = MCP_PROBE_TIMEOUT_SECONDS
+
+
+@dataclass(frozen=True, slots=True)
+class McpProbeResult:
+    live: tuple[str, ...]
+    dead: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ToolName:
+    server: str
+    tool: str
+
+
+@dataclass(frozen=True, slots=True)
+class ToolBinaryImage:
+    server: str
+    tool: str
+    data: bytes
+    media_type: str
+
+
+@dataclass(frozen=True, slots=True)
+class ToolSessionActivity:
+    calls: tuple[ToolCallSeen, ...]
+    images: tuple[ToolBinaryImage, ...]
+
+
+class ToolRoleResult(TypedDict):
+    status: str
+    summary: str
+
+
+def probe_mcp_servers(servers: list[McpServerConfig], settings: McpProbeSettings = McpProbeSettings()) -> McpProbeResult:
     """Return the names of the MCP servers that answer, and the names of those that do not.
 
     The probe sends one HTTP request to each server URL and reads only the
@@ -64,15 +107,15 @@ def probe_mcp_servers(servers: list[Any], timeout_seconds: float = MCP_PROBE_TIM
     dead: list[str] = []
     for server in servers:
         try:
-            httpx.get(server.url, timeout=timeout_seconds)
+            httpx.get(server.url, timeout=settings.timeout_seconds)
         except httpx.TransportError:
             dead.append(server.name)
         else:
             live.append(server.name)
-    return live, dead
+    return McpProbeResult(tuple(live), tuple(dead))
 
 
-def inspect_artifacts(environment: Any, claims: list[ArtifactClaim]) -> list[ArtifactEvidence]:
+def inspect_artifacts(environment: FolderEnvironment, claims: list[ArtifactClaim]) -> list[ArtifactEvidence]:
     """Read local file metadata after the agent stops. Never fetch external URIs.
 
     Local files must stay inside the run's outbox after symlink resolution.
@@ -80,7 +123,7 @@ def inspect_artifacts(environment: Any, claims: list[ArtifactClaim]) -> list[Art
     host report path is ignored, because the host owns that file. This read does not
     inspect pixels or prove that the goal succeeded.
     """
-    evidence = []
+    evidence: list[ArtifactEvidence] = []
     for claim in claims:
         item = ArtifactEvidence(claim=claim)
         if claim.path is None:
@@ -96,7 +139,7 @@ def inspect_artifacts(environment: Any, claims: list[ArtifactClaim]) -> list[Art
                 item.sha256 = metadata.content_sha256
                 item.file_verified = metadata.size_bytes > 0
                 if item.file_verified:
-                    item.local_path = str(environment._path(claim.path).resolve())
+                    item.local_path = str((environment.root / environment.canonical_relative_path(claim.path)).resolve())
                     item.reason = "The host read nonempty local bytes. Content and quality remain unverified."
                 else:
                     item.reason = "The local artifact is empty."
@@ -106,7 +149,7 @@ def inspect_artifacts(environment: Any, claims: list[ArtifactClaim]) -> list[Art
     return evidence
 
 
-def split_tool_name(name: str, servers: list[str]) -> tuple[str, str]:
+def split_tool_name(name: str, servers: list[str]) -> ToolName:
     """Split a native tool name ``<server>_<tool>`` into its server and tool.
 
     The longest matching server name wins, so ``image`` and ``image_gen``
@@ -115,23 +158,23 @@ def split_tool_name(name: str, servers: list[str]) -> tuple[str, str]:
     """
     for server in sorted(servers, key=len, reverse=True):
         if name.startswith(server + "_"):
-            return server, name[len(server) + 1:]
-    return "", name
+            return ToolName(server, name[len(server) + 1:])
+    return ToolName("", name)
 
 
-def _files(content: Any) -> Iterator[Any]:
+def _files(content: ToolReturnContent) -> Iterator[BinaryContent]:
     """Yield the binary attachments of one content value, preserving order."""
     """Yield every binary file inside one message content value, in order."""
-    from pydantic_ai.messages import BinaryContent
 
     if isinstance(content, BinaryContent):
         yield content
     elif isinstance(content, list):
-        for item in content:
+        children = cast(Sequence[ToolReturnContent], content)
+        for item in children:
             yield from _files(item)
 
 
-def session_activity(messages_path: Path, servers: list[str]) -> tuple[list[ToolCallSeen], list[tuple[str, str, bytes, str]]]:
+def session_activity(messages_path: Path, servers: list[str]) -> ToolSessionActivity:
     """Return the MCP calls and the tool images of one native session record.
 
     The images are ``(server, tool, bytes, media type)`` in session order.
@@ -142,88 +185,60 @@ def session_activity(messages_path: Path, servers: list[str]) -> tuple[list[Tool
     from pydantic_ai.messages import ModelMessagesTypeAdapter, ModelRequest, ModelResponse, ToolCallPart, ToolReturnPart
 
     if not messages_path.is_file():
-        return [], []
+        return ToolSessionActivity((), ())
     calls: list[ToolCallSeen] = []
-    images: list[tuple[str, str, bytes, str]] = []
+    images: list[ToolBinaryImage] = []
     for message in ModelMessagesTypeAdapter.validate_json(messages_path.read_bytes()):
         for part in message.parts:
             if isinstance(message, ModelResponse) and isinstance(part, ToolCallPart):
-                server, tool = split_tool_name(part.tool_name, servers)
-                if server:
-                    calls.append(ToolCallSeen(server=server, tool=tool, arguments=part.args_as_json_str()))
+                name = split_tool_name(part.tool_name, servers)
+                if name.server:
+                    calls.append(ToolCallSeen(server=name.server, tool=name.tool, arguments=part.args_as_json_str()))
             elif isinstance(message, ModelRequest) and isinstance(part, ToolReturnPart):
-                server, tool = split_tool_name(part.tool_name, servers)
-                if server:
-                    images += [(server, tool, item.data, item.media_type) for item in _files(part.content)
+                name = split_tool_name(part.tool_name, servers)
+                if name.server:
+                    images += [ToolBinaryImage(name.server, name.tool, item.data, item.media_type) for item in _files(part.content)
                                if item.media_type in IMAGE_TYPES]
-    return calls, images
+    return ToolSessionActivity(tuple(calls), tuple(images))
 
 
-def keep_tool_images(environment: Any, images: list[tuple[str, str, bytes, str]]) -> list[ToolImage]:
+def keep_tool_images(environment: FolderEnvironment, images: tuple[ToolBinaryImage, ...]) -> list[ToolImage]:
     """Write each tool image once to ``outbox/tool-image-<digest>.<ext>`` and describe it.
 
     The file name comes from the bytes, so the same image is kept once and a
     repeated write changes nothing.
     """
     kept: dict[str, ToolImage] = {}
-    for server, tool, data, media_type in images:
-        digest = hashlib.sha256(data).hexdigest()
+    for image in images:
+        digest = hashlib.sha256(image.data).hexdigest()
         if digest in kept:
             continue
-        path = f"outbox/tool-image-{digest[:16]}{IMAGE_SUFFIXES[media_type]}"
-        environment.write_binary(path, data)
-        kept[digest] = ToolImage(path=path, server=server, tool=tool, media_type=media_type,
-                                 sha256=digest, size_bytes=len(data))
+        path = f"outbox/tool-image-{digest[:16]}{IMAGE_SUFFIXES[image.media_type]}"
+        environment.write_binary(path, image.data)
+        kept[digest] = ToolImage(path=path, server=image.server, tool=image.tool, media_type=image.media_type,
+                                 sha256=digest, size_bytes=len(image.data))
     return list(kept.values())
 
 
-def session_prompt(request: ToolCallRequest, instruction: str, servers: list[str], work_root: Path) -> str:
-    """Return the first prompt of the session: the companion, its decision, and its context.
-
-    The companion's own parts are story-framed: the session is the
-    companion's own work on its own decision. The tool rules stay in the
-    skill text (``resources/execute.md``), which can be plain.
-    """
-    context = request.tool_call_context
-    lines = [f"You are {context.companion_name}. You decided to do something, and this session is where you do "
-             "it with your own tools.", "", "Who you are:", context.character_card.strip(), "",
-             "Your decision, in your own words:", f'"{instruction}"']
-    if request.tool_goal:
-        lines += ["", f"The concrete goal for your tools: {request.tool_goal}"]
-    source = context.source_action
-    if source is not None:
-        events = [f"- ({item.kind}, from {item.source}) {item.text}" for item in source.stimuli]
-        lines += ["", "What led to this decision:", *(events or ["- (no new event)"])]
-        if source.affect:
-            lines += ["", f"How you felt: {source.affect}"]
-        if source.workspace:
-            lines += ["", "What you lived through in that moment:", source.workspace]
-        if source.shard_story:
-            lines += ["", "What was in your mind then:", source.shard_story]
-    else:
-        lines += ["", "No moment of your mind started this session directly. Below is your newest context at "
-                      "the start of the session."]
-    if context.gwt_turns:
-        lines += ["", "Your recent moments, oldest first:",
-                  *(f"- {turn.summary}" for turn in context.gwt_turns if turn.summary.strip())]
-    lines += ["", f"Your MCP tool servers: {', '.join(servers)}. Each tool name starts with its server name and "
-                  "an underscore.",
-              f"Your work folder on this host: {work_root}. Put files for the host directly into outbox/ there.",
-              "Return only the terminal JSON object that the instructions specify."]
-    return "\n".join(lines)
+@dataclass(frozen=True, slots=True)
+class NativeToolPrompt:
+    prompt: str
+    images: tuple[ImageAttachment, ...]
 
 
-def session_images(request: ToolCallRequest) -> list[tuple[bytes, str]]:
-    """Return the ``(bytes, media_type)`` pictures of the moment that started this session.
-
-    The session prompt carries the alt text of each stimulus. The session is
-    the companion acting on what it saw, so the pictures themselves ride on
-    its first turn. A moment with no image tags gets no attachments.
-    """
-    source = request.tool_call_context.source_action
-    if source is None:
-        return []
-    return agent_images("\n".join(item.text for item in source.stimuli))
+def encode_native_tool_prompt(rendered: RenderedPrompt) -> NativeToolPrompt:
+    text: list[str] = []
+    images: list[ImageAttachment] = []
+    for part in rendered.turns[1].content.parts:
+        if isinstance(part, Text):
+            text.append(part.text)
+        elif isinstance(part, Media) and part.kind is MediaKind.Image:
+            if part.data is None:
+                raise ValueError("Native tool-session images require captured bytes, not a URI.")
+            images.append(ImageAttachment(part.data, part.mime_type))
+        else:
+            raise TypeError("The native tool-session adapter accepts text and image attachments only.")
+    return NativeToolPrompt("".join(text), tuple(images))
 
 
 def _session_mcp_file(path: Path, config: ToolCallConfig) -> None:
@@ -239,7 +254,7 @@ def _session_mcp_file(path: Path, config: ToolCallConfig) -> None:
     path.write_text(json.dumps({"mcpServers": servers}), encoding="utf-8")
 
 
-def _execute(context: Any, report: ToolCallReport) -> None:
+def _execute(context: RoleContext, report: ToolCallReport) -> None:
     """Hold one model lease and one native session through the complete goal.
 
     The native loader owns the MCP connections and tool prefixes throughout
@@ -248,8 +263,10 @@ def _execute(context: Any, report: ToolCallReport) -> None:
     makes the result uncertain; it does not roll back earlier effects.
     """
     runtime = context.runtime
+    assert isinstance(runtime, PMWorkflowRuntime)
     environment = runtime.environment
-    request = ToolCallRequest.model_validate(yaml_util.safe_load(environment.read_text("inbox/request.yaml")))
+    assert isinstance(environment, FolderEnvironment)
+    request = read_request(environment, ToolCallRequest)
     if request.run_id != context.task_id:
         raise ValueError("The request run identifier does not match the workflow invocation.")
     tool_context = request.tool_call_context
@@ -266,7 +283,8 @@ def _execute(context: Any, report: ToolCallReport) -> None:
         report.source_tick_id = source.tick_id
         report.correlation_id = source.correlation_id
         report.stimulus_ids = [item.knoxel_id for item in source.stimuli]
-    config: ToolCallConfig = runtime.tools["tool_call_settings"]()
+    config = runtime.tool_call_config
+    assert config is not None
     report.mcp_server_names = [server.name for server in config.mcp_servers]
     if not config.mcp_servers:
         report.outcome = "blocked"
@@ -276,7 +294,9 @@ def _execute(context: Any, report: ToolCallReport) -> None:
     # One unreachable server stops the native session before it makes any
     # tool call. Probe after the cheap checks, keep the live servers, and
     # name the dead ones in the report.
-    instructions = runtime.tools["managed_instructions"]()
+    boundary = runtime.managed_boundary
+    assert boundary is not None
+    instructions = boundary.read()
     report.instruction_revision = instructions["revision"]
     report.instruction = instructions["instruction"] or request.instruction
     runtime.check_cancelled()
@@ -285,7 +305,9 @@ def _execute(context: Any, report: ToolCallReport) -> None:
         report.summary = "The tool goal needs a configured model connection."
         report.rejection_reason = report.summary
         return
-    live, dead = probe_mcp_servers(config.mcp_servers)
+    probe = probe_mcp_servers(config.mcp_servers)
+    live = list(probe.live)
+    dead = list(probe.dead)
     report.mcp_live_servers = live
     report.mcp_dead_servers = dead
     if not live:
@@ -295,45 +317,50 @@ def _execute(context: Any, report: ToolCallReport) -> None:
         report.rejection_reason = report.summary
         return
     if dead:
-        config = config.model_copy(update={"mcp_servers": [s for s in config.mcp_servers if s.name in live]})
+        config = ToolCallConfig(model_connection=config.model_connection, timeout_seconds=config.timeout_seconds,
+            gwt_turn_limit=config.gwt_turn_limit, mcp_servers=[server for server in config.mcp_servers if server.name in live])
     servers = live
 
     mcp_file = context.kernel_data / "tool-call-mcp.json"
     log_root = context.kernel_data / "tool-call-agent"
     session_name = context.task_id + "-tool"
-    session = (nullcontext(runtime.agent_model) if runtime.agent_model is not None
-               else runtime.classification_session(config.model_connection, False, runtime.stop_event))
-    prompt = session_prompt(request, report.instruction, servers, environment.root.resolve())
-    result = None
+    if runtime.agent_model is not None:
+        session = nullcontext(runtime.agent_model)
+    else:
+        assert runtime.classification_session is not None
+        session = runtime.classification_session(config.model_connection, False, runtime.stop_event)
     try:
         _session_mcp_file(mcp_file, config)
         with session as model:
+            assert model is not None
+            assert runtime.model_session is not None
+            connection = runtime.model_session.model.connection
+            assert connection.completion_token_limit is not None
+            settings = RenderSettings(context_window=model.context_window,
+                input_fraction=connection.context_input_fraction,
+                reserved_output_tokens=connection.completion_token_limit)
+            render_input = ToolSessionRenderInput(request, report.instruction, tuple(servers),
+                str(environment.root.resolve()), SKILL.read_text(encoding="utf-8"))
+            capture_settings = runtime.model_session.capture_settings("tool.session")
+            with RendererCapture(capture_settings, RendererInput("tool.session", render_input, settings)) as capture:
+                rendered = render_tool_session(render_input, settings)
+                capture.save_output(rendered)
+            native_prompt = encode_native_tool_prompt(rendered)
+            prompt = native_prompt.prompt
             agent_runtime = replace(runtime, agent_model=replace(model, enable_thinking=True))
             driver = PmCoderDriver(log_root=log_root, timeout_seconds=config.timeout_seconds)
             result = driver.run_session(
                 run_id=session_name, attempt=1, skill=str(SKILL), prompt=prompt,
-                images=session_images(request),
+                images=native_prompt.images,
                 work_dir=context.workspace, runtime=agent_runtime, mcp_config=mcp_file,
                 trace_file=Path(report.trace_path), result_file=context.kernel_data / "tool-call-agent-result.json")
-    except WorkflowTerminated:
-        raise
-    except Exception as error:
-        # Provider and MCP errors use several exception families. Keep the
-        # diagnostic private and give control back to the companion.
-        (context.kernel_data / "tool-call-agent-error.txt").write_text(traceback.format_exc(), encoding="utf-8")
-        report.error_type = type(error).__name__
-        report.outcome = "uncertain"
-        report.summary = "The tool session stopped after an error. Its external effects remain unverified."
-        report.rejection_reason = report.summary
     finally:
         mcp_file.unlink(missing_ok=True)
         # Tool calls and images before an error or a cancellation are real
         # effects too. Keep them in the report in every case.
-        calls, images = session_activity(log_root / f"{session_name}_1" / "messages.json", servers)
-        report.tool_calls = calls
-        report.tool_images = keep_tool_images(environment, images)
-    if result is None:
-        return
+        activity = session_activity(log_root / f"{session_name}_1" / "messages.json", servers)
+        report.tool_calls = list(activity.calls)
+        report.tool_images = keep_tool_images(environment, activity.images)
     runtime.check_cancelled()
     report.agent_session = result.session_ref
     if result.exit_code != 0:
@@ -354,7 +381,7 @@ def _execute(context: Any, report: ToolCallReport) -> None:
         report.summary = "The agent reported success. At least one claimed local file did not pass host inspection."
 
     runtime.check_cancelled()
-    final = runtime.tools["managed_instructions"](close=True)
+    final = boundary.read(BoundaryReadSettings(close=True))
     report.final_instruction_revision = final["revision"]
     if final["revision"] != report.instruction_revision:
         report.outcome = "uncertain"
@@ -363,23 +390,25 @@ def _execute(context: Any, report: ToolCallReport) -> None:
     report.rejection_reason = "" if report.accepted else report.summary
 
 
-def _write_report(context: Any, report: ToolCallReport) -> None:
+def _write_report(context: RoleContext, report: ToolCallReport) -> None:
     """Persist host evidence without a memory commit or public message.
 
     The supervisor owns the terminal state and consolidation after this
     write. A failed write propagates: a missing report cannot establish
     completion.
     """
+    assert context.runtime is not None
     context.runtime.environment.write_text(REPORT_PATH, dump_report(report))
 
 
-def run(context: Any) -> dict[str, str]:
+def run(context: RoleContext) -> ToolRoleResult:
     """Return a terminal role result for expected task failures and successes.
 
     Cancellation retains a cancelled report, then raises ``WorkflowTerminated``.
     Unexpected exceptions retain a report, then propagate with their traceback.
     External effects can survive either case. No retry or rollback occurs here.
     """
+    assert context.runtime is not None
     report = ToolCallReport(
         run_id=context.task_id, instruction="", outcome="uncertain",
         summary="The tool goal did not produce a usable result.",
@@ -396,13 +425,6 @@ def run(context: Any) -> dict[str, str]:
         report.rejection_reason = report.summary
         _write_report(context, report)
         raise
-    except (InputError, ModelError, TaskServiceError, httpx.HTTPError,
-            ValueError, OSError, TimeoutError, yaml_util.YAMLError) as error:
-        report.outcome = "uncertain"
-        report.accepted = False
-        report.error_type = type(error).__name__
-        report.summary = "The tool goal stopped after an input, service, or artifact error. Its effects remain unverified."
-        report.rejection_reason = report.summary
     except Exception as error:
         report.outcome = "uncertain"
         report.accepted = False

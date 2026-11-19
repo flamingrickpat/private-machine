@@ -16,7 +16,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 
-from pm.llm.http_client import JsonClient, ModelError, cancellable, wait_until_ready
+from pm.llm.http_client import JsonClient, ModelError, cancellable, EndpointRetry
 from pm.llm.config import Connection, EmbeddingConfig
 from pm.llm.workflow_sessions import serving_context
 from pm.records.media import alt_text_view, image_ids, media_lookup
@@ -221,8 +221,12 @@ async def fit_embedding_text(connection: Connection, text: str, cancel: Event | 
         return clipped, {"context_window": context, "context_source": source,
                          "original_tokens": len(special_tokens), "input_tokens": keep, "truncated": True}
 
-    return await wait_until_ready(count_with_server, cancel, live_test=live_test,
-                                  label=f"Embedding token count at {connection.base_url}")
+    retry = EndpointRetry(f"Embedding token count at {connection.base_url}", cancel, live_test=live_test)
+    while True:
+        try:
+            return await count_with_server()
+        except (ModelError, httpx.HTTPError) as error:
+            await retry.wait(error)
 
 
 def parse_embedding_response(response: dict, config: EmbeddingConfig) -> list[float]:

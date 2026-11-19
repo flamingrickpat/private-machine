@@ -7,7 +7,7 @@ failure_policy: {max_attempts_per_phase: 1}
 roles:
   phase:
     skill: workflows/main_cognition/steps.py
-    tools: [llm_complete, embed_texts, codelet_agent]
+    tools: []
     result_contract:
       type: json
       schema:

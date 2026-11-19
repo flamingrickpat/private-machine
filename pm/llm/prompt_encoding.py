@@ -24,9 +24,12 @@ therefore describe the fields this module owns, not the provider extras.
 from __future__ import annotations
 
 import base64
+import json
 from collections.abc import Mapping, Sequence
 from io import BytesIO as _BytesIO  # noqa: N813
-from typing import Any, Literal, Protocol, TypeAlias, TypedDict
+from typing import Literal, Protocol, TypeAlias, TypedDict, NotRequired
+
+from pydantic import TypeAdapter, JsonValue
 
 from pm.context_render.turns import (
     Content,
@@ -34,6 +37,7 @@ from pm.context_render.turns import (
     Media,
     MediaKind,
     Role,
+    ProviderState,
     Text,
     ToolCall,
     Turn,
@@ -41,8 +45,6 @@ from pm.context_render.turns import (
 )
 
 
-TurnInput: TypeAlias = Turn | Mapping[str, Any]
-"""One prompt turn: a typed turn, or a legacy wire mapping at a boundary."""
 
 #: Image media types that the chat adapter sends as image bytes.
 OPENAI_IMAGE_MIME_TYPES = frozenset({"image/png", "image/jpeg", "image/webp", "image/gif"})
@@ -70,7 +72,7 @@ class OpenAIImageUrl(TypedDict):
     """
 
     url: str
-    detail: str
+    detail: NotRequired[Literal["auto", "low", "high", "original"]]
 
 
 class OpenAIImagePart(TypedDict):
@@ -127,6 +129,20 @@ class OpenAIToolCall(TypedDict):
     function: OpenAIFunctionCall
 
 
+class OpenAIMessage(TypedDict):
+    role: str
+    content: NotRequired[str | list[OpenAIContentPart] | None]
+    tool_calls: NotRequired[list[OpenAIToolCall] | None]
+    tool_call_id: NotRequired[str | None]
+    name: NotRequired[str | None]
+    reasoning: NotRequired[str | None]
+    reasoning_content: NotRequired[str | None]
+    reasoning_details: NotRequired[JsonValue]
+
+
+TurnInput: TypeAlias = Turn | OpenAIMessage
+
+
 class OpenAIRequest(TypedDict):
     """The chat-completions body that carries the encoded turns.
 
@@ -134,7 +150,7 @@ class OpenAIRequest(TypedDict):
     those messages, so the mapping itself is not a closed record here.
     """
 
-    messages: list[dict[str, object]]
+    messages: list[OpenAIMessage]
 
 
 def _base64_data(part: Media) -> str:
@@ -156,7 +172,6 @@ def _png_data_url(url: str) -> str:
     """
     if not url.startswith("data:"):
         return url
-    media_type = url.split(",")[0].split(":", 1)[1].split(";")[0]
     b64_data = url.split(",", 1)[1]
     raw = base64.b64decode(b64_data, validate=True)
 
@@ -199,7 +214,7 @@ class PromptEncoder(Protocol):
         ...
 
 
-def tool_calls_from_wire(calls: Sequence[Mapping[str, Any]]) -> tuple[ToolCall, ...]:
+def tool_calls_from_wire(calls: Sequence[OpenAIToolCall]) -> tuple[ToolCall, ...]:
     """Decode provider function requests without parsing their argument text."""
     return tuple(ToolCall(call["id"], call["function"]["name"], call["function"]["arguments"]) for call in calls)
 
@@ -215,10 +230,11 @@ def normalize_turns(turns: Sequence[TurnInput]) -> list[Turn]:
         if isinstance(turn, Turn):
             result.append(turn)
             continue
-        content = turn.get("content") or ""
+        content: Content | str | list[OpenAIContentPart] = turn.get("content") or ""
         if isinstance(content, list):
             parts: list[ContentPart] = []
-            for part in content:
+            wire_parts = TypeAdapter(list[OpenAIContentPart]).validate_python(content)
+            for part in wire_parts:
                 if part["type"] == "text":
                     parts.append(Text(part["text"]))
                 elif part["type"] == "image_url":
@@ -231,10 +247,11 @@ def normalize_turns(turns: Sequence[TurnInput]) -> list[Turn]:
                 else:
                     raise ValueError(f"Unsupported legacy content part: {part['type']}")
             content = Content(tuple(parts))
-        known = {"role", "content", "tool_calls", "tool_call_id", "name"}
+        details = turn.get("reasoning_details")
+        state = ProviderState(turn.get("reasoning"), turn.get("reasoning_content"),
+                              json.dumps(details, ensure_ascii=False) if details is not None else None)
         result.append(Turn(Role(turn["role"]), content, tool_calls_from_wire(turn.get("tool_calls") or []),
-                           turn.get("tool_call_id") or "", turn.get("name") or "",
-                           {key: value for key, value in turn.items() if key not in known} or None))
+                           turn.get("tool_call_id") or "", turn.get("name") or "", state))
     return result
 
 
@@ -251,7 +268,7 @@ class OpenAIChatEncoder:
         messages = [self.message(turn) for turn in normalize_turns(turns)]
         return {"messages": messages}
 
-    def message(self, turn: Turn) -> dict[str, object]:
+    def message(self, turn: Turn) -> OpenAIMessage:
         """Return one provider message mapping for ``turn``.
 
         ``role`` and ``content`` are always present. ``tool_calls``,
@@ -281,7 +298,15 @@ class OpenAIChatEncoder:
                 else:
                     parts.append(self.media(part))
             value = parts
-        result: dict[str, object] = {**(turn.provider_state or {}), "role": turn.role.value, "content": value}
+        result: OpenAIMessage = {"role": turn.role.value, "content": value}
+        state = turn.provider_state
+        if state is not None:
+            if state.reasoning is not None:
+                result["reasoning"] = state.reasoning
+            if state.reasoning_content is not None:
+                result["reasoning_content"] = state.reasoning_content
+            if state.reasoning_details_json is not None:
+                result["reasoning_details"] = TypeAdapter[JsonValue](JsonValue).validate_json(state.reasoning_details_json)
         if turn.tool_calls:
             result["tool_calls"] = [OpenAIToolCall(id=call.id, type="function",
                                                    function=OpenAIFunctionCall(name=call.name,

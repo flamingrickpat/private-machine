@@ -23,13 +23,14 @@ template and the labels of its loaded prompts into
 """
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from collections.abc import Iterable
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from pm.context_render.tokens import text_tokens
-from pm.context_render.turns import format_content
+from pm.context_render.turns import Content, format_content
 from pm.records.base import RecordBase, persisted_type_name
 from pm.records.codelet_records import CodeletPercept
 from pm.records.cognitive_records import BeliefRecord, ExpectationRecord, Intention
@@ -65,11 +66,11 @@ class RecordView(BaseModel):
     content: str = ""
     timestamp: datetime | None = None
     record_class: str = ""
-    entity_ids: list[int] = Field(default_factory=list)
+    entity_ids: list[int] = Field(default_factory=list[int])
     category: str = ""
     feature_type: str = ""
     addressee_entity_id: int = 0
-    embedding: list[float] = Field(default_factory=list, repr=False)
+    embedding: list[float] = Field(default_factory=list[float], repr=False)
 
     def story_line(self) -> str:
         """Return the record as one line of story text.
@@ -104,6 +105,28 @@ class ShardLabels(BaseModel):
     self_focus: str = ""
     entity_focus: str = ""
     workflow_focus: str = ""
+
+
+
+@dataclass(frozen=True, slots=True)
+class ShardTemplateValues:
+    title: Content | str
+    tail_label: Content | str
+    items: Content | str
+    tail: Content | str
+
+    def field_value(self, name: str) -> Content | str | int | float:
+        match name:
+            case "title":
+                return self.title
+            case "tail_label":
+                return self.tail_label
+            case "items":
+                return self.items
+            case "tail":
+                return self.tail
+            case _:
+                raise KeyError(f"Unknown ShardTemplateValues field: {name}")
 
 
 def _entity_facts(record: RecordBase, record_class: str) -> tuple[list[int], str]:
@@ -190,12 +213,27 @@ def story_line(view: RecordView, *, with_id: bool) -> str:
     return f"{prefix}{when}{view.story_line()}"
 
 
+@dataclass(frozen=True, slots=True, order=True)
+class TimedStoryRecord:
+    timestamp: datetime
+    input_order: int
+    view: RecordView = field(compare=False)
+
+
 def render_story(records: dict[int, RecordView], record_ids: Iterable[int], *, with_id: bool) -> str:
     """Render records in world-time order. Records without a time come last, in input order."""
     views = [records[record_id] for record_id in dict.fromkeys(record_ids)]
-    timed = sorted((view for view in views if view.timestamp is not None), key=lambda view: view.timestamp)
-    untimed = [view for view in views if view.timestamp is None]
-    return "\n".join(story_line(view, with_id=with_id) for view in [*timed, *untimed])
+    timed: list[TimedStoryRecord] = []
+    untimed: list[RecordView] = []
+    for index, view in enumerate(views):
+        if view.timestamp is None:
+            untimed.append(view)
+        else:
+            timed.append(TimedStoryRecord(view.timestamp, index, view))
+    timed.sort()
+    ordered = [item.view for item in timed]
+    ordered.extend(untimed)
+    return "\n".join(story_line(view, with_id=with_id) for view in ordered)
 
 
 def fill_story_names(text: str, companion_name: str, entity_name: str) -> str:
@@ -307,12 +345,12 @@ def shard_block_text(key: ShardKey, name: str, companion: str,
     collected the ids.
     """
     title, tail_label = shard_titles(key, name, companion, labels)
-    return format_content(template,
-        title=title, tail_label=tail_label,
+    return format_content(template, ShardTemplateValues(
+        title=title,
+        tail_label=tail_label,
         items=render_story(records, item_ids, with_id=False) or labels.empty_items,
-        tail=(render_story(records, tail_ids, with_id=False)
-              or (labels.verbatim_tail if verbatim_tail else labels.empty_tail)),
-    ).text.strip()
+        tail=render_story(records, tail_ids, with_id=False)
+              or (labels.verbatim_tail if verbatim_tail else labels.empty_tail))).text.strip()
 
 
 __all__ = ["RecordView", "ShardLabels", "fill_story_names", "record_tokens", "record_view", "render_story",

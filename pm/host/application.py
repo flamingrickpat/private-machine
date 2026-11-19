@@ -5,6 +5,8 @@ Termination wakes the mailbox and runs cleanup once.
 """
 from __future__ import annotations
 
+from pm.introspection.capabilities import CapabilityOverlay
+
 import threading
 import logging
 import time
@@ -187,6 +189,7 @@ class Application:
 
     def __init__(self, bus: BusSystem, modules: list[BusModule]) -> None:
         self.bus = bus
+        self.capability_overlay: CapabilityOverlay | None = None
         self.modules = modules
         self.shutdown_event = threading.Event()
         self.error: BaseException | None = None

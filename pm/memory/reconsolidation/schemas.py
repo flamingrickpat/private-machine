@@ -57,11 +57,10 @@ class ReconsolidationConfig(BaseModel):
     narrative_min_tokens: int = RECONSOLIDATION_NARRATIVE_MIN_TOKENS
     narrative_max_tokens: int = RECONSOLIDATION_NARRATIVE_MAX_TOKENS
     narrative_first_tokens: int = RECONSOLIDATION_NARRATIVE_FIRST_TOKENS
-    cluster_feature_types: list[FeatureType] = Field(
-        default_factory=lambda: [FeatureType.Dialogue, FeatureType.WorldEvent])
-    story_feature_types: list[FeatureType] = Field(default_factory=lambda: [
+    cluster_feature_types: list[FeatureType] = [FeatureType.Dialogue, FeatureType.WorldEvent]
+    story_feature_types: list[FeatureType] = [
         FeatureType.Dialogue, FeatureType.WorldEvent, FeatureType.Thought, FeatureType.ExternalThought,
-        FeatureType.InnerMonologue, FeatureType.SubjectiveExperience])
+        FeatureType.InnerMonologue, FeatureType.SubjectiveExperience]
 
 
 class NarrativeDefinition(BaseModel):
@@ -90,13 +89,24 @@ class ReconsolidationPrompts(BaseModel):
     narrative_card: str = ""
     no_previous_narrative: str = ""
     no_recorded_state: str = ""
-    narratives: list[NarrativeDefinition] = Field(default_factory=list)
-    evidence_types: dict[NarrativeTypes, list[FeatureType]] = Field(default_factory=dict)
+    narratives: list[NarrativeDefinition] = Field(default_factory=list[NarrativeDefinition])
+    evidence_types: dict[NarrativeTypes, list[FeatureType]] = Field(default_factory=dict[NarrativeTypes, list[FeatureType]])
 
 
 def load_prompts(path: Path = PROMPTS_FILE) -> ReconsolidationPrompts:
     """Read and validate the prompt file. An invalid file raises."""
     return ReconsolidationPrompts.model_validate(yaml_util.safe_load(path.read_text(encoding="utf-8")))
+
+
+class FactExtractionValidation(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    line_count: int
+
+
+class FactClassificationValidation(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    fact_count: int
+    allowed_subjects: tuple[str, ...]
 
 
 # ----------------------------------------------------------------- answers
@@ -120,12 +130,15 @@ class ExtractedFact(BaseModel):
     """
 
     text: str = Field(default="", min_length=11, max_length=600)
-    lines: list[int] = Field(default_factory=list, min_length=1)
+    lines: list[int] = Field(default_factory=list[int], min_length=1)
 
     @field_validator("lines")
     @classmethod
     def lines_exist(cls, value: list[int], info: ValidationInfo) -> list[int]:
-        count = info.context["lines"]
+        context = info.context
+        if not isinstance(context, FactExtractionValidation):
+            raise TypeError("Fact extraction requires its named source-line validation context.")
+        count = context.line_count
         wrong = [line for line in value if not 1 <= line <= count]
         if wrong:
             raise ValueError(f"Line numbers {wrong} do not exist. The scene has lines 1 to {count}.")
@@ -135,7 +148,7 @@ class ExtractedFact(BaseModel):
 class FactsAnswer(BaseModel):
     """The facts of one scene. An empty list is valid."""
 
-    facts: list[ExtractedFact] = Field(default_factory=list)
+    facts: list[ExtractedFact] = Field(default_factory=list[ExtractedFact])
 
 
 class FactFiling(BaseModel):
@@ -150,7 +163,7 @@ class FactFiling(BaseModel):
     object_value: str = ""
     topic_card: str = ""
     essence: str = Field(default="", min_length=5)
-    category: list[str] = Field(default_factory=list, min_length=1, max_length=4)
+    category: list[str] = Field(default_factory=list[str], min_length=1, max_length=4)
     importance: float = Field(default=0.5, ge=0, le=1)
     time_dependent: float = Field(default=0.5, ge=0, le=1)
     reason: str = ""
@@ -158,7 +171,10 @@ class FactFiling(BaseModel):
     @field_validator("about")
     @classmethod
     def known_subject(cls, value: str, info: ValidationInfo) -> str:
-        allowed = info.context["about"]
+        context = info.context
+        if not isinstance(context, FactClassificationValidation):
+            raise TypeError("Fact classification requires its named subject validation context.")
+        allowed = context.allowed_subjects
         match = [name for name in allowed if name.casefold() == value.strip().casefold()]
         if not match:
             raise ValueError(f"about must be one of {allowed}, not {value!r}.")
@@ -183,15 +199,19 @@ class FactFiling(BaseModel):
 class FilingAnswer(BaseModel):
     """The classifications of all facts of one scene. The context holds ``count``."""
 
-    facts: list[FactFiling] = Field(default_factory=list)
+    facts: list[FactFiling] = Field(default_factory=list[FactFiling])
 
     @model_validator(mode="after")
     def one_per_fact(self, info: ValidationInfo) -> "FilingAnswer":
-        expected = list(range(1, info.context["count"] + 1))
+        context = info.context
+        if not isinstance(context, FactClassificationValidation):
+            raise TypeError("Fact classification requires its named count validation context.")
+        expected = list(range(1, context.fact_count + 1))
         got = sorted(item.index for item in self.facts)
         if got != expected:
             raise ValueError(f"Give exactly one entry for each fact index {expected}; got {got}.")
-        self.facts.sort(key=lambda item: item.index)
+        indexed_facts = {item.index: item for item in self.facts}
+        self.facts = [indexed_facts[index] for index in expected]
         return self
 
 
@@ -216,15 +236,15 @@ class ReconsolidationReport(BaseModel):
     started_at: datetime = Field(default_factory=naive_utc_now)
     finished_at: datetime | None = None
     unclustered_events: int = 0
-    topical_ids: list[int] = Field(default_factory=list)
-    temporal_ids: list[int] = Field(default_factory=list)
-    fact_ids: list[int] = Field(default_factory=list)
-    semantic_ids: list[int] = Field(default_factory=list)
-    semantic_updated_ids: list[int] = Field(default_factory=list)
-    narrative_ids: list[int] = Field(default_factory=list)
+    topical_ids: list[int] = Field(default_factory=list[int])
+    temporal_ids: list[int] = Field(default_factory=list[int])
+    fact_ids: list[int] = Field(default_factory=list[int])
+    semantic_ids: list[int] = Field(default_factory=list[int])
+    semantic_updated_ids: list[int] = Field(default_factory=list[int])
+    narrative_ids: list[int] = Field(default_factory=list[int])
     model_calls: int = 0
     embedded_texts: int = 0
-    notes: list[str] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list[str])
 
     @property
     def created_ids(self) -> list[int]:

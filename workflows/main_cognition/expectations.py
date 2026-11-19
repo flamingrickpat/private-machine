@@ -36,16 +36,11 @@ No function here writes the store. The host stages the records and the
 updates at commit.
 """
 from __future__ import annotations
-from workflows.main_cognition.context_reduction import evidence_text
-from workflows.main_cognition.model_json import batch_internal_prompt
 
-from typing import Literal, Self
-from collections.abc import Sequence
-from pm.context_render.budget import ContextGroup
-from pm.context_render.turns import Content
-from workflows.main_cognition.model_json import model_context_budget
-from pm.llm.concurrency import ordered_parallel_map
-from workflows.inference_settings import DECISION_WORKERS
+from workflows.main_cognition.prompt_values import ExpectationCheckTemplateValues, AnticipationTemplateValues
+
+from typing import Literal
+from dataclasses import dataclass, field
 
 from pm.constants import (
     EXPECTATION_ANXIETY_MULT,
@@ -73,12 +68,12 @@ from pm.memory.evidence import OBSERVED_EVIDENCE_ROLES, evidence_role
 from pm.memory.snapshot import Snapshot
 from pm.records.base import RecordBase, RecordScope
 from pm.records.situational_model import cosine
-from pydantic import model_validator
+from pydantic import BaseModel, ValidationInfo, model_validator
 
 from workflows.inner_thought.expectations import PRIVATE_SOURCE_REF, pending_expectations
 from workflows.main_cognition.csm_view import EXPECTATION, Embedder
 from workflows.main_cognition.cycle_work import CycleWork, provisional_tick
-from workflows.main_cognition.model_json import PhasePrompts
+from workflows.main_cognition.prompt_config import PhasePrompts
 from workflows.main_cognition.phases.model import complete
 from workflows.main_cognition.schemas import (
     ExpectationAnswer,
@@ -167,6 +162,13 @@ def uncounted_stimuli(work: CycleWork, expectation: OpenExpectation) -> list[Sti
     return [item for item in work.request.stimuli if item.knoxel_id in observed and item.knoxel_id not in counted]
 
 
+@dataclass(frozen=True, slots=True, order=True)
+class ExpectationRelevance:
+    negative_score: float
+    input_order: int
+    expectation: OpenExpectation = field(compare=False)
+
+
 def relevant_expectations(work: CycleWork, embedder: Embedder) -> list[OpenExpectation]:
     """Return the open expectations that the new stimuli can affect, most relevant first.
 
@@ -190,16 +192,16 @@ def relevant_expectations(work: CycleWork, embedder: Embedder) -> list[OpenExpec
         return []
     texts = list(dict.fromkeys(stimulus.text for stimuli in remaining.values() for stimulus in stimuli))
     vectors = embedder.prefetch([*texts, *(item.content for item in candidates)])
-    scored = []
+    scored: list[ExpectationRelevance] = []
     for item in candidates:
         similarity = max(max(0.0, min(1.0, cosine(vectors[stimulus.text], vectors[item.content])))
                          for stimulus in remaining[item.record_id])
         score = (recency(work, item) * 0.5 + similarity * 0.5) * (0.5 + item.urgency * 0.25 + salience(item) * 0.25)
         score = max(0.0, min(1.0, score))
         if score > EXPECTATION_MIN_RELEVANCE:
-            scored.append((score, item))
-    scored.sort(key=lambda pair: pair[0], reverse=True)
-    return [item for _, item in scored[:EXPECTATION_CHECK_LIMIT]]
+            scored.append(ExpectationRelevance(-score, len(scored), item))
+    scored.sort()
+    return [entry.expectation for entry in scored[:EXPECTATION_CHECK_LIMIT]]
 
 
 def outcome_of(expectation: OpenExpectation, fulfillment_score: float, directness_score: float,
@@ -280,6 +282,22 @@ def check(context: RoleContext, work: CycleWork, prefix: StoryPrefix, prompts: P
     return [outcomes[item.record_id] for item in expectations]
 
 
+class ExpectationCheckContext(BaseModel):
+    required_ids: tuple[int, ...]
+
+
+class CheckedExpectationAnswer(ExpectationCheckAnswer):
+    @model_validator(mode="after")
+    def exact_ids(self, info: ValidationInfo) -> CheckedExpectationAnswer:
+        context = info.context
+        if not isinstance(context, ExpectationCheckContext):
+            raise TypeError("Expectation checking requires its typed source grant.")
+        given = sorted(item.expectation_id for item in self.fulfillments)
+        if given != list(context.required_ids):
+            raise ValueError(f"Give exactly one entry for each expectation id: {context.required_ids}.")
+        return self
+
+
 def _check_group(context: RoleContext, work: CycleWork, prefix: StoryPrefix, prompts: PhasePrompts,
                  expectations: list[OpenExpectation], stimuli: list[Stimulus]) -> list[ExpectationOutcome]:
     """Rate one group of expectations against the same stimuli in one call.
@@ -288,42 +306,15 @@ def _check_group(context: RoleContext, work: CycleWork, prefix: StoryPrefix, pro
     invalid and gets a repair turn. Each outcome's ``observation_ids`` are
     exactly the rated stimuli, which the commit adds to the counted list.
     """
-    by_id = {str(item.record_id): item for item in expectations}
-    groups = [ContextGroup(str(item.record_id), Content(f"[id {item.record_id}] {item.content}"), salience(item),
-                           source_ids=(item.record_id,), recency=float(item.tick_id)) for item in expectations]
-
-    def instruction(chosen: Sequence[ContextGroup]) -> Content:
-        return format_content(prefix.fill(prompts.check_template),
-            expectations=evidence_text("\n".join(group.content.text for group in chosen), "expectation-items",
-                                       [int(group.name) for group in chosen]),
-            stimuli=evidence_text("\n".join(f"- {item.text}" for item in stimuli), "expectation-stimuli",
-                                  [item.knoxel_id for item in stimuli]))
-
-    batches = batch_internal_prompt(context, prefix.turns, groups, model_context_budget(context), instruction)
-    work.receipt("expectation-context", f"{len(expectations)} expectations in {len(batches)} batches; none omitted")
-
-    def rate(index: int) -> ExpectationCheckAnswer:
-        batch = batches[index]
-        wanted = sorted(by_id[name].record_id for name in batch.included)
-        class ExpectationBatch(ExpectationCheckAnswer):
-            @model_validator(mode="after")
-            def exact(self) -> Self:
-                """Require exactly one result per offered expectation."""
-                given = sorted(item.expectation_id for item in self.fulfillments)
-                if given != wanted:
-                    raise ValueError(f"Give exactly one entry for each expectation id: {', '.join(map(str, wanted))}.")
-                return self
-        return complete(context, work, batch.turns, ExpectationBatch)
-
-    assert context.runtime is not None
-    answers = ordered_parallel_map(rate, list(range(len(batches))), workers=DECISION_WORKERS,
-                                   cancel=context.runtime.stop_event)
-    by_expectation = {item.expectation_id: item for answer in answers for item in answer.fulfillments}
-    if set(by_expectation) != {item.record_id for item in expectations}:
-        raise ValueError("Expectation batches must cover every offered expectation.")
+    check = ExpectationCheckContext(required_ids=tuple(sorted(item.record_id for item in expectations)))
+    instruction = format_content(prefix.fill(prompts.check_template), ExpectationCheckTemplateValues(
+        expectations="\n".join(f"[id {item.record_id}] {item.content}" for item in expectations),
+        stimuli="\n".join(f"- {item.text}" for item in stimuli))).text
+    answer = complete(context, prefix.ask(instruction), CheckedExpectationAnswer, validation_context=check)
+    by_id = {item.expectation_id: item for item in answer.fulfillments}
     observed = [item.knoxel_id for item in stimuli]
-    return [outcome_of(item, by_expectation[item.record_id].fulfillment_score,
-                       by_expectation[item.record_id].directness_score, observed) for item in expectations]
+    return [outcome_of(item, by_id[item.record_id].fulfillment_score, by_id[item.record_id].directness_score,
+                       observed) for item in expectations]
 
 
 def effect(outcomes: list[ExpectationOutcome]) -> tuple[float, float]:
@@ -340,7 +331,7 @@ def effect(outcomes: list[ExpectationOutcome]) -> tuple[float, float]:
 
 def render_outcomes(outcomes: list[ExpectationOutcome]) -> str:
     """Render the outcomes as story lines for the appraisal prompt."""
-    lines = []
+    lines: list[str] = []
     for item in outcomes:
         if item.status == "supported":
             verdict = "it came true"
@@ -367,12 +358,15 @@ def anticipate(context: RoleContext, work: CycleWork, prefix: StoryPrefix, promp
     ``EXPECTATION_SAME_SIMILARITY``) supersedes it. Runs in a worker thread
     and does not change ``work``.
     """
-    instruction = format_content(prefix.fill(prompts.anticipation_template),
-        decision=decision, action=action, target=target, count=count).text
-    answer = complete(context, work, prefix.ask(instruction), ExpectationAnswer)
+    instruction = format_content(prefix.fill(prompts.anticipation_template), AnticipationTemplateValues(
+        decision=decision,
+        action=action,
+        target=target,
+        count=count)).text
+    answer = complete(context, prefix.ask(instruction), ExpectationAnswer)
     open_items = recent_expectations(work)
     vectors = embedder.prefetch([*(item.content for item in answer.expectations), *(item.content for item in open_items)])
-    drafts = []
+    drafts: list[ExpectationDraft] = []
     for item in answer.expectations:
         vector = vectors[item.content]
         same = [other.record_id for other in open_items

@@ -17,7 +17,7 @@ from pm_workflows.python_role import RoleContext
 
 from workflows.cognitive_control.schemas import WaitRequest
 from workflows.main_cognition.cycle_work import CycleWork
-from workflows.main_cognition.model_json import write_report
+from pm.runs.role_io import write_report
 
 
 #: Action types that put words in front of the partner.
@@ -55,6 +55,7 @@ def run(context: RoleContext, work: CycleWork) -> CycleWork:
     released = sum(1 for item in work.dispatches if item.status == "dispatched")
     work.receipt("commit", "handed the cycle to the host")
     work.summary = f"ran {len(work.phases)} phases, dispatched {released} actions"
+    assert context.runtime is not None
     write_report(context.runtime.environment, work)
     return work
 

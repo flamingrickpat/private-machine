@@ -6,19 +6,7 @@ state_policy: {mutation_model: append_only}
 roles:
   assistant:
     skill: workflows/dialogue_assistant/steps.py
-    tools:
-      - assistant_complete
-      - public_complete
-      - minecraft_observe
-      - ghost_get
-      - ghost_search
-      - ghost_gwt
-      - managed_start
-      - managed_status
-      - managed_list
-      - managed_update
-      - managed_terminate
-      - managed_answer
+    tools: []
     result_contract:
       type: json
       schema:

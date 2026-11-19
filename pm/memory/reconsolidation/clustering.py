@@ -24,9 +24,16 @@ Every function is deterministic. Ties break by the lower index.
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass, field
 from collections.abc import Sequence
 
 from pydantic import BaseModel
+
+
+@dataclass(frozen=True, order=True, slots=True)
+class NeighborDistance:
+    distance: float
+    neighbor_id: int
 
 
 class Merge(BaseModel):
@@ -40,6 +47,13 @@ class Merge(BaseModel):
     left: int = 0
     right: int = 0
     merged: int = 0
+
+
+@dataclass(frozen=True, order=True, slots=True)
+class MergeDistance:
+    distance: float
+    original_index: int
+    merge: Merge = field(compare=False)
 
 
 def _norm(vector: Sequence[float]) -> float:
@@ -113,7 +127,7 @@ def average_linkage(distances: Sequence[Sequence[float]]) -> list[Merge]:
         current = chain[-1]
         previous = chain[-2] if len(chain) > 1 else None
         row = table[current]
-        nearest = min(row, key=lambda other: (row[other], other))
+        nearest = min(NeighborDistance(distance, other) for other, distance in row.items()).neighbor_id
         # Prefer the previous chain element on a tie, so the chain ends.
         if previous is not None and row[previous] <= row[nearest]:
             nearest = previous
@@ -138,7 +152,8 @@ def average_linkage(distances: Sequence[Sequence[float]]) -> list[Merge]:
         del table[right]
         table[merged] = new_row
         sizes[merged] = left_size + right_size
-    return sorted(merges, key=lambda merge: merge.distance)
+    ranked = [MergeDistance(merge.distance, index, merge) for index, merge in enumerate(merges)]
+    return [rank.merge for rank in sorted(ranked)]
 
 
 def cut(merges: Sequence[Merge], size: int, threshold: float) -> list[int]:
@@ -168,7 +183,7 @@ def silhouette(distances: Sequence[Sequence[float]], labels: Sequence[int]) -> f
     clusters: dict[int, list[int]] = {}
     for index, label in enumerate(labels):
         clusters.setdefault(label, []).append(index)
-    scores = []
+    scores: list[float] = []
     for index, label in enumerate(labels):
         own = clusters[label]
         if len(own) == 1:
@@ -246,7 +261,8 @@ def split_block(items: Sequence[int], min_size: int) -> list[list[int]]:
     sizes = [min_size] * chunks
     for index in range(count - min_size * chunks):
         sizes[index % chunks] += 1
-    result, start = [], 0
+    result: list[list[int]] = []
+    start = 0
     for chunk_size in sizes:
         result.append(list(items[start:start + chunk_size]))
         start += chunk_size

@@ -1,5 +1,6 @@
 """Verifier role: mechanical condition evaluation plus a model review of one finished leaf."""
 from __future__ import annotations
+from workflows.minecraft_project.schemas import ProjectPhaseResult
 
 import json
 
@@ -11,10 +12,13 @@ from workflows.minecraft_project.schemas import Node, VerificationReview
 from workflows.minecraft_project.tree_store import TreeStore
 from workflows.minecraft_project.acceptance import evaluate, observe_conditions
 from workflows.minecraft_project.planning.run_context import boundary, identity, project_intent, request, scoped_reads
+from workflows.minecraft_project.planning.context_selection import select_recorded_reads
 from workflows.minecraft_project.planning.decisions import reason
+from workflows.minecraft_project.planning.context_contracts import VerificationContext, ReviewPolicy, RecordedRead, DecisionRole
+from workflows.minecraft_project.planning.context_sources import decision_identity, decision_intent
 
 
-def verify_node(context: RoleContext, store: TreeStore, node: Node, actor_attempt: str) -> dict:
+def verify_node(context: RoleContext, store: TreeStore, node: Node, actor_attempt: str) -> ProjectPhaseResult:
     """Require original actor provenance and fresh independent world reads."""
     verifier_id = f"verifier-{len(store.state['decisions']) + 1:04d}-{node.id}"
     ident = identity(context, store, node=node, actor_attempt=actor_attempt, verifier_attempt=verifier_id)
@@ -24,10 +28,11 @@ def verify_node(context: RoleContext, store: TreeStore, node: Node, actor_attemp
     # Persist original reads before inference so an interruption retains evidence.
     store.write(relative, {"schema": "pm.minecraft-leaf-verification.v1", "identity": ident,
                            "verified": False, "reads": reads, "checks": checks, "review": {"status": "pending"}})
-    review_result = reason(context, store, "verifier", VerificationReview, {
-        "project_intent": project_intent(context, store), "review_policy": review_policy(request(context).review_mode),
-        "identity": ident, "specification": node.model_dump(mode="json"), "reads": scoped_reads(reads), "checks": checks,
-        "original_receipt": relative})
+    policy = ReviewPolicy.model_validate(review_policy(request(context).review_mode))
+    input = VerificationContext(identity=decision_identity(context, store, node=node, actor_attempt=actor_attempt, verifier_attempt=verifier_id),
+        project_intent=decision_intent(context, store), review_policy=policy, specification=node,
+        reads=select_recorded_reads(tuple(RecordedRead.model_validate(row) for row in reads)), checks=checks, original_receipt=relative)
+    review_result = reason(context, store, DecisionRole.Verifier, VerificationReview, input)
     complete_ids = {row.id for row in node.criteria}
     reported_ids = list(review_result.criterion_ids)
     verified = (all(checks.values()) and review_passes(review_result.status, request(context).review_mode)
@@ -59,12 +64,11 @@ def verify_node(context: RoleContext, store: TreeStore, node: Node, actor_attemp
         "outcome": "completion_evidence" if verified else "unmet_completion_conditions"})
     if verified:
         store.accept(node.id, relative, files)
-        return {"status": "accepted", "summary": review_result.summary}
-    return {"status": "replan" if review_result.status in PASSING_REVIEWS else review_result.status,
-            "summary": "Independent verification failed: " + review_result.summary}
+        return ProjectPhaseResult(status="accepted", summary=review_result.summary)
+    return ProjectPhaseResult(status="replan" if review_result.status in PASSING_REVIEWS else review_result.status, summary="Independent verification failed: " + review_result.summary)
 
 
-def verify(context: RoleContext, store: TreeStore) -> dict:
+def verify(context: RoleContext, store: TreeStore) -> ProjectPhaseResult:
     """Verify the exact completion candidate before releasing dependencies."""
     selected = store.state["selection"]
     node = next(node for node in store.load().nodes if node.id == selected["leaf_id"])

@@ -5,6 +5,8 @@ each other's counters. Timestamp normalization changes keys only.
 """
 from __future__ import annotations
 
+from pydantic import JsonValue
+
 from pm.utils.operating_system import OperatingSystem
 import hashlib
 import json
@@ -74,7 +76,7 @@ def normalize_timestamps(text: str) -> str:
     return text
 
 
-def completion_path(endpoint: str, payload: dict) -> Path:
+def completion_path(endpoint: str, payload: dict[str, JsonValue]) -> Path:
     """Reserve the next response for this key. Ignore the sampling seed.
 
     Call once per logical request. Transport retries reuse the returned path.

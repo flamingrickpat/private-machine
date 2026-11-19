@@ -6,7 +6,7 @@ state_policy: {mutation_model: append_only}
 roles:
   story:
     skill: workflows/dialogue_story/steps.py
-    tools: [story_complete, public_complete]
+    tools: []
     result_contract:
       type: json
       schema:

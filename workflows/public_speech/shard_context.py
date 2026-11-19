@@ -25,6 +25,8 @@ The functions read a frozen memory store view and make no model call.
 """
 from __future__ import annotations
 
+from workflows.public_speech.context_trace import ContextPlanningTrace, ContextShardTrace
+
 from pm.constants import DIALOGUE_THOUGHT_LIMIT
 from pm.memory.snapshot import Snapshot
 from pm.memory.retrieval import candidate
@@ -155,17 +157,16 @@ def shard_context(view: Snapshot, request: ActionRequest, companion_name: str,
                 continue
             # A shard retains the exact version selected by cognition. Its
             # successor can already be the current query head.
-            entry = EvidenceItem.model_validate(candidate(view, record_id, view.get(record_id)))
+            entry = candidate(view, record_id, view.get(record_id))
             if any(context.head_receipt_id == record_id for context in request.entity_contexts):
                 entry.text = records[record_id].content
             entry.lane = f"shard:{item.name}"
             evidence.append(entry)
-    trace = {"source": "shards",
-             "shards": [{"name": item.name, "key": item.shard.key.model_dump(mode="json"),
-                         "items": len(item.shard.items), "tail": len(item.shard.tail_ids)}
-                        for item in request.shards],
-             "transcript": len(transcript), "empty_transcript_ids": sorted(empty),
-             "late_ids": sorted(record.id for record in late)}
+    trace = ContextPlanningTrace(source="shards",
+        shards=tuple(ContextShardTrace(name=item.name, key=item.shard.key,
+            items=len(item.shard.items), tail=len(item.shard.tail_ids)) for item in request.shards),
+        transcript=len(transcript), empty_transcript_ids=tuple(sorted(empty)),
+        late_ids=tuple(sorted(record.id for record in late)))
     return PlannedContext(dialogue=[_turn(record) for record in transcript],
                           evidence=evidence, story=BLOCK_SEPARATOR.join(blocks), trace=trace)
 

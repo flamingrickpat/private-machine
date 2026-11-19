@@ -21,8 +21,8 @@ The caller supplies rendered text lines with timestamps and lane names.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime
+from dataclasses import dataclass, field
+from datetime import datetime, date
 from typing import Literal, Sequence, TypedDict
 
 from pm.context_render.turns import Role, Turn
@@ -62,6 +62,16 @@ class StoryItem:
     section: Literal[0, 1, 2]
 
 
+@dataclass(order=True, frozen=True, slots=True)
+class StorySequencePosition:
+    section: int
+    timestamp_missing: bool
+    timestamp: datetime
+    record_id: int
+    position: int
+    item: StoryItem = field(compare=False)
+
+
 @dataclass(slots=True)
 class StoryBlock:
     """Adjacent story lines sharing one chat role."""
@@ -88,7 +98,7 @@ def dialogue_lines(turns: Sequence[DialogueTurn], prompts: DialogueTemplates) ->
     thought = prompts.get("thought_line", "{speaker} thinks: *{text}*")
     marker = prompts.get("day_marker", "*({date})*")
     lines: list[DialogueLine] = []
-    day: datetime | None = None
+    day: date | None = None
     for turn in turns:
         ts = utc_time(turn.timestamp) if turn.timestamp else None
         prefix = ""
@@ -143,7 +153,10 @@ def render_interleaved_story(
             elif line.record_id > guidance_frontier:
                 section = 2
         items.append(StoryItem(Role.User, line.timestamp, line.record_id, line.text, section))
-    items.sort(key=lambda item: (item.section, item.timestamp is None, item.timestamp or _EPOCH, item.record_id))
+    ordered = [StorySequencePosition(item.section, item.timestamp is None, item.timestamp or _EPOCH,
+                 item.record_id, index, item) for index, item in enumerate(items)]
+    ordered.sort()
+    items = [position.item for position in ordered]
 
     blocks: list[StoryBlock] = []
     for item in items:

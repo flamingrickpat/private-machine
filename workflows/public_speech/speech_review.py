@@ -20,22 +20,28 @@ can select a verbatim speech span when narration surrounds it.
 """
 from __future__ import annotations
 
+from pm.context_render.correction import answer_correction_instruction
+
 from pathlib import Path
+from dataclasses import dataclass, field
+from pm.context_render.prompt import RenderSettings, RenderedPrompt, EvidenceDecision, require_rendered_prompt, RendererCapture, RendererInput
+from pm.records.media import RecordImage
+from pm.context_render.budget import TokenEstimator
+from pm.context_render.images import ImageCatalog, resolve_media
 from collections.abc import Sequence
 from typing import Literal, TypedDict
 from pm.constants import Sampler
-from pm.context_render.turns import Content, ContextTag, Role, Turn, format_content
-from pm.context_render.budget import optional_text
-from pm.llm.completion import AsyncTextCompletion
+from pm.context_render.turns import Role, Turn
+from pm.llm.session import ModelSession
+from pm.llm.generation import GenerationSettings
 
 from pm.utils import yaml_util
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, TypeAdapter, with_config
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, with_config, StrictBool
 
 from workflows.public_speech.situational_guidance import render_situational_guidance
 
-from workflows.main_cognition.model_json import StageOutputError, extract_json
 from workflows.public_speech.public_context import (
-    DialogueTurn, PublicContext, ability_lines, memory_lines, task_lines,
+    DialogueTurn, PublicContext, EvidenceItem, ToolEvidence, ability_lines, memory_lines, task_lines,
 )
 
 REVIEW_FILE = Path(__file__).resolve().parent / "speech_review.yaml"
@@ -73,7 +79,7 @@ class SpeechReview(BaseModel):
     reason: str = ""
     false_task_result: bool = False
     spoken_text: str | None = None
-    findings: list[ReviewFinding] = Field(default_factory=list)
+    findings: list[ReviewFinding] = Field(default_factory=list[ReviewFinding])
     raw: str = ""
 
 
@@ -119,7 +125,7 @@ def _ontology_lines(context: PublicContext) -> list[str]:
 
 def build_review_messages(candidate: str, context: PublicContext, prompts: ReviewPrompts, *,
                           conversation: Sequence[DialogueTurn] = (),
-                          receipts: list[dict[str, JsonValue]] | None = None) -> list[Turn]:
+                          receipts: Sequence[ToolEvidence] = ()) -> list[Turn]:
     """Return the two review messages. Pure: no model, no store."""
     names = {"companion_name": context.companion_name, "partner_name": context.partner_name}
     presentation = context.presentation
@@ -140,68 +146,52 @@ def build_review_messages(candidate: str, context: PublicContext, prompts: Revie
         if partner is not None:
             lines = [f'- [{source.occurred_at_utc.isoformat()}; record {source.record_id}] '
                      f'{source.source} said: "{source.text}"' for source in partner.recent_dialogue]
-    conversation_context = Content("")
-    for index, line in enumerate(lines):
-        conversation_context += optional_text("\n" + line, ContextTag(f"review-dialogue:{index}", 0,
-            required=index >= len(lines) - 4, recency=float(index)))
-    user = format_content(prompts["user_template"],
+    user = prompts["user_template"].format(
         character=context.character.strip() or "(no character card)",
         feelings=context.feelings.strip() or "(calm, nothing strong)",
         abilities="\n".join(ability_lines(context)) or "- Text conversation only.",
         ontology="\n".join(_ontology_lines(context)) or "- (no ontology term recorded yet)",
         tasks="\n".join(task_lines(context, receipts)) or "- No task or tool ran.",
         memories="\n".join(memory_lines(context)) or "- (none)",
-        conversation=conversation_context if lines else "- (none)",
+        conversation="\n".join(lines) or "- (none)",
         presentation=presentation_text,
         reply=candidate,
-        **names,
+        companion_name=names["companion_name"], partner_name=names["partner_name"],
     )
     grounding = "Selected purpose: " + (context.selected_action or "not supplied")
     if context.situational_guidance is not None:
         grounding += "\n" + render_situational_guidance(context.situational_guidance)
     user = grounding + "\n\n" + user
-    return [Turn(Role.System, prompts["system_prompt"].format(**names).strip()), Turn(Role.User, user.strip())]
+    return [Turn(Role.System, prompts["system_prompt"].format(companion_name=names["companion_name"], partner_name=names["partner_name"]).strip()), Turn(Role.User, user.strip())]
 
 
-def parse_review(payload: dict, raw: str = "") -> SpeechReview:
-    """Read one review with an explicit boolean flag and a nonempty reason.
+class ReviewPayload(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    false_task_result: StrictBool
+    reason: str = Field(min_length=1)
+    judgment: Literal["accept", "good_enough", "equivalent_or_better", "block"] | None = None
+    spoken_text: str | None = None
+    findings: list[ReviewFinding | str] | None = None
 
-    Invalid fields or contradictory judgments raise ValueError. In particular,
-    a passing label cannot hide a material false task result. The string
-    ``false`` cannot become True through Python truth conversion.
-    """
-    if not isinstance(payload, dict):
-        raise ValueError("The review model returned JSON that is not an object.")
-    false_task_result = payload.get("false_task_result")
-    reason = payload.get("reason")
-    if type(false_task_result) is not bool or not isinstance(reason, str) or not reason.strip():
-        raise ValueError("A speech review requires a boolean false_task_result and a nonempty reason.")
-    items = payload.get("findings", [])
-    if items is None:
-        items = []
-    if not isinstance(items, list):
-        raise ValueError("Speech review findings must be a list.")
-    findings = []
-    for item in items:
-        if isinstance(item, dict):
-            findings.append(ReviewFinding.model_validate(item))
-        elif isinstance(item, str) and item.strip():
+
+def parse_review(raw: str) -> SpeechReview:
+    from pm.llm.structured import parse_response
+    payload = parse_response(raw, ReviewPayload)
+    if not payload.reason.strip():
+        raise ValueError("A speech review requires a nonempty reason.")
+    findings: list[ReviewFinding] = []
+    for item in payload.findings or []:
+        if isinstance(item, ReviewFinding):
+            findings.append(item)
+        elif item.strip():
             findings.append(ReviewFinding(kind=item.strip()))
         else:
-            raise ValueError("Each speech review finding must be an object or a nonempty string.")
-    judgment = str(payload.get("judgment", "") or "").strip().lower()
-    if not judgment:
-        judgment = "block" if false_task_result else "accept"
-    if (judgment == "block") != false_task_result:
+            raise ValueError("A review finding cannot be empty.")
+    judgment = payload.judgment or ("block" if payload.false_task_result else "accept")
+    if (judgment == "block") != payload.false_task_result:
         raise ValueError("A blocking judgment requires a material false task result; passing judgments cannot contain one.")
-    return SpeechReview(
-        judgment=judgment,
-        reason=reason.strip(),
-        false_task_result=false_task_result,
-        spoken_text=payload.get("spoken_text"),
-        findings=findings,
-        raw=raw,
-    )
+    return SpeechReview(judgment=judgment, reason=payload.reason.strip(), false_task_result=payload.false_task_result,
+        spoken_text=payload.spoken_text, findings=findings, raw=raw)
 
 
 def is_blocked(review: SpeechReview) -> bool:
@@ -225,34 +215,91 @@ def finding_summary(review: SpeechReview) -> str:
                      if item.kind or item.quote or item.why)
 
 
-async def review_speech(complete: AsyncTextCompletion, candidate: str, context: PublicContext, *,
+@dataclass(order=True, frozen=True, slots=True)
+class RankedReviewEvidence:
+    negative_score: float
+    record_id: int
+    evidence: EvidenceItem = field(compare=False)
+
+    @property
+    def score(self) -> float:
+        return -self.negative_score
+
+
+@dataclass(frozen=True, slots=True)
+class SpeechReviewRenderInput:
+    candidate: str
+    context: PublicContext
+    prompts: ReviewPrompts
+    conversation: tuple[DialogueTurn, ...] = ()
+    receipts: tuple[ToolEvidence, ...] = ()
+    correction_turns: tuple[Turn, ...] = ()
+    images: tuple[RecordImage, ...] = ()
+
+
+def render_speech_review(input: SpeechReviewRenderInput, settings: RenderSettings) -> RenderedPrompt:
+    from pm.memory.retrieval import distinctive_terms
+    estimator = TokenEstimator(estimate_factor=settings.estimate_factor)
+    selected_context = input.context.model_copy(deep=True)
+    selected_context.evidence = []
+    selected_context.memories = []
+    conversation = input.conversation[-4:]
+    images = ImageCatalog(input.images)
+    turns = resolve_media((*build_review_messages(input.candidate, selected_context, input.prompts,
+              conversation=conversation, receipts=list(input.receipts)), *input.correction_turns), images)
+    require_rendered_prompt("speech review", turns, settings)
+    terms = set(distinctive_terms(input.candidate))
+    ranked: list[RankedReviewEvidence] = []
+    for item in input.context.evidence:
+        matches = len(terms.intersection(distinctive_terms(item.text)))
+        if matches:
+            ranked.append(RankedReviewEvidence(-(matches + max(0.0, item.score)), item.knoxel_id, item))
+    ranked.sort()
+    selected: list[EvidenceItem] = []
+    decisions: list[EvidenceDecision] = []
+    seen: set[str] = set()
+    for ranked_item in ranked:
+        score, record_id, item = ranked_item.score, ranked_item.record_id, ranked_item.evidence
+        text = " ".join(item.text.casefold().split())
+        if text in seen:
+            decisions.append(EvidenceDecision(record_id, score, False, "duplicate evidence"))
+            continue
+        seen.add(text)
+        trial_context = selected_context.model_copy(deep=True)
+        trial_context.evidence = [*selected, item]
+        trial_turns = resolve_media((*build_review_messages(input.candidate, trial_context, input.prompts,
+                    conversation=conversation, receipts=list(input.receipts)), *input.correction_turns), images)
+        included = estimator.estimate(trial_turns) <= settings.input_ceiling
+        decisions.append(EvidenceDecision(record_id, score, included, "draft relevance" if included else "budget"))
+        if included:
+            selected.append(item)
+            turns = trial_turns
+    return require_rendered_prompt("speech review", turns, settings, tuple(decisions))
+
+
+async def review_speech(complete: ModelSession, candidate: str, context: PublicContext, *,
                         conversation: Sequence[DialogueTurn] = (),
-                        receipts: list[dict[str, JsonValue]] | None = None,
+                        receipts: Sequence[ToolEvidence] = (),
                         prompts: ReviewPrompts | None = None, attempts: int = 2,
-                        prepared_messages: Sequence[Turn] | None = None) -> SpeechReview:
-    """Repair an invalid review without changing the candidate reply.
-
-    ``attempts`` remains accepted for existing callers. Context capacity now
-    bounds repairs. The completion must provide context measurement.
-    Invalid speech spans receive repair feedback with the unchanged draft.
-    ``prepared_messages`` carries an already budgeted prompt, including its
-    omission notice. The same selected context must accompany that prompt.
-    """
-    from pm.llm.structured import complete_json_async
-    prompts = prompts or load_prompts()
-    if prepared_messages is None:
-        messages = build_review_messages(candidate, context, prompts, conversation=list(conversation), receipts=receipts)
-    else:
-        messages = list(prepared_messages)
-
-    def validate(payload: dict[str, object], raw: str) -> SpeechReview:
-        result = parse_review(payload, raw=raw)
-        select_spoken_text(candidate, result)
-        return result
-
-    return await complete_json_async(complete, messages, SpeechReview,
-                                    validate=validate,
-                                    temperature=REVIEW_TEMPERATURE, enable_thinking=False)
+                        prepared_messages: Sequence[Turn] | None = None,
+                        images: tuple[RecordImage, ...] = ()) -> SpeechReview:
+    from pm.llm.structured import JsonOutputError
+    from pydantic import ValidationError
+    selected_prompts = prompts if prompts is not None else load_prompts()
+    corrections: tuple[Turn, ...] = ()
+    while True:
+        input = SpeechReviewRenderInput(candidate, context, selected_prompts, tuple(conversation),
+                                       tuple(receipts), corrections, images)
+        with RendererCapture(complete.capture_settings("speech_review"), RendererInput("speech_review", input, complete.settings)) as capture:
+            rendered = render_speech_review(input, complete.settings)
+            capture.save_output(rendered)
+        raw = await complete.complete_async(rendered.turns, settings=GenerationSettings(temperature=REVIEW_TEMPERATURE, enable_thinking=False))
+        try:
+            result = parse_review(raw)
+            select_spoken_text(candidate, result)
+            return result
+        except (JsonOutputError, ValidationError, ValueError) as error:
+            corrections = (Turn(Role.Assistant, raw), Turn(Role.User, answer_correction_instruction("speech review", str(error))))
 
 
 

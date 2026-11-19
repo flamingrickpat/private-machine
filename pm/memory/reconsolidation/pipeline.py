@@ -34,10 +34,13 @@ commit. A cancelled run keeps the groups that it committed before.
 from __future__ import annotations
 
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
 import hashlib
 import re
 import uuid
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from threading import Event
 from typing import TYPE_CHECKING, cast
@@ -46,17 +49,22 @@ from pydantic import BaseModel, ConfigDict
 
 from pm.constants import (RECONSOLIDATION_COMMIT_GROUP, RECONSOLIDATION_EMBED_WORKERS,
                           RECONSOLIDATION_SESSION_GAP_MINUTES, RECONSOLIDATION_TIME_FORMAT)
-from pm.llm.completion import TextCompletion
+from pm.llm.stage_model import LazyStageModel
+from pm.llm.concurrency import wait_model_futures
 from pm.memory.reconsolidation.clustering import (contextual_embeddings, cosine_distances, optimal_labels,
                                                   smooth_labels, topic_blocks)
 from pm.memory.reconsolidation.model_calls import ModelCalls
-from pm.memory.reconsolidation.schemas import (FactFiling, FactsAnswer, FilingAnswer, MentalStateAnswer,
-                                               NarrativeAnswer, NarrativeDefinition, ReconsolidationConfig,
-                                               ReconsolidationPrompts, ReconsolidationReport, SummaryAnswer,
+from pm.memory.reconsolidation.ordering import chronological_records, newest_narrative_version
+from pm.memory.reconsolidation.schemas import (FactFiling, NarrativeDefinition, ReconsolidationConfig,
+                                               ReconsolidationPrompts, ReconsolidationReport,
                                                load_prompts, naive_utc_now)
-from pm.memory.reconsolidation.story import count_tokens, feature_line, feature_text, render_story, render_summaries
+from pm.memory.reconsolidation.story import ImageCatalog, count_tokens, feature_line, feature_text, render_story, render_summaries
 from pm.memory.media_alt import complete_alt_text
-from pm.records.media import image_ids
+from pm.records.media import image_ids, RecordImage
+from pm.memory.reconsolidation.rendering import (
+    SceneSummaryInput, TemporalSummaryInput, RecordedStateInput, FactExtractionInput, FactClassificationInput,
+    NarrativeRenderInput, NarrativeEvidence,
+)
 from pm.memory.reconsolidation.temporal import (BUILD_ORDER, CHILD_LEVEL, LEVEL_TOPICAL, TimeRange,
                                                 closed_ranges)
 from pm.records.base import Provenance, RecordBase
@@ -125,7 +133,7 @@ def unclustered_events(store: MemoryStore, config: ReconsolidationConfig | None 
     clustered = {key for cluster in clusters if is_episode_cluster(cluster) for key in _ids(cluster.included_event_ids)}
     events = [feature for feature in features if feature.causal and feature.feature_type in config.cluster_feature_types
               and feature.id not in clustered]
-    return sorted(events, key=lambda item: (item.timestamp_world_begin, item.id))
+    return chronological_records(events)
 
 
 def reconsolidation_due(store: MemoryStore, config: ReconsolidationConfig | None = None) -> bool:
@@ -134,7 +142,7 @@ def reconsolidation_due(store: MemoryStore, config: ReconsolidationConfig | None
     return len(unclustered_events(store, config)) >= config.trigger_events
 
 
-def _chunks(items: Sequence, size: int) -> list[list]:
+def _chunks[T](items: Sequence[T], size: int) -> list[list[T]]:
     return [list(items[start:start + size]) for start in range(0, len(items), size)]
 
 
@@ -145,13 +153,55 @@ def _record_id(text: str, moment: datetime) -> str:
     return f"mem_{moment.strftime('%Y%m%dT%H')}_{digest}_{slug}"
 
 
+@dataclass(frozen=True, slots=True)
+class TopicSummaryPlan:
+    features: list[Feature]
+    first_tick: int
+    last_tick: int
+
+
+@dataclass(frozen=True, slots=True)
+class TemporalSummaryPlan:
+    span: TimeRange
+    features: list[Feature]
+    children: list[MemoryClusterRecord]
+    story: str
+
+
+@dataclass(frozen=True, slots=True)
+class SummaryResult:
+    summary: str
+    description: str
+
+
+@dataclass(frozen=True, slots=True)
+class FactExtractionPlan:
+    features: list[Feature]
+
+
+@dataclass(frozen=True, slots=True)
+class FiledFact:
+    text: str
+    filing: FactFiling
+    sources: list[Feature]
+
+
+@dataclass(frozen=True, slots=True)
+class ReconsolidationProgress:
+    enabled: bool = False
+
+    def write(self, message: str) -> None:
+        if self.enabled:
+            print(message, flush=True)
+
+
 class _Run:
     """The state of one run: the store, the model, the names, and the report."""
 
     def __init__(self, store: MemoryStore, calls: ModelCalls, embeddings: EmbeddingService,
                  config: ReconsolidationConfig, prompts: ReconsolidationPrompts,
                  report: ReconsolidationReport, now: datetime, cancel: Event | None,
-                 log: Callable[[str], None]) -> None:
+                 progress: ReconsolidationProgress) -> None:
         self.store = store
         self.calls = calls
         self.embeddings = embeddings
@@ -159,8 +209,8 @@ class _Run:
         self.prompts = prompts
         self.report = report
         self.now = now
-        self.cancel = cancel
-        self.log = log
+        self.cancel = calls.cancel
+        self.progress = progress
         persona = store.ghost_config
         self.companion = persona.companion_name
         self.user = persona.user_name
@@ -176,9 +226,9 @@ class _Run:
 
     # ------------------------------------------------------------- helpers
 
-    def fill(self, template: str, **values: object) -> str:
+    def fill(self, template: str, character_card: str = "") -> str:
         """Fill a prompt template. Values are inserted as they are."""
-        return template.format(companion_name=self.companion, user_name=self.user, **values)
+        return template.format(companion_name=self.companion, user_name=self.user, character_card=character_card)
 
     def embed(self, texts: Sequence[str]) -> list[list[float]]:
         """Return one vector for each temporary text through the embedding model."""
@@ -203,25 +253,39 @@ class _Run:
         """Mark a derived record as system output of this run, not as testimony."""
         return Provenance(source_kind=SourceKind.System, source_ref=f"{RECEIPT_PREFIX}{self.report.run_id}")
 
-    def commit(self, name: str, build: Callable[[WriteBatch], None]) -> list[int]:
-        """Stage records with ``build(batch)`` and commit them. Return the new ids."""
-        batch = self.store.begin_batch(f"{RECEIPT_PREFIX}{self.report.run_id}:{name}", cancel=self.cancel)
-        build(batch)
+    def begin_batch(self, name: str) -> WriteBatch:
+        return self.store.begin_batch(f"{RECEIPT_PREFIX}{self.report.run_id}:{name}", cancel=self.cancel)
+
+    def finish_batch(self, batch: WriteBatch) -> list[int]:
         receipt = self.store.commit(batch)
         return list(receipt.added_ids)
+
+    def image_catalog(self, features: Sequence[Feature]) -> ImageCatalog:
+        images: list[RecordImage] = []
+        seen: set[str] = set()
+        for feature in features:
+            for image_id in image_ids(feature.content):
+                if image_id in seen:
+                    continue
+                image = self.store.find_image(image_id)
+                if image is None:
+                    raise ValueError(f"Reconsolidation source {feature.id} names missing image {image_id}.")
+                images.append(image)
+                seen.add(image_id)
+        return ImageCatalog(tuple(images))
 
     def story_features(self) -> list[Feature]:
         """Return the causal features that summaries read, oldest first."""
         kinds = set(self.config.story_feature_types)
         with self.store.lock:
             features = [item for item in self.store.all_features if item.causal and item.feature_type in kinds]
-        return sorted(features, key=lambda item: (item.timestamp_world_begin, item.id))
+        return chronological_records(features)
 
     def clusters(self) -> list[MemoryClusterRecord]:
         """Return every accepted cluster, oldest first."""
         with self.store.lock:
             records = [item for item in self.store.all_knoxels.values() if isinstance(item, MemoryClusterRecord)]
-        return sorted(records, key=lambda item: (item.timestamp_world_begin, item.id))
+        return chronological_records(records)
 
     def recorded_state(self, min_tick: int, max_tick: int) -> str:
         """Describe the accepted cycle states of a tick range in plain words.
@@ -232,7 +296,7 @@ class _Run:
         """
         with self.store.lock:
             states: list[CycleState] = [state for state in self.store.states if min_tick <= state.tick_id <= max_tick]
-        lines = []
+        lines: list[str] = []
         for state in states:
             mind = state.mental_state
             emotions = sorted(((value, name) for name, value in mind.state_emotions.model_dump().items()
@@ -244,16 +308,47 @@ class _Run:
                          f"arousal {mind.state_core.arousal:.2f}; {felt}")
         return "\n".join(lines) if lines else self.prompts.no_recorded_state
 
-    def describe_state(self, story: str, min_tick: int, max_tick: int) -> str:
-        answer = self.calls.json(self.system, self.fill(self.prompts.mental_state, intro=self.intro, story=story,
-                                 recorded=self.recorded_state(min_tick, max_tick)), MentalStateAnswer)
-        return answer.description
+    def scene_input(self, template: str, story: str) -> SceneSummaryInput:
+        return SceneSummaryInput(self.system, template, self.intro, story, self.companion, self.user)
 
-    # ------------------------------------------------------------- stage 1
+    def describe_state(self, story: str, min_tick: int, max_tick: int) -> str:
+        input = RecordedStateInput(self.scene_input(self.prompts.mental_state, story),
+            self.recorded_state(min_tick, max_tick))
+        return self.calls.describe_recorded_state(input).description
+
+    def summarize_topic(self, plan: TopicSummaryPlan) -> SummaryResult:
+        features, low, high = plan.features, plan.first_tick, plan.last_tick
+        story = render_story(features, self.time_format, images=self.image_catalog(features))
+        summary = self.calls.summarize_scene(self.scene_input(self.prompts.topic_summary, story)).summary
+        return SummaryResult(summary, self.describe_state(story, low, high))
+
+    def summarize_temporal(self, plan: TemporalSummaryPlan) -> SummaryResult:
+        span, inside, children, story = plan.span, plan.features, plan.children, plan.story
+        template = self.prompts.temporal_children if children else self.prompts.temporal_raw
+        input = TemporalSummaryInput(self.scene_input(template, story),
+            span.start.strftime(self.time_format), span.end.strftime(self.time_format))
+        summary = self.calls.summarize_temporal(input).summary
+        low, high = min(item.tick_id for item in inside), max(item.tick_id for item in inside)
+        return SummaryResult(summary, self.describe_state(story, low, high))
+
+    def extract_facts(self, plan: FactExtractionPlan) -> list[FiledFact]:
+        scene = plan.features
+        if not scene:
+            return []
+        story = render_story(scene, self.time_format, numbered=True, images=self.image_catalog(scene))
+        input = FactExtractionInput(self.scene_input(self.prompts.facts_extract, story))
+        found = self.calls.extract_facts(input, len(scene)).facts
+        if not found:
+            return []
+        classify_input = FactClassificationInput(self.system, self.prompts.facts_classify, self.intro,
+            tuple(fact.text for fact in found), tuple(PmCategory.all()), self.companion, self.user)
+        filings = self.calls.classify_facts(classify_input).facts
+        return [FiledFact(fact.text, filing, [scene[line - 1] for line in fact.lines])
+            for fact, filing in zip(found, filings, strict=True)]
 
     def topical(self, events: list[Feature]) -> None:
         """Cluster the unclustered events into topic blocks and summarize each block."""
-        texts = [feature_text(event, self.store.find_image) for event in events]
+        texts = [feature_text(event, self.image_catalog((event,))) for event in events]
         vectors = self.embed(texts)
         tokens = [count_tokens(text) for text in texts]
         gap = timedelta(minutes=RECONSOLIDATION_SESSION_GAP_MINUTES)
@@ -280,36 +375,36 @@ class _Run:
             blocks.pop()
         story_features = self.story_features()
         for group_index, group in enumerate(_chunks(blocks, RECONSOLIDATION_COMMIT_GROUP)):
-            plans = []
+            plans: list[TopicSummaryPlan] = []
             for block in group:
                 low, high = min(item.tick_id for item in block), max(item.tick_id for item in block)
                 features = [item for item in story_features if low <= item.tick_id <= high]
-                plans.append((block, features, low, high))
+                plans.append(TopicSummaryPlan(features, low, high))
 
-            def summarize(plan: tuple[list[Feature], list[Feature], int, int]) -> tuple[str, str]:
-                _, features, low, high = plan
-                story = render_story(features, self.time_format, resolve=self.store.find_image)
-                summary = self.calls.json(self.system, self.fill(self.prompts.topic_summary, intro=self.intro,
-                                                                 story=story), SummaryAnswer).summary
-                return summary, self.describe_state(story, low, high)
+            if self.calls.model.connection.disable_threading:
+                results = [self.summarize_topic(item) for item in plans]
+            else:
+                with ThreadPoolExecutor(max_workers=self.calls.workers, thread_name_prefix="memory") as workers:
+                    futures = [workers.submit(copy_context().run, self.summarize_topic, item) for item in plans]
+                    results = wait_model_futures(futures, self.calls.cancel)
+            self.embed([result.description for result in results])
 
-            results = self.calls.map(summarize, plans)
-            self.embed([description for _, description in results])
-
-            def build(batch: WriteBatch) -> None:
-                for (block, features, low, high), (summary, description) in zip(plans, results):
-                    ids = [item.id for item in features]
-                    batch.create(MemoryClusterRecord(
-                        content=summary, level=LEVEL_TOPICAL, cluster_type=ClusterType.Topical,
-                        included_event_ids=",".join(map(str, ids)), token=count_tokens(summary),
-                        timestamp_world_begin=features[0].timestamp_world_begin,
-                        timestamp_world_end=max(item.timestamp_world_end for item in features),
-                        min_event_id=min(ids), max_event_id=max(ids), min_tick_id=low, max_tick_id=high,
-                        facts_extracted=False, emotion_description=description,
-                        metadata={"memory_kind": "experience_summary"}, provenance=self.provenance(),
-                        lineage=self.lineage(OPERATION_TOPICAL, ids)))
-            self.report.topical_ids += self.commit(f"topical-{group_index}", build)
-            self.log(f"topical clusters: {len(self.report.topical_ids)}")
+            batch = self.begin_batch(f'topical-{group_index}')
+            for plan, result in zip(plans, results, strict=True):
+                features, low, high = plan.features, plan.first_tick, plan.last_tick
+                summary, description = result.summary, result.description
+                ids = [item.id for item in features]
+                batch.create(MemoryClusterRecord(
+                    content=summary, level=LEVEL_TOPICAL, cluster_type=ClusterType.Topical,
+                    included_event_ids=",".join(map(str, ids)), token=count_tokens(summary),
+                    timestamp_world_begin=features[0].timestamp_world_begin,
+                    timestamp_world_end=max(item.timestamp_world_end for item in features),
+                    min_event_id=min(ids), max_event_id=max(ids), min_tick_id=low, max_tick_id=high,
+                    facts_extracted=False, emotion_description=description,
+                    metadata={"memory_kind": "experience_summary"}, provenance=self.provenance(),
+                    lineage=self.lineage(OPERATION_TOPICAL, ids)))
+            self.report.topical_ids += self.finish_batch(batch)
+            self.progress.write(f"topical clusters: {len(self.report.topical_ids)}")
 
     # ------------------------------------------------------------- stage 2
 
@@ -325,42 +420,39 @@ class _Run:
                 clusters = self.clusters()
                 plans = [self._temporal_plan(item, features, clusters) for item in group]
 
-                def summarize(plan: tuple[TimeRange, list[Feature], list[MemoryClusterRecord], str]) -> tuple[str, str]:
-                    span, inside, children, story = plan
-                    template = self.prompts.temporal_children if children else self.prompts.temporal_raw
-                    summary = self.calls.json(self.system, self.fill(
-                        template, intro=self.intro, story=story,
-                        start=span.start.strftime(self.time_format), end=span.end.strftime(self.time_format)),
-                        SummaryAnswer).summary
-                    low, high = min(item.tick_id for item in inside), max(item.tick_id for item in inside)
-                    return summary, self.describe_state(story, low, high)
+                if self.calls.model.connection.disable_threading:
+                    results = [self.summarize_temporal(item) for item in plans]
+                else:
+                    with ThreadPoolExecutor(max_workers=self.calls.workers, thread_name_prefix="memory") as workers:
+                        futures = [workers.submit(copy_context().run, self.summarize_temporal, item) for item in plans]
+                        results = wait_model_futures(futures, self.calls.cancel)
+                self.embed([result.description for result in results])
 
-                results = self.calls.map(summarize, plans)
-                self.embed([description for _, description in results])
-
-                def build(batch: WriteBatch) -> None:
-                    for (span, inside, children, _), (summary, description) in zip(plans, results):
-                        event_ids = [item.id for item in inside]
-                        child_ids = [item.id for item in children]
-                        batch.create(MemoryClusterRecord(
-                            content=summary, level=span.level, cluster_type=ClusterType.Temporal,
-                            temporal_key=span.key, token=count_tokens(summary),
-                            included_event_ids=None if children else ",".join(map(str, event_ids)),
-                            included_cluster_ids=",".join(map(str, child_ids)) if children else None,
-                            timestamp_world_begin=inside[0].timestamp_world_begin,
-                            timestamp_world_end=max(item.timestamp_world_end for item in inside),
-                            min_event_id=min(event_ids), max_event_id=max(event_ids),
-                            min_tick_id=min(item.tick_id for item in inside),
-                            max_tick_id=max(item.tick_id for item in inside),
-                            facts_extracted=False, emotion_description=description,
-                            metadata={"memory_kind": "experience_summary"}, provenance=self.provenance(),
-                            lineage=self.lineage(OPERATION_TEMPORAL, [] if children else event_ids, child_ids)))
-                self.report.temporal_ids += self.commit(f"temporal-{level}-{group_index}", build)
-                self.log(f"temporal clusters: {len(self.report.temporal_ids)}")
+                batch = self.begin_batch(f'temporal-{level}-{group_index}')
+                for plan, result in zip(plans, results, strict=True):
+                    span, inside, children = plan.span, plan.features, plan.children
+                    summary, description = result.summary, result.description
+                    event_ids = [item.id for item in inside]
+                    child_ids = [item.id for item in children]
+                    batch.create(MemoryClusterRecord(
+                        content=summary, level=span.level, cluster_type=ClusterType.Temporal,
+                        temporal_key=span.key, token=count_tokens(summary),
+                        included_event_ids=None if children else ",".join(map(str, event_ids)),
+                        included_cluster_ids=",".join(map(str, child_ids)) if children else None,
+                        timestamp_world_begin=inside[0].timestamp_world_begin,
+                        timestamp_world_end=max(item.timestamp_world_end for item in inside),
+                        min_event_id=min(event_ids), max_event_id=max(event_ids),
+                        min_tick_id=min(item.tick_id for item in inside),
+                        max_tick_id=max(item.tick_id for item in inside),
+                        facts_extracted=False, emotion_description=description,
+                        metadata={"memory_kind": "experience_summary"}, provenance=self.provenance(),
+                        lineage=self.lineage(OPERATION_TEMPORAL, [] if children else event_ids, child_ids)))
+                self.report.temporal_ids += self.finish_batch(batch)
+                self.progress.write(f"temporal clusters: {len(self.report.temporal_ids)}")
 
     def _temporal_plan(self, span: TimeRange, features: list[Feature],
                        clusters: list[MemoryClusterRecord],
-                       ) -> tuple[TimeRange, list[Feature], list[MemoryClusterRecord], str]:
+                       ) -> TemporalSummaryPlan:
         """Return ``(range, events, children, story)`` for one range.
 
         A range whose raw story fits ``summary_token_limit`` reads the raw
@@ -371,9 +463,9 @@ class _Run:
         raised here, and dropping evidence is worse than a long prompt.
         """
         inside = [item for item in features if span.contains(item.timestamp_world_begin)]
-        story = render_story(inside, self.time_format, resolve=self.store.find_image)
+        story = render_story(inside, self.time_format, images=self.image_catalog(inside))
         if count_tokens(story) < self.config.summary_token_limit:
-            return span, inside, [], story
+            return TemporalSummaryPlan(span, inside, [], story)
         level = CHILD_LEVEL[span.level]
         if level == LEVEL_TOPICAL:
             children = [item for item in clusters if is_episode_cluster(item)
@@ -383,19 +475,18 @@ class _Run:
                         and item.level == level and span.contains(item.timestamp_world_begin)]
         if not children:
             self.report.notes.append(f"Range {span.key} is long and has no child summaries; it reads raw events.")
-            return span, inside, [], story
-        return span, inside, children, render_summaries(children, self.time_format)
+            return TemporalSummaryPlan(span, inside, [], story)
+        return TemporalSummaryPlan(span, inside, children, render_summaries(children, self.time_format))
 
     # ------------------------------------------------------------- stage 3
 
     def facts(self) -> None:
         """Extract and file the facts of every topical cluster that has none yet."""
         pending = [item for item in self.clusters() if is_episode_cluster(item) and not item.facts_extracted]
-        about = [self.companion, self.user, "both", "other"]
         subjects = {self.companion: self.companion_id or 0, self.user: self.user_id or 0, "both": 0, "other": 0}
         kinds = set(self.config.story_feature_types)
         with self.store.lock:
-            existing = {}
+            existing: dict[str, int] = {}
             for record in self.store.all_knoxels.values():
                 if isinstance(record, SemanticRecord):
                     existing.setdefault(_metadata(record).dedup_key or record.dedup_key, record.id)
@@ -403,35 +494,23 @@ class _Run:
             with self.store.lock:
                 sources = [[self.store.get_knoxel_by_id(key) for key in _ids(cluster.included_event_ids)]
                            for cluster in group]
-            events = [sorted((item for item in records if isinstance(item, Feature) and item.feature_type in kinds),
-                             key=lambda item: (item.timestamp_world_begin, item.id)) for records in sources]
+            events = [chronological_records([item for item in records if isinstance(item, Feature) and item.feature_type in kinds])
+                for records in sources]
 
-            def extract(plan: tuple[MemoryClusterRecord, list[Feature]]) -> list[tuple[str, FactFiling, list[Feature]]]:
-                cluster, scene = plan
-                if not scene:
-                    return []
-                story = render_story(scene, self.time_format, numbered=True, resolve=self.store.find_image)
-                found = self.calls.json(self.system, self.fill(self.prompts.facts_extract, intro=self.intro, story=story),
-                                        FactsAnswer, context={"lines": len(scene)}).facts
-                if not found:
-                    return []
-                listing = "\n".join(f"{index}. {fact.text}" for index, fact in enumerate(found, 1))
-                filings = self.calls.json(self.system, self.fill(
-                    self.prompts.facts_classify, intro=self.intro, facts=listing,
-                    categories=", ".join(PmCategory.all())), FilingAnswer,
-                    context={"count": len(found), "about": about}).facts
-                return [(fact.text, filing, [scene[line - 1] for line in fact.lines])
-                        for fact, filing in zip(found, filings)]
+            if self.calls.model.connection.disable_threading:
+                results = [self.extract_facts(FactExtractionPlan(scene)) for scene in events]
+            else:
+                with ThreadPoolExecutor(max_workers=self.calls.workers, thread_name_prefix="memory") as workers:
+                    futures = [workers.submit(copy_context().run, self.extract_facts, FactExtractionPlan(scene)) for scene in events]
+                    results = wait_model_futures(futures, self.calls.cancel)
 
-            results = self.calls.map(extract, list(zip(group, events)))
-
-            def build(batch: WriteBatch) -> None:
-                self._stage_facts(batch, group, results, subjects, existing)
-            self.commit(f"facts-{group_index}", build)
-            self.log(f"facts: {len(self.report.fact_ids)}")
+            batch = self.begin_batch(f'facts-{group_index}')
+            self._stage_facts(batch, group, results, subjects, existing)
+            self.finish_batch(batch)
+            self.progress.write(f"facts: {len(self.report.fact_ids)}")
 
     def _stage_facts(self, batch: WriteBatch, clusters: list[MemoryClusterRecord],
-                     results: list[list[tuple[str, FactFiling, list[Feature]]]],
+                     results: list[list[FiledFact]],
                      subjects: dict[str, int], existing: dict[str, int]) -> None:
         """Create the facts and their canonical semantic records in ``batch``.
 
@@ -444,7 +523,8 @@ class _Run:
         view = batch.view()
         open_records: dict[int, SemanticRecord] = {}
         for cluster, items in zip(clusters, results):
-            for text, filing, cited in items:
+            for item in items:
+                text, filing, cited = item.text, item.filing, item.sources
                 subject = subjects[filing.about]
                 fact = batch.create(self._fact(cluster, text, filing, subject, cited))
                 key = MemoryTaxonomy.dedup_key(subject, filing.essence)
@@ -517,7 +597,12 @@ class _Run:
 
     def narratives(self) -> None:
         """Refine each kept narrative whose evidence grew enough since its newest version."""
-        chains = self.calls.map(self._narrative_chain, self.prompts.narratives)
+        if self.calls.model.connection.disable_threading:
+            chains = [self._narrative_chain(item) for item in self.prompts.narratives]
+        else:
+            with ThreadPoolExecutor(max_workers=self.calls.workers, thread_name_prefix="narrative") as workers:
+                futures = [workers.submit(copy_context().run, self._narrative_chain, item) for item in self.prompts.narratives]
+                chains = wait_model_futures(futures, self.calls.cancel)
         for created in chains:
             self.report.narrative_ids += created
 
@@ -528,7 +613,7 @@ class _Run:
                         if item.narrative_type == definition.type and item.entity_id == entity_id]
         if not versions:
             return None
-        return max(versions, key=lambda item: (item.last_refined_with_tick or -1, item.timestamp_world_begin, item.id))
+        return newest_narrative_version(versions)
 
     def _narrative_chain(self, definition: NarrativeDefinition) -> list[int]:
         """Write new versions of one narrative until the new evidence is too small.
@@ -549,7 +634,7 @@ class _Run:
         kinds = set(self.prompts.evidence_types[definition.type])
         with self.store.lock:
             features = [item for item in self.store.all_features if item.causal and item.feature_type in kinds]
-        features.sort(key=lambda item: (item.timestamp_world_begin, item.id))
+        features = chronological_records(features)
         latest = self.newest_narrative(definition, entity_id)
         if latest is not None and latest.lineage is not None and latest.lineage.source_event_ids:
             cursor = max(latest.lineage.source_event_ids)
@@ -558,7 +643,7 @@ class _Run:
             evidence = [item for item in features if item.tick_id > (latest.last_refined_with_tick or -1)]
         else:
             evidence = features
-        lines = [feature_line(item, self.time_format, self.store.find_image) for item in evidence]
+        lines = [feature_line(item, self.time_format, self.image_catalog((item,))) for item in evidence]
         costs = [count_tokens(line) for line in lines]
         created: list[int] = []
         limit = (self.config.narrative_min_tokens + self.config.narrative_max_tokens) // 2
@@ -572,11 +657,16 @@ class _Run:
                 break
             buffer = evidence[:size]
             card = self.fill(self.prompts.narrative_card, character_card=self.card) if companion and self.card else ""
-            text = self.calls.json(self.system, self.fill(
-                self.prompts.narrative, intro=self.intro, card=card, label=definition.label, target=target,
-                previous=latest.content if latest is not None else self.prompts.no_previous_narrative,
-                story="\n".join(lines[:size]),
-                goal=definition.goal.format(target=target, other=other)), NarrativeAnswer).narrative
+            input = NarrativeRenderInput(self.system, self.prompts.narrative, self.intro, card,
+                definition.label, target, latest.content if latest is not None else self.prompts.no_previous_narrative,
+                definition.goal.format(target=target, other=other), self.companion, self.user,
+                tuple(NarrativeEvidence(item.id, line) for item, line in zip(buffer, lines[:size], strict=True)))
+            refinement = self.calls.refine_narrative(input)
+            answer = refinement.answer
+            selected = set(refinement.selected_ids)
+            buffer = [item for item in buffer if item.id in selected]
+            size = len(buffer)
+            text = answer.narrative
             record = Narrative(
                 content=text, narrative_type=definition.type, entity_id=entity_id,
                 last_refined_with_tick=max(item.tick_id for item in buffer),
@@ -586,16 +676,14 @@ class _Run:
                 lineage=self.lineage(OPERATION_NARRATIVE, [item.id for item in buffer],
                                      [latest.id] if latest is not None else []))
 
-            def stage_version(batch: WriteBatch) -> None:
-                batch.create(record)
-
-            ids = self.commit(f"narrative-{definition.type.value}-{definition.target}-{len(created)}",
-                              stage_version)
+            batch = self.begin_batch(f'narrative-{definition.type.value}-{definition.target}-{len(created)}')
+            batch.create(record)
+            ids = self.finish_batch(batch)
             created += ids
             with self.store.lock:
                 latest = self.store.get_knoxel_by_id(ids[0])
             evidence, lines, costs = evidence[size:], lines[size:], costs[size:]
-            self.log(f"narrative {definition.type.value} of {target}: version {len(created)}")
+            self.progress.write(f"narrative {definition.type.value} of {target}: version {len(created)}")
         return created
 
     # ------------------------------------------------------------- index
@@ -609,11 +697,11 @@ class _Run:
         self.store.save()
 
 
-def reconsolidate(store: MemoryStore, *, complete: TextCompletion, embeddings: EmbeddingService,
+def reconsolidate(store: MemoryStore, *, complete: LazyStageModel, embeddings: EmbeddingService,
                   config: ReconsolidationConfig | None = None,
                   force: bool = False, cancel: Event | None = None, now: datetime | None = None,
                   prompts: ReconsolidationPrompts | None = None,
-                  log: Callable[[str], None] | None = None) -> ReconsolidationReport:
+                  progress: ReconsolidationProgress = ReconsolidationProgress()) -> ReconsolidationReport:
     """Run one memory reconsolidation and return its report.
 
     ``complete`` is a text completion (for example ``LazyStageModel.complete``).
@@ -635,7 +723,7 @@ def reconsolidate(store: MemoryStore, *, complete: TextCompletion, embeddings: E
     calls = ModelCalls(complete, cancel=cancel)
     report = ReconsolidationReport(run_id=uuid.uuid4().hex[:12], forced=force)
     run = _Run(store, calls, embeddings, config, prompts, report, now or naive_utc_now(), cancel,
-               log or (lambda message: None))
+               progress)
     # Memory reads images only as alt text. Write the missing ones first,
     # so no "no description yet" reaches a summary, fact, or narrative.
     complete_alt_text(store, [image_id for feature in run.story_features() for image_id in image_ids(feature.content)],
@@ -655,11 +743,10 @@ def reconsolidate(store: MemoryStore, *, complete: TextCompletion, embeddings: E
     report.model_calls = calls.calls
     report.finished_at = naive_utc_now()
 
-    def receipt(batch: WriteBatch) -> None:
-        batch.set_consolidation_receipt(f"{RECEIPT_PREFIX}{report.run_id}",
-                                        {"run_id": report.run_id, "kind": "memory_reconsolidation",
-                                         **report.model_dump(mode="json")})
-    run.commit("receipt", receipt)
+    batch = run.begin_batch("receipt")
+    batch.set_consolidation_receipt(f"{RECEIPT_PREFIX}{report.run_id}",
+        {"run_id": report.run_id, "kind": "memory_reconsolidation", **report.model_dump(mode="json")})
+    run.finish_batch(batch)
     return report
 
 

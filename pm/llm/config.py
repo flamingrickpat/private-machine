@@ -17,6 +17,7 @@ from pm.utils import yaml_util
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, StrictInt, field_validator, model_validator
 
 from pm.llm.mcp_config import MinecraftConfig, ToolCallConfig
+from pm.context_render.prompt import RendererCaptureOptions
 
 
 class LlmPreset(StrEnum):
@@ -39,6 +40,8 @@ class Connection(BaseModel):
 
     base_url: str
     model: str = Field(min_length=1)
+    disable_threading: bool = Field(default=False, strict=True)
+    provider: str | None = Field(default=None, min_length=1)
     api_key: SecretStr = SecretStr("")
     startup_script: Path | None = None
     # Remote services can omit serving limits. This optional bound applies
@@ -48,8 +51,6 @@ class Connection(BaseModel):
     context_input_fraction: float = Field(default=0.8, gt=0, lt=1, strict=True)
     # Cap the resolved serving context without increasing the model's limit.
     override_context: StrictInt | None = Field(default=None, gt=0)
-    cognition_context_window: StrictInt = Field(default=32768, gt=0,
-        description="Context window in tokens for internal cognition; the smaller serving window wins.")
     # Bound one ordinary visible completion. Without this, a completion may run
     # to the provider's whole output ceiling: a degenerate repetition sample then
     # costs minutes of wall clock and holds an admission slot the whole time.
@@ -109,9 +110,9 @@ class ConnectionConfig(Connection):
                 raise ValueError(f"Set the credential environment variable {self.api_key_env} or add it to .env.")
             key = SecretStr(value)
         return Connection(base_url=self.base_url, model=self.model, api_key=key, startup_script=self.startup_script,
+                          disable_threading=self.disable_threading, provider=self.provider,
                           context_window=self.context_window, context_input_fraction=self.context_input_fraction,
                           override_context=self.override_context,
-                          cognition_context_window=self.cognition_context_window,
                           completion_token_limit=self.completion_token_limit,
                           max_concurrent_requests=self.max_concurrent_requests,
                           request_timeout_seconds=self.request_timeout_seconds)
@@ -164,6 +165,7 @@ class ModelConfig(BaseModel):
     minecraft: MinecraftConfig | None = None
     ghost_backups: bool = Field(default=False, strict=True,
         description="Write an extra ghost copy after each accepted cognition cycle. The current checkpoint is always saved.")
+    renderer_capture: RendererCaptureOptions = Field(default_factory=RendererCaptureOptions)
     cognitive_control: dict = Field(default_factory=dict)
 
     @model_validator(mode="after")

@@ -14,13 +14,11 @@ until that base accepts and commits the reviewed result.
 
 from __future__ import annotations
 
+from workflows.public_speech.public_context import order_dialogue
+
 from pm import vclock
 
-from collections.abc import Callable
-from datetime import datetime
-from functools import partial
-from threading import Event
-from typing import TYPE_CHECKING, Any
+from collections.abc import Sequence
 
 from pydantic import JsonValue
 
@@ -31,36 +29,6 @@ from workflows.public_speech.context_planning import PlannedContext
 from workflows.main_cognition.schemas import ActionRequest
 from workflows.public_speech.public_dialogue import PublicDialogue
 
-if TYPE_CHECKING:
-    from pm.llm.stage_model import LazyStageModel
-    from pm.memory.bash_view import MemoryBashEnvironment
-
-
-def build_story_tools(
-    model: LazyStageModel,
-    *,
-    cancel_provider: Callable[[], Event | None] | None = None,
-) -> Callable[[MemoryBashEnvironment, object], dict[str, Callable[..., Any]]]:
-    """Return the ``tools_factory(environment, batch)`` for Story dialogue.
-
-    The role receives one async completion tool that both the story stage and
-    the public stage use. ``cancel_provider`` supplies the run's cancellation
-    event, so a stopped run stops its inference.
-    """
-
-    def factory(environment: MemoryBashEnvironment, batch: object) -> dict[str, Callable[..., Any]]:
-        """Return the completion tools of one Story invocation."""
-        complete = model.build_async_tool(cancel=cancel_provider() if cancel_provider is not None else None)
-        if cancel_provider is not None:
-            complete = partial(complete, cancel=cancel_provider())
-        return {"story_complete": complete, "public_complete": complete}
-
-    return factory
-
-
-__all__ = ["build_story_tools"]
-
-
 class StoryDialogue(PublicDialogue):
     """Real Story generation module. Accepts typed actions targeting it."""
 
@@ -68,9 +36,10 @@ class StoryDialogue(PublicDialogue):
     WORKFLOW_NAME = "dialogue_story"
     _story_guidance: StoryGuidance | None = None
 
-    def reply_context(self, request: ActionRequest, late_ids: list[int] = ()) -> PlannedContext:
+    def reply_context(self, request: ActionRequest, late_ids: Sequence[int] = ()) -> PlannedContext:
         """Keep the original main frame and all speech that followed its snapshot."""
-        planned = super().reply_context(request, late_ids)
+        assert self.ghost is not None
+        planned = super().reply_context(request, list(late_ids))
         self._story_guidance = accepted_story_guidance(self.ghost, request)
         if self._story_guidance is not None:
             planned = retain_following_dialogue(self.ghost, request, planned, self._story_guidance)
@@ -91,6 +60,7 @@ class StoryDialogue(PublicDialogue):
         Partner lines that arrived after that cycle join the current message,
         so the reply answers the newest line and not an older one.
         """
+        assert self.ghost is not None
         action_request = ActionRequest.model_validate(batch[0].payload)
         action = (self.ghost.get_knoxel_by_id(action_request.knoxel_id)
                   if action_request.knoxel_id is not None else None)
@@ -108,7 +78,7 @@ class StoryDialogue(PublicDialogue):
                 source = self.ghost.snapshot({item.knoxel_id}).get(item.knoxel_id)
                 prior_dialogue.append(DialogueTurn(speaker=public.partner_name, text=item.text,
                     knoxel_id=item.knoxel_id, timestamp=source.timestamp_world_begin.isoformat()))
-        prior_dialogue.sort(key=lambda turn: (turn.timestamp or "", turn.knoxel_id or 0))
+        prior_dialogue = order_dialogue(prior_dialogue)
         request = StoryRequest(
             companion_name=self.ghost.get_companion_name(),
             partner_name=public.partner_name,
@@ -130,12 +100,26 @@ class StoryDialogue(PublicDialogue):
             public_context=public,
             input_budget_tokens=self.context_budget,
         )
+        from pm.records.media import IMAGE_TAG, RecordImage
+        texts = [request.current_user_message, request.workspace, request.selected_action]
+        texts.extend(item.text for item in public.evidence)
+        texts.extend(public.memories)
+        if public.temporal_history is not None:
+            texts.extend(item.content for item in public.temporal_history.items)
+        texts.extend(public.goals)
+        texts.extend(item.text for item in planned.dialogue)
+        images: list[RecordImage] = []
+        image_ids = sorted({match.group(1) for text in texts for match in IMAGE_TAG.finditer(text)})
+        for image_id in image_ids:
+            image = self.ghost.find_image(image_id)
+            if image is None:
+                raise ValueError(f"Prompt references missing image {image_id}.")
+            images.append(image.model_copy(deep=True))
+        request.images = tuple(images)
         return request.model_dump(mode="json")
 
-    def publish_output(self, report: dict, batch: list[Envelope]) -> None:
+    def publish_output(self, report: dict[str, object], batch: list[Envelope]) -> None:
         story = StoryReport.model_validate(report)
-        correlation = batch[0].correlation_id if batch else ""
-        cause = batch[0].id if batch else None
         review = story.speech_review
         if not story.accepted:
             from workflows.public_speech.speech_review import block_reason

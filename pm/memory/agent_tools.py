@@ -8,24 +8,27 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 import asyncio
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Iterable, Generator
 from contextlib import contextmanager
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime
+from enum import StrEnum
+from types import TracebackType
 import hashlib
-from inspect import iscoroutinefunction, signature
-import json
 from threading import Event, RLock
-from typing import Any
 from typing import TYPE_CHECKING
-from weakref import WeakMethod
 
 from fastmcp import FastMCP
+from pathlib import Path
+from pydantic import BaseModel, ConfigDict, JsonValue
 
 from pm.memory.references import referenced_ids
-from pm.memory.retrieval import GRAPH_TYPES, MEMORY_TYPES, evidence_role, memory_kind, retrieve, utc_time
+from pm.memory.retrieval import GRAPH_TYPES, MEMORY_TYPES, memory_kind, retrieve, utc_time
 from pm.memory.snapshot import GhostCancelled, GhostConflict, Snapshot
 from pm.records.base import RecordBase
+from pm.records.graph_records import GraphEdge, GraphNode, ConceptNode
+from pm.records.memory_records import Feature, Narrative, Stimulus
+from pm.context_render.memory_tool import render_memory_record
 
 if TYPE_CHECKING:
     from pm.memory.store import MemoryStore
@@ -34,7 +37,7 @@ if TYPE_CHECKING:
 
 @contextmanager
 def guard_revisions(store: MemoryStore, revisions: dict[int, int], cancel: Event | None = None,
-                    *, heads: Iterable[int] = ()) -> Iterator[None]:
+                    *, heads: Iterable[int] = ()) -> Generator[None]:
     """Guard cited source revisions through a local commit under the owner lock.
 
     Changed sources raise GhostConflict. Cancellation raises GhostCancelled.
@@ -46,7 +49,7 @@ def guard_revisions(store: MemoryStore, revisions: dict[int, int], cancel: Event
         if cancel is not None and cancel.is_set():
             raise GhostCancelled("The memory decision is cancelled.")
         changed = [key for key, revision in revisions.items() if store.revisions.get(key) != revision
-                   or key in heads and key not in store._all_knoxels]
+                   or key in heads and key not in store.all_knoxels]
         if changed:
             raise GhostConflict(f"Inspected memory changed: {changed}. Refresh memory and reconsider the draft.")
         yield
@@ -84,6 +87,28 @@ class MemoryView:
             raise ValueError("The memory interval must have an increasing start and end.")
 
 
+class MemoryTraceEvent(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    operation: str
+    snapshot_id: str
+    accessed_revisions: dict[int, int]
+    tool_response: JsonValue
+
+
+@dataclass(frozen=True, slots=True)
+class MemoryTraceFile:
+    path: Path
+
+    def record(self, event: MemoryTraceEvent) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with self.path.open("a", encoding="utf-8") as stream:
+            stream.write(event.model_dump_json() + "\n")
+
+
+class MemoryRefreshScope(StrEnum):
+    AcceptedInWorld = "accepted_in_world"
+
+
 @dataclass(frozen=True)
 class MemoryToolConfig:
     """Optional read tools for one explicit view and accepted owner.
@@ -101,8 +126,8 @@ class MemoryToolConfig:
     graph: bool = False
     embeddings: EmbeddingService | None = None
     cancel: Event | None = None
-    refresh_view: Callable[[], MemoryView] | None = None
-    trace: Callable[[dict[str, Any]], None] | None = None
+    refresh_scope: MemoryRefreshScope | None = None
+    trace: MemoryTraceFile | None = None
 
     def __post_init__(self) -> None:
         if not (self.semantic or self.lexical or self.graph):
@@ -112,75 +137,42 @@ class MemoryToolConfig:
 def _snapshot(config: MemoryToolConfig, grant: MemoryView) -> Snapshot:
     """Remove hidden references before any metadata, search, or graph read."""
     original = config.store.snapshot(grant.record_ids)
-    records = original.serialize_knoxels()
-    allowed = {}
-    for key, raw in records.items():
-        data = raw["data"]
-        scope = data.get("scope", {})
-        if (scope.get("reality_id", -1), scope.get("frame", "in_world")) not in grant.scopes:
+    allowed: dict[int, RecordBase] = {}
+    for key, record in original.all_knoxels.items():
+        if (record.scope.reality_id, record.scope.frame.value) not in grant.scopes:
             continue
-        if grant.frontier is not None and (data.get("tick_id", 0), data.get("sub_tick_id", 0)) > grant.frontier:
+        if grant.frontier is not None and (record.tick_id, record.sub_tick_id) > grant.frontier:
             continue
-        # Supporting records need the same visibility boundary as evidence.
-        if raw["__type__"] in MEMORY_TYPES | GRAPH_TYPES:
-            if grant.categories is not None and memory_kind(raw) not in grant.categories:
+        if record.type.value in MEMORY_TYPES | GRAPH_TYPES:
+            if grant.categories is not None and memory_kind(record) not in grant.categories:
                 continue
-            if grant.entity_ids is not None and data.get("entity_id") not in grant.entity_ids:
-                continue
-            when = utc_time(data["timestamp_world_begin"])
+            if grant.entity_ids is not None:
+                entity_id: int | None = None
+                if isinstance(record, (Feature, Narrative, Stimulus, ConceptNode)):
+                    entity_id = record.entity_id
+                if entity_id not in grant.entity_ids:
+                    continue
+            when = utc_time(record.timestamp_world_begin)
             if grant.start is not None and when < utc_time(grant.start):
                 continue
             if grant.end is not None and when >= utc_time(grant.end):
                 continue
-        allowed[key] = raw
-    references = {key: referenced_ids(original.get(key)) for key in allowed}
-    for key, raw in allowed.items():
-        if raw["__type__"] == "GraphEdge":
-            # Graph endpoints are required record IDs. The generic reference
-            # helper treats zero as a sentinel for optional fields elsewhere.
-            references[key].update(raw["data"][field] for field in ("source_id", "target_id", "source_memory_id"))
-        elif raw["__type__"] == "GraphNode":
-            references[key].add(raw["data"]["source_memory_id"])
+        allowed[key] = record
+    references = {key: referenced_ids(record) for key, record in allowed.items()}
+    for key, record in allowed.items():
+        if isinstance(record, GraphEdge):
+            references[key].update((record.source_id, record.target_id, record.source_memory_id))
+        elif isinstance(record, GraphNode):
+            references[key].add(record.source_memory_id)
     while True:
         hidden = {key for key in allowed if not references[key].issubset(allowed)}
         if not hidden:
             break
         for key in hidden:
             del allowed[key]
-    return Snapshot({key: original.get(key) for key in allowed}, {},
-                    {key: original.revisions[key] for key in allowed}, original.embedding_index)
+    return Snapshot(allowed, {}, {key: original.revisions[key] for key in allowed}, original.embedding_index)
 
 
-def _weak_tool(method: Callable[..., Any]) -> Callable[..., Any]:
-    """Preserve a tool's schema without owning its read session.
-
-    Validators can outlive their listener. A retained callback must not keep
-    the session's snapshot, serialized records, or accepted owner alive.
-    A released owner raises GhostCancelled, as a closed session does.
-
-    The wrapper accepts an arbitrary call signature because it forwards the
-    arguments of the method it stands in for; the declared signature of that
-    method is copied onto the wrapper below.
-    """
-    reference = WeakMethod(method)
-    if iscoroutinefunction(method):
-        async def invoke(*args: Any, **kwargs: Any) -> Any:
-            owner_method = reference()
-            if owner_method is None:
-                raise GhostCancelled("The memory read session is closed or cancelled.")
-            return await owner_method(*args, **kwargs)
-    else:
-        def invoke(*args: Any, **kwargs: Any) -> Any:
-            owner_method = reference()
-            if owner_method is None:
-                raise GhostCancelled("The memory read session is closed or cancelled.")
-            return owner_method(*args, **kwargs)
-    # functools.wraps adds __wrapped__, which would retain the bound method.
-    invoke.__name__ = method.__name__
-    invoke.__doc__ = method.__doc__
-    invoke.__annotations__ = method.__annotations__
-    invoke.__signature__ = signature(method)
-    return invoke
 
 
 class MemoryReadSession:
@@ -210,19 +202,21 @@ class MemoryReadSession:
         with self.config.store.lock:
             snapshot = _snapshot(self.config, grant)
             self.head_ids = set(snapshot.revisions) & set(self.config.store.all_knoxels)
-        records = snapshot.serialize_knoxels()
-        references = {key: referenced_ids(snapshot.get(key)) for key in records}
-        grant_data = {key: sorted(value) if isinstance(value, frozenset) else
-                      utc_time(value).isoformat() if isinstance(value, datetime) else value
-                      for key, value in asdict(grant).items()}
-        identity = {"revisions": dict(snapshot.revisions), "grant": grant_data}
-        snapshot_id = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
-        adjacency = defaultdict(list)
-        for key, raw in records.items():
-            if raw["__type__"] == "GraphEdge":
-                adjacency[raw["data"]["source_id"]].append(key)
-                if raw["data"]["target_id"] != raw["data"]["source_id"]:
-                    adjacency[raw["data"]["target_id"]].append(key)
+        records = snapshot.all_knoxels
+        references = {key: referenced_ids(record) for key, record in records.items()}
+        identity = (sorted(snapshot.revisions.items()), sorted(grant.record_ids), sorted(grant.scopes),
+                    grant.frontier, sorted(grant.categories) if grant.categories is not None else None,
+                    sorted(grant.entity_ids) if grant.entity_ids is not None else None,
+                    grant.start.isoformat() if grant.start is not None else None,
+                    grant.end.isoformat() if grant.end is not None else None,
+                    grant.result_limit, grant.excerpt_limit, grant.page_size, grant.graph_page_size)
+        snapshot_id = hashlib.sha256(repr(identity).encode()).hexdigest()
+        adjacency: defaultdict[int, list[int]] = defaultdict(list)
+        for key, record in records.items():
+            if isinstance(record, GraphEdge):
+                adjacency[record.source_id].append(key)
+                if record.target_id != record.source_id:
+                    adjacency[record.target_id].append(key)
         self.grant, self.snapshot, self.records = grant, snapshot, records
         self.references, self.snapshot_id, self.adjacency = references, snapshot_id, adjacency
 
@@ -239,18 +233,9 @@ class MemoryReadSession:
             self.accessed[key] = self.snapshot.revisions[key]
         return self.snapshot.get(record_id)
 
-    def _record(self, record_id: int) -> dict[str, Any]:
-        """Return one serialized payload after guarding its source grant.
-
-        The envelope keys are ``__type__`` and ``data``; the fields inside
-        ``data`` depend on the record kind (see ``RecordBase.as_payload``).
-        """
-        self._access_record(record_id)
-        return self.records[record_id]
-
     def _sources(self, record_id: int) -> list[int]:
-        """Follow stored references with cycle detection inside the frozen grant."""
-        pending, found = [record_id], set()
+        pending = [record_id]
+        found: set[int] = set()
         while pending:
             key = pending.pop()
             if key in found:
@@ -259,85 +244,48 @@ class MemoryReadSession:
             pending.extend(self.references[key] - found)
         return sorted(found - {record_id})
 
-    def _metadata(self, record_id: int) -> dict[str, Any]:
-        """Return attribution and validity fields while guarding their dependencies.
-
-        Always present: ``record_id``, ``revision``, ``record_type``,
-        ``memory_kind``, ``evidence_role``. The remaining stored fields appear
-        only when the record kind defines them, for example ``scope``,
-        ``provenance``, ``entity_id``, ``tick_id``, ``valid_at``, or
-        ``superseded_by_ids``.
-        """
-        raw = self._record(record_id)
-        data = raw["data"]
-        fields = ("scope", "provenance", "entity_id", "override_source", "timestamp_creation",
-                  "timestamp_world_begin", "tick_id", "sub_tick_id", "name", "labels", "label",
-                  "source_id", "target_id", "source_memory_id", "concept_id", "valid_at", "invalid_at",
-                  "active", "status", "superseded_by_id", "superseded_by_ids", "supersedes_record_ids")
-        return {"record_id": record_id, "revision": self.snapshot.revisions[record_id],
-                "record_type": raw["__type__"], "memory_kind": memory_kind(raw),
-                "evidence_role": evidence_role(self.snapshot, raw),
-                **{key: data[key] for key in fields if key in data}}
-
-    def _trace(self, operation: str, result: dict[str, Any]) -> dict[str, Any]:
-        """Retain source revisions and reject cancellation before result delivery.
-
-        The delivered payload gains ``snapshot_id`` so a caller can tell which
-        frozen view produced it, and the trace callback receives the revisions
-        that this operation actually read.
-        """
+    def _trace(self, operation: str, text: str) -> str:
         self.check_cancelled()
-        result["snapshot_id"] = self.snapshot_id
         if self.config.trace is not None:
-            self.config.trace({"operation": operation, "snapshot_id": self.snapshot_id,
-                               "accessed_revisions": dict(self.accessed), "result": result})
-        return result
+            self.config.trace.record(MemoryTraceEvent(operation=operation, snapshot_id=self.snapshot_id,
+                accessed_revisions=dict(self.accessed), tool_response=text))
+        return text
 
-    def view(self) -> dict[str, Any]:
-        """Return visible coverage, bounds, and revisions of inspected records.
-
-        Keys: ``categories`` (payload type to count), ``scopes``, ``frontier``,
-        ``tools``, ``limits``, ``accessed_revisions``, ``accessed_count``, and
-        the ``snapshot_id`` added by ``_trace``.
-        """
+    def view(self) -> str:
         with self._lock:
             self.check_cancelled()
-            return self._trace("view", {"categories": dict(Counter(raw["__type__"] for raw in self.records.values())),
-                "scopes": sorted(self.grant.scopes), "frontier": self.grant.frontier,
-                "tools": {"semantic": self.config.semantic, "lexical": self.config.lexical, "graph": self.config.graph},
-                "limits": {"results": self.grant.result_limit, "excerpt": self.grant.excerpt_limit,
-                           "characters": self.grant.page_size, "neighbors": self.grant.graph_page_size},
-                "accessed_revisions": dict(list(self.accessed.items())[:self.grant.result_limit]),
-                "accessed_count": len(self.accessed)})
+            counts = Counter(record.type.value for record in self.records.values())
+            lines = ["Memory view: " + ", ".join(f"{kind}: {count}" for kind, count in sorted(counts.items())),
+                     f"Search results per request: {self.grant.result_limit}; maximum read page: {self.grant.page_size} characters.",
+                     f"Previously inspected sources: {len(self.accessed)}."]
+            if self.grant.frontier is not None:
+                lines.append(f"History ends at tick {self.grant.frontier[0]}.")
+            lines.append(f"Search enabled: semantic={self.config.semantic}, lexical={self.config.lexical}; graph={self.config.graph}.")
+            return self._trace("view", "\n".join(lines))
 
-    async def search(self, query: str, method: str = "auto", limit: int = 8) -> dict[str, Any]:
-        """Rank permitted records and expose semantic coverage and fallback.
-
-        The reply holds ``matches`` (ranked records with attribution, source
-        IDs, and score components) and the ranking ``trace`` of
-        ``pm.memory.retrieval.retrieve``. Provider errors use lexical ranking.
-        Cancellation and index errors propagate. No network request holds the
-        memory-store lock.
-        """
+    async def search(self, query: str, method: str = "auto", limit: int = 8) -> str:
         with self._lock:
             self.check_cancelled()
             if not 1 <= limit <= self.grant.result_limit or not query.strip():
                 raise ValueError("Use a nonempty query and the view's result limit.")
             if method == "auto":
-                method = "combined" if self.config.semantic and self.config.lexical else "semantic" if self.config.semantic else "lexical"
+                if self.config.semantic and self.config.lexical:
+                    method = "combined"
+                elif self.config.semantic:
+                    method = "semantic"
+                else:
+                    method = "lexical"
             if (method not in {"semantic", "lexical", "combined"}
                     or method == "semantic" and not self.config.semantic
                     or method == "lexical" and not (self.config.lexical or self.config.graph)
                     or method == "combined" and not (self.config.semantic and self.config.lexical)):
                 raise ValueError("Search method is not enabled in this view.")
             snapshot, identity = self.snapshot, self.snapshot_id
-            types = (MEMORY_TYPES if self.config.semantic or self.config.lexical else frozenset()) | (GRAPH_TYPES if self.config.graph else frozenset())
+            types = (MEMORY_TYPES if self.config.semantic or self.config.lexical else frozenset[str]()) | (GRAPH_TYPES if self.config.graph else frozenset[str]())
         task = asyncio.create_task(retrieve(snapshot, query, self.config.embeddings if self.config.semantic else None,
             limit=limit, cancel=self.config.cancel, record_types=types, method=method, reserve_context=False))
         try:
             while not task.done():
-                # Closing a group must stop its requests without setting the
-                # enclosing run's shared cancellation signal.
                 if self._closed:
                     raise GhostCancelled("The memory read session is closed.")
                 await asyncio.wait({task}, timeout=0.05)
@@ -350,99 +298,88 @@ class MemoryReadSession:
             self.check_cancelled()
             if identity != self.snapshot_id:
                 raise GhostConflict("Memory snapshot changed during search. Repeat the query in the refreshed view.")
-            for match in result["matches"]:
-                key = match["knoxel_id"]
-                match["text"] = match["text"][:self.grant.excerpt_limit]
-                sources = self._sources(key)
-                # Source guards include attribution and every derived dependency.
-                for source in [key, *sources]:
-                    self._record(source)
-                match["source_ids"] = sources[:self.grant.result_limit]
-                match["source_count"] = len(sources)
-                match.update(self._metadata(key))
-            return self._trace("search", result)
+            lines = [f"Search: {query}", f"Ranking: {result.trace.effective_method}."]
+            excerpt_limit = min(self.grant.excerpt_limit, 480)
+            for match in result.matches:
+                record = self._access_record(match.knoxel_id)
+                when = record.timestamp_world_begin.isoformat(timespec="minutes")
+                excerpt = match.text[:excerpt_limit]
+                lines.append(f"Source {record.id} | {record.type.value} | {when} | relevance {match.score:.3f}\n{excerpt}")
+                if len(match.text) > excerpt_limit:
+                    lines.append("Excerpt only; use memory_get for complete evidence.")
+            if not result.matches:
+                lines.append("No matching sources.")
+            return self._trace("search", "\n\n".join(lines))
 
-    def get(self, record_id: int, offset: int = 0, length: int = 2000) -> dict[str, Any]:
-        """Return a bounded page of the centrally rendered record.
-
-        Offsets count characters in indented JSON. Numbered lines retain the
-        page's original line positions. Unavailable IDs use one generic error.
-        The reply holds the record metadata plus ``offset``, ``lines``,
-        ``next_offset``, and ``format`` (``pm.rendered-record.v1``).
-        """
+    def get(self, record_id: int, offset: int = 0, length: int = 2000) -> str:
         with self._lock:
             self.check_cancelled()
             if offset < 0 or not 1 <= length <= self.grant.page_size:
                 raise ValueError("Use a nonnegative offset and the view's character limit.")
-            from pm.context_render.records import render_record_file
-            text = render_record_file(self._access_record(record_id))
+            text = render_memory_record(self._access_record(record_id))
             page = text[offset:offset + length]
-            line = text[:offset].count("\n") + 1
-            return self._trace("get", {**self._metadata(record_id), "offset": offset,
-                "lines": [{"line": line + index, "text": value} for index, value in enumerate(page.splitlines())],
-                "next_offset": offset + len(page) if offset + len(page) < len(text) else None,
-                "format": "pm.rendered-record.v1"})
+            if offset:
+                page = f"Source {record_id}, continued at character {offset}:\n" + page
+            if offset + length < len(text):
+                page += f"\nContinues: memory_get({record_id}, offset={offset + length}, length={length})."
+            return self._trace("get", page)
 
-    def sources(self, record_id: int, offset: int = 0, limit: int = 8) -> dict[str, Any]:
-        """Page through stored source links without expanding the workflow grant.
-
-        The reply holds ``records`` (one metadata block per source) and
-        ``next_offset``, which is None on the last page.
-        """
+    def sources(self, record_id: int, offset: int = 0, limit: int = 8) -> str:
         with self._lock:
             self.check_cancelled()
-            self._record(record_id)
+            self._access_record(record_id)
             if offset < 0 or not 1 <= limit <= self.grant.result_limit:
                 raise ValueError("Use a nonnegative offset and the view's result limit.")
             ids = self._sources(record_id)
-            page = ids[offset:offset + limit]
-            return self._trace("sources", {"records": [self._metadata(key) for key in page],
-                "next_offset": offset + len(page) if offset + len(page) < len(ids) else None})
+            lines = [f"Supporting sources for {record_id}:"]
+            for key in ids[offset:offset + limit]:
+                record = self._access_record(key)
+                lines.append(f"Source {key} ({record.type.value}): {record.content[:240]}")
+            if offset + limit < len(ids):
+                lines.append(f"More sources: memory_sources({record_id}, offset={offset + limit}, limit={limit}).")
+            return self._trace("sources", "\n".join(lines))
 
-    def neighbors(self, record_id: int, direction: str = "both", offset: int = 0,
-                  limit: int = 8) -> dict[str, Any]:
-        """Page through one stored graph hop with permitted endpoint metadata.
-
-        Each entry of ``relations`` names its edge, both endpoint metadata
-        blocks, and the edge's own sources. ``next_offset`` is None on the
-        last page.
-        """
+    def neighbors(self, record_id: int, direction: str = "both", offset: int = 0, limit: int = 8) -> str:
         with self._lock:
             self.check_cancelled()
-            self._record(record_id)
+            self._access_record(record_id)
             if not self.config.graph or direction not in {"both", "incoming", "outgoing"}:
                 raise ValueError("Enable graph tools and use incoming, outgoing, or both.")
             if offset < 0 or not 1 <= limit <= self.grant.graph_page_size:
                 raise ValueError("Use a nonnegative offset and the view's graph limit.")
-            ids = [key for key in self.adjacency[record_id] if direction == "both" or
-                   self.records[key]["data"]["source_id" if direction == "outgoing" else "target_id"] == record_id]
-            page = ids[offset:offset + limit]
-            relations = []
-            for key in page:
-                data = self._record(key)["data"]
-                relations.append({"edge": self._metadata(key),
-                    "endpoints": [self._metadata(data[field]) for field in ("source_id", "target_id")],
-                    "source_ids": self._sources(key)[:self.grant.result_limit]})
-            return self._trace("neighbors", {"relations": relations,
-                "next_offset": offset + len(page) if offset + len(page) < len(ids) else None})
+            edges: list[GraphEdge] = []
+            for key in self.adjacency[record_id]:
+                edge = self.snapshot.get(key)
+                assert isinstance(edge, GraphEdge)
+                if direction == "outgoing" and edge.source_id != record_id:
+                    continue
+                if direction == "incoming" and edge.target_id != record_id:
+                    continue
+                edges.append(edge)
+            lines = [f"Relations for source {record_id}:"]
+            for edge in edges[offset:offset + limit]:
+                self._access_record(edge.id)
+                source = self._access_record(edge.source_id)
+                target = self._access_record(edge.target_id)
+                lines.append(f"Source {edge.id}: {source.id} --{edge.label}--> {target.id}\n{edge.fact_text}")
+            if offset + limit < len(edges):
+                lines.append(f"More relations: memory_neighbors({record_id}, direction={direction}, offset={offset + limit}, limit={limit}).")
+            return self._trace("neighbors", "\n".join(lines))
 
-    def refresh(self) -> dict[str, Any]:
-        """Replace the snapshot through the host selector and clear read guards.
-
-        The previous accesses stay in the trace of earlier replies. A search
-        that started on the old snapshot raises GhostConflict instead of
-        publishing its result into the new view.
-        """
+    def refresh(self) -> str:
         with self._lock:
             self.check_cancelled()
-            if self.config.refresh_view is None:
+            if self.config.refresh_scope is not MemoryRefreshScope.AcceptedInWorld:
                 raise ValueError("This workflow does not permit memory refresh.")
-            self._install(self.config.refresh_view())
+            with self.config.store.lock:
+                grant = MemoryView(record_ids=frozenset(self.config.store.revisions),
+                    scopes=frozenset({(-1, "in_world")}), frontier=(self.config.store.current_tick_id, 2**63 - 1))
+                self._install(grant)
             self.accessed.clear()
             return self.view()
 
     @contextmanager
-    def guard(self) -> Iterator[None]:
+    def guard(self) -> Generator[None]:
         """Hold the accepted owner lock through the caller's local commit.
 
         Changed inspected sources raise GhostConflict before the commit.
@@ -463,28 +400,20 @@ class MemoryReadSession:
     def __enter__(self) -> MemoryReadSession:
         return self
 
-    def __exit__(self, *exc: object) -> None:
+    def __exit__(self, exception_type: type[BaseException] | None, exception: BaseException | None,
+                 traceback: TracebackType | None) -> None:
         self.close()
 
-    def tools(self) -> dict[str, Callable[..., object]]:
-        """Return weak callbacks for configured read operations.
-
-        The caller must retain this session until its requests finish.
-        Closure or owner release makes later calls raise GhostCancelled.
-        """
-        tools: dict[str, Callable[..., Any]] = {"memory_view": self.view, "memory_search": self.search,
-                                               "memory_get": self.get, "memory_sources": self.sources}
-        if self.config.graph:
-            tools["memory_neighbors"] = self.neighbors
-        if self.config.refresh_view is not None:
-            tools["memory_refresh"] = self.refresh
-        return {name: _weak_tool(method) for name, method in tools.items()}
-
     def server(self) -> FastMCP:
-        """Register scoped tools while the caller retains this read session."""
         server = FastMCP("memory")
-        for name, fn in self.tools().items():
-            server.tool(name=name)(fn)
+        server.tool(name="memory_view")(self.view)
+        server.tool(name="memory_search")(self.search)
+        server.tool(name="memory_get")(self.get)
+        server.tool(name="memory_sources")(self.sources)
+        if self.config.graph:
+            server.tool(name="memory_neighbors")(self.neighbors)
+        if self.config.refresh_scope is not None:
+            server.tool(name="memory_refresh")(self.refresh)
         return server
 
 

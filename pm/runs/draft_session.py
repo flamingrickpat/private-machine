@@ -16,10 +16,10 @@ from dataclasses import dataclass
 import json
 from pathlib import Path
 import time
-from typing import Callable, Generic, Mapping, TypeVar
+from typing import Generic, Mapping, TypeVar, Protocol
 
 from fastmcp import FastMCP
-from pm_workflows.runtime import WorkflowRuntime
+from pm_workflows.runtime import WorkflowRuntime, AgentModel
 from pm_workflows.working_target import AgentTarget
 
 from pm.host.mcp_listeners import serve_services
@@ -48,13 +48,33 @@ class DraftSessionResult(Generic[T]):
     validation_attempts: int
 
 
+class DraftValidator(Protocol[T]):
+    def validate(self, response: str) -> DraftValidation[T]: ...
+
+
+@dataclass(frozen=True)
+class GuardedDraftValidator(Generic[T]):
+    owner: DraftValidator[T]
+    memory: MemoryReadSession | None
+
+    def validate(self, response: str) -> DraftValidation[T]:
+        decision = self.owner.validate(response)
+        if decision.accepted and self.memory is not None:
+            try:
+                with self.memory.guard():
+                    pass
+            except GhostConflict as error:
+                return DraftValidation(False, feedback=str(error))
+        return decision
+
+
 def run_draft_session(
     runtime: WorkflowRuntime,
     *,
     run_id: str,
     prompt: str,
     servers: Mapping[str, FastMCP],
-    validate: Callable[[str], DraftValidation[T]],
+    validator: DraftValidator[T],
     artifact_dir: Path,
     timeout_seconds: float = 7200,
     enable_write: bool = False,
@@ -87,33 +107,21 @@ def run_draft_session(
         if "memory" in scoped_servers:
             raise ValueError("The memory service name is reserved for scoped read tools.")
         scoped_servers["memory"] = memory.server()
-    original_validate = validate
-
-    def validate_with_memory(response: str) -> DraftValidation[T]:
-        """Reject a draft whose inspected memory sources changed before commit."""
-        decision = original_validate(response)
-        if decision.accepted and memory is not None:
-            try:
-                with memory.guard():
-                    pass
-            except GhostConflict as error:
-                return DraftValidation(False, feedback=str(error))
-        return decision
+    guarded_validator = GuardedDraftValidator(validator, memory)
 
     with serve_services(scoped_servers) as descriptors:
         config = artifact_dir / "draft-mcp.json"
         config.write_text(json.dumps({"mcpServers": descriptors}, indent=2), encoding="utf-8")
-        return asyncio.run(_run(runtime, target, run_id, prompt, validate_with_memory, config,
+        return asyncio.run(_run(runtime, runtime.agent_model, target, run_id, prompt, guarded_validator, config,
                                 artifact_dir, timeout_seconds, enable_write))
 
 
-async def _run(runtime: WorkflowRuntime, target: AgentTarget, run_id: str, prompt: str,
-               validate: Callable[[str], DraftValidation[T]], config: Path, artifact_dir: Path,
+async def _run(runtime: WorkflowRuntime, connection: AgentModel, target: AgentTarget, run_id: str, prompt: str,
+               validator: DraftValidator[T], config: Path, artifact_dir: Path,
                timeout_seconds: float, enable_write: bool) -> DraftSessionResult[T]:
     """Keep the entered agent and its MCP connections through repair turns."""
     from pm_coder import build_agent, build_settings, discover_workspace, SessionStore, run_turn
 
-    connection = runtime.agent_model
     settings = build_settings(cwd=target.cwd, base_url=connection.base_url,
         api_key=connection.api_key, model=connection.model, context_window=connection.context_window,
         enable_thinking=connection.enable_thinking, live_test=connection.live_test,
@@ -142,7 +150,7 @@ async def _run(runtime: WorkflowRuntime, target: AgentTarget, run_id: str, promp
                     task.cancel()
                 await asyncio.gather(task, return_exceptions=True)
             runtime.check_cancelled()
-            decision = validate(turn.response)
+            decision = validator.validate(turn.response)
             runtime.check_cancelled()
             attempts += 1
             with (artifact_dir / "draft-turns.jsonl").open("a", encoding="utf-8") as journal:

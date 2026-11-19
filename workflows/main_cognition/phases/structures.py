@@ -23,16 +23,17 @@ not part of any structure: the prompt already shows them, so attention
 cannot place them as items.
 """
 from __future__ import annotations
-from workflows.main_cognition.context_reduction import evidence_text
-from pm.context_render.turns import Content
+
+from workflows.main_cognition.prompt_values import StructureTemplateValues
+
+from pm.llm.role_model import role_model
 
 import math
 import random
 from collections import Counter
-from collections.abc import Callable
 
 from pm_workflows.python_role import RoleContext
-from pydantic import BaseModel, create_model, model_validator
+from workflows.main_cognition.response_checks import BinderCheck, CheckedBinderAnswer
 
 from pm.constants import (
     COALITION_ITEMS_PER_CLUSTER,
@@ -43,18 +44,17 @@ from pm.constants import (
 from pm.context_render.turns import format_content
 from pm.records.codelet_records import StructureRelation
 from pm.records.mental_state import compute_attention_bias
-from pm.records.situational_model import SituationalModel, cosine
+from pm.records.situational_model import SnapshotEvidence, SnapshotSelectionSettings, SituationalModel, cosine
 from pm.records.workspace import SELF_SHARD, ShardKey
 
 from workflows.main_cognition.csm_view import Embedder, record_tokens, render_story
 from workflows.main_cognition.cycle_work import CycleWork
-from workflows.main_cognition.model_json import PhasePrompts
+from workflows.main_cognition.prompt_config import PhasePrompts
 from workflows.main_cognition.phases.model import complete, phase_prompts
-from workflows.main_cognition.schemas import BinderAnswer, RecordView, StructureDraft, StructuresResult
+from workflows.main_cognition.schemas import RecordView, StructureDraft, StructuresResult
 from workflows.main_cognition.story_prefix import StoryPrefix, resolve_target
 
 #: Returns the embedding of a record id.
-EmbeddingOf = Callable[[int], list[float]]
 
 COALITION = "topical_coalition"
 BINDER = "structure_binder"
@@ -125,8 +125,13 @@ def _affect(csm: SituationalModel, record_ids: list[int]) -> tuple[float, float]
 
 def _target(csm: SituationalModel, record_ids: list[int]) -> ShardKey:
     """Return the most common shard hint of the records, or the self shard."""
-    hints = Counter(csm.items[record_id].shard_hint for record_id in record_ids
-                    if record_id in csm.items and csm.items[record_id].shard_hint is not None)
+    hints: Counter[ShardKey] = Counter()
+    for record_id in record_ids:
+        if record_id not in csm.items:
+            continue
+        hint = csm.items[record_id].shard_hint
+        if hint is not None:
+            hints[hint] += 1
     return hints.most_common(1)[0][0] if hints else SELF_SHARD
 
 
@@ -140,9 +145,9 @@ class TopicalCoalitionBuilder:
     coalition holds exactly one cluster, as the plan describes.
     """
 
-    def __init__(self, records: dict[int, RecordView], embedding_of: EmbeddingOf, rng: random.Random) -> None:
+    def __init__(self, records: dict[int, RecordView], embedder: Embedder, rng: random.Random) -> None:
         self.records = records
-        self.embedding_of = embedding_of
+        self.embedder = embedder
         self.rng = rng
 
     def kind_of(self, record_id: int) -> str:
@@ -160,7 +165,7 @@ class TopicalCoalitionBuilder:
         if not ids:
             return [], 0
         clusters = min(COALITION_MAX_CLUSTERS, max(1, len(ids) // COALITION_ITEMS_PER_CLUSTER))
-        vectors = {record_id: self.embedding_of(record_id) for record_id in ids}
+        vectors = {record_id: self.embedder.record(record_id) for record_id in ids}
         labels = average_linkage([vectors[record_id] for record_id in ids], clusters)
         cluster_map: dict[int, list[int]] = {}
         for record_id, label in zip(ids, labels, strict=True):
@@ -216,46 +221,23 @@ class StructureBinder:
         self.prefix = prefix
         self.prompts = prompts
 
-    def instruction(self, view_ids: list[int]) -> Content:
+    def instruction(self, view_ids: list[int]) -> str:
         """Return the last turn of the call."""
         broadcasts = "\n".join(f"- {item.summary}" for item in self.work.state.broadcasts if item.summary.strip())
-        return format_content(self.prefix.fill(self.prompts.user_template),
-                              view=evidence_text(render_story(self.work.records, view_ids, with_id=True) or "(nothing)",
-                                                 "structures-view", view_ids),
-                              broadcasts=evidence_text(broadcasts or "(nothing yet)", "structures-broadcasts"),
-                              max_structures=str(STRUCTURE_BINDER_MAX),
-                              targets=", ".join(f'"{label}"' for label in self.prefix.targets))
-
-    def schema(self, view_ids: list[int]) -> type[BinderAnswer]:
-        """Return the answer model with the checks of this view.
-
-        An unknown ``target`` is not a repair case. The caller resolves it, so
-        one wrong word does not repeat the whole story prefix in a repair turn.
-        """
-        allowed = set(view_ids)
-
-        def check(answer: BaseModel) -> BaseModel:
-            if len(answer.structures) > STRUCTURE_BINDER_MAX:
-                raise ValueError(f"Write at most {STRUCTURE_BINDER_MAX} structures.")
-            for structure in answer.structures:
-                unknown = sorted(set(structure.record_ids) - allowed)
-                if unknown:
-                    raise ValueError(f"record_ids {unknown} are not in the MIND list. Use only ids from that list.")
-                for relation in structure.relations:
-                    if {relation.source_id, relation.target_id} - set(structure.record_ids):
-                        raise ValueError("A relation can link only ids of its own structure's record_ids.")
-            return answer
-
-        return create_model("BinderAnswerChecked", __base__=BinderAnswer,
-                            __validators__={"check": model_validator(mode="after")(check)})
+        return format_content(self.prefix.fill(self.prompts.user_template), StructureTemplateValues(
+        view=render_story(self.work.records, view_ids, with_id=True) or "(nothing)",
+        broadcasts=broadcasts or "(nothing yet)",
+        max_structures=str(STRUCTURE_BINDER_MAX),
+        targets=", ".join(f'"{label}"' for label in self.prefix.targets))).text
 
     def bind(self, context: RoleContext, view_ids: list[int]) -> list[StructureDraft]:
         """Run the call and return one draft for each bound structure."""
         if not view_ids:
             return []
-        answer = complete(context, self.work, self.prefix.ask(self.instruction(view_ids)), self.schema(view_ids))
+        answer = complete(context, self.prefix.ask(self.instruction(view_ids)), CheckedBinderAnswer,
+                          validation_context=BinderCheck(allowed_ids=frozenset(view_ids)))
         csm = self.work.state.csm
-        drafts = []
+        drafts: list[StructureDraft] = []
         for structure in answer.structures:
             members = _time_order(self.work.records, list(dict.fromkeys(structure.record_ids)))
             valence, salience = _affect(csm, members)
@@ -292,9 +274,11 @@ def binder_view(work: CycleWork, embedder: Embedder, candidates: list[int], rng:
         with_id=False) or "(nothing happens)")
     view = SituationalModel(items={record_id: work.state.csm.items[record_id] for record_id in candidates})
     fresh = [record_id for record_id in candidates if record_id < 0]
-    return view.snapshot_for(situation, embedder.record, lambda record_id: record_tokens(work.records, record_id),
-                             attention_bias=compute_attention_bias(work.state.mental_state),
-                             max_tokens=STRUCTURE_VIEW_TOKENS, rng=rng, precursor_ids=fresh)
+    evidence = SnapshotEvidence(vectors={record_id: embedder.record(record_id) for record_id in candidates},
+        token_costs={record_id: record_tokens(work.records, record_id) for record_id in candidates})
+    bias = compute_attention_bias(work.state.mental_state)
+    settings = SnapshotSelectionSettings(bias[0], bias[1], STRUCTURE_VIEW_TOKENS, frozenset(fresh))
+    return view.snapshot_for(situation, evidence, settings, rng)
 
 
 def build(context: RoleContext, work: CycleWork) -> StructuresResult:
@@ -303,9 +287,10 @@ def build(context: RoleContext, work: CycleWork) -> StructuresResult:
     rng = random.Random(f"{work.request.run_id}:structures")
     candidates = structure_candidates(work)
     embedder.prefetch_records(candidates)
-    coalitions, clusters = TopicalCoalitionBuilder(work.records, embedder.record, rng).build(candidates, work.state.csm)
+    coalitions, clusters = TopicalCoalitionBuilder(work.records, embedder, rng).build(candidates, work.state.csm)
     view_ids = binder_view(work, embedder, candidates, rng)
-    bound = StructureBinder(work, StoryPrefix(work), phase_prompts("structures")).bind(context, view_ids)
+    bound = StructureBinder(work, StoryPrefix(work, settings=role_model(context.runtime).render_settings(),
+            capture_settings=role_model(context.runtime).capture_settings("main-cognition")), phase_prompts("structures")).bind(context, view_ids)
     result = StructuresResult(structures=[*coalitions, *bound], view_ids=view_ids, clusters=clusters,
                               calls=1 if view_ids else 0)
     for draft in result.structures:

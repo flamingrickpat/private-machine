@@ -24,10 +24,13 @@ Invariants:
 from __future__ import annotations
 
 from pathlib import Path
+from dataclasses import dataclass
+from pm.bus.bus import BusSystem
 import json
 from typing import TYPE_CHECKING, Any
 from collections.abc import Callable
 from pydantic import BaseModel, ConfigDict, Field
+from workflows.public_speech.task_receipts import TaskReceipt, TaskReportEvidence, TaskVerificationEvidence
 
 from pm.utils import yaml_util
 
@@ -35,13 +38,15 @@ from pm.bus.envelopes import Envelope, new_id
 from pm.records.base import RecordBase
 from pm.records.memory_records import ActionSchemaRecord
 from pm.records.enums import ActionType
-from workflows.public_speech.publication import commit_public_reply, exchange_record, publish_reply
+from workflows.public_speech.publication import exchange_record, publish_reply
 from pm.host.application import BusModule
 
 if TYPE_CHECKING:
     from pm.memory.store import MemoryStore
     from pm.runs.supervisor import ManagedRunSupervisor
     from workflows.main_cognition.schemas import ActionRequest
+    from workflows.main_cognition.host import MainCogLoop
+    from workflows.cognitive_control.host import CognitiveControl
 
 TERMINAL = frozenset({"completed", "failed", "cancelled", "interrupted"})
 
@@ -56,7 +61,7 @@ class TaskReceiptCausality(BaseModel):
 
 
 def user_reply_request(ghost: MemoryStore, *, knoxel_id: int, action_id: str,
-                       exchange: RecordBase, task_receipt: dict[str, Any],
+                       exchange: RecordBase, task_receipt: TaskReceipt,
                        workspace: str = "") -> ActionRequest:
     """Return the typed request of a task reply to the user, outside a cycle.
 
@@ -80,58 +85,81 @@ def user_reply_request(ghost: MemoryStore, *, knoxel_id: int, action_id: str,
                           entity_id=user_entity_id, correlation_id=str(exchange.metadata["exchange_correlation"]))],
         action_origin="task_reply",
         shards=request_shards(workspace_state, SELF_SHARD, partner,
-                              lambda key: user_name if key.kind == "entity" else "self"),
+                              {key: user_name if key.kind == "entity" else "self" for key in (SELF_SHARD, partner) if key is not None}),
         task_receipt=task_receipt, workspace=workspace)
 
 
-def task_evidence(receipt: dict[str, Any]) -> dict[str, Any]:
-    """Verify note bytes or retained Minecraft receipts before public dispatch.
-
-    Returns a copy of the receipt with ``task_verified`` decided here and the
-    evidence that decided it (``report``, ``minecraft_verification``, or the
-    actual note bytes). Only a completed run with matching retained evidence
-    is verified; every other case stays unverified, never failed silently.
-    """
-    result = dict(receipt)
-    if not receipt.get("artifact_path"):
-        result["task_verified"] = False
+def task_evidence(receipt: TaskReceipt) -> TaskReceipt:
+    result = receipt.model_copy(deep=True)
+    result.task_verified = False
+    if not receipt.artifact_path:
         return result
-    root = Path(receipt["artifact_path"]).resolve()
+    root = Path(receipt.artifact_path).resolve()
     report_path = root / "outbox" / "report.yaml"
-    if report_path.is_file():
-        report = yaml_util.safe_load(report_path.read_text(encoding="utf-8"))
-        if isinstance(report, dict):
-            result["report"] = report
-            if report.get("schema") == "pm.minecraft-project-report.v1" and report.get("verified") is True:
-                from workflows.minecraft_project.acceptance import verified_project
-                verification = verified_project(root)
-                result["minecraft_verification"] = verification
-                result["task_verified"] = receipt.get("state") == "completed" and verification["verified"]
-            if report.get("schema") == "pm.note-verification.v1" and report.get("verified") is True:
-                path = (root / report["note_spec"]["path"]).resolve()
-                if not path.is_relative_to(root / "outbox"):
-                    raise ValueError("The note evidence escaped its task outbox.")
-                actual = path.read_bytes() if path.is_file() else None
-                expected = report["note_spec"]["text"].encode("utf-8")
-                result["task_verified"] = actual == expected and report.get("verified") is True
-                result["actual_hex"] = actual.hex() if actual is not None else None
-            elif (report.get("schema") == "pm.minecraft-actor-report.v1" and report.get("verified") is True
-                  and report.get("acceptance", {}).get("kind") == "wood_return"):
-                from workflows.minecraft.specialist_session import verify_wood_return
-                journal = (root / report["journal"]).resolve()
-                if not journal.is_relative_to(root / "scratch"):
-                    raise ValueError("The Minecraft journal escaped its task scratch directory.")
-                rows = [json.loads(line) for line in journal.read_text(encoding="utf-8").splitlines()]
-                calls = [row for row in rows if row["event"] == "result"]
-                if (calls and calls[0]["tool"] == calls[-1]["tool"] == "minecraft_observe"
-                    and calls[0]["ok"] and calls[-1]["ok"]):
-                    verification = verify_wood_return(calls, calls[0]["result"], calls[-1]["result"], report["acceptance"])
-                    result["minecraft_verification"] = verification
-                    result["task_verified"] = receipt.get("state") == "completed" and verification["verified"]
-    # The control worker reports only its own artifacts and instruction.
-    # Its completed state never establishes arbitrary note execution.
-    result.setdefault("task_verified", False)
+    if not report_path.is_file():
+        return result
+    header = TaskReportEvidence.model_validate(yaml_util.safe_load(report_path.read_text(encoding="utf-8")))
+    if header.schema_name == "pm.tool-call-report.v1":
+        from workflows.tool_call.report import read_reply_evidence
+        tool_evidence = read_reply_evidence(root)
+        result.report = tool_evidence.report
+        result.file_checks = tool_evidence.file_checks
+        return result
+    result.report = header
+    if not header.verified:
+        return result
+    match header.schema_name:
+        case "pm.minecraft-project-report.v1":
+            from workflows.minecraft_project.acceptance import verified_project
+            verification = TaskVerificationEvidence.model_validate(verified_project(root))
+            result.minecraft_verification = verification
+            result.task_verified = receipt.state == "completed" and verification.verified
+        case "pm.note-verification.v1":
+            specification = header.note_spec
+            if specification is None:
+                raise ValueError("A verified note report requires its exact note specification.")
+            path = (root / specification.path).resolve()
+            if not path.is_relative_to(root / "outbox"):
+                raise ValueError("The note evidence escaped its task outbox.")
+            actual = path.read_bytes() if path.is_file() else None
+            result.task_verified = receipt.state == "completed" and actual == specification.text.encode("utf-8")
+            result.actual_hex = actual.hex() if actual is not None else None
+        case "pm.minecraft-actor-report.v1":
+            acceptance = header.acceptance
+            if acceptance is None:
+                raise ValueError("A verified actor report requires its original acceptance contract.")
+            if acceptance.kind != "wood_return":
+                return result
+            if not header.journal:
+                raise ValueError("A verified actor report requires its original journal path.")
+            from workflows.minecraft.specialist_session import verify_wood_return
+            journal = (root / header.journal).resolve()
+            if not journal.is_relative_to(root / "scratch"):
+                raise ValueError("The Minecraft journal escaped its task scratch directory.")
+            rows = [json.loads(line) for line in journal.read_text(encoding="utf-8").splitlines()]
+            calls = [row for row in rows if row["event"] == "result"]
+            if (calls and calls[0]["tool"] == calls[-1]["tool"] == "minecraft_observe" and calls[0]["ok"] and calls[-1]["ok"]):
+                verification = TaskVerificationEvidence.model_validate(verify_wood_return(calls,
+                    calls[0]["result"], calls[-1]["result"], acceptance))
+                result.minecraft_verification = verification
+                result.task_verified = receipt.state == "completed" and verification.verified
+        case _:
+            return result
     return result
+
+
+@dataclass(frozen=True, slots=True)
+class ReplyRecoverySelection:
+    ghost: MemoryStore
+    control: CognitiveControl
+    main_cognition: MainCogLoop
+
+    def selected_source_ids(self) -> set[int]:
+        from workflows.interaction.records import interaction_receipts
+        return set(interaction_receipts(self.ghost.recovery_snapshot(capture=False)))
+
+    def paused_source_ids(self) -> set[int]:
+        return self.control.paused_source_ids() | self.main_cognition.entity_reconsider_source_ids()
 
 
 class ReplyRecovery(BusModule):
@@ -139,14 +167,13 @@ class ReplyRecovery(BusModule):
 
     DATA_TOPICS = frozenset({"workflow.event", "workflow.question", "action.receipt", "public.resume"})
 
-    def __init__(self, *args: Any, ghost: MemoryStore, supervisor: ManagedRunSupervisor,
-                 **kwargs: Any) -> None:
-        """Forward the module configuration and retain the store and supervisor."""
-        super().__init__(*args, **kwargs)
+    def __init__(self, module_id: str, bus: BusSystem, on_error: Callable[[BaseException], None],
+                 clock: Callable[[], float], tick_seconds: float | None, *, ghost: MemoryStore,
+                 supervisor: ManagedRunSupervisor) -> None:
+        super().__init__(module_id, bus, on_error, clock, tick_seconds)
         self.ghost = ghost
         self.supervisor = supervisor
-        self.selected_source_ids: Callable[[], set[int]] = lambda: set()
-        self.paused_source_ids: Callable[[], set[int]] = lambda: set()
+        self.selection: ReplyRecoverySelection | None = None
 
     def handle_batch(self, batch: list[Envelope]) -> None:
         """Acknowledge run events and dispatch the replies they owe."""
@@ -192,8 +219,7 @@ class ReplyRecovery(BusModule):
             metadata={"action_id": identity, "workflow_name": "dialogue_assistant"}))
         receipt = self.ghost.commit(changes)
         request = user_reply_request(self.ghost, knoxel_id=receipt.added_ids[0], action_id=identity,
-            exchange=exchange, task_receipt={"workflow_name": "self_management", "state": "rejected",
-                                             "task_verified": False, "summary": text})
+            exchange=exchange, task_receipt=TaskReceipt(workflow_name="self_management", state="rejected", task_verified=False, summary=text))
         self.bus.put(Envelope(id=new_id(), source=self.module_id, kind="data", topic="action.request",
             correlation_id=correlation, target="dialogue_assistant", payload=request.payload()))
 
@@ -213,13 +239,7 @@ class ReplyRecovery(BusModule):
             return
         if not isinstance(source, ActionSchemaRecord) or source.action_type != ActionType.ToolCallAndReply:
             raise ValueError(f"Task reply lost its selected action: {source_id}")
-        evidence = task_evidence(receipt)
-        # A workflow can re-read its own evidence (for example local artifact
-        # bytes) before the reply. This library imports no task workflow, so
-        # the check comes from the workflow's managed-run specification.
-        workflows = self.supervisor.workflows
-        if receipt["workflow_name"] in workflows and workflows[receipt["workflow_name"]].reply_evidence is not None:
-            evidence = {**evidence, **workflows[receipt["workflow_name"]].reply_evidence(receipt)}
+        evidence = task_evidence(TaskReceipt.model_validate(receipt))
         identity = f"task-reply:{receipt['run_id']}:{receipt['revision']}:{source.id}"
         with self.ghost.lock:
             prior = next((item for item in self.ghost.all_knoxels.values()
@@ -277,8 +297,8 @@ class ReplyRecovery(BusModule):
         waiting = {receipt.get("parent_correlation") for receipt in receipts.values()
                    if receipt.get("arguments", {}).get("_public_reply_requested")}
         waiting.update(handled)
-        selected_sources = self.selected_source_ids()
-        paused = self.paused_source_ids()
+        selected_sources = self.selection.selected_source_ids() if self.selection is not None else set()
+        paused = self.selection.paused_source_ids() if self.selection is not None else set()
         for item in self.ghost.all_features:
             correlation = item.metadata.get("exchange_correlation")
             if (correlation and item.metadata.get("exchange_status") == "pending"

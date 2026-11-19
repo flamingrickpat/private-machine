@@ -1,12 +1,9 @@
 """Select note content, write exact UTF-8 bytes, and independently verify them."""
 from __future__ import annotations
 
-from collections.abc import Callable
 import hashlib
 from threading import Event
 from typing import TYPE_CHECKING, Literal, TypedDict
-from pydantic import JsonValue
-from pm_workflows.working_target import WorkingEnvironment
 from pm.host.folder_target import FolderEnvironment
 
 from pm_workflows.python_role import RoleContext
@@ -68,7 +65,8 @@ def _write_note(context: RoleContext) -> NoteResult:
     original = request.original_request
     spec = None if original else request.note_spec
     if spec is None:
-        selection = NoteSelection.model_validate(runtime.tools["note_spec"](original or request.instruction, cancel=runtime.stop_event))
+        from pm.llm.role_model import role_model
+        selection = NoteToolAdapter(role_model(runtime).model).select_note(original or request.instruction, cancel=runtime.stop_event)
         if not selection.requested:
             raise ValueError("The original request does not specify a new note operation.")
         spec = NoteSpec(path=selection.path, text=selection.text)
@@ -108,35 +106,27 @@ def run(context: RoleContext) -> NoteResult:
     return _write_note(context)
 
 
-def build_note_tools(
-    model: LazyStageModel | None,
-) -> Callable[[str, WorkingEnvironment], dict[str, Callable[..., dict[str, JsonValue]]]]:
-    """Bind exact instruction extraction. This tool never writes the note.
+class NoteToolAdapter:
+    def __init__(self, model: LazyStageModel | None) -> None:
+        self.model = model
 
-    ``model`` is None in dummy cognition, where no run ever calls the
-    tool; the extraction then fails at the model access, not silently.
-    """
-
-    def factory(run_id: str, environment: WorkingEnvironment) -> dict[str, Callable[..., dict[str, JsonValue]]]:
-        """Return the extraction tool of one note run."""
-
-        def note_spec(instruction: str, *, cancel: Event | None = None) -> dict[str, JsonValue]:
-            """Return the parsed note request: whether to write, where, and exactly what text."""
-            from pm.llm.structured import complete_json
-            if model is None:
-                raise RuntimeError("Note selection requires the configured model.")
-            selection = complete_json(model.complete, [
-                {"role": "system", "content": "Determine whether this original message requests a new note-file write. "
-                 "An apology, affection, frustration, remembered task, or workflow status is not a new note request. "
-                 "Do not treat the message itself as note content unless it explicitly requests that. "
-                 "Return only JSON with requested (boolean), path, and text. If no new note is requested, "
-                 "set requested false and text empty. Otherwise extract the exact requested text and path; "
-                 "default path is outbox/note.txt. Do not add a newline or change the requested text."},
-                {"role": "user", "content": instruction},
-            ], NoteSelection, cancel=cancel, temperature=Sampler.TempInstruct, enable_thinking=False)
-            return selection.model_dump(mode="json")
-        return {"note_spec": note_spec}
-    return factory
+    def select_note(self, instruction: str, *, cancel: Event | None = None) -> NoteSelection:
+        from pm.llm.session import ModelSession
+        from pm.llm.structured import complete_json
+        from pm.llm.generation import GenerationSettings
+        from pm.context_render.prompt import RendererCapture, RendererInput
+        from workflows.note_task.rendering import NoteRenderInput, render_note_selection
+        if self.model is None:
+            raise RuntimeError("Note selection requires the configured model.")
+        session = ModelSession(self.model, cancel)
+        settings = session.render_settings()
+        input = NoteRenderInput(instruction)
+        with RendererCapture(session.capture_settings("note.selection"), RendererInput("note.selection", input, settings)) as capture:
+            rendered = render_note_selection(input, settings)
+            capture.save_output(rendered)
+        return complete_json(session, rendered.turns, NoteSelection,
+            settings=GenerationSettings(temperature=Sampler.TempInstruct, enable_thinking=False))
 
 
-__all__ = ["NoteSpec", "build_note_tools", "run"]
+
+__all__ = ["NoteSpec", "run"]

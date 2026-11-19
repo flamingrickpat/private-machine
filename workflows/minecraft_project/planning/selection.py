@@ -1,5 +1,6 @@
 """Selection role: check plan assumptions and choose the next eligible leaf."""
 from __future__ import annotations
+from workflows.minecraft_project.schemas import ProjectPhaseResult
 
 from pm_workflows.python_role import RoleContext
 
@@ -23,10 +24,10 @@ def check_assumptions(context: RoleContext, store: TreeStore, node: Node) -> boo
     return all(checks.values())
 
 
-def select(context: RoleContext, store: TreeStore) -> dict:
+def select(context: RoleContext, store: TreeStore) -> ProjectPhaseResult:
     """Select only an independently reviewed leaf with valid prerequisites."""
     if not boundary(context, store):
-        return {"status": "replan", "summary": "Project instructions changed before leaf selection."}
+        return ProjectPhaseResult(status="replan", summary="Project instructions changed before leaf selection.")
     if store.state.get("reviewed_revision") != store.state["revision"]:
         raise ValueError("The current tree has no independent scope review.")
     invalid = store.invalidate()
@@ -38,7 +39,7 @@ def select(context: RoleContext, store: TreeStore) -> dict:
     invalid.extend(store.invalidate())
     store.save()
     if invalid:
-        return {"status": "replan", "summary": "Acceptance evidence or current assumptions changed: " + ", ".join(invalid)}
+        return ProjectPhaseResult(status="replan", summary="Acceptance evidence or current assumptions changed: " + ", ".join(invalid))
     aggregates = store.ready_aggregates()
     eligible = store.eligible()
     renewals = [key for key in store.state.get("renewal_nodes", []) if not store.valid(key)]
@@ -47,13 +48,13 @@ def select(context: RoleContext, store: TreeStore) -> dict:
         eligible = [key for key in eligible if key in renewals]
     history = gameplay_history(store)
     if history["service_wait"]:
-        return {"status": "waiting", "summary": "Restore the Minecraft service and observe retained effects before more work: " + str(history["service_wait"])}
+        return ProjectPhaseResult(status="waiting", summary="Restore the Minecraft service and observe retained effects before more work: " + str(history["service_wait"]))
     if history["recovery"]:
         aggregates = []
         recovery_nodes = {node.id for node in store.load().nodes if node.specialist == "recovery"}
         eligible = [key for key in eligible if key in recovery_nodes]
         if not eligible:
-            return {"status": "replan", "summary": "Recovery remains active. Add or revise a prerequisite-ready recovery leaf: " + str(history["recovery"])}
+            return ProjectPhaseResult(status="replan", summary="Recovery remains active. Add or revise a prerequisite-ready recovery leaf: " + str(history["recovery"]))
     if aggregates or eligible:
         key = (aggregates or eligible)[0]
         nodes = {node.id: node for node in store.load().nodes}
@@ -61,7 +62,7 @@ def select(context: RoleContext, store: TreeStore) -> dict:
         while cursor is not None:
             assumptions = nodes[cursor].assumptions
             if assumptions and not check_assumptions(context, store, nodes[cursor]):
-                return {"status": "replan", "summary": f"Current assumptions failed for {cursor} before dispatch."}
+                return ProjectPhaseResult(status="replan", summary=f"Current assumptions failed for {cursor} before dispatch.")
             cursor = nodes[cursor].parent
         actor_attempt = ""
         if aggregates:
@@ -70,9 +71,9 @@ def select(context: RoleContext, store: TreeStore) -> dict:
         store.state["selection"] = identity(context, store, node=node, actor_attempt=actor_attempt)
         store.save()
         if aggregates:
-            return {"status": "aggregate", "summary": f"Verify aggregate {key} before releasing dependent work."}
-        return {"status": "selected", "summary": f"Selected verified-prerequisite leaf {key}."}
+            return ProjectPhaseResult(status="aggregate", summary=f"Verify aggregate {key} before releasing dependent work.")
+        return ProjectPhaseResult(status="selected", summary=f"Selected verified-prerequisite leaf {key}.")
     if all(store.valid(node.id) for node in store.load().nodes):
-        return {"status": "complete", "summary": "All leaf, story, and goal certificates passed."}
-    return {"status": "waiting", "summary": "No leaf has valid prerequisite evidence. Inspect the retained task tree."}
+        return ProjectPhaseResult(status="complete", summary="All leaf, story, and goal certificates passed.")
+    return ProjectPhaseResult(status="waiting", summary="No leaf has valid prerequisite evidence. Inspect the retained task tree.")
 

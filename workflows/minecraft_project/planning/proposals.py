@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from workflows.minecraft_project.schemas import Condition, Node, PlanProposal, RefinementProposal, TaskTree
 from workflows.minecraft_project.tree_store import TreeStore, digest
+from workflows.minecraft_project.planning.context_contracts import GameplayHistory
 
 
 def scoped_rejected_tree(previous: TaskTree | None, rejected: TaskTree, source: str) -> dict:
@@ -181,11 +182,11 @@ def revision_candidate(previous: TaskTree, proposal: PlanProposal) -> TaskTree:
     raise ValueError("A revision needs node updates or explicit proof restoration.")
 
 
-def refinement_scope(store: TreeStore, instruction_revision: int, history: dict) -> str:
+def refinement_scope(store: TreeStore, instruction_revision: int, history: GameplayHistory) -> str:
     """Open optional scope only when recovery still needs a ready leaf."""
     if instruction_revision != store.state["instruction_revision"]:
         return ""
-    if history["recovery"]:
+    if history.recovery:
         nodes = {node.id: node for node in store.load().nodes}
         if not any(nodes[key].specialist == "recovery" for key in store.eligible()):
             return ""

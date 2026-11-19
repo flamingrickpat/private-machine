@@ -24,23 +24,21 @@ left, and the last operation must state an outcome.
 from __future__ import annotations
 
 from typing import Literal
-from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from time import monotonic
 import hashlib
+import pickle
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue
+from pydantic import BaseModel, ConfigDict, Field
 
 from pm import vclock
 from pm.memory.snapshot import Snapshot
-from pm.memory.dependencies import SourceDependency
 from workflows.inner_thought.request_views import PrivateInspection
-from workflows.public_speech.public_context import EvidenceItem
 from pm.records.mental_state import FullMentalState, compute_attention_bias
 from pm.records.enums import FeatureType
 from pm.records.base import RecordScope
 from pm.records.memory_records import Feature
-from workflows.cognitive_control.attention import CapturedPrivateFocus, validate_private_attention, validate_private_focus
+from workflows.cognitive_control.attention import CapturedPrivateFocus, validate_private_attention
 from workflows.inner_thought.graph_host import (
     PrivateInquiryOwner, accepted_source_ids, active_inquiry, displaced_inquiries, parked_inquiries,
 )
@@ -69,14 +67,13 @@ from workflows.inner_thought.pipeline import (
 )
 from workflows.inner_thought.schemas import (
     AttentionCandidate, DisplacedInquiryOffer, FocusAdviceRequest, InquiryAlternative, InquiryGrant, InquiryOrigin,
-    InquiryResumeDecision, InquiryState, InquiryStep, InnerRequest, IntegrationResult, NominationBatch,
+    InquiryResumeDecision, InquiryState, InquiryStep, InnerRequest,
     ParkedInquiryOffer, PrivateAttentionContext, RetainedOfferSelection, ThoughtAlternative,
-    ThoughtAttentionDecision, ThoughtCandidate, ThoughtResult, TriggerChoice,
+    ThoughtCandidate, ThoughtResult, TriggerChoice,
 )
 
-StageRunner = Callable[[str, dict[str, JsonValue]], dict[str, JsonValue]]
-#: Embed texts in input order through the run's one embedding endpoint.
-EmbedTexts = Callable[[Sequence[str]], list[list[float]]]
+from workflows.inner_thought.stage_runner import PrivateStageRunner as StageRunner
+from workflows.inner_thought.memory_access import PrivateMemoryAccess, PrivateRecall
 
 
 class PrivateGraphResult(BaseModel):
@@ -87,15 +84,6 @@ class PrivateGraphResult(BaseModel):
     summary: str
     receipt_id: int | None = None
     finding_id: int | None = None
-
-
-class PrivateRecall(BaseModel):
-    """Actual frozen-view memory matches and their original source guards."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-    matches: tuple[EvidenceItem, ...]
-    sources: tuple[SourceDependency, ...]
-    trace: dict[str, JsonValue]
 
 
 class InquiryNodeView(BaseModel):
@@ -121,11 +109,6 @@ class DeliberateBudget(BaseModel):
     stalled_limit: int = Field(ge=1, description="Consecutive operations without progress at which the episode is parked without an outcome.")
 
 
-def _absent(value: object) -> bool:
-    """Return True for a field that the serialized request leaves out."""
-    return value is None
-
-
 class InquiryPromptGrant(BaseModel):
     """Readable citation authority; persistence fingerprints stay with the host."""
 
@@ -149,20 +132,20 @@ class GraphThoughtRequest(BaseModel):
         description="Nodes of the closed earlier episodes behind a displaced question, oldest first. "
                     "They are private history, never graph relation targets of this episode.")
     recall: PrivateRecall | None = None
-    reflection_evidence: str | None = Field(default=None, exclude_if=_absent,
+    reflection_evidence: str | None = Field(default=None,
         description="Bounded reflection material the host rendered from experiment and episode evidence it "
                     "selected under its captured scope. Prompt text, not a second evidence grant.")
-    inspection_evidence: str | None = Field(default=None, exclude_if=_absent,
+    inspection_evidence: str | None = Field(default=None,
         description="Bounded implementation evidence the host rendered from the inspector's own projection. "
                     "Episode identifiers in it are not citation grants.")
-    deliberate_budget: DeliberateBudget | None = Field(default=None, exclude_if=_absent,
+    deliberate_budget: DeliberateBudget | None = Field(default=None,
         description="Set only for deliberate mental work that main cognition selected. The serialized request "
                     "leaves the field out otherwise, so the prompt of a spontaneous inquiry is unchanged.")
-    perspective_evidence: str | None = Field(default=None, exclude_if=_absent,
+    perspective_evidence: str | None = Field(default=None,
         description="Rendered perspective instruction for one theory-of-mind step: the accepted view of the "
                     "subject and the epistemic rules, built by perspective.perspective_rule. Absent for every "
                     "step that is not a perspective inquiry, so other prompts are byte-identical.")
-    activity_evidence: str | None = Field(default=None, exclude_if=_absent,
+    activity_evidence: str | None = Field(default=None,
         description="Rendered recorded activity for one noticing step, built by metacognition.activity_rule. "
                     "Facts about the companion's own recent thinking; absent for every other step.")
     original_source_ids: tuple[int, ...] = Field(
@@ -232,11 +215,17 @@ def graph_thought_request(view: Snapshot, request: InnerRequest, parent: Inquiry
                            if operation in REFLECTION_OPERATIONS else None)
     inspection_evidence = (str(inspection_material(inspection))
                            if operation in INSPECTION_OPERATIONS else None)
-    return GraphThoughtRequest(request=request, state=state, grant=grant, origin=origin, nodes=nodes,
-                               earlier_artifacts=earlier_artifacts(view, state),
-                               reflection_evidence=reflection_evidence,
-                               inspection_evidence=inspection_evidence,
-                               original_source_ids=original_source_ids(view, grant))
+    return GraphThoughtRequest(
+        request=request,
+        state=state,
+        grant=grant,
+        origin=origin,
+        nodes=nodes,
+        earlier_artifacts=earlier_artifacts(view, state),
+        reflection_evidence=reflection_evidence,
+        inspection_evidence=inspection_evidence,
+        original_source_ids=original_source_ids(view, grant),
+    )
 
 
 def with_origin_evidence(view: Snapshot, request: InnerRequest, origin: InquiryOrigin) -> InnerRequest:
@@ -530,7 +519,7 @@ class DisplacedCandidate:
 
 def displaced_candidate(owner: PrivateInquiryOwner, *, observer_entity_id: int, grant: InquiryGrant,
                         request: InnerRequest, mental_state: FullMentalState, selection_seed: str,
-                        embed_texts: EmbedTexts | None) -> DisplacedCandidate | None:
+                        memory_access: PrivateMemoryAccess | None) -> DisplacedCandidate | None:
     """Choose the one displaced question this opportunity offers to shared attention.
 
     One opportunity offers at most one displaced question, like parked work, so
@@ -560,7 +549,7 @@ def displaced_candidate(owner: PrivateInquiryOwner, *, observer_entity_id: int, 
         selection = RetainedOfferSelection(offered_receipt_id=only_receipt_id, mode="only_candidate", seed="",
                                            salience_bias=salience_bias, ratings=())
     else:
-        if embed_texts is None:
+        if memory_access is None or memory_access.embeddings is None:
             raise RuntimeError("Rating several displaced questions requires the host's embedding endpoint.")
         questions: list[RetainedQuestion] = []
         for receipt_id, question in waiting.items():
@@ -570,7 +559,7 @@ def displaced_candidate(owner: PrivateInquiryOwner, *, observer_entity_id: int, 
                                               source_ids=state.root_source_ids))
         cues = attention_cues(request)
         # One request embeds the questions first and the cues after them.
-        vectors = embed_texts([item.text for item in questions] + [cue.text for cue in cues])
+        vectors = memory_access.embed_texts([item.text for item in questions] + [cue.text for cue in cues])
         if len(vectors) != len(questions) + len(cues):
             raise ValueError("The embedding endpoint returned a different number of vectors than texts.")
         selection = select_retained_offer(questions, cues, question_vectors=vectors[:len(questions)],
@@ -613,7 +602,7 @@ def parked_candidate(owner: PrivateInquiryOwner, *, observer_entity_id: int,
 def admit_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner, grant: InquiryGrant,
                       run_stage: StageRunner, nominations: NominationBatchRecord, batch_id: str,
                       pending_input_ids: tuple[int, ...], focus: CapturedPrivateFocus,
-                      mental_state: FullMentalState, embed_texts: EmbedTexts | None = None) -> OpportunityAdmission:
+                      mental_state: FullMentalState, memory_access: PrivateMemoryAccess | None = None) -> OpportunityAdmission:
     """Offer one nomination batch and any retained work to shared attention.
 
     One model call admits at most one inquiry for the private slot. Parked work
@@ -648,7 +637,7 @@ def admit_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner, gran
     # embedding request, which a completed opportunity must not pay again.
     displaced = displaced_candidate(owner, observer_entity_id=grant.observer_entity_id, grant=grant,
         request=request, mental_state=mental_state, selection_seed=batch_id + ":displaced-offer",
-        embed_texts=embed_texts)
+        memory_access=memory_access)
     displaced_selection = None if displaced is None else displaced.selection
     attention = PrivateAttentionContext(
         candidates=tuple(AttentionCandidate(nomination_id=item.record.id, nomination=item.receipt.nomination,
@@ -657,9 +646,12 @@ def admit_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner, gran
         displaced=() if displaced is None else (displaced.offer,),
         pending_input_ids=pending_input_ids, accepted_focus=focus.focus,
         active_intention_ids=tuple(goal.knoxel_id for goal in request.active_goal_records),
-        attention_summary=mental_state.state_cognition.model_dump_json())
+        attention_summary=(f"Interlocus {mental_state.state_cognition.interlocus:.3f}; "
+            f"mental aperture {mental_state.state_cognition.mental_aperture:.3f}; "
+            f"ego strength {mental_state.state_cognition.ego_strength:.3f}; "
+            f"willpower {mental_state.state_cognition.willpower:.3f}."))
     payload = AttentionStageRequest(request=request, attention=attention)
-    decision = ThoughtAttentionDecision.model_validate(run_stage("trigger", payload.model_dump(mode="json")))
+    decision = run_stage.attention(payload)
     validate_private_attention(attention, decision)
     if decision.parked_receipt_id is not None:
         assert candidate is not None  # Only an offered parked receipt can be named.
@@ -682,13 +674,9 @@ def admit_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner, gran
             grant=grant, focus=focus, displaced_selection=displaced_selection)
         return OpportunityAdmission(None, PrivateGraphResult(summary=decision.reason, receipt_id=outcome.id))
 
-    def validate_context() -> None:
-        """Keep the supplied focus head and original expiry through selection acceptance."""
-        validate_private_focus(owner.store.snapshot(capture=False), focus, now_utc=vclock.utcnow())
-
     selected = owner.accept_attention(nominations.receipt.nomination_ids, decision,
         commit_id="attention:" + batch_id, episode_id="inquiry:" + batch_id, now_utc=vclock.utcnow(),
-        validate_context=validate_context, displaced_selection=displaced_selection)
+        focus=focus, displaced_selection=displaced_selection)
     if selected.inquiry is None:
         return OpportunityAdmission(None, PrivateGraphResult(summary=decision.reason, receipt_id=selected.record.id))
     return OpportunityAdmission(selected.inquiry, None)
@@ -700,8 +688,7 @@ def run_graph_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner,
                           inspection: PrivateInspection | None = None,
                           mental_state: FullMentalState, control_generation: int,
                           pending_input_ids: tuple[int, ...], focus: CapturedPrivateFocus,
-                          recall_memory: Callable[[str], PrivateRecall] | None = None,
-                          embed_texts: EmbedTexts | None = None) -> PrivateGraphResult:
+                          memory_access: PrivateMemoryAccess | None = None) -> PrivateGraphResult:
     """Retain nomination, selection, and one executed step as separate boundaries.
 
     Continuation uses the accepted graph rather than main acknowledgment of
@@ -739,18 +726,17 @@ def run_graph_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner,
             return PrivateGraphResult(summary="No private opportunity requires nomination.")
         # Time and fresh invocation IDs do not make unchanged evidence a new
         # nomination opportunity. Accepted main guidance or changed sources do.
-        material = grant.model_dump_json() + str(request.main_frame.tick)
-        material += "".join(trigger.model_dump_json() for trigger in request.trigger_candidates)
-        batch_id = hashlib.sha256(material.encode()).hexdigest()
+        material = pickle.dumps((grant, request.main_frame.tick, tuple(request.trigger_candidates)), protocol=5)
+        batch_id = hashlib.sha256(material).hexdigest()
         # The same qualifying opportunity also gates reconsideration of parked
         # work, so a parked question never causes an extra model call by itself.
         nominations = read_nomination_batch(view, batch_id)
         if nominations is None:
-            result = NominationBatch.model_validate(run_stage("nominate", request.model_dump(mode="json")))
+            result = run_stage.nominate(request)
             nominations = owner.accept_nominations(result, grant=grant, batch_id=batch_id)
         admission = admit_opportunity(request, owner=owner, grant=grant, run_stage=run_stage,
             nominations=nominations, batch_id=batch_id, pending_input_ids=pending_input_ids,
-            focus=focus, mental_state=mental_state, embed_texts=embed_texts)
+            focus=focus, mental_state=mental_state, memory_access=memory_access)
         if admission.inquiry is None:
             assert admission.result is not None  # Every non-admission names its own outcome.
             return admission.result
@@ -758,7 +744,12 @@ def run_graph_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner,
     node_grant = owner.execution_grant(parent)
     dependencies = {source.record_id: source for source in grant.sources}
     dependencies.update({source.record_id: source for source in node_grant.sources})
-    execution_grant = node_grant.model_copy(update={"sources": tuple(dependencies[key] for key in sorted(dependencies))})
+    execution_grant = InquiryGrant(
+        observer_entity_id=node_grant.observer_entity_id,
+        scope=node_grant.scope,
+        sources=tuple((dependencies[key] for key in sorted(dependencies))),
+        critical_epoch=node_grant.critical_epoch,
+    )
     step_view = owner.store.snapshot(capture=False)
     if parent.receipt.state.next_operation in REFLECTION_OPERATIONS:
         # A reflection step reads experiment and episode evidence, and citing it
@@ -780,7 +771,22 @@ def run_graph_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner,
         budget = DeliberateBudget(operation_number=deliberate_state.sequence + 1,
             operation_limit=owner.limits.episode_steps, stalled_operations=deliberate_state.stalled_steps,
             stalled_limit=owner.limits.stalled_steps)
-        supplied = supplied.model_copy(update={"request": request, "deliberate_budget": budget})
+        supplied = GraphThoughtRequest(
+            stage_kind=supplied.stage_kind,
+            request=request,
+            state=supplied.state,
+            grant=supplied.grant,
+            origin=supplied.origin,
+            nodes=supplied.nodes,
+            earlier_artifacts=supplied.earlier_artifacts,
+            recall=supplied.recall,
+            reflection_evidence=supplied.reflection_evidence,
+            inspection_evidence=supplied.inspection_evidence,
+            deliberate_budget=budget,
+            perspective_evidence=supplied.perspective_evidence,
+            activity_evidence=supplied.activity_evidence,
+            original_source_ids=supplied.original_source_ids,
+        )
         admission = deliberate_admission(step_view, parent.receipt.state)
         if admission is not None and admission.subject_entity_id is not None:
             # One theory-of-mind step reads the accepted model of its subject
@@ -812,28 +818,74 @@ def run_graph_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner,
             revision_texts = {source_id: step_view.get(source_id).content
                               for source_id in revision.citable_source_ids}
             perspective_text = render_perspective_context(perspective)
-            supplied = supplied.model_copy(update={"request": request, "grant": execution_grant,
-                "perspective_evidence": perspective_rule(perspective_text,
-                    companion_name=request.companion_name, subject_name=perspective.subject_name)})
+            supplied = GraphThoughtRequest(
+                stage_kind=supplied.stage_kind,
+                request=request,
+                state=supplied.state,
+                grant=execution_grant,
+                origin=supplied.origin,
+                nodes=supplied.nodes,
+                earlier_artifacts=supplied.earlier_artifacts,
+                recall=supplied.recall,
+                reflection_evidence=supplied.reflection_evidence,
+                inspection_evidence=supplied.inspection_evidence,
+                deliberate_budget=supplied.deliberate_budget,
+                perspective_evidence=perspective_rule(perspective_text, companion_name=request.companion_name, subject_name=perspective.subject_name),
+                activity_evidence=supplied.activity_evidence,
+                original_source_ids=supplied.original_source_ids,
+            )
     if parent.receipt.state.next_operation in METACOGNITION_OPERATIONS:
         # A noticing step reads the recorded facts about the companion's own
         # recent thinking. The facts are built without a model call; the rule
         # block travels in the request, and no other step's prompt changes.
         activity = thought_activity(request.recent_thoughts)
-        supplied = supplied.model_copy(update={
-            "activity_evidence": activity_rule(render_thought_activity(activity))})
+        supplied = GraphThoughtRequest(
+            stage_kind=supplied.stage_kind,
+            request=supplied.request,
+            state=supplied.state,
+            grant=supplied.grant,
+            origin=supplied.origin,
+            nodes=supplied.nodes,
+            earlier_artifacts=supplied.earlier_artifacts,
+            recall=supplied.recall,
+            reflection_evidence=supplied.reflection_evidence,
+            inspection_evidence=supplied.inspection_evidence,
+            deliberate_budget=supplied.deliberate_budget,
+            perspective_evidence=supplied.perspective_evidence,
+            activity_evidence=activity_rule(render_thought_activity(activity)),
+            original_source_ids=supplied.original_source_ids,
+        )
     else:
         activity = None
     started = monotonic()
     if parent.receipt.state.next_operation == "memory_search":
-        if recall_memory is None:
+        if memory_access is None:
             raise RuntimeError("An admitted memory search requires the host's actual frozen-view retrieval.")
-        recalled = recall_memory(supplied.origin.question)
+        recalled = memory_access.recall(supplied.origin.question)
         for source in recalled.sources:
             dependencies.setdefault(source.record_id, source)
-        execution_grant = execution_grant.model_copy(update={
-            "sources": tuple(dependencies[key] for key in sorted(dependencies))})
-        supplied = supplied.model_copy(update={"grant": execution_grant, "recall": recalled})
+        execution_grant = InquiryGrant(
+            observer_entity_id=execution_grant.observer_entity_id,
+            scope=execution_grant.scope,
+            sources=tuple((dependencies[key] for key in sorted(dependencies))),
+            critical_epoch=execution_grant.critical_epoch,
+        )
+        supplied = GraphThoughtRequest(
+            stage_kind=supplied.stage_kind,
+            request=supplied.request,
+            state=supplied.state,
+            grant=execution_grant,
+            origin=supplied.origin,
+            nodes=supplied.nodes,
+            earlier_artifacts=supplied.earlier_artifacts,
+            recall=recalled,
+            reflection_evidence=supplied.reflection_evidence,
+            inspection_evidence=supplied.inspection_evidence,
+            deliberate_budget=supplied.deliberate_budget,
+            perspective_evidence=supplied.perspective_evidence,
+            activity_evidence=supplied.activity_evidence,
+            original_source_ids=supplied.original_source_ids,
+        )
         request = request.model_copy(deep=True)
         existing_ids = citable_ids(request)
         for match in recalled.matches:
@@ -841,15 +893,44 @@ def run_graph_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner,
                 request.candidates.append(ThoughtCandidate(knoxel_id=match.knoxel_id, text=match.text,
                     revision=match.revision, kind="recalled_memory"))
                 existing_ids.add(match.knoxel_id)
-        supplied = supplied.model_copy(update={"request": request})
+        supplied = GraphThoughtRequest(
+            stage_kind=supplied.stage_kind,
+            request=request,
+            state=supplied.state,
+            grant=supplied.grant,
+            origin=supplied.origin,
+            nodes=supplied.nodes,
+            earlier_artifacts=supplied.earlier_artifacts,
+            recall=supplied.recall,
+            reflection_evidence=supplied.reflection_evidence,
+            inspection_evidence=supplied.inspection_evidence,
+            deliberate_budget=supplied.deliberate_budget,
+            perspective_evidence=supplied.perspective_evidence,
+            activity_evidence=supplied.activity_evidence,
+            original_source_ids=supplied.original_source_ids,
+        )
     # The grant may have grown above (perspective, recall). The in-loop check
     # must judge original evidence against the grant the store owner receives.
-    supplied = supplied.model_copy(update={"original_source_ids": original_source_ids(step_view, execution_grant)})
+    supplied = GraphThoughtRequest(
+        stage_kind=supplied.stage_kind,
+        request=supplied.request,
+        state=supplied.state,
+        grant=supplied.grant,
+        origin=supplied.origin,
+        nodes=supplied.nodes,
+        earlier_artifacts=supplied.earlier_artifacts,
+        recall=supplied.recall,
+        reflection_evidence=supplied.reflection_evidence,
+        inspection_evidence=supplied.inspection_evidence,
+        deliberate_budget=supplied.deliberate_budget,
+        perspective_evidence=supplied.perspective_evidence,
+        activity_evidence=supplied.activity_evidence,
+        original_source_ids=original_source_ids(step_view, execution_grant),
+    )
     # The rendered evidence fields carry the prompt material. The raw typed
     # collections behind them stay out of the serialized request, so no store
     # record reaches the prompt without its renderer.
-    thought_payload = supplied.model_dump(mode="json", exclude={"request": {"reflection", "inspection"}})
-    step = InquiryStep.model_validate(run_stage("thought", thought_payload))
+    step = run_stage.inquiry(supplied)
     validate_graph_step(supplied, step)
     outcome = None
     if step.outcome != "continue":
@@ -868,24 +949,15 @@ def run_graph_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner,
             alternatives=[ThoughtAlternative(text=item.text, disposition=item.disposition, reason=item.reason)
                           for item in step.alternatives], continuation="summarize")
         trigger = TriggerChoice(operation=step.operation, candidate_ids=list(step.evidence_ids), reason=step.reason)
-        payload = integration_request.model_dump(mode="json")
-        payload.update(thought=thought.model_dump(mode="json"), trigger=trigger.model_dump(mode="json"),
-                       operation={"name": step.operation})
+        from workflows.inner_thought.stages.integrate.steps import IntegrationEnvelope
+        from workflows.inner_thought.request_views import OperationSuggestion
         integration_ids = citable_ids(integration_request)
-        if deliberate:
-            # Deliberate mental work is the producer of focus advice. A
-            # spontaneous outcome is never asked for it.
-            payload["focus_advice"] = FocusAdviceRequest(instruction=supplied.origin.text,
-                citable_ids=tuple(sorted(integration_ids))).model_dump(mode="json")
-        if revision is not None:
-            # Only a perspective inquiry is asked for an entity-model revision,
-            # and only at its outcome.
-            payload["perspective_revision"] = revision.model_dump(mode="json")
-        # The store owner's facts travel beside the request so the stage can
-        # correct a wrong proposal inside its loop. The prompt never reads them.
+        focus_advice = (FocusAdviceRequest(instruction=supplied.origin.text,
+            citable_ids=tuple(sorted(integration_ids))) if deliberate else None)
         rules = graph_outcome_rules(step_view, integration_request, integration_ids, grant=execution_grant)
-        payload["graph_outcome_rules"] = rules.model_dump(mode="json")
-        integration = IntegrationResult.model_validate(run_stage("integrate", payload))
+        integration = run_stage.integrate(IntegrationEnvelope(request=integration_request,
+            thought=thought, trigger=trigger, operation=OperationSuggestion(name=step.operation),
+            focus_advice=focus_advice, perspective_revision=revision, graph_outcome_rules=rules))
         validate_integration(integration, integration_ids, integration_request, focus_requested=deliberate,
                              perspective=revision, source_texts=revision_texts if revision is not None else None)
         validate_graph_outcome_rules(integration, rules, integration_ids)

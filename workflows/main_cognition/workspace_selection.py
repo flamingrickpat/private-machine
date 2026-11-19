@@ -20,7 +20,8 @@ shards goes to the shard where its priority is highest.
 """
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable
+from dataclasses import dataclass, field
 
 from pydantic import BaseModel, Field
 
@@ -34,6 +35,7 @@ from pm.records.global_workspace import LeftItem, ShardChange
 from pm.records.situational_model import SituationalModel
 from pm.records.workspace import (
     RecordSelector,
+    SELF_SHARD,
     ShardKey,
     ShardRequirementSet,
     WorkspaceItem,
@@ -44,7 +46,12 @@ from pm.records.workspace import (
 from workflows.main_cognition.schemas import RecordView
 
 #: Returns the token count of the rendered story element of a record id.
-TokensOf = Callable[[int], int]
+
+
+@dataclass(order=True, frozen=True, slots=True)
+class ActivationRank:
+    negative_activation: float
+    record_id: int
 
 
 class MatchContext(BaseModel):
@@ -56,8 +63,8 @@ class MatchContext(BaseModel):
     """
 
     self_entity_id: int | None = None
-    group_entity_ids: list[int] = Field(default_factory=list)
-    stimulus_ids: list[int] = Field(default_factory=list)
+    group_entity_ids: list[int] = Field(default_factory=list[int])
+    stimulus_ids: list[int] = Field(default_factory=list[int])
 
 
 def shard_entity(key: ShardKey) -> int | None:
@@ -105,14 +112,16 @@ def protected_ids(csm: SituationalModel, requirements: ShardRequirementSet, reco
                     if any(record_id in records
                            and selector_matches(requirement.select, records[record_id], ShardKey(), context)
                            for record_id in [item.record_id, *item.merged_ids])]
-        matching.sort(key=lambda item: (-item.activation, item.record_id))
+        by_id = {item.record_id: item for item in matching}
+        ranks = sorted(ActivationRank(-item.activation, item.record_id) for item in matching)
+        matching = [by_id[rank.record_id] for rank in ranks]
         if requirement.max_items is not None:
             matching = matching[:requirement.max_items]
         protected.update(item.record_id for item in matching)
     return protected
 
 
-def select_tail(stream_ids: Iterable[int], tokens_of: TokensOf, budget: int, exclude: set[int]) -> list[int]:
+def select_tail(stream_ids: Iterable[int], token_costs: dict[int, int], budget: int, exclude: set[int]) -> list[int]:
     """Return the newest records of a stream that fit ``budget`` tokens, oldest first.
 
     ``stream_ids`` is oldest first. The selection walks from the newest
@@ -125,7 +134,7 @@ def select_tail(stream_ids: Iterable[int], tokens_of: TokensOf, budget: int, exc
     for record_id in reversed(list(dict.fromkeys(stream_ids))):
         if record_id in exclude:
             continue
-        tokens = tokens_of(record_id)
+        tokens = token_costs[record_id]
         if used + tokens > budget:
             break
         selected.append(record_id)
@@ -157,6 +166,14 @@ class Candidate(BaseModel):
         return self.priority + self.focus_bonus
 
 
+@dataclass(order=True, frozen=True, slots=True)
+class CandidateRank:
+    negative_priority: float
+    shard_order: int
+    record_id: int
+    candidate: Candidate = field(compare=False)
+
+
 class SelectionInput(BaseModel):
     """Everything that one workspace update reads.
 
@@ -171,19 +188,30 @@ class SelectionInput(BaseModel):
     """
 
     tick: int = 0
-    shards: list[WorkspaceShard] = Field(default_factory=list)
-    requirement_sets: dict[str, ShardRequirementSet] = Field(default_factory=dict)
-    newcomers: list[Candidate] = Field(default_factory=list)
-    activation: dict[int, float] = Field(default_factory=dict)
-    tokens: dict[int, int] = Field(default_factory=dict)
-    blocked: list[int] = Field(default_factory=list)
-    focus_ids: list[int] = Field(default_factory=list)
+    shards: list[WorkspaceShard] = Field(default_factory=list[WorkspaceShard])
+    requirement_sets: dict[str, ShardRequirementSet] = Field(default_factory=dict[str, ShardRequirementSet])
+    newcomers: list[Candidate] = Field(default_factory=list[Candidate])
+    activation: dict[int, float] = Field(default_factory=dict[int, float])
+    tokens: dict[int, int] = Field(default_factory=dict[int, int])
+    blocked: list[int] = Field(default_factory=list[int])
+    focus_ids: list[int] = Field(default_factory=list[int])
 
 
-#: Returns True when one record matches one requirement of one shard.
-Matcher = Callable[[WorkspaceRequirement, int, ShardKey], bool]
-#: Returns True when a shard may hold a record (the home shard rule of the attention phase).
-Admits = Callable[[ShardKey, int], bool]
+@dataclass(frozen=True, slots=True)
+class WorkspaceSelectionPolicy:
+    records: dict[int, RecordView]
+    context: MatchContext
+    home_shards: dict[int, ShardKey]
+    updated_shards: frozenset[ShardKey]
+
+    def matches(self, requirement: WorkspaceRequirement, record_id: int, key: ShardKey) -> bool:
+        return selector_matches(requirement.select, self.records[record_id], key, self.context)
+
+    def admits(self, key: ShardKey, record_id: int) -> bool:
+        home = self.home_shards.get(record_id)
+        if home is None or home == key:
+            return True
+        return key == SELF_SHARD and home not in self.updated_shards
 
 
 class _ShardFill:
@@ -197,16 +225,16 @@ class _ShardFill:
         self.focus_tokens = 0
         self.previous = {item.record_id: item for item in shard.items}
 
-    def refusal(self, record_id: int, tokens: int, focus: bool, matcher: Matcher) -> str:
+    def refusal(self, record_id: int, tokens: int, focus: bool, policy: WorkspaceSelectionPolicy) -> str:
         """Return why the record cannot enter, or an empty text when it can."""
         if self.tokens + tokens > WORKSPACE_SHARD_TOKENS:
             return f"budget: {self.tokens} of {WORKSPACE_SHARD_TOKENS} tokens used, the record needs {tokens}"
         if focus and self.focus_tokens + tokens > FOCUS_MAX_SHARE * WORKSPACE_SHARD_TOKENS:
             return f"focus share: deliberate focus already fills {self.focus_tokens} tokens"
         for requirement in self.requirements:
-            if not matcher(requirement, record_id, self.shard.key):
+            if not policy.matches(requirement, record_id, self.shard.key):
                 continue
-            members = [item for item in self.items if matcher(requirement, item.record_id, self.shard.key)]
+            members = [item for item in self.items if policy.matches(requirement, item.record_id, self.shard.key)]
             if requirement.max_items is not None and len(members) >= requirement.max_items:
                 return f"cap {requirement.name}: {requirement.max_items} items"
             if requirement.max_token_share is not None:
@@ -219,7 +247,9 @@ class _ShardFill:
               focus: bool) -> None:
         """Add the record. An incumbent keeps its entry tick and its first reason."""
         if candidate.record_id in self.previous:
-            item = self.previous[candidate.record_id].model_copy(update={"tokens": tokens, "required_by": required_by})
+            item = self.previous[candidate.record_id].model_copy()
+            item.tokens = tokens
+            item.required_by = required_by
         else:
             item = WorkspaceItem(record_id=candidate.record_id, entered_tick=tick, activation_at_entry=activation,
                                  structure_id=candidate.structure_id, reason=candidate.reason, tokens=tokens,
@@ -230,7 +260,7 @@ class _ShardFill:
             self.focus_tokens += tokens
 
 
-def select_shards(selection: SelectionInput, matcher: Matcher, admits: Admits | None = None) -> list[ShardChange]:
+def select_shards(selection: SelectionInput, policy: WorkspaceSelectionPolicy) -> list[ShardChange]:
     """Update the shards of ``selection`` in place and return their changes.
 
     ``admits`` decides whether a shard may hold a record. A newcomer or a
@@ -269,7 +299,7 @@ def select_shards(selection: SelectionInput, matcher: Matcher, admits: Admits | 
         return activation[record_id] if record_id in activation else 0.0
 
     def allowed(key: ShardKey, record_id: int) -> bool:
-        return admits is None or admits(key, record_id)
+        return policy.admits(key, record_id)
 
     pools: dict[ShardKey, dict[int, Candidate]] = {fill.shard.key: {} for fill in fills}
     for candidate in selection.newcomers:
@@ -305,16 +335,17 @@ def select_shards(selection: SelectionInput, matcher: Matcher, admits: Admits | 
         for requirement in fill.requirements:
             if requirement.min_items <= 0:
                 continue
-            options = sorted((candidate for candidate in pools[fill.shard.key].values()
-                              if candidate.record_id not in placed
-                              and matcher(requirement, candidate.record_id, fill.shard.key)),
-                             key=lambda candidate: (-candidate.priority, candidate.record_id))
+            ranked_options = sorted(CandidateRank(-candidate.priority, 0, candidate.record_id, candidate)
+                for candidate in pools[fill.shard.key].values() if candidate.record_id not in placed
+                and policy.matches(requirement, candidate.record_id, fill.shard.key))
+            options = [rank.candidate for rank in ranked_options]
             if not options:
+                active_ranks = sorted(ActivationRank(-value, record_id) for record_id, value in activation.items())
                 options = [Candidate(record_id=record_id, key=fill.shard.key, priority=active(record_id),
                                      reason=f"reserved for {requirement.name}: the best matching CSM item")
-                           for record_id in sorted(activation, key=lambda record_id: (-activation[record_id], record_id))
+                           for rank in active_ranks for record_id in [rank.record_id]
                            if record_id not in placed and record_id not in blocked and record_id in selection.tokens
-                           and allowed(fill.shard.key, record_id) and matcher(requirement, record_id, fill.shard.key)]
+                           and allowed(fill.shard.key, record_id) and policy.matches(requirement, record_id, fill.shard.key)]
             taken = 0
             for candidate in options:
                 if taken >= requirement.min_items:
@@ -328,8 +359,9 @@ def select_shards(selection: SelectionInput, matcher: Matcher, admits: Admits | 
                 taken += 1
 
     # Step 3: everything else in priority order.
-    entries = sorted((candidate for pool in pools.values() for candidate in pool.values()),
-                     key=lambda candidate: (-candidate.total(), order[candidate.key], candidate.record_id))
+    ranked_entries = sorted(CandidateRank(-candidate.total(), order[candidate.key], candidate.record_id, candidate)
+        for pool in pools.values() for candidate in pool.values())
+    entries = [rank.candidate for rank in ranked_entries]
     for candidate in entries:
         fill = by_key[candidate.key]
         reasons = left_reasons[candidate.key]
@@ -343,7 +375,7 @@ def select_shards(selection: SelectionInput, matcher: Matcher, admits: Admits | 
             continue
         tokens = tokens_of(candidate.record_id)
         focus = candidate.record_id in focus_ids
-        refusal = fill.refusal(candidate.record_id, tokens, focus, matcher)
+        refusal = fill.refusal(candidate.record_id, tokens, focus, policy)
         if refusal:
             reasons.setdefault(candidate.record_id, f"displaced by stronger content ({refusal})")
             continue
@@ -368,10 +400,9 @@ def select_shards(selection: SelectionInput, matcher: Matcher, admits: Admits | 
 
 
 __all__ = [
-    "Admits",
     "Candidate",
     "MatchContext",
-    "Matcher",
+    "WorkspaceSelectionPolicy",
     "SelectionInput",
     "protected_ids",
     "select_shards",

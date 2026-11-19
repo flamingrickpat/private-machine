@@ -21,15 +21,15 @@ from pm_workflows.python_role import RoleContext
 from pydantic import BaseModel
 
 from pm.constants import CODELET_TEXT_ATTEMPTS, Sampler
-from pm.context_render import ContextKind, render_context
-from pm.context_render.turns import Content, ContextTag, Role, Turn
-from pm.context_render.budget import context_recency, optional_text, optional_content
-from workflows.public_speech.public_context import EvidenceItem
-from pm.llm.prompt_encoding import TurnInput
+from pm.context_render.turns import Role, Turn
+from pm.llm.prompt_encoding import TurnInput, normalize_turns
 
 from workflows.main_cognition.cycle_work import CycleWork
-from workflows.main_cognition.model_json import PhasePrompts, complete_json, complete_text, load_prompts
-from workflows.main_cognition.context_reduction import evidence_text
+from workflows.main_cognition.prompt_config import PhasePrompts, load_prompts
+from pm.llm.structured import complete_json, ModelFormatError
+from pm.llm.generation import GenerationSettings
+from pm.llm.role_model import role_model
+from pm.context_render.prompt import require_rendered_prompt
 
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 
@@ -56,35 +56,16 @@ def grounding_turn(work: CycleWork, *, emotion: bool, capabilities: bool = False
     public = work.request.public_context
     if public is None:
         return None
-    kinds = ContextKind.All if emotion else ContextKind.All & ~ContextKind.Emotion
-    stimuli = {item.knoxel_id: item.text for item in work.request.stimuli}
-    evidence: list[EvidenceItem] = []
-    for row in public.evidence:
-        if row.knoxel_id not in stimuli or row.text != stimuli[row.knoxel_id]:
-            evidence.append(row)
-    selected = public.model_copy(update={"evidence": evidence, "memories": [] if public.evidence else public.memories})
-    if not capabilities:
-        selected = selected.model_copy(update={"capabilities": {}})
-    grounding = "Private context. Keep source attribution. "
+    lines = ["Private accepted state. Private thoughts remain private."]
+    if emotion:
+        lines.append("Feeling: " + public.feelings)
     if capabilities:
-        grounding += "Respect domain capabilities. An emotion word cannot create an unimplemented state or sense. "
-    grounding += "Private thoughts remain private.\n"
-    # Keep the fixed situation separate from optional retrieved evidence.
-    selected = selected.model_copy(update={"evidence": [], "memories": []})
-    content = Content(grounding) + evidence_text(render_context(selected, kinds), "grounding-situation")
-    for row in evidence:
-        content += "\n" + optional_content(render_context(row, kinds),
-            ContextTag(f"grounding:{row.knoxel_id}", row.score, record_id=row.knoxel_id,
-                       support_ids=tuple(row.source_ids), recency=context_recency(row.timestamp), reducible=True))
-    if not public.evidence:
-        for row in public.memories:
-            content += optional_text("\n" + row, ContextTag(f"grounding-memory:{len(content.parts)}", 0))
-    return Turn(Role.User, content)
+        lines.append("Actual available capabilities: " + "; ".join(work.request.capabilities))
+    return Turn(Role.User, "\n".join(lines))
 
 
-def complete(context: RoleContext, work: CycleWork, messages: Sequence[TurnInput], schema: type[Result], *,
-             grounded: bool = False, emotion: bool = True, grounding_at: int = 1, capabilities: bool = False,
-             validation_context: dict[str, object] | None = None) -> Result:
+def complete(context: RoleContext, messages: Sequence[TurnInput], schema: type[Result], *,
+             validation_context: BaseModel | None = None) -> Result:
     """Call the model for one phase and return the validated answer.
 
     ``grounded`` inserts the private grounding turn at index ``grounding_at``
@@ -95,15 +76,10 @@ def complete(context: RoleContext, work: CycleWork, messages: Sequence[TurnInput
     gets repair turns (see ``complete_json``). Exhausted repairs raise
     ``ModelFormatError``. Transport errors and cancellation propagate.
     """
-    turn = grounding_turn(work, emotion=emotion, capabilities=capabilities) if grounded else None
+    turns = normalize_turns(messages)
+    return complete_json(role_model(context.runtime), turns, schema, validation_context=validation_context,
+                         settings=GenerationSettings(temperature=Sampler.TempInstruct, enable_thinking=False))
 
-    def insert(turns: list[Turn]) -> list[Turn]:
-        if turn is not None:
-            turns.insert(grounding_at, turn)
-        return turns
-
-    return complete_json(context, messages, schema, transform=insert, validation_context=validation_context,
-                         temperature=Sampler.TempInstruct, enable_thinking=False)
 
 
 def complete_prose(context: RoleContext, messages: Sequence[TurnInput]) -> str:
@@ -113,8 +89,17 @@ def complete_prose(context: RoleContext, messages: Sequence[TurnInput]) -> str:
     so all codelet calls of one cycle share their prefix byte for byte. See
     ``complete_text`` for retries and errors.
     """
-    return complete_text(context, messages, attempts=CODELET_TEXT_ATTEMPTS,
-                         temperature=Sampler.TempInstruct, enable_thinking=False)
+    assert context.runtime is not None
+    session = role_model(context.runtime)
+    turns = tuple(normalize_turns(messages))
+    require_rendered_prompt("main cognition prose", turns, session.render_settings())
+    for attempt in range(CODELET_TEXT_ATTEMPTS):
+        raw = session.complete(turns, settings=GenerationSettings(temperature=Sampler.TempInstruct, enable_thinking=False))
+        if raw.strip():
+            return raw.strip()
+        context.runtime.environment.write_text(f"scratch/model-output-empty-{attempt + 1:02}.txt", raw)
+    raise ModelFormatError("The main cognition prose model repeatedly returned empty content.")
+
 
 
 __all__ = ["PROMPTS_DIR", "complete", "complete_prose", "grounding_turn", "phase_prompts"]

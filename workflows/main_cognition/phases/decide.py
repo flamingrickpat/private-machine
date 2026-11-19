@@ -27,30 +27,34 @@ An insignificant group gets no call and no decision. A group whose call
 returns an empty list gets no decision: the character does nothing about it.
 """
 from __future__ import annotations
+
+from workflows.main_cognition.prompt_values import DecisionTemplateValues, InhibitionTemplateValues
+
+from pm.llm.role_model import role_model
 from dataclasses import dataclass
 from hashlib import sha256
 
 from pydantic import BaseModel
 
-from workflows.main_cognition.context_reduction import evidence_text
 
 from pm_workflows.python_role import RoleContext
 
 from pm.constants import DECISION_VARIANTS
-from pm.context_render import render_context
 from pm.context_render.turns import Role, Turn, format_content
-from pm.llm.concurrency import ordered_parallel_map
+from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
+from pm.llm.concurrency import wait_model_futures
 from pm.records.cycle_records import ActionDecision, StimulusGroup
 from pm.records.workspace import SELF_SHARD, ShardKey
 
 from workflows.inference_settings import DECISION_WORKERS
 from workflows.main_cognition.csm_view import render_story
+from workflows.main_cognition.rendering import render_managed_runs, render_cognition_guidance
 from workflows.main_cognition.cycle_work import CycleWork
-from workflows.main_cognition.model_json import PhasePrompts
+from workflows.main_cognition.prompt_config import PhasePrompts
 from workflows.main_cognition.phases.model import complete, phase_prompts
 from workflows.main_cognition.schemas import DecisionAnswer, DecisionCheck, DecisionInhibition, WorkflowOption
 from workflows.main_cognition.story_prefix import StoryPrefix, shard_label
-from workflows.public_speech.situational_guidance import render_situational_guidance
 
 #: The action space when the configuration names no workflows.
 DEFAULT_WORKFLOWS = [
@@ -137,16 +141,15 @@ def render_goals(work: CycleWork) -> str:
 
 def build_messages(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix, group: StimulusGroup) -> list[Turn]:
     """Return the shared story prefix and then the decision instruction for one group as the last turn."""
-    instruction = format_content(prefix.fill(prompts.user_template),
+    instruction = format_content(prefix.fill(prompts.user_template), DecisionTemplateValues(
         part=group_part(work, prompts, prefix, group),
-        stimuli=evidence_text(group_stimuli(work, group), "decide-stimuli", group.stimulus_ids),
+        stimuli=group_stimuli(work, group),
         affect=work.affect.felt or work.state_summary or "(no feeling recorded)",
         regulation_words=prompts.regulation_words[work.affect.regulation],
-        experience=evidence_text(work.experience.text_for(group.key) or "(nothing)", "decide-experience"),
-        impulses=evidence_text(group_percepts(work, group), "decide-impulses"),
-        goals=evidence_text(render_goals(work), "decide-goals"),
-        variants=DECISION_VARIANTS,
-    )
+        experience=work.experience.text_for(group.key) or "(nothing)",
+        impulses=group_percepts(work, group),
+        goals=render_goals(work),
+        variants=DECISION_VARIANTS)).text
     return prefix.ask(instruction)
 
 
@@ -165,22 +168,18 @@ def inhibit_decision(context: RoleContext, work: CycleWork, proposal: DecisionAn
     target_id = int(group.key.ref) if group.key.kind == "entity" else work.request.user_entity_id
     situations = [situation for situation in work.request.situational_guidance
                   if situation.partner is not None and situation.partner.entity_id == target_id]
-    situation_text = "\n\n".join(render_situational_guidance(situation) for situation in situations)
-    instruction = format_content(selected_prompts.check_template,
+    situation_text = render_cognition_guidance(situations, role_model(context.runtime).render_settings())
+    instruction = format_content(selected_prompts.check_template, InhibitionTemplateValues(
         companion_name=work.request.companion_name,
-        character=evidence_text(work.request.character_card or "(character not supplied)", "inhibit-character"),
-        situation=evidence_text(situation_text or "Partner availability and earlier delivery are unknown.",
-                                "inhibit-situation"),
-        stimuli=evidence_text(render_story(work.records, group.stimulus_ids, with_id=True) or "(nothing new)",
-                              "inhibit-stimuli", group.stimulus_ids),
-        proposals=evidence_text("\n".join(proposal.variants), "inhibit-proposals"),
-        managed_runs=evidence_text(render_context(work.request.managed_runs) if work.request.managed_runs else "(none)",
-                                  "inhibit-runs"),
-    )
+        character=work.request.character_card or "(character not supplied)",
+        situation=situation_text or "Partner availability and earlier delivery are unknown.",
+        stimuli=render_story(work.records, group.stimulus_ids, with_id=True) or "(nothing new)",
+        proposals="\n".join(proposal.variants),
+        managed_runs=render_managed_runs(work.request.managed_runs) if work.request.managed_runs else "(none)"))
     messages = [Turn(Role.System, "Judge whether to inhibit a proposed action using attributed current evidence. "
                      "Do not write a new action, a reply, or a story continuation."),
                 Turn(Role.User, instruction)]
-    result = complete(context, work, messages, DecisionInhibition)
+    result = complete(context, messages, DecisionInhibition)
     assert context.runtime is not None
     group_identity = sha256(group.key.model_dump_json().encode("utf-8")).hexdigest()[:16]
     receipt_name = f"action-inhibition-{group_identity}.json"
@@ -198,8 +197,8 @@ def decide(context: RoleContext, work: CycleWork, prompts: PhasePrompts, prefix:
            group: StimulusGroup) -> DecisionSelection:
     """Propose and inhibit one group's move in a worker, without changing ``work``."""
     check = DecisionCheck(workflow_names=[item.name for item in available_workflows(work)])
-    proposal = complete(context, work, build_messages(work, prompts, prefix, group), DecisionAnswer,
-                        validation_context=check.model_dump())
+    proposal = complete(context, build_messages(work, prompts, prefix, group), DecisionAnswer,
+                        validation_context=check)
     inhibition = inhibit_decision(context, work, proposal, group, prompts) if proposal.variants else None
     return DecisionSelection(proposal=proposal, inhibition=inhibition)
 
@@ -211,12 +210,20 @@ def run(context: RoleContext, work: CycleWork) -> CycleWork:
     for group in work.state.stimulus_groups:
         remaining_ids = [source_id for source_id in group.stimulus_ids if source_id not in interaction_sources]
         if not group.insignificant and remaining_ids:
-            groups.append(group.model_copy(update={"stimulus_ids": remaining_ids}))
+            remaining_group = group.model_copy()
+            remaining_group.stimulus_ids = remaining_ids
+            groups.append(remaining_group)
     # Each group reads only the self shard and its own shard. The content of
     # another group must not leak into this group's decision.
-    prefixes = {group.key: StoryPrefix(work, group=group.key) for group in groups}
-    selections = ordered_parallel_map(lambda group: decide(context, work, prompts, prefixes[group.key], group), groups,
-                                      workers=DECISION_WORKERS, cancel=context.runtime.stop_event)
+    prefixes = {group.key: StoryPrefix(work, group=group.key, settings=role_model(context.runtime).render_settings(),
+            capture_settings=role_model(context.runtime).capture_settings("main-cognition")) for group in groups}
+    session = role_model(context.runtime)
+    if session.model.connection.disable_threading:
+        selections = [decide(context, work, prompts, prefixes[group.key], group) for group in groups]
+    else:
+        with ThreadPoolExecutor(max_workers=DECISION_WORKERS) as executor:
+            futures = [executor.submit(copy_context().run, decide, context, work, prompts, prefixes[group.key], group) for group in groups]
+            selections = wait_model_futures(futures, session.cancel)
     answers = [selection.accepted for selection in selections]
     work.state.decisions = [
         ActionDecision(group=group.key, text=answer.variants[0], variants=list(answer.variants),

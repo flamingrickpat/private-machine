@@ -1,5 +1,7 @@
 """Caller plan constraints and the project-check context that plan, review, and act share."""
 from __future__ import annotations
+from workflows.minecraft.runtime import require_minecraft_runtime
+from pm.runs.managed_boundary import BoundaryReadSettings
 
 import json
 
@@ -7,9 +9,10 @@ from pm_workflows.python_role import RoleContext
 
 from workflows.minecraft_project.tree_store import TreeStore, digest
 from workflows.minecraft_project.planning.run_context import identity
+from workflows.minecraft_project.planning.context_contracts import CallerRequirements, CallerAuditResult
 
 
-def caller_plan_constraints(store: TreeStore) -> dict | None:
+def caller_plan_constraints(store: TreeStore) -> CallerRequirements | None:
     """Read complete caller requirements with their original receipt digest.
 
     These requirements describe coverage and separate publication audits.
@@ -20,24 +23,25 @@ def caller_plan_constraints(store: TreeStore) -> dict | None:
     if not relative:
         return None
     proof = json.loads(store.path_for(relative).read_text(encoding="utf-8"))
-    return {**proof["result"], "original_receipt": relative, "original_digest": digest(proof)}
+    result = CallerAuditResult.model_validate(proof["result"])
+    return CallerRequirements(errors=result.errors, requirements=result.requirements, original_receipt=relative, original_digest=digest(proof))
 
 
-def record_plan_constraints(context: RoleContext, store: TreeStore) -> dict | None:
+def record_plan_constraints(context: RoleContext, store: TreeStore) -> CallerAuditResult | None:
     """Retain current caller operands before planning or independent review.
 
     The callback describes the plan contract and changes no world state.
     Keep prior receipts intact when the caller changes its requirements.
     Errors remain planning evidence; the reviewer decides whether to dispatch.
     """
-    constraint = context.runtime.tools.get("minecraft_plan_constraints")
+    constraint = require_minecraft_runtime(context.runtime).project_audit
     if constraint is None:
         return None
-    result = constraint(store.load())
+    result = constraint.plan_constraints(store.load())
     number = store.state.get("constraint_reviews", 0) + 1
     relative = f"planning/constraints/{number:04d}.json"
     store.write(relative, {"identity": identity(context, store), "tree_digest": digest(store.load().model_dump(mode="json")),
-                           "result": result})
+                           "result": result.model_dump(mode="json")})
     store.state.update(constraint_reviews=number, planning_constraints=relative)
     store.save()
     return result

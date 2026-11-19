@@ -1,8 +1,5 @@
 {
   "include": [
-    "pm/llm/prompt_fitting.py",
-    "workflows/main_cognition/prompt_context.py",
-    "workflows/main_cognition/structure_context.py",
     "workflows/main_cognition/phases/model.py",
     "workflows/main_cognition/phases/triage.py",
     "simulation/agents.py",
@@ -42,7 +39,10 @@
     "workflows/inner_thought/offer_salience.py",
     "workflows/focus_management",
     "workflows/inner_thought/stages/reflection/steps.py",
-    "workflows/main_cognition/model_json.py",
+    "workflows/main_cognition/prompt_config.py",
+    "pm/context_render/prompt.py",
+    "pm/llm/session.py",
+    "pm/runs/role_runtime.py",
     "pm/memory/evidence.py",
     "pm/memory/store_tools.py",
     "workflows/main_cognition/interval_review.py"

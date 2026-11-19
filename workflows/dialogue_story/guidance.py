@@ -17,13 +17,13 @@ from pm.records.base import RecordBase
 from pm.records.cognitive_records import Intention
 from pm.records.enums import FeatureType, InterlocusType, SourceKind
 from pm.records.memory_records import ActionSchemaRecord, Feature
-from pm.records.workspace import ShardKey
+from pm.records.workspace import SELF_SHARD, ShardKey
 from workflows.dialogue_story.schemas import StoryGuidance
 from workflows.main_cognition.affect import regulation_mode
 from workflows.main_cognition.action_request import request_shards
 from workflows.main_cognition.schemas import ActionRequest, PendingDispatch
 from workflows.public_speech.context_planning import PlannedContext
-from workflows.public_speech.public_context import DialogueTurn, EvidenceItem, feelings_in_words
+from workflows.public_speech.public_context import DialogueTurn, EvidenceItem, feelings_in_words, order_dialogue
 from workflows.public_speech.shard_context import shard_context
 
 
@@ -65,16 +65,19 @@ def accepted_story_guidance(ghost: MemoryStore, request: ActionRequest) -> Story
             action = candidate
             historical_request = original
         if historical_request is None:
-            def label(key: ShardKey) -> str:
-                if key.kind == "self":
-                    return ghost.get_companion_name()
-                if key.kind == "entity":
-                    return view.get_entity_name(int(key.ref))
-                return key.ref
-
             partner = (ShardKey(kind="entity", ref=str(request.partner_entity_id))
                        if request.partner_entity_id is not None else None)
-            shards = request_shards(state.workspace, request.group, partner, label)
+            labels: dict[ShardKey, str] = {}
+            for key in (SELF_SHARD, request.group, partner):
+                if key is None:
+                    continue
+                if key.kind == "self":
+                    labels[key] = ghost.get_companion_name()
+                elif key.kind == "entity":
+                    labels[key] = view.get_entity_name(int(key.ref))
+                else:
+                    labels[key] = key.ref
+            shards = request_shards(state.workspace, request.group, partner, labels)
             for item in shards:
                 item.shard.items = [entry for entry in item.shard.items
                                     if (not scopes or view.get(entry.record_id).scope in scopes)
@@ -151,7 +154,8 @@ def retain_following_dialogue(ghost: MemoryStore, request: ActionRequest, planne
             if not belongs:
                 continue
             following.append(record)
-        following.sort(key=lambda record: record.id)
+        following_by_id = {record.id: record for record in following}
+        following = [following_by_id[key] for key in sorted(following_by_id)]
         first_reply = next((record for record in following
                             if record.provenance is not None
                             and record.provenance.source_kind == SourceKind.Self), None)
@@ -164,9 +168,12 @@ def retain_following_dialogue(ghost: MemoryStore, request: ActionRequest, planne
                     timestamp=record.timestamp_world_begin.isoformat()))
                 seen.add(record.id)
             if record.id not in evidenced:
-                item = EvidenceItem.model_validate(candidate(view, record.id, record))
+                item = candidate(view, record.id, record)
                 item.lane = "conversation"
                 evidence.append(item)
                 evidenced.add(record.id)
-        turns.sort(key=lambda turn: (turn.timestamp or "", turn.knoxel_id or 0))
-        return planned.model_copy(update={"dialogue": turns, "evidence": evidence})
+        turns = order_dialogue(turns)
+        selected = planned.model_copy(deep=True)
+        selected.dialogue = turns
+        selected.evidence = evidence
+        return selected

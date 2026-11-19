@@ -76,26 +76,18 @@ def _check(root: Path, relative: str, sha256: str) -> FileCheck:
     return FileCheck(path=relative, exists=True, unchanged=actual == sha256, sha256=actual)
 
 
-def reply_evidence(receipt: Mapping[str, Any]) -> dict[str, Any]:
-    """Re-read the report and its local files before a public reply.
+class ToolCallReplyEvidence(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    report: ToolCallReport
+    file_checks: tuple[FileCheck, ...]
 
-    Returns ``report`` (the typed report; it replaces the raw report of
-    ``task_evidence``), ``file_checks`` (one entry for
-    each reported local file and tool image), and ``task_verified: false``.
-    Unchanged bytes allow a truthful statement about a local file. They do
-    not verify the goal, the image content, or its quality. A run without a
-    report (for example a rejected start) adds nothing.
-    """
-    root = Path(receipt["artifact_path"]) if receipt["artifact_path"] else None
-    if root is None or not report_path(root).is_file():
-        return {}
+
+def read_reply_evidence(root: Path) -> ToolCallReplyEvidence:
     report = load_report(report_path(root).read_text(encoding="utf-8"))
     checks = [_check(root, item.claim.path, item.sha256) for item in report.artifacts
-              if item.claim.path is not None and item.file_verified and item.sha256 is not None]
-    checks += [_check(root, image.path, image.sha256) for image in report.tool_images]
-    return {"report": report.model_dump(mode="json", by_alias=True),
-            "file_checks": [check.model_dump(mode="json") for check in checks],
-            "task_verified": False}
+        if item.claim.path is not None and item.file_verified and item.sha256 is not None]
+    checks.extend(_check(root, image.path, image.sha256) for image in report.tool_images)
+    return ToolCallReplyEvidence(report=report, file_checks=tuple(checks))
 
 
-__all__ = ["FileCheck", "dump_report", "load_report", "reply_evidence", "report_path", "retain_interrupted_report"]
+__all__ = ["FileCheck", "dump_report", "load_report", "read_reply_evidence", "report_path", "retain_interrupted_report"]

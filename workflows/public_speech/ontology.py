@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING, Any
 from pm.bus.envelopes import new_id
 from pm.records.base import Provenance
 from pm.records.cognitive_records import OntologyBindingRecord, OntologyTermRecord
+from workflows.public_speech.ontology_context import PublicOntologyTerm, PublicOntologyBinding
 from pm.records.enums import SourceKind
 from pm.records.mental_state import FullMentalState, StateEmotions, StateRelationship
 
@@ -110,34 +111,28 @@ def term_lines(context: PublicContext) -> list[str]:
     same words the review checks.
     """
     lines: list[str] = []
+    common_rules: set[str] = set()
     for item in context.ontology:
-        if item.get("term") is None:
+        if not isinstance(item, PublicOntologyTerm):
             continue
-        term = str(item.get("term") or "").strip()
-        if not term:
-            continue
-        definition = str(item.get("definition") or "").strip()
-        rule = str(item.get("usage_rule") or "").strip()
-        detail = "; ".join(part for part in (definition, rule) if part)
-        lines.append(f"- {term} ({item.get('term_kind', 'term')}): {detail}" if detail else f"- {term}")
+        definition = item.definition.strip()
+        rule = item.usage_rule.strip()
+        if rule and rule not in common_rules:
+            lines.append("- Usage: " + rule)
+            common_rules.add(rule)
+        lines.append(f"- {item.term} ({item.term_kind}): {definition}" if definition else f"- {item.term}")
     return lines
 
 
 def ontology_lines(context: PublicContext) -> list[str]:
-    """Render the terms and the active bindings of one public context.
-
-    A binding line says that the term fits the accepted state right now. The
-    review prompt uses this render.
-    """
-    # A term record carries ``term``; a binding record carries ``term_id``.
-    terms = {int(item["id"]): item for item in context.ontology if item.get("term") is not None}
+    terms = {item.record_id: item for item in context.ontology if isinstance(item, PublicOntologyTerm)}
     lines = term_lines(context)
     for item in context.ontology:
-        if item.get("term_id") is None or item.get("active") is False:
+        if not isinstance(item, PublicOntologyBinding):
             continue
-        term = terms.get(int(item.get("term_id", -1)), {})
-        name = str(term.get("term") or item.get("term_id"))
-        lines.append(f"- {name} fits right now (fit {item.get('fit_score')}): {item.get('explanation', '')}")
+        term = terms.get(item.term_id)
+        name = term.term if term is not None else str(item.term_id)
+        lines.append(f"- {name} fits right now (fit {item.fit_score:.3f}): {item.explanation}")
     return lines
 
 

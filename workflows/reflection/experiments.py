@@ -16,7 +16,7 @@ from pm.records.memory_records import Feature, Narrative, Stimulus
 from pm.introspection.episodes import EpisodeIndex, recent_without_duplicate_inner_frames
 from pm.records.cognitive_records import BeliefRecord
 from pm.records.enums import FeatureType, SourceKind
-from workflows.cognitive_control.attention import focus_versions, stage_focus
+from workflows.cognitive_control.attention import focus_versions, stage_focus, FocusStagingSettings
 from workflows.cognitive_control.schemas import FocusState
 from workflows.reflection.schemas import (EffectiveInputs, ExperimentPlan, ReflectionDecision,
     ExperimentMetadata, ExperimentEvidence, ExperimentEvent, ExperimentState, ExperimentResult,
@@ -438,8 +438,8 @@ def _apply(batch: WriteBatch, view: Snapshot, experiment_id: int, plan: Experime
         focus.accept = True
         focus.fresh = False
         focus.strength = min(focus.strength, maximum_bias)
-        return stage_focus(batch, view, instruction=focus.instruction, focus=focus.model_dump(mode="json"),
-            companion_name=companion, experiment_id=experiment_id,
+        return stage_focus(batch, view, instruction=focus.instruction, focus=focus,
+            companion_name=companion, settings=FocusStagingSettings(experiment_id=experiment_id),
             expires_at=(vclock.utcnow() + timedelta(seconds=focus.seconds)).isoformat())
     from workflows.main_cognition.cycle_commits import revise_reflected_belief
     assert change.expected_record_id is not None
@@ -462,7 +462,7 @@ def _reverse(batch: WriteBatch, view: Snapshot, experiment_id: int, data: Experi
         if max(versions, default=None) != effective_id:
             raise GhostConflict("Newer attention advice prevents reversal of this experiment.")
         return stage_focus(batch, view, instruction=previous.focus.instruction or "Restore prior attention advice.",
-            focus=previous.focus.model_dump(mode="json"), companion_name=companion, experiment_id=experiment_id,
+            focus=previous.focus, companion_name=companion, settings=FocusStagingSettings(experiment_id=experiment_id),
             expires_at=previous.expires_at or vclock.utcnow().isoformat())
     from workflows.main_cognition.cycle_commits import revise_reflected_belief
     belief = view.get(effective_id)

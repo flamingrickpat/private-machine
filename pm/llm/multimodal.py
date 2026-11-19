@@ -30,21 +30,21 @@ toward the limit.
 """
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import NamedTuple
 
 from pm.constants import PROMPT_MAX_IMAGES
 from pm.context_render.turns import Content, ContentPart, Media, MediaKind, Role, Text, Turn
 from pm.llm.prompt_encoding import OpenAIChatEncoder, OpenAIRequest, TurnInput, normalize_turns
-from pm.records.media import IMAGE_TAG, MISSING_IMAGE, RecordImage, find_image
+from pm.records.media import IMAGE_TAG, MISSING_IMAGE, RecordImage
 
-Resolver = Callable[[str], RecordImage | None]
+from pm.context_render.images import ImageCatalog
 #: Text of a later tag of an image that the prompt already shows.
 SAME_IMAGE = "the same image as shown earlier"
 
 
-def _to_png(raw: bytes) -> tuple[bytes, str]:
+def image_bytes_for_prompt(raw: bytes) -> tuple[bytes, str]:
     """Convert a WebP image to PNG; return unchanged data for native formats.
 
     llama.cpp's stb_image loader cannot decode WebP or BMP. JPEG and PNG are
@@ -106,7 +106,7 @@ def _tags(turns: list[Turn]) -> list[_Tag]:
 def _media(image: RecordImage) -> Media:
     """Return one image record as image media of a format the endpoint decodes."""
     raw = image.data()
-    converted, mime_type = _to_png(raw)
+    converted, mime_type = image_bytes_for_prompt(raw)
     return Media(MediaKind.Image, mime_type, data=converted, name=image.id)
 
 
@@ -122,7 +122,7 @@ class ImageAttachment(NamedTuple):
     media_type: str
 
 
-def resolve_turns(messages: Sequence[TurnInput], resolve: Resolver = find_image,
+def resolve_turns(messages: Sequence[TurnInput], catalog: ImageCatalog = ImageCatalog(),
                   limit: int = PROMPT_MAX_IMAGES) -> list[Turn]:
     """Return the turns with every image tag resolved to an image part or alt text.
 
@@ -135,7 +135,7 @@ def resolve_turns(messages: Sequence[TurnInput], resolve: Resolver = find_image,
     found = _tags(turns)
     if not found:
         return turns
-    images = {tag.image_id: resolve(tag.image_id) for tag in found}
+    images = {tag.image_id: catalog.find_image(tag.image_id) for tag in found}
     resolvable = [tag for tag in found if images[tag.image_id] is not None]
     # The last ``limit`` distinct images, counted from the end of the prompt.
     chosen: list[str] = []
@@ -161,7 +161,9 @@ def resolve_turns(messages: Sequence[TurnInput], resolve: Resolver = find_image,
             continue
         earlier = [index for index in user_turns if index < tag.turn]
         if earlier:
-            moved.setdefault(earlier[-1], []).append(images[tag.image_id])
+            image = images[tag.image_id]
+            assert image is not None
+            moved.setdefault(earlier[-1], []).append(image)
             selected.add(tag)
     by_part: dict[tuple[int, int], list[_Tag]] = {}
     for tag in found:
@@ -177,6 +179,7 @@ def resolve_turns(messages: Sequence[TurnInput], resolve: Resolver = find_image,
             if not tags:
                 parts.append(part)
                 continue
+            assert isinstance(part, Text)
             cursor = 0
             for tag in tags:
                 parts.append(Text(part.text[cursor:tag.start]))
@@ -204,7 +207,7 @@ def resolve_turns(messages: Sequence[TurnInput], resolve: Resolver = find_image,
     return result
 
 
-def encode_messages(messages: Sequence[TurnInput], resolve: Resolver = find_image,
+def encode_messages(messages: Sequence[TurnInput], catalog: ImageCatalog = ImageCatalog(),
                     limit: int = PROMPT_MAX_IMAGES) -> OpenAIRequest:
     """Return the OpenAI-compatible ``{"messages": [...]}`` body for these turns.
 
@@ -213,17 +216,20 @@ def encode_messages(messages: Sequence[TurnInput], resolve: Resolver = find_imag
     each message stays an open mapping for provider state fields. Invalid
     media raise ValueError before any network call.
     """
-    return OpenAIChatEncoder().encode(resolve_turns(messages, resolve, limit))
+    turns = normalize_turns(messages)
+    if _tags(turns):
+        raise ValueError("Unresolved image tags reached model transport. Resolve media in the prompt renderer.")
+    return OpenAIChatEncoder().encode(turns)
 
 
-def prompt_image_count(messages: Sequence[TurnInput], resolve: Resolver = find_image,
+def prompt_image_count(messages: Sequence[TurnInput], catalog: ImageCatalog = ImageCatalog(),
                        limit: int = PROMPT_MAX_IMAGES) -> int:
     """Return how many image parts the encoded prompt holds, including direct Media parts."""
-    return sum(isinstance(part, Media) for turn in resolve_turns(messages, resolve, limit)
+    return sum(isinstance(part, Media) for turn in resolve_turns(messages, catalog, limit)
                for part in turn.content.parts)
 
 
-def agent_images(text: str, resolve: Resolver = find_image,
+def agent_images(text: str, catalog: ImageCatalog = ImageCatalog(),
                  limit: int = PROMPT_MAX_IMAGES) -> list[ImageAttachment]:
     """Return the image attachments of one plain-text prompt, in text order.
 
@@ -240,14 +246,14 @@ def agent_images(text: str, resolve: Resolver = find_image,
     """
     chosen: list[str] = []
     for image_id in reversed(IMAGE_TAG.findall(text)):
-        if len(chosen) < limit and image_id not in chosen and resolve(image_id) is not None:
+        if len(chosen) < limit and image_id not in chosen and catalog.find_image(image_id) is not None:
             chosen.append(image_id)
     attachments: list[ImageAttachment] = []
     for image_id in reversed(chosen):
-        image = resolve(image_id)
+        image = catalog.find_image(image_id)
         if image is None:
             continue
-        converted, mime_type = _to_png(image.data())
+        converted, mime_type = image_bytes_for_prompt(image.data())
         attachments.append(ImageAttachment(converted, mime_type))
     return attachments
 

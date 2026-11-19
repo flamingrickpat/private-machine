@@ -25,7 +25,7 @@ from pm_workflows.inputs import InputError
 from pm_workflows.runtime import AgentModel, WorkflowRuntime, WorkflowTerminated
 
 from pm.llm.activation import ModelActivation
-from pm.llm.http_client import JsonClient, ModelError, cancellable, wait_until_ready
+from pm.llm.http_client import JsonClient, ModelError, cancellable, EndpointRetry
 from pm.llm.config import Connection, LlmPreset, ModelConfig, resolve_connection
 
 
@@ -70,9 +70,14 @@ async def serving_context(connection: Connection, cancel: Event, *, live_test: b
         if cancel.is_set():
             raise asyncio.CancelledError
         if connection not in _serving_contexts:
-            _serving_contexts[connection] = await wait_until_ready(
-                lambda: _discover_serving_context(connection, cancel), cancel,
-                live_test=live_test, label=f"Serving context at {connection.base_url}")
+            retry = EndpointRetry(f"Serving context at {connection.base_url}", cancel, live_test=live_test)
+            while True:
+                try:
+                    _serving_contexts[connection] = await _discover_serving_context(connection, cancel)
+                    break
+                except (ModelError, httpx.HTTPError) as error:
+                    await retry.wait(error)
+
         return _serving_contexts[connection]
     finally:
         _serving_context_lock.release()

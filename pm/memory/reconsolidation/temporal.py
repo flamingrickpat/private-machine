@@ -28,6 +28,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from datetime import datetime, timedelta
+from dataclasses import dataclass, field
 
 from pydantic import BaseModel
 
@@ -94,7 +95,7 @@ def ranges_of(moment: datetime, day_start_hour: int = RECONSOLIDATION_DAY_START_
     """Return the ranges of every level that contain ``moment``, finest first."""
     day = logical_day_start(moment, day_start_hour)
     logical_date = (day - timedelta(hours=day_start_hour)).date()
-    result = []
+    result: list[TimeRange] = []
     for label, begin, end in TIME_OF_DAY_SEGMENTS:
         segment = TimeRange(level=LEVEL_TIME_OF_DAY, start=day + timedelta(hours=begin),
                             end=day + timedelta(hours=end), key=f"{logical_date.isoformat()}-{label}")
@@ -113,6 +114,14 @@ def ranges_of(moment: datetime, day_start_hour: int = RECONSOLIDATION_DAY_START_
     return result
 
 
+
+@dataclass(frozen=True, order=True, slots=True)
+class TimeRangeOrder:
+    level_order: int
+    start: datetime
+    key: str
+    range: TimeRange = field(compare=False)
+
 def closed_ranges(moments: Iterable[datetime], now: datetime,
                   day_start_hour: int = RECONSOLIDATION_DAY_START_HOUR) -> list[TimeRange]:
     """Return every closed range that holds at least one of ``moments``.
@@ -126,7 +135,8 @@ def closed_ranges(moments: Iterable[datetime], now: datetime,
             if item.end <= now:
                 found.setdefault(item.key, item)
     order = {level: index for index, level in enumerate(BUILD_ORDER)}
-    return sorted(found.values(), key=lambda item: (order[item.level], item.start, item.key))
+    ranked = [TimeRangeOrder(order[item.level], item.start, item.key, item) for item in found.values()]
+    return [rank.range for rank in sorted(ranked)]
 
 
 __all__ = ["BUILD_ORDER", "CHILD_LEVEL", "LEVEL_DAY", "LEVEL_MONTH", "LEVEL_TIME_OF_DAY", "LEVEL_TOPICAL",

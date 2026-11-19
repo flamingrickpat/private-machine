@@ -1,5 +1,7 @@
 """Read independent world evidence and recompute generic acceptance conditions."""
 from __future__ import annotations
+from workflows.minecraft.runtime import require_minecraft_runtime
+from pm.runs.managed_boundary import BoundaryReadSettings
 
 import fnmatch
 import json
@@ -21,10 +23,10 @@ def observe_conditions(context: RoleContext, conditions: list[Condition]) -> lis
     specification and attempt identity. Actor statements cannot supply proof.
     """
     runtime = context.runtime
-    endpoint = runtime.tools["minecraft_endpoint"]()
+    endpoint = require_minecraft_runtime(runtime).minecraft_transport.settings.endpoint
     reads = []
     with BODY_LEASES.command(endpoint, runtime.stop_event):
-        observation = runtime.tools["minecraft_call"]("minecraft_observe", {"include_image": False})
+        observation = require_minecraft_runtime(runtime).minecraft_transport.call("minecraft_observe", {"include_image": False})
     observed_dimension = observation["result"].get("player", {}).get("dimension") if observation["ok"] else None
     for condition in conditions:
         runtime.check_cancelled()
@@ -49,7 +51,7 @@ def observe_conditions(context: RoleContext, conditions: list[Condition]) -> lis
             for point in condition.positions:
                 arguments = {"position": point.model_dump(), "include_image": False}
                 with BODY_LEASES.command(endpoint, runtime.stop_event):
-                    reply = runtime.tools["minecraft_call"]("minecraft_inspect_block", arguments)
+                    reply = require_minecraft_runtime(runtime).minecraft_transport.call("minecraft_inspect_block", arguments)
                 reads.append({"criterion_id": condition.id, "tool": "minecraft_inspect_block", "arguments": arguments,
                               "result": reply["result"], "ok": reply["ok"], "time": time.time(),
                               "observed_dimension": observed_dimension})
@@ -64,7 +66,7 @@ def observe_conditions(context: RoleContext, conditions: list[Condition]) -> lis
             reply = observation
         else:
             with BODY_LEASES.command(endpoint, runtime.stop_event):
-                reply = runtime.tools["minecraft_call"](tool, arguments)
+                reply = require_minecraft_runtime(runtime).minecraft_transport.call(tool, arguments)
             if tool == "minecraft_observe":
                 observation = reply
         reads.append({"criterion_id": condition.id, "tool": tool, "arguments": arguments,

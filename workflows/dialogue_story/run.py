@@ -18,9 +18,10 @@ from pm import vclock
 import argparse
 import asyncio
 import time
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from threading import Event
+from pm.context_render.prompt import RenderSettings
+from pydantic import BaseModel, JsonValue, TypeAdapter
 from uuid import uuid4
 
 from pm.memory.embeddings import EmbeddingService
@@ -30,12 +31,31 @@ from pm.llm.config import LlmPreset, load_config, resolve_connection
 from pm.llm.prompt_encoding import OpenAIChatEncoder
 from workflows.dialogue_story import standalone as engine
 from workflows.dialogue_story.context import plan_story_request
-from workflows.dialogue_story.schemas import StoryQualityScore, StoryReport, StoryRequest
+from workflows.dialogue_story.schemas import StoryQualityScore, StoryReport, StoryRequest, StorySituation
 from workflows.dialogue_story.steps import build_story_messages, load_prompts, render_prior_dialogue
 
 DEFAULT_SEED = engine.PROJECT_ROOT / "test_data" / "personas" / "spamuel" / "canon.yaml"
 DEFAULT_SITUATION = engine.PROJECT_ROOT / "test_data" / "situations" / "story_dialogue" / "situation.yaml"
 REQUIRED_GOOD = 7
+
+
+class TrialEvaluation(BaseModel):
+    trial: int
+    accepted: bool
+    score: StoryQualityScore
+
+
+class TrialSummary(BaseModel):
+    trials: int
+    good: int
+    borderline: int
+    poor: int
+    required_good: int
+    passed: bool
+    accepted: int
+    evaluator_model: str
+    evaluator_shares_backend: bool
+    rubric_version: str
 
 
 def _config_path() -> str:
@@ -52,16 +72,18 @@ def _run_root(runtime_root: Path) -> Path:
 
 
 def _plan_request(ghost: MemoryStore, embedding: EmbeddingService,
-                  situation: dict[str, Any]) -> StoryRequest:
+                  situation: StorySituation, settings: RenderSettings) -> StoryRequest:
     """Plan one Story request synchronously for a command-line run."""
-    return asyncio.run(plan_story_request(ghost, embedding, situation))
+    return asyncio.run(plan_story_request(ghost, embedding, situation, settings=settings))
 
 
 def command_show(args: argparse.Namespace) -> int:
     """Print the exact Story messages without any model call."""
     ghost = MemoryStore.from_yaml(args.seed)
-    embedding = EmbeddingService(load_config(_config_path()).embedding, live_test=True)
-    request = _plan_request(ghost, embedding, engine.read_yaml(args.situation))
+    config = load_config(_config_path())
+    embedding = EmbeddingService(config.embedding, live_test=True)
+    session = engine.build_story_session(ChatClient(resolve_connection(config), ModelActivation(), live_test=True), Event())
+    request = _plan_request(ghost, embedding, engine.load_situation(args.situation), session.render_settings())
     prompts = load_prompts()
     for index, message in enumerate(build_story_messages(request, prompts), start=1):
         print(f"===== message {index}: {message.role.value} =====")
@@ -81,8 +103,8 @@ def command_accept(args: argparse.Namespace) -> int:
 
     run_root = _run_root(args.runtime_root)
     ghost = MemoryStore.from_yaml(args.seed, checkpoint=run_root / "ghost.pickle")
-    situation = engine.read_yaml(args.situation)
-    request = _plan_request(ghost, embedding, situation)
+    situation = engine.load_situation(args.situation)
+    request = _plan_request(ghost, embedding, situation, engine.build_story_session(client, Event()).render_settings())
     prompts = load_prompts()
 
     engine.save_json(run_root / "request.json", request.model_dump(mode="json"))
@@ -91,12 +113,12 @@ def command_accept(args: argparse.Namespace) -> int:
     # request payload that a provider would receive.
     engine.save_json(
         run_root / "messages.json",
-        OpenAIChatEncoder().encode(build_story_messages(request, prompts))["messages"],
+        TypeAdapter[JsonValue](JsonValue).validate_python(OpenAIChatEncoder().encode(build_story_messages(request, prompts))["messages"]),
     )
 
     run_id = f"w4-accept-{uuid4().hex[:8]}"
     result, report = engine.generate_story(
-        ghost, engine.make_environment(ghost), client, request.model_dump(mode="json"),
+        ghost, engine.make_environment(ghost), client, request,
         run_root, run_id,
     )
     engine.save_json(run_root / "accept" / "report.json", report.model_dump(mode="json"))
@@ -130,8 +152,8 @@ def command_trials(args: argparse.Namespace) -> int:
 
     run_root = _run_root(args.runtime_root)
     ghost = MemoryStore.from_yaml(args.seed)
-    situation = engine.read_yaml(args.situation)
-    request = _plan_request(ghost, embedding, situation)
+    situation = engine.load_situation(args.situation)
+    request = _plan_request(ghost, embedding, situation, engine.build_story_session(client, Event()).render_settings())
     environment = engine.make_environment(ghost)
 
     engine.save_json(run_root / "request.json", request.model_dump(mode="json"))
@@ -139,7 +161,7 @@ def command_trials(args: argparse.Namespace) -> int:
     for trial in range(args.trials):
         run_id = f"w4-trial-{trial:02d}-{uuid4().hex[:6]}"
         result, report = engine.generate_story(
-            ghost, environment, client, request.model_dump(mode="json"), run_root, run_id,
+            ghost, environment, client, request, run_root, run_id,
         )
         reports.append(report)
         engine.save_json(
@@ -156,9 +178,9 @@ def command_trials(args: argparse.Namespace) -> int:
     evaluator_connection = resolve_connection(config, preset=LlmPreset.UnitTestEvaluator)
     asyncio.run(owner.activate(evaluator_connection, live_test=args.live_test))
     evaluator = ChatClient(evaluator_connection, owner, live_test=args.live_test)
-    evaluator_prompt = engine.read_yaml(engine.WORKFLOW_DIR / "evaluator.yaml")
+    evaluator_prompt = engine.load_evaluation_prompts(engine.WORKFLOW_DIR / "evaluator.yaml")
 
-    evaluations: list[dict] = []
+    evaluations: list[TrialEvaluation] = []
     prior = render_prior_dialogue(request.prior_dialogue)
     memories = "\n".join(request.memories)
     for trial, report in enumerate(reports):
@@ -168,31 +190,26 @@ def command_trials(args: argparse.Namespace) -> int:
             current_user_message=request.current_user_message,
             candidate=report.candidate,
             evaluator_prompt=evaluator_prompt,
+            capture_options=config.renderer_capture,
             prior_dialogue=prior,
             memories=memories,
         ))
-        entry = {"trial": trial, "accepted": report.accepted, **score.model_dump()}
+        entry = TrialEvaluation(trial=trial, accepted=report.accepted, score=score)
         evaluations.append(entry)
         engine.save_json(run_root / "trials" / f"trial-{trial:02d}" / "evaluation.json", entry)
 
-    good = sum(1 for entry in evaluations if entry["scale"] == 1)
-    summary = {
-        "trials": args.trials,
-        "good": good,
-        "borderline": sum(1 for entry in evaluations if entry["scale"] == 0),
-        "poor": sum(1 for entry in evaluations if entry["scale"] == -1),
-        "required_good": REQUIRED_GOOD,
-        "passed": good >= REQUIRED_GOOD,
-        "accepted": sum(1 for report in reports if report.accepted),
-        "evaluator_model": evaluator_connection.model,
-        "evaluator_shares_backend": config.evaluator_shares_backend(),
-        "rubric_version": evaluator_prompt["version"],
-    }
-    engine.save_json(run_root / "evaluations.json", evaluations)
+    good = sum(1 for entry in evaluations if entry.score.scale == 1)
+    summary = TrialSummary(trials=args.trials, good=good,
+        borderline=sum(1 for entry in evaluations if entry.score.scale == 0),
+        poor=sum(1 for entry in evaluations if entry.score.scale == -1),
+        required_good=REQUIRED_GOOD, passed=good >= REQUIRED_GOOD,
+        accepted=sum(1 for report in reports if report.accepted), evaluator_model=evaluator_connection.model,
+        evaluator_shares_backend=config.evaluator_shares_backend(), rubric_version=evaluator_prompt.version)
+    engine.save_json(run_root / "evaluations.json", tuple(evaluations))
     engine.save_json(run_root / "summary.json", summary)
     print(f"run root: {run_root}")
-    print(f"quality gate: {summary['passed']} ({good}/{args.trials} good, rubric {summary['rubric_version']})")
-    return 0 if summary["passed"] else 3
+    print(f"quality gate: {summary.passed} ({good}/{args.trials} good, rubric {summary.rubric_version})")
+    return 0 if summary.passed else 3
 
 
 def main(argv: list[str] | None = None) -> int:

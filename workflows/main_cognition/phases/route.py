@@ -27,7 +27,10 @@ This phase has no external effect. The host stores the actions and the
 expectations at commit and publishes the released dispatches after it.
 """
 from __future__ import annotations
-from workflows.main_cognition.context_reduction import evidence_text
+
+from workflows.main_cognition.prompt_values import RouteTemplateValues
+
+from pm.llm.role_model import role_model
 
 from pm_workflows.python_role import RoleContext
 
@@ -37,19 +40,20 @@ import hashlib
 import json
 
 from pm.constants import EXPECTATION_COUNT
-from pm.context_render import render_context
-from pm.context_render.turns import Content, ContextTag, Turn, format_content
-from pm.context_render.budget import context_recency, optional_text
-from pm.llm.concurrency import ordered_parallel_map
+from pm.context_render.turns import Turn, format_content
+from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
+from pm.llm.concurrency import wait_model_futures
 from pm.records.cycle_records import ActionDecision, ActionDispatchRef, StimulusGroup
 from pm.records.workspace import ShardKey
 
 from workflows.inference_settings import DECISION_WORKERS
 from workflows.main_cognition import expectations
 from workflows.main_cognition.csm_view import Embedder
+from workflows.main_cognition.rendering import render_managed_runs, render_goal_changes
 from workflows.main_cognition.cycle_work import CycleWork
 from workflows.main_cognition.dispatch import resolve_prerequisites, resolve_same_cycle
-from workflows.main_cognition.model_json import PhasePrompts
+from workflows.main_cognition.prompt_config import PhasePrompts
 from workflows.main_cognition.phases.decide import available_workflows, group_part
 from workflows.main_cognition.phases.model import complete, phase_prompts
 from workflows.main_cognition.phases.triage import CATEGORIES
@@ -105,32 +109,27 @@ def render_group_stimuli(work: CycleWork, group: StimulusGroup) -> str:
     return "\n".join(lines) or "(none)"
 
 
-def render_memories(work: CycleWork) -> Content:
+def render_memories(work: CycleWork) -> str:
     """Return the selected memories with their ids and evidence roles."""
-    result = Content("")
-    for item in work.selected_memories:
-        result += optional_text(
-            f"- id={item.knoxel_id} kind={item.memory_kind} evidence_role={item.evidence_role} text={item.text!r}\n",
-            ContextTag(f"route-memory:{item.knoxel_id}", item.score, record_id=item.knoxel_id,
-                       support_ids=tuple(item.source_ids), recency=context_recency(item.timestamp)))
-    return result if work.selected_memories else Content("(none)")
+    lines = [f"- id={item.knoxel_id} kind={item.memory_kind} evidence_role={item.evidence_role} text={item.text!r}"
+             for item in work.selected_memories]
+    return "\n".join(lines) or "(none)"
 
 
 def build_messages(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix, decision: ActionDecision) -> list[Turn]:
     """Return the shared story prefix and then the routing instruction for one decision as the last turn."""
     request = work.request
     group = group_of(work, decision)
-    instruction = format_content(prefix.fill(prompts.user_template),
+    instruction = format_content(prefix.fill(prompts.user_template), RouteTemplateValues(
         part=group_part(work, prompts, prefix, group),
         decision=decision.text,
-        stimuli=evidence_text(render_group_stimuli(work, group), "route-stimuli", group.stimulus_ids),
+        stimuli=render_group_stimuli(work, group),
         memories=render_memories(work),
-        goals=evidence_text(render_context(work.goals) if work.goals.changes else "(none)", "route-goals"),
-        managed_runs=evidence_text(render_context(request.managed_runs) if request.managed_runs else "(none)", "route-runs"),
+        goals=render_goal_changes(work.goals) if work.goals.changes else "(none)",
+        managed_runs=render_managed_runs(request.managed_runs) if request.managed_runs else "(none)",
         capabilities="\n".join(f"- {item}" for item in request.capabilities) or "(none)",
         workflows="\n".join(f"- {item.name}: {item.description}" for item in available_workflows(work)),
-        wait_default_seconds=request.wait_default_seconds,
-    )
+        wait_default_seconds=request.wait_default_seconds)).text
     return prefix.ask(instruction)
 
 
@@ -138,19 +137,19 @@ def route(context: RoleContext, work: CycleWork, prompts: PhasePrompts, prefix: 
           decision: ActionDecision) -> RouteAnswer:
     """Run the routing call of one decision. Runs in a worker thread and does not change ``work``."""
     check = RouteCheck(workflow_names=[item.name for item in available_workflows(work)])
-    return complete(context, work, build_messages(work, prompts, prefix, decision), RouteAnswer,
-                    grounded=True, emotion=False, grounding_at=len(prefix.turns), capabilities=True,
-                    validation_context=check.model_dump())
+    return complete(context, build_messages(work, prompts, prefix, decision), RouteAnswer,
+                    validation_context=check)
 
 
 def routed_decisions(work: CycleWork, answers: list[RouteAnswer]) -> list[RoutedDecision]:
     """Pair each decision with its group facts and its route."""
-    routed = []
+    routed: list[RoutedDecision] = []
     for decision, answer in zip(work.state.decisions, answers, strict=True):
         group = group_of(work, decision)
         routed.append(RoutedDecision(group=group.key, stimulus_ids=list(decision.stimulus_ids),
                                      correlation_id=group.correlation_id, decision=decision.text,
-                                     route=RouteChoice.model_validate(answer.model_dump())))
+                                     route=RouteChoice(action_type=answer.action_type, workflow_name=answer.workflow_name,
+                                         arguments=answer.arguments, presentation=answer.presentation, reasoning=answer.reasoning)))
     return routed
 
 
@@ -161,7 +160,7 @@ def action_dispatches(routes: list[RoutedDecision]) -> list[ActionDispatch]:
     decision record. They cannot invoke a body or public workflow, even when
     they carry a valid workflow name.
     """
-    dispatches = []
+    dispatches: list[ActionDispatch] = []
     for index, item in enumerate(routes):
         answer = item.route
         if answer.action_type in QUIET_ACTIONS:
@@ -233,7 +232,10 @@ def resolve_conflicts(dispatches: list[ActionDispatch], groups: list[StimulusGro
         elif lease and lease in leases:
             reason = f"body lease {lease} already claimed by {leases[lease]}"
         if reason:
-            resolved[index] = dispatch.model_copy(update={"status": "rejected", "rejection_reason": reason})
+            rejected = dispatch.model_copy()
+            rejected.status = "rejected"
+            rejected.rejection_reason = reason
+            resolved[index] = rejected
             continue
         acting[dispatch.group] = dispatch.action_id
         if lease:
@@ -268,10 +270,17 @@ def select_routes(context: RoleContext, work: CycleWork) -> CycleWork:
     """Route character decisions without anticipating or executing their effects."""
     prompts = phase_prompts("route")
     # The route of a decision reads the prefix of the decision's group, like the decision itself.
-    prefixes = {decision.group: StoryPrefix(work, group=decision.group) for decision in work.state.decisions}
-    stop = context.runtime.stop_event
-    answers = ordered_parallel_map(lambda decision: route(context, work, prompts, prefixes[decision.group], decision),
-                                   work.state.decisions, workers=DECISION_WORKERS, cancel=stop)
+    prefixes = {decision.group: StoryPrefix(work, group=decision.group, settings=role_model(context.runtime).render_settings(),
+            capture_settings=role_model(context.runtime).capture_settings("main-cognition")) for decision in work.state.decisions}
+    stop = role_model(context.runtime).cancel
+    if role_model(context.runtime).model.connection.disable_threading:
+        answers = [route(context, work, prompts, prefixes[decision.group], decision)
+            for decision in work.state.decisions]
+    else:
+        with ThreadPoolExecutor(max_workers=DECISION_WORKERS) as executor:
+            futures = [executor.submit(copy_context().run, route, context, work, prompts, prefixes[decision.group], decision)
+                       for decision in work.state.decisions]
+            answers = wait_model_futures(futures, stop)
     work.routes = routed_decisions(work, answers)
     dispatches = resolve_prerequisites(resolve_same_cycle(action_dispatches(work.routes)), {})
     dispatches = resolve_conflicts(dispatches, work.state.stimulus_groups)
@@ -282,11 +291,16 @@ def select_routes(context: RoleContext, work: CycleWork) -> CycleWork:
 def anticipate_dispatches(context: RoleContext, work: CycleWork) -> CycleWork:
     """Add expectations only for the dispatches this owner can release."""
     prompts = phase_prompts("route")
-    prefixes = {decision.group: StoryPrefix(work, group=decision.group) for decision in work.state.decisions}
+    prefixes = {decision.group: StoryPrefix(work, group=decision.group, settings=role_model(context.runtime).render_settings(),
+            capture_settings=role_model(context.runtime).capture_settings("main-cognition")) for decision in work.state.decisions}
     released = [item for item in work.dispatches if item.status == "dispatched"]
-    stop = context.runtime.stop_event
-    drafts = ordered_parallel_map(lambda item: anticipate(context, work, prompts, prefixes[item.group], item), released,
-                                  workers=DECISION_WORKERS, cancel=stop)
+    stop = role_model(context.runtime).cancel
+    if role_model(context.runtime).model.connection.disable_threading:
+        drafts = [anticipate(context, work, prompts, prefixes[item.group], item) for item in released]
+    else:
+        with ThreadPoolExecutor(max_workers=DECISION_WORKERS) as executor:
+            futures = [executor.submit(copy_context().run, anticipate, context, work, prompts, prefixes[item.group], item) for item in released]
+            drafts = wait_model_futures(futures, stop)
     for dispatch, expected in zip(released, drafts, strict=True):
         dispatch.expectations = expected
     work.state.dispatches = [ActionDispatchRef(group=item.group, correlation_id=item.correlation_id,

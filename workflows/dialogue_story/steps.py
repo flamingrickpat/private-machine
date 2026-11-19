@@ -45,30 +45,35 @@ import asyncio
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from collections.abc import Callable
-from typing import Literal, TypedDict, Unpack, cast
+from typing import Literal, TypedDict
 
 from pydantic import TypeAdapter
 
 from pm_workflows.python_role import RoleContext
 from pm.context_render.turns import Role, Turn
-from pm.llm.completion import AsyncTextCompletion
+from pm.context_render.prompt import RendererCapture, RendererInput
+from pm.llm.session import ModelSession
+from pm.llm.generation import GenerationSettings
+from pm.llm.role_model import role_model
+from pm_workflows.working_target import WorkingEnvironment
 from pm.llm.http_client import EmptyCompletionError
 from pm.host.durable_files import atomic_json
 
 from pm.utils import yaml_util
 from pm.memory.retrieval import utc_time
 from workflows.public_speech.public_context import (
-    ability_lines, memory_lines, memory_sections, plain_memory_text, task_lines, time_lines,
+    ability_lines, memory_sections, plain_memory_text, task_lines, time_lines,
 )
-from workflows.public_speech.public_context import Presentation, PublicContext
+from workflows.public_speech.public_context import Presentation, PublicContext, PromptNames
 from workflows.public_speech.situational_guidance import render_situational_guidance
 from workflows.public_speech.story_rendering import (
     ArtifactLine, DialogueLine, dialogue_lines, render_interleaved_story,
 )
+from workflows.dialogue_story.history_rendering import history_review_context
+from workflows.minecraft_body.capabilities import CapabilitySnapshot
 from workflows.public_speech.speech_text import SpeechOutputError, strip_narrator_setup
 from workflows.public_speech.speech_review import (
-    block_reason, build_review_messages, finding_summary, is_blocked, load_prompts as load_review_prompts, review_speech,
+    block_reason, finding_summary, is_blocked, load_prompts as load_review_prompts, review_speech,
     select_spoken_text, ReviewPrompts,
 )
 
@@ -98,7 +103,7 @@ def load_prompts(path: Path | None = None) -> StoryPrompts:
     return TypeAdapter(StoryPrompts).validate_python(data)
 
 
-def render_prior_dialogue(turns: list[DialogueTurn], prompts: dict | None = None) -> str:
+def render_prior_dialogue(turns: list[DialogueTurn], prompts: StoryPrompts | None = None) -> str:
     """Render prior turns verbatim as one story transcript, both speakers included.
 
     Speech renders as ``says: "..."`` and the companion's earlier private
@@ -106,11 +111,11 @@ def render_prior_dialogue(turns: list[DialogueTurn], prompts: dict | None = None
     marker such as ``*(30 May 2026)*`` precedes the first turn of each day, so
     a window that spans several days does not read as one evening.
     """
-    prompts = prompts or {}
-    speech = prompts.get("speaker_line", '{speaker} says: "{text}"')
-    thought = prompts.get("thought_line", "{speaker} thinks: *{text}*")
-    marker = prompts.get("day_marker", "*({date})*")
-    lines, day = [], None
+    speech = prompts.get("speaker_line", '{speaker} says: "{text}"') if prompts is not None else '{speaker} says: "{text}"'
+    thought = prompts.get("thought_line", "{speaker} thinks: *{text}*") if prompts is not None else "{speaker} thinks: *{text}*"
+    marker = prompts.get("day_marker", "*({date})*") if prompts is not None else "*({date})*"
+    lines: list[str] = []
+    day = None
     for turn in turns:
         if turn.timestamp:
             moment = utc_time(turn.timestamp)
@@ -126,21 +131,21 @@ def _section(title: str, lines: list[str]) -> str:
     return f"{title}\n{body}" if body else ""
 
 
-def _inner_lines(request: StoryRequest, prompts: StoryPrompts, names: dict[str, str]) -> list[str]:
+def _inner_lines(request: StoryRequest, prompts: StoryPrompts, names: PromptNames) -> list[str]:
     """Render the required private state and disclosure choice for generation."""
     lines: list[str] = []
     if request.feelings:
-        lines.append(prompts["inner_feelings"].format(feelings=request.feelings, **names))
+        lines.append(prompts["inner_feelings"].format(feelings=request.feelings, companion_name=names.companion_name, partner_name=names.partner_name))
     if request.regulation in prompts["inner_regulation"]:
-        lines.append(prompts["inner_regulation"][request.regulation].format(**names))
+        lines.append(prompts["inner_regulation"][request.regulation].format(companion_name=names.companion_name, partner_name=names.partner_name))
     if request.workspace.strip():
-        lines.append(prompts["inner_mind"].format(workspace=request.workspace.strip(), **names))
+        lines.append(prompts["inner_mind"].format(workspace=request.workspace.strip(), companion_name=names.companion_name, partner_name=names.partner_name))
     if request.selected_action.strip():
-        lines.append(prompts["inner_intent"].format(intent=request.selected_action.strip(), **names))
+        lines.append(prompts["inner_intent"].format(intent=request.selected_action.strip(), companion_name=names.companion_name, partner_name=names.partner_name))
     presentation = request.public_context.presentation if request.public_context else Presentation()
     lines.append(prompts["presentation"][presentation.mode].format(
         summary=presentation.shareable_summary or "nothing",
-        purpose=presentation.purpose or "unstated", **names))
+        purpose=presentation.purpose or "unstated", companion_name=names.companion_name, partner_name=names.partner_name))
     return lines
 
 
@@ -155,12 +160,12 @@ def build_context_message(request: StoryRequest, prompts: StoryPrompts, *, avoid
     public context). A standalone situation has no shards and shows its
     planned memory lanes instead.
     """
-    names = {"companion_name": request.companion_name, "partner_name": request.partner_name}
+    names = PromptNames(request.companion_name, request.partner_name)
     context = request.public_context
     shown = {turn.knoxel_id for turn in request.prior_dialogue if turn.knoxel_id is not None}
     if request.current_message_id is not None:
         shown.add(request.current_message_id)
-    fallback_title = prompts["memory_lanes"][-1]["title"].format(**names)
+    fallback_title = prompts["memory_lanes"][-1]["title"].format(companion_name=names.companion_name, partner_name=names.partner_name)
     shard_story = context.shard_story.strip() if context is not None else ""
     if context is not None:
         abilities = ability_lines(context)
@@ -191,22 +196,22 @@ def build_context_message(request: StoryRequest, prompts: StoryPrompts, *, avoid
     if memory_blocks:
         memory_blocks.insert(0, prompts["memories_note"].strip())
     parts = [
-        prompts["context_start"].format(**names).strip(),
+        prompts["context_start"].format(companion_name=names.companion_name, partner_name=names.partner_name).strip(),
         _section(prompts["character_title"], [request.character_card_story.strip()]),
-        _section(prompts["architecture_title"].format(**names), [prompts["architecture_text"].format(**names).strip()]),
-        _section(prompts["abilities_title"].format(**names), abilities),
-        _section(prompts["ontology_title"].format(**names), ontology_terms),
+        _section(prompts["architecture_title"].format(companion_name=names.companion_name, partner_name=names.partner_name), [prompts["architecture_text"].format(companion_name=names.companion_name, partner_name=names.partner_name).strip()]),
+        _section(prompts["abilities_title"].format(companion_name=names.companion_name, partner_name=names.partner_name), abilities),
+        _section(prompts["ontology_title"].format(companion_name=names.companion_name, partner_name=names.partner_name), ontology_terms),
         _section(prompts["time_title"], time_lines(request.now, request.prior_dialogue, prompts, names)),
         render_situational_guidance(context.situational_guidance)
             if context is not None and context.situational_guidance is not None else "",
-        _section(prompts["shards_title"].format(**names),
-                 [prompts["shards_note"].format(**names).strip(), shard_story]) if shard_story else "",
+        _section(prompts["shards_title"].format(companion_name=names.companion_name, partner_name=names.partner_name),
+                 [prompts["shards_note"].format(companion_name=names.companion_name, partner_name=names.partner_name).strip(), shard_story]) if shard_story else "",
         *memory_blocks,
-        _section(prompts["goals_title"].format(**names), [f"- {goal}" for goal in request.goals]),
+        _section(prompts["goals_title"].format(companion_name=names.companion_name, partner_name=names.partner_name), [f"- {goal}" for goal in request.goals]),
         _section(prompts["tasks_title"], tasks),
-        _section(prompts["inner_title"].format(**names), _inner_lines(request, prompts, names)),
+        _section(prompts["inner_title"].format(companion_name=names.companion_name, partner_name=names.partner_name), _inner_lines(request, prompts, names)),
         _section(prompts["regeneration_title"], [avoid]) if avoid else "",
-        prompts["context_end"].format(**names).strip(),
+        prompts["context_end"].format(companion_name=names.companion_name, partner_name=names.partner_name).strip(),
     ]
     return "\n\n".join(part for part in parts if part)
 
@@ -231,13 +236,13 @@ def _guidance_line(request: StoryRequest, prompts: StoryPrompts) -> ArtifactLine
     """Keep the accepted frame before every later delivered or incoming line."""
     guidance = request.guidance
     assert guidance is not None
-    names = {"companion_name": request.companion_name, "partner_name": request.partner_name}
+    names = PromptNames(request.companion_name, request.partner_name)
     parts = [f"Private context when {request.companion_name} took stock here:",
              guidance.shard_story,
-             _section(prompts["goals_title"].format(**names), [f"- {goal}" for goal in guidance.goals]),
-             prompts["inner_feelings"].format(feelings=guidance.feelings, **names),
-             prompts["inner_regulation"][guidance.regulation].format(**names),
-             prompts["inner_mind"].format(workspace=guidance.workspace, **names)]
+             _section(prompts["goals_title"].format(companion_name=names.companion_name, partner_name=names.partner_name), [f"- {goal}" for goal in guidance.goals]),
+             prompts["inner_feelings"].format(feelings=guidance.feelings, companion_name=names.companion_name, partner_name=names.partner_name),
+             prompts["inner_regulation"][guidance.regulation].format(companion_name=names.companion_name, partner_name=names.partner_name),
+             prompts["inner_mind"].format(workspace=guidance.workspace, companion_name=names.companion_name, partner_name=names.partner_name)]
     if guidance.selected_action:
         parts.append(f"The immediate move chosen here: {guidance.selected_action}")
     return ArtifactLine(timestamp=guidance.observed_at_utc, record_id=guidance.through_record_id,
@@ -246,10 +251,10 @@ def _guidance_line(request: StoryRequest, prompts: StoryPrompts) -> ArtifactLine
 
 def build_system_text(request: StoryRequest, prompts: StoryPrompts) -> str:
     """System turn: story-writer instruction + architecture + abilities + ontology."""
-    names = {"companion_name": request.companion_name, "partner_name": request.partner_name}
+    names = PromptNames(request.companion_name, request.partner_name)
     parts = [prompts["system_prompt"].strip()]
-    parts.append(_section(prompts["architecture_title"].format(**names),
-                          [prompts["architecture_text"].format(**names).strip()]))
+    parts.append(_section(prompts["architecture_title"].format(companion_name=names.companion_name, partner_name=names.partner_name),
+                          [prompts["architecture_text"].format(companion_name=names.companion_name, partner_name=names.partner_name).strip()]))
     context = request.public_context
     if context is not None:
         abilities = ability_lines(context)
@@ -260,8 +265,8 @@ def build_system_text(request: StoryRequest, prompts: StoryPrompts) -> str:
         abilities += [f"- Cannot: {item}" for item in request.unsupported_capabilities]
         abilities += [f"- Note: {item}" for item in request.capability_notes]
         ontology_terms = []
-    parts.append(_section(prompts["abilities_title"].format(**names), abilities))
-    parts.append(_section(prompts["ontology_title"].format(**names), ontology_terms))
+    parts.append(_section(prompts["abilities_title"].format(companion_name=names.companion_name, partner_name=names.partner_name), abilities))
+    parts.append(_section(prompts["ontology_title"].format(companion_name=names.companion_name, partner_name=names.partner_name), ontology_terms))
     if request.guidance is not None:
         # Actual capability, disclosure, and task boundaries still apply now;
         # old emotional guidance is carried only by its dated story artifact.
@@ -270,15 +275,15 @@ def build_system_text(request: StoryRequest, prompts: StoryPrompts) -> str:
         presentation = context.presentation if context is not None else Presentation()
         parts.append(prompts["presentation"][presentation.mode].format(
             summary=presentation.shareable_summary or "nothing",
-            purpose=presentation.purpose or "unstated", **names))
+            purpose=presentation.purpose or "unstated", companion_name=names.companion_name, partner_name=names.partner_name))
     return "\n\n".join(part for part in parts if part)
 
 
 def build_opening_text(request: StoryRequest, prompts: StoryPrompts) -> str:
     """Opening user turn: story instruction + character card + time."""
-    names = {"companion_name": request.companion_name, "partner_name": request.partner_name}
+    names = PromptNames(request.companion_name, request.partner_name)
     parts = [
-        prompts["story_instruction"].format(**names).strip(),
+        prompts["story_instruction"].format(companion_name=names.companion_name, partner_name=names.partner_name).strip(),
         _section(prompts["character_title"], [request.character_card_story.strip()]),
         _section(prompts["time_title"], time_lines(request.now, request.prior_dialogue, prompts, names)),
     ]
@@ -287,27 +292,27 @@ def build_opening_text(request: StoryRequest, prompts: StoryPrompts) -> str:
 
 def build_directive_text(request: StoryRequest, prompts: StoryPrompts, *, avoid: str = "") -> str:
     """Final user turn: shards + goals + tasks + inner state + continue directive."""
-    names = {"companion_name": request.companion_name, "partner_name": request.partner_name}
+    names = PromptNames(request.companion_name, request.partner_name)
     if request.guidance is not None:
         return _section(prompts["regeneration_title"], [avoid]) if avoid else ""
     context = request.public_context
     shard_story = context.shard_story.strip() if context is not None else ""
-    parts = []
+    parts: list[str] = []
     if shard_story:
-        parts.append(_section(prompts["shards_title"].format(**names),
-                              [prompts["shards_note"].format(**names).strip(), shard_story]))
+        parts.append(_section(prompts["shards_title"].format(companion_name=names.companion_name, partner_name=names.partner_name),
+                              [prompts["shards_note"].format(companion_name=names.companion_name, partner_name=names.partner_name).strip(), shard_story]))
     if context is not None:
         tasks = task_lines(context)
         if context.situational_guidance is not None:
             parts.append(render_situational_guidance(context.situational_guidance))
     else:
         tasks = []
-    parts.append(_section(prompts["goals_title"].format(**names), [f"- {goal}" for goal in request.goals]))
+    parts.append(_section(prompts["goals_title"].format(companion_name=names.companion_name, partner_name=names.partner_name), [f"- {goal}" for goal in request.goals]))
     parts.append(_section(prompts["tasks_title"], tasks))
-    parts.append(_section(prompts["inner_title"].format(**names), _inner_lines(request, prompts, names)))
+    parts.append(_section(prompts["inner_title"].format(companion_name=names.companion_name, partner_name=names.partner_name), _inner_lines(request, prompts, names)))
     if avoid:
         parts.append(_section(prompts["regeneration_title"], [avoid]))
-    parts.append(prompts["continue_directive"].format(**names).strip())
+    parts.append(prompts["continue_directive"].format(companion_name=names.companion_name, partner_name=names.partner_name).strip())
     return "\n\n".join(part for part in parts if part)
 
 
@@ -452,13 +457,13 @@ def clean_reply(raw: str, companion_name: str, partner_name: str, *, prefill: st
     # the user (run bz_p_e2e_live_7530, call 502).
     own_bubbles = re.split(rf"^{re.escape(companion_name)}(?: says)?[ \t]*:", reply, flags=re.MULTILINE)
     lead, segments = own_bubbles[0], own_bubbles[1:]
-    bubbles = []
+    bubbles: list[str] = []
     # The marker strip above already removed a leading own marker, so that lead
     # is spoken text. A lead before an unstripped marker is model preamble.
     if lead.strip() and (prefill or leading_marker or not segments):
         bubbles.append(lead)
     bubbles.extend(segments)
-    cleaned = []
+    cleaned: list[str] = []
     for bubble in bubbles:
         bubble = bubble.strip()
         if bubble.startswith('"') and bubble.endswith('"') and len(bubble) > 1:
@@ -479,12 +484,11 @@ def review_context(request: StoryRequest) -> PublicContext:
     The standalone path has abilities and memories but no task receipt or
     durable ontology. The review still returns one judgment and one reason.
     """
-    abilities = [*request.supported_capabilities, *[f"Cannot: {item}" for item in request.unsupported_capabilities],
-                 *[f"Note: {item}" for item in request.capability_notes]]
     return PublicContext(
         companion_name=request.companion_name, user_name=request.partner_name,
         partner_name=request.partner_name, character=request.character_card_story, feelings=request.feelings,
-        capabilities={"configured": abilities, "unavailable": [], "notes": [], "human_body": False},
+        capabilities=CapabilitySnapshot(configured=tuple(request.supported_capabilities),
+            unavailable=tuple(request.unsupported_capabilities), notes=tuple(request.capability_notes)),
         memories=list(request.memories),
     )
 
@@ -496,18 +500,32 @@ def review_conversation(request: StoryRequest) -> list[DialogueTurn]:
                       if request.current_user_message else [])]
 
 
-class StoryReviewDependencies(TypedDict, total=False):
+@dataclass(frozen=True, slots=True)
+class StoryAttemptRecorder:
+    environment: WorkingEnvironment
+    kernel_data: Path
+    phase: str
+    attempt_number: int
+
+    def record(self, number: int, attempt: StoryAttempt) -> None:
+        self.environment.write_text(f"scratch/story-attempt-{number:02}.json", attempt.model_dump_json(indent=2))
+        path = self.kernel_data / "story-attempts" / f"{self.phase}-{self.attempt_number}-{number:02}.json"
+        atomic_json(path, attempt.model_dump(mode="json"))
+
+
+@dataclass(frozen=True, slots=True)
+class StoryReviewDependencies:
     """Explicit review inputs supplied by standalone generation and runtime capture."""
 
-    context: PublicContext
-    review_prompts: ReviewPrompts
-    conversation: list[DialogueTurn]
-    on_attempt: Callable[[int, StoryAttempt], None]
+    context: PublicContext | None = None
+    review_prompts: ReviewPrompts | None = None
+    conversation: tuple[DialogueTurn, ...] = ()
+    recorder: StoryAttemptRecorder | None = None
 
 
-def generate_reviewed(request: StoryRequest, prompts: StoryPrompts, generate: AsyncTextCompletion,
-                      review_complete: AsyncTextCompletion,
-                      **review_deps: Unpack[StoryReviewDependencies]) -> tuple[list[StoryAttempt], StoryAttempt]:
+def generate_reviewed(request: StoryRequest, prompts: StoryPrompts, generate: ModelSession,
+                      review_complete: ModelSession,
+                      review_deps: StoryReviewDependencies = StoryReviewDependencies()) -> tuple[list[StoryAttempt], StoryAttempt]:
     """Revise rejected speech until the review accepts a draft.
 
     Each rejection adds the draft and review reason to the generation context.
@@ -520,34 +538,35 @@ def generate_reviewed(request: StoryRequest, prompts: StoryPrompts, generate: As
     Generation includes required repair turns. Review includes the complete
     candidate. Their separate selection receipts remain on ``StoryAttempt``.
     """
-    context = review_deps.get("context") or request.public_context or review_context(request)
-    review_prompts = review_deps.get("review_prompts") or load_review_prompts()
-    conversation = review_deps.get("conversation") or review_conversation(request)
+    context = review_deps.context or request.public_context or review_context(request)
+    review_prompts = review_deps.review_prompts or load_review_prompts()
+    conversation = review_deps.conversation or review_conversation(request)
     original_messages = build_story_messages(request, prompts)
     messages = original_messages
     repair_turns: list[Turn] = []
     prefill = ""  # The interleaved layout has no assistant prefill.
-    on_attempt = review_deps.get("on_attempt")
+    recorder = review_deps.recorder
     attempts: list[StoryAttempt] = []
     followups = 0
     restarts = 0
     while True:
         for index in range(2):
             selection = None
-            generation_context = context
-            generation_request = request
-            if request.input_budget_tokens is not None:
-                from workflows.dialogue_story.context import select_story_prompt
-                budgeted = select_story_prompt(request, prompts, repair_turns)
-                messages = list(budgeted.selection.turns)
-                selection = budgeted.selection.receipt()
-                generation_request = budgeted.request
-                generation_context = budgeted.request.public_context or context
-            else:
-                messages = [*original_messages, *repair_turns]
+            from workflows.dialogue_story.context import StoryRenderInput, render_story
+            from pm.context_render.budget import SelectionReceipt
+            render_input = StoryRenderInput(request, prompts, tuple(repair_turns))
+            with RendererCapture(generate.capture_settings("story"), RendererInput("story", render_input, generate.settings)) as capture:
+                rendered = render_story(render_input, generate.settings)
+                capture.save_output(rendered)
+            messages = list(rendered.turns)
+            selection = SelectionReceipt(
+                included=tuple(f"memory:{item.record_id}" for item in rendered.evidence if item.included),
+                omitted=tuple(f"memory:{item.record_id}" for item in rendered.evidence if not item.included),
+                estimated_tokens=rendered.estimated_tokens,
+                source_ids=tuple(sorted({item.record_id for item in rendered.evidence if item.included})), episode_ids=())
             error = ""
             try:
-                raw = asyncio.run(generate(messages, **prompts.get("generation", {})))
+                raw = asyncio.run(generate.complete_async(messages, settings=prompts.get("generation", GenerationSettings())))
             except EmptyCompletionError as failure:
                 raw, error = "", str(failure)
             candidate = clean_reply(raw, request.companion_name, request.partner_name, prefill=prefill)
@@ -556,8 +575,8 @@ def generate_reviewed(request: StoryRequest, prompts: StoryPrompts, generate: As
                 context_selection=selection,
                 generation_error=error or ("" if candidate else "The completion contains no new public speech."))
             attempts.append(attempt)
-            if on_attempt is not None:
-                on_attempt(len(attempts), attempt)
+            if recorder is not None:
+                recorder.record(len(attempts), attempt)
             if candidate:
                 break
             if index == 0:
@@ -567,29 +586,17 @@ def generate_reviewed(request: StoryRequest, prompts: StoryPrompts, generate: As
         else:
             raise SpeechOutputError("The Story completion returned no new speech after two generation attempts.")
         review_messages = None
-        if request.input_budget_tokens is not None:
-            from workflows.dialogue_story.context import select_story_prompt
-
-            def render_review(selected: StoryRequest) -> list[Turn]:
-                return build_review_messages(candidate, selected.public_context or context,
-                                             review_prompts, conversation=review_deps.get("conversation") or review_conversation(selected))
-
-            # Relevance does not make retrieved memories mandatory. The review
-            # layout may need more room than generation for the same evidence.
-            reviewed = select_story_prompt(generation_request, prompts, render=render_review)
-            generation_context = reviewed.request.public_context or context
-            attempt.review_context_selection = reviewed.selection.receipt()
-            review_messages = reviewed.selection.turns
-            if on_attempt is not None:
-                on_attempt(len(attempts), attempt)
-        review = asyncio.run(review_speech(review_complete, candidate, generation_context, conversation=conversation,
-                                           prompts=review_prompts, prepared_messages=review_messages))
+        review_grounding = context
+        if rendered.temporal_history is not None:
+            review_grounding = history_review_context(context, rendered.temporal_history.items)
+        review = asyncio.run(review_speech(review_complete, candidate, review_grounding, conversation=conversation,
+                                           prompts=review_prompts, prepared_messages=review_messages, images=request.images))
         candidate = select_spoken_text(candidate, review)
         attempt.candidate = candidate
         attempt.review = review
         attempt.blocked = is_blocked(review)
-        if on_attempt is not None:
-            on_attempt(len(attempts), attempt)
+        if recorder is not None:
+            recorder.record(len(attempts), attempt)
         if not attempt.blocked:
             if len(attempts) > 1:
                 print(f"[dialogue_story] Reply accepted after {len(attempts)} attempts.", flush=True)
@@ -630,21 +637,12 @@ def run(context: RoleContext) -> StoryRoleResult:
     )
     prompts = load_prompts()
     atomic_json(context.kernel_data / "story-request.json", request.model_dump(mode="json"))
-    tools = runtime.tools
-    # The foreign kernel registry erases callable signatures. The host tool
-    # factory supplies these concrete asynchronous completion contracts.
-    generate = cast(AsyncTextCompletion, tools["story_complete"])
-    review_complete = cast(AsyncTextCompletion, tools.get("public_complete") or tools["story_complete"])
-
-    def record_attempt(number: int, attempt: StoryAttempt) -> None:
-        environment.write_text(f"scratch/story-attempt-{number:02}.json", attempt.model_dump_json(indent=2))
-        # The working target is virtual. Retain the selection and draft in the
-        # kernel's physical evidence folder before the next model operation.
-        path = context.kernel_data / "story-attempts" / f"{context.phase}-{context.attempt}-{number:02}.json"
-        atomic_json(path, attempt.model_dump(mode="json"))
-
-    attempts, chosen = generate_reviewed(request, prompts, generate, review_complete,
-                                        on_attempt=record_attempt)
+    session = role_model(runtime)
+    settings = session.render_settings()
+    request = request.model_copy(deep=True)
+    request.input_budget_tokens = settings.input_ceiling
+    recorder = StoryAttemptRecorder(environment, context.kernel_data, context.phase, context.attempt)
+    attempts, chosen = generate_reviewed(request, prompts, session, session, StoryReviewDependencies(recorder=recorder))
     accepted = bool(chosen.candidate) and not chosen.blocked
     review = chosen.review
     verdict = OntologyVerdict(

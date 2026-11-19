@@ -12,16 +12,32 @@ Token counts use tiktoken (``o200k_base``), like
 """
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
+from dataclasses import dataclass
 from functools import lru_cache
 
 import tiktoken
 
 from pm.records.enums import FeatureType
-from pm.records.media import RecordImage, alt_text_view, find_image
+from pm.records.media import RecordImage, IMAGE_TAG
 from pm.records.memory_records import Feature, MemoryClusterRecord
 
-Resolver = Callable[[str], RecordImage | None]
+@dataclass(frozen=True, slots=True)
+class ImageCatalog:
+    images: tuple[RecordImage, ...] = ()
+
+    def alt_text(self, text: str) -> str:
+        parts: list[str] = []
+        position = 0
+        for match in IMAGE_TAG.finditer(text):
+            image_id = match.group(1)
+            image = next((item for item in self.images if item.id == image_id), None)
+            if image is None:
+                raise ValueError(f"Image {image_id} is absent from the captured reconstruction input.")
+            parts.extend((text[position:match.start()], image.alt_label()))
+            position = match.end()
+        parts.append(text[position:])
+        return "".join(parts)
 
 _THOUGHTS = {FeatureType.Thought, FeatureType.ExternalThought, FeatureType.InnerMonologue}
 
@@ -37,12 +53,12 @@ def count_tokens(text: str) -> int:
     return len(_encoding().encode(text, disallowed_special=()))
 
 
-def feature_text(feature: Feature, resolve: Resolver = find_image) -> str:
+def feature_text(feature: Feature, images: ImageCatalog = ImageCatalog()) -> str:
     """Return the content of a feature with every image tag replaced by its alt text."""
-    return alt_text_view(feature.content, resolve)
+    return images.alt_text(feature.content)
 
 
-def feature_line(feature: Feature, timestamp_format: str, resolve: Resolver = find_image) -> str:
+def feature_line(feature: Feature, timestamp_format: str, images: ImageCatalog = ImageCatalog()) -> str:
     """Return one feature as a dated story line, with images as alt text.
 
     Speech is quoted. A thought is marked as a thought, so a summary never
@@ -50,7 +66,7 @@ def feature_line(feature: Feature, timestamp_format: str, resolve: Resolver = fi
     image of a tag; reconsolidation passes ``store.find_image``.
     """
     when = feature.timestamp_world_begin.strftime(timestamp_format)
-    content = feature_text(feature, resolve)
+    content = feature_text(feature, images)
     if feature.feature_type == FeatureType.Dialogue:
         return f'{when} {feature.source} says: "{content}"'
     if feature.feature_type in _THOUGHTS:
@@ -61,9 +77,9 @@ def feature_line(feature: Feature, timestamp_format: str, resolve: Resolver = fi
 
 
 def render_story(features: Sequence[Feature], timestamp_format: str, *, numbered: bool = False,
-                 resolve: Resolver = find_image) -> str:
+                 images: ImageCatalog = ImageCatalog()) -> str:
     """Return the features as story lines, one per line, in the given order."""
-    lines = [feature_line(feature, timestamp_format, resolve) for feature in features]
+    lines = [feature_line(feature, timestamp_format, images) for feature in features]
     if numbered:
         lines = [f"[{index}] {line}" for index, line in enumerate(lines, 1)]
     return "\n".join(lines)

@@ -5,22 +5,30 @@ but does not grant disclosure or establish an external event.
 """
 from __future__ import annotations
 
-import re
-import json
-from collections.abc import Iterable
-from typing import TYPE_CHECKING, Any, Literal, TypedDict
+from workflows.minecraft_body.capabilities import CapabilitySnapshot, CapabilityEvidenceLimit
+from workflows.public_speech.task_receipts import TaskReceipt, render_task_receipt, read_optional_task_receipt
 
-from pydantic import BaseModel, ConfigDict, Field
+import re
+from dataclasses import dataclass, field
+from datetime import datetime
+from collections.abc import Iterable, Sequence
+from typing import TYPE_CHECKING, Literal, TypedDict
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from pm import vclock
 from pm.memory.dependencies import SourceDependency, source_fingerprint
-from pm.records.base import Provenance, RecordScope
+from pm.records.base import RecordScope, RecordBase
+from pm.memory.evidence import EvidenceItem as EvidenceItem, EvidenceScoreComponents as EvidenceScoreComponents
+from pm.memory.temporal_context import TemporalHistoryInput
 from pm.records.enums import FeatureType, InterlocusType, SourceKind
 from pm.records.memory_records import Feature
-from pm.records.cognitive_records import OntologyBindingRecord
-from pm.context_render import ContextKind, render_context
+from pm.records.qualia_records import QualeRecord
+from pm.records.cognitive_records import OntologyBindingRecord, OntologyTermRecord
+from workflows.public_speech.context_trace import ContextPlanningTrace
+from workflows.public_speech.ontology_context import PublicOntologyEntry, PublicOntologyTerm, PublicOntologyBinding
+from pm.context_render import ContextKind
 from pm.context_render.turns import Content
-from pathlib import Path
 from workflows.entity_context.schemas import EntityContextView
 from workflows.entity_context.projection import EntityContextChanged, validate_entity_context
 from workflows.main_cognition.cycle_commits import active_goal_texts
@@ -61,55 +69,80 @@ class Presentation(BaseModel):
     model_config = ConfigDict(extra="forbid")
     mode: Literal["candid", "withhold", "deceive"] = "candid"
     purpose: str = ""
-    known_fact_ids: list[int] = Field(default_factory=list)
+    known_fact_ids: list[int] = Field(default_factory=list[int])
     shareable_summary: str = ""
 
 
-class EvidenceScoreComponents(BaseModel):
-    """Why retrieval ranked one record where it did.
-
-    ``lexical`` is the normalized term-match share and ``semantic`` is the
-    embedding similarity. ``semantic`` is absent when the provider was
-    unavailable or the caller asked for lexical retrieval only, so a missing
-    value means "this leg did not contribute", never "zero similarity".
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    lexical: float = Field(default=0.0, ge=0.0, le=1.0, description="Normalized lexical term-match share.")
-    semantic: float | None = Field(default=None, description="Embedding similarity, or None when the semantic leg did not run.")
+@dataclass(order=True, frozen=True, slots=True)
+class RankedPublicEvidence:
+    negative_score: float
+    record_id: int
+    evidence: EvidenceItem = field(compare=False)
 
 
-class EvidenceItem(BaseModel):
-    """One record of the public context, as ``pm.memory.retrieval.candidate`` renders it.
+def rank_public_evidence(evidence: Sequence[EvidenceItem]) -> tuple[EvidenceItem, ...]:
+    ranked = [RankedPublicEvidence(-item.score, item.knoxel_id, item) for item in evidence]
+    ranked.sort()
+    return tuple(item.evidence for item in ranked)
 
-    ``text`` starts with a machine label (kind, source, evidence id, time).
-    ``memory_lines`` turns the label into words. ``lane`` names where the
-    record came from: a context-plan lane, ``shard:<name>`` for a workspace
-    shard of the cycle, or ``private_state`` for a disclosed private state.
-    ``lifecycle_event`` is ``startup`` for a startup event of the runtime.
-    ``score_components`` is present only when retrieval produced a ranking
-    explanation for this record.
-    """
 
-    model_config = ConfigDict(extra="forbid")
+@dataclass(order=True, frozen=True, slots=True)
+class RankedMemoryText:
+    negative_matches: int
+    position: int
+    text: str = field(compare=False)
 
-    knoxel_id: int = 0
-    text: str = ""
-    revision: int = 1
+
+def rank_memory_texts(memories: Sequence[str], focus: str) -> tuple[RankedMemoryText, ...]:
+    from pm.memory.retrieval import distinctive_terms
+    terms = set(distinctive_terms(focus))
+    ranked: list[RankedMemoryText] = []
+    seen: set[str] = set()
+    for index, text in enumerate(memories):
+        normalized = " ".join(text.casefold().split())
+        matches = len(terms.intersection(distinctive_terms(text)))
+        if matches and normalized not in seen:
+            ranked.append(RankedMemoryText(-matches, index, text))
+            seen.add(normalized)
+    ranked.sort()
+    return tuple(ranked)
+
+
+@dataclass(order=True, frozen=True, slots=True)
+class ChronologicalDialogue:
+    timestamp: str
+    record_id: int
+    position: int
+    dialogue: DialogueTurn = field(compare=False)
+
+
+def order_dialogue(dialogue: Sequence[DialogueTurn]) -> list[DialogueTurn]:
+    ordered = [ChronologicalDialogue(item.timestamp or "", item.knoxel_id or 0, index, item)
+               for index, item in enumerate(dialogue)]
+    ordered.sort()
+    return [item.dialogue for item in ordered]
+
+
+class PublicDisclosure(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    mode: str
+
+
+class PublicFeatureMetadata(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    origin: str = ""
+    event: str = ""
+    loop: str = ""
+    disclosure: PublicDisclosure | None = None
     memory_kind: str = ""
-    scope: RecordScope = Field(default_factory=RecordScope)
-    provenance: Provenance | None = None
-    source_ids: list[int] = Field(default_factory=list)
-    timestamp: str | None = None
-    historical: bool = False
-    score: float = 0.0
-    reasons: list[str] = Field(default_factory=list)
-    deception_intent_id: int | None = None
-    evidence_role: str = ""
-    lane: str = ""
-    lifecycle_event: str = ""
-    score_components: EvidenceScoreComponents | None = None
+    regulation: str | None = None
+
+
+@dataclass(order=True, frozen=True, slots=True)
+class PublicRecordRank:
+    negative_tick: int
+    negative_id: int
+    record: RecordBase = field(compare=False)
 
 
 class PublicContext(BaseModel):
@@ -133,25 +166,32 @@ class PublicContext(BaseModel):
     regulation: str = ""
     goals: list[str] = Field(default_factory=list)
     memories: list[str] = Field(default_factory=list)
-    evidence: list[EvidenceItem] = Field(default_factory=list)
+    evidence: list[EvidenceItem] = Field(default_factory=list[EvidenceItem])
     shard_story: str = ""
     workspace: str = ""
     selected_action: str = ""
     temporal_context: str = ""
-    capabilities: dict = Field(default_factory=dict)
-    ontology: list[dict] = Field(default_factory=list)
+    temporal_history: TemporalHistoryInput | None = None
+    capabilities: CapabilitySnapshot = Field(default_factory=CapabilitySnapshot)
+    ontology: list[PublicOntologyEntry] = Field(default_factory=list[PublicOntologyEntry])
     presentation: Presentation = Field(default_factory=Presentation)
     action_schema_id: int | None = None
-    revisions: dict[int, int] = Field(default_factory=dict)
-    input_record_ids: list[int] = Field(default_factory=list)
+    revisions: dict[int, int] = Field(default_factory=dict[int, int])
+    input_record_ids: list[int] = Field(default_factory=list[int])
     input_commit_ids: list[str] = Field(default_factory=list)
-    head_ids: list[int] = Field(default_factory=list)
-    source_fingerprints: dict[int, str] = Field(default_factory=dict)
-    historical_sources: list[SourceDependency] = Field(default_factory=list,
+    head_ids: list[int] = Field(default_factory=list[int])
+    source_fingerprints: dict[int, str] = Field(default_factory=dict[int, str])
+    historical_sources: list[SourceDependency] = Field(default_factory=list[SourceDependency],
         description="Meaning guards for historical guidance, without requiring it to remain current authority.")
     user_frontier: int | None = None
-    stimulus_user_ids: list[int] = Field(default_factory=list)
-    task_receipt: dict = Field(default_factory=dict)
+    stimulus_user_ids: list[int] = Field(default_factory=list[int])
+    task_receipt: TaskReceipt | None = None
+
+    @field_validator("task_receipt", mode="before")
+    @classmethod
+    def read_task_receipt(cls, value: object) -> TaskReceipt | None:
+        return read_optional_task_receipt(value)
+
     state_tick: int | None = None
     situational_guidance: SituationalGuidance | None = None
     reconsideration_epoch: int | None = None
@@ -161,46 +201,46 @@ class PublicContext(BaseModel):
     entity_contexts: list[EntityContextView] = Field(default_factory=list[EntityContextView],
         description="Selected-action and rendered-situation views retained through atomic publication.")
     # The context plan trace (lanes, budgets, semantic status) when planned.
-    plan: dict = Field(default_factory=dict)
+    plan: ContextPlanningTrace | None = None
 
 
-@render_context.register(PublicContext)
-def render_public_context(context: PublicContext, kinds: ContextKind = ContextKind.All,
-                          *, schema_path: str | Path | None = None, dedupe: bool = True) -> Content:
-    """Select public context sections without exposing storage ownership fields.
+@dataclass(frozen=True, slots=True)
+class PublicContextRenderSettings:
+    kinds: ContextKind = ContextKind.All
 
-    Evidence retains original IDs, scope, attribution, and chronology. The
-    original context still owns revisions and publication guards. When a
-    cognition phase supplies newer affect, it excludes this emotion section.
-    """
-    selected: dict[str, Any] = {"companion_name": context.companion_name, "user_name": context.user_name}
+
+def render_public_context(context: PublicContext,
+                          settings: PublicContextRenderSettings = PublicContextRenderSettings()) -> Content:
+    kinds = settings.kinds
+    lines = [f"Companion: {context.companion_name}; user: {context.user_name}."]
     if context.partner_name and context.partner_name != context.user_name:
-        selected["partner_name"] = context.partner_name
+        lines.append(f"Current partner: {context.partner_name}.")
     if kinds & ContextKind.Dialogue:
-        selected.update(character=context.character, workspace=context.workspace,
-                        selected_action=context.selected_action,
-                        presentation=context.presentation.model_dump(mode="python"))
+        lines.extend((context.character, context.workspace, context.selected_action))
+        presentation = context.presentation
+        lines.append(f"Presentation: {presentation.mode}; purpose: {presentation.purpose}; "
+                     f"shareable: {presentation.shareable_summary}")
     if kinds & ContextKind.Emotion:
-        selected.update(affect=context.affect or context.feelings, regulation=context.regulation)
+        lines.append(f"Accepted feelings: {context.affect or context.feelings}; regulation: {context.regulation}")
     if kinds & ContextKind.Facts:
-        capabilities = {key: value for key, value in context.capabilities.items() if key != "emotion_state"}
-        selected.update(capabilities=capabilities, goals=context.goals, temporal_context=context.temporal_context,
-                        task_receipt=context.task_receipt)
+        lines.extend(ability_lines(context))
+        lines.extend(f"Goal: {goal}" for goal in context.goals)
+        lines.append(context.temporal_context)
+        lines.extend(task_lines(context))
         if context.situational_guidance is not None:
-            selected["situational_guidance"] = render_situational_guidance(context.situational_guidance)
+            lines.append(render_situational_guidance(context.situational_guidance))
     if kinds & ContextKind.Memories:
-        selected["evidence"] = [item.model_dump(mode="json") for item in context.evidence]
-        if not context.evidence:
-            selected["memories"] = context.memories
+        lines.extend(memory_lines(context))
     if kinds & ContextKind.Ontology:
-        selected["ontology"] = context.ontology
-    return render_context(selected, kinds, schema_path=schema_path, dedupe=dedupe)
+        from workflows.public_speech.ontology import ontology_lines
+        lines.extend(ontology_lines(context))
+    return Content("\n".join(line for line in lines if line.strip()))
 
 
 def build_public_context(ghost: MemoryStore, request: ActionRequest | None = None, *,
-                         capabilities: dict[str, Any] | None = None,
+                         capabilities: CapabilitySnapshot | None = None,
                          planned: PlannedContext | None = None,
-                         late_ids: list[int] = ()) -> PublicContext:
+                         late_ids: Sequence[int] = ()) -> PublicContext:
     """Freeze one accepted snapshot without importing raw private thoughts.
 
     ``request`` is the typed action request of the utterance, or None for a
@@ -232,7 +272,9 @@ def build_public_context(ghost: MemoryStore, request: ActionRequest | None = Non
     if metadata.dispatch_status == "deferred":
         raise InteractionContextChanged("The selected public action already awaits reconsideration.")
     action_id = action.id if action is not None else None
-    records = view.serialize_knoxels()
+    records = view.all_knoxels
+    feature_metadata = {key: PublicFeatureMetadata.model_validate(record.metadata)
+                        for key, record in records.items() if isinstance(record, Feature)}
     presentation = metadata.presentation
     from pm.memory.retrieval import candidate, evidence_role
     if presentation.mode == "deceive" and (
@@ -243,6 +285,7 @@ def build_public_context(ghost: MemoryStore, request: ActionRequest | None = Non
     ):
         raise ValueError("Deception requires a prior purpose and retained facts.")
     evidence: list[EvidenceItem] = list(planned.evidence) if planned is not None else []
+    ranked_evidence = {item.knoxel_id: item for item in evidence}
     lanes = {item.knoxel_id: item.lane for item in evidence if item.lane}
     ids = {key for item in evidence for key in [item.knoxel_id, *item.source_ids]}
     ids.update(presentation.known_fact_ids)
@@ -251,9 +294,8 @@ def build_public_context(ghost: MemoryStore, request: ActionRequest | None = Non
     if planned is not None:
         ids.update(turn.knoxel_id for turn in planned.dialogue if turn.knoxel_id is not None)
     # Original startup events establish restart chronology beside retained facts.
-    startup_ids = sorted(key for key, record in records.items()
-                         if record["data"].get("metadata", {}).get("origin") == "lifecycle"
-                         and record["data"]["metadata"].get("event") == "startup")[-3:]
+    startup_ids = sorted(key for key, metadata in feature_metadata.items()
+                         if metadata.origin == "lifecycle" and metadata.event == "startup")[-3:]
     ids.update(startup_ids)
     if action_id is not None:
         ids.add(action_id)
@@ -263,7 +305,12 @@ def build_public_context(ghost: MemoryStore, request: ActionRequest | None = Non
     # known facts of a deception, and the startup events come first.
     for key in dict.fromkeys([*stimulus_ids, *presentation.known_fact_ids, *startup_ids, *selected_ids]):
         if key in view.revisions and key != action_id:
-            original = EvidenceItem.model_validate(candidate(view, key, view.get(key)))
+            original = candidate(view, key, view.get(key))
+            if key in ranked_evidence:
+                ranking = ranked_evidence[key]
+                original.score = ranking.score
+                original.reasons = list(ranking.reasons)
+                original.score_components = ranking.score_components.model_copy() if ranking.score_components is not None else None
             if key in startup_ids:
                 original.lifecycle_event = "startup"
             if key in lanes:
@@ -274,19 +321,21 @@ def build_public_context(ghost: MemoryStore, request: ActionRequest | None = Non
     # drivers, and a candid thought carries a disclosure recorded before any
     # dialogue generation. Withheld material never reaches this evidence.
     private_state: list[EvidenceItem] = []
-    for key, raw in sorted(records.items(),
-                          key=lambda item: item[1]["data"].get("tick_id", -1), reverse=True):
+    ranked_records = sorted(PublicRecordRank(-record.tick_id, -key, record) for key, record in records.items())
+    for ranked in ranked_records:
         if len(private_state) >= 5:
             break
-        private_metadata = raw["data"].get("metadata", {}) or {}
-        is_reportable_quale = raw["__type__"] == "QualeKnoxel" and bool(raw["data"].get("reportable"))
-        is_candid_thought = (raw["__type__"] == "Feature"
-                             and raw["data"].get("feature_type") == "InnerMonologue"
-                             and private_metadata.get("loop") in {"inner", "inquiry"}
-                             and (private_metadata.get("disclosure") or {}).get("mode") == "candid")
-        if not (is_reportable_quale or is_candid_thought):
+        record = ranked.record
+        key = record.id
+        reportable = isinstance(record, QualeRecord) and record.reportable
+        candid = False
+        if isinstance(record, Feature) and record.feature_type == FeatureType.InnerMonologue:
+            private_metadata = feature_metadata[key]
+            candid = (private_metadata.loop in {"inner", "inquiry"} and private_metadata.disclosure is not None
+                      and private_metadata.disclosure.mode == "candid")
+        if not (reportable or candid):
             continue
-        item = EvidenceItem.model_validate(candidate(view, key, records[key]))
+        item = candidate(view, key, record)
         item.lane = "private_state"
         private_state.append(item)
         ids.add(key)
@@ -306,37 +355,46 @@ def build_public_context(ghost: MemoryStore, request: ActionRequest | None = Non
                    if relationship is not None and relationship.entity_id else "")
         affect = describe_mental_state(accepted, name=ghost.get_companion_name(), partner_name=partner)
         feelings = feelings_in_words(accepted)
-        current_state = next((raw["data"] for raw in reversed(list(records.values()))
-                              if raw["data"].get("tick_id") == state.tick_id
-                              and raw["data"].get("metadata", {}).get("memory_kind") == "internal_state"), None)
-        if current_state is not None:
-            regulation = str(current_state.get("metadata", {}).get("regulation", regulation))
-    ontology = []
-    for key, raw in records.items():
-        if raw["__type__"] not in {"OntologyTermKnoxel", "OntologyBindingKnoxel"}:
+        for ranked in ranked_records:
+            record = ranked.record
+            if not isinstance(record, Feature) or record.tick_id != state.tick_id:
+                continue
+            state_metadata = feature_metadata[record.id]
+            if state_metadata.memory_kind == "internal_state":
+                if state_metadata.regulation is not None:
+                    regulation = state_metadata.regulation
+                break
+    ontology: list[PublicOntologyEntry] = []
+    for key, item in view.all_knoxels.items():
+        if isinstance(item, OntologyTermRecord):
+            ontology.append(PublicOntologyTerm(record_id=key, term=item.term, term_kind=item.term_kind,
+                definition=item.definition, usage_rule=item.usage_rule))
+        elif isinstance(item, OntologyBindingRecord):
+            if not item.active:
+                continue
+            ontology.append(PublicOntologyBinding(record_id=key, term_id=item.term_id,
+                fit_score=item.fit_score, explanation=item.explanation))
+        else:
             continue
-        item = view.get(key)
-        if isinstance(item, OntologyBindingRecord) and not item.active:
-            continue
-        ontology.append({"id": key, **item.model_dump(mode="json", exclude={"embedding"})})
         ids.add(key)
         if len(ontology) == 24:
             break
-    users = [key for key, raw in records.items() if raw["data"].get("feature_type") == "Dialogue"
-             and raw["data"].get("override_source") == ghost.get_user_name()]
+    users = [key for key, record in records.items() if isinstance(record, Feature)
+             and record.feature_type == FeatureType.Dialogue and record.override_source == ghost.get_user_name()]
     config = ghost.ghost_config
-    domain_capabilities = capabilities or {
-        "text": True, "persistent_memory": True, "human_senses": [], "human_body": False,
-        "configured": list(config.supported_capabilities),
-        "unavailable": list(map(str, config.unsupported_capabilities)),
-        "notes": list(map(str, config.capability_notes)),
-        "minecraft": {"status": "unknown", "visual_interpretation": False},
-    }
+    domain_capabilities = capabilities.model_copy(deep=True) if capabilities is not None else CapabilitySnapshot(
+        configured=tuple(config.supported_capabilities),
+        unavailable=tuple(str(item) for item in config.unsupported_capabilities),
+        notes=tuple(str(item) for item in config.capability_notes))
     if state is not None:
-        domain_capabilities["emotion_state"] = state.mental_state.state_emotions.model_dump()
+        domain_capabilities.emotion_state = state.mental_state.state_emotions.model_copy(deep=True)
+    if planned is not None and planned.temporal_history is not None:
+        for history_item in planned.temporal_history.items:
+            ids.add(history_item.record_id)
+            ids.update(history_item.source_ids)
     rendered_ids = {item.knoxel_id for item in originals}
-    domain_capabilities["evidence_limit"] = {"records": 48, "record_characters": 1200,
-        "omitted_ids": sorted(ids - rendered_ids - {action_id})}
+    domain_capabilities.evidence_limit = CapabilityEvidenceLimit(records=48, record_characters=1200,
+        omitted_ids=tuple(sorted(ids - rendered_ids - {action_id})))
     guidance = build_situational_guidance(view, as_of_utc=vclock.utcnow(),
         companion_name=ghost.get_companion_name(), user_name=ghost.get_user_name(),
         partner_entity_id=request.partner_entity_id,
@@ -377,13 +435,14 @@ def build_public_context(ghost: MemoryStore, request: ActionRequest | None = Non
         workspace=request.workspace,
         selected_action=str(action.content) if action is not None else request.content,
         temporal_context=ghost.build_body_and_situation_addendum(),
+        temporal_history=planned.temporal_history if planned is not None else None,
         capabilities=domain_capabilities, ontology=ontology, presentation=presentation,
         action_schema_id=action_id,
         revisions={key: view.revisions[key] for key in ids if key in view.revisions},
         input_record_ids=list(view.revisions), input_commit_ids=sorted(view.commit_ids),
         head_ids=sorted(ids & set(view.all_knoxels)),
         source_fingerprints={key: source_fingerprint(view.get(key)) for key in ids if key in view.revisions},
-        user_frontier=max(users, default=None), task_receipt=dict(request.task_receipt),
+        user_frontier=max(users, default=None), task_receipt=request.task_receipt.model_copy(deep=True) if request.task_receipt is not None else None,
         stimulus_user_ids=partner_inputs,
         state_tick=state.tick_id if state is not None else None,
         situational_guidance=guidance,
@@ -391,7 +450,7 @@ def build_public_context(ghost: MemoryStore, request: ActionRequest | None = Non
         interaction_selection_id=request.interaction_selection_id,
         interaction_dependencies=interaction_dependencies,
         entity_contexts=entity_contexts,
-        plan=dict(planned.trace) if planned is not None else {},
+        plan=planned.trace.model_copy(deep=True) if planned is not None else None,
     )
 
 
@@ -421,7 +480,7 @@ _KIND_WORDS = {
 _HIDDEN_KINDS = {"internal_state"}
 
 
-def format_moment(value: object) -> str:
+def format_moment(value: str | datetime | None) -> str:
     """Render a record timestamp as plain words, for example "30 May 2026, 21:03"."""
     if not value:
         return ""
@@ -467,20 +526,26 @@ class MemoryLaneTemplate(TypedDict):
     title: str
 
 
-def time_lines(now: str, turns: list[DialogueTurn], templates: TimeTemplates, names: dict[str, str]) -> list[str]:
+@dataclass(frozen=True, slots=True)
+class PromptNames:
+    companion_name: str
+    partner_name: str
+
+
+def time_lines(now: str, turns: list[DialogueTurn], templates: TimeTemplates, names: PromptNames) -> list[str]:
     """Describe now and the gap since the last spoken exchange, in words.
 
     ``templates`` holds ``time_now``, ``time_since``, and ``time_first`` from a
     workflow prompt file. Private thoughts do not count as an exchange.
     """
     from pm.memory.retrieval import utc_time
-    lines = [templates["time_now"].format(now=format_moment(now), **names)] if now else []
+    lines = [templates["time_now"].format(now=format_moment(now), companion_name=names.companion_name, partner_name=names.partner_name)] if now else []
     stamps = [turn.timestamp for turn in turns if turn.timestamp and turn.kind == "speech"]
     if stamps and now:
         gap = (utc_time(now) - utc_time(max(stamps))).total_seconds()
-        lines.append(templates["time_since"].format(elapsed=describe_elapsed(gap), last=format_moment(max(stamps)), **names))
+        lines.append(templates["time_since"].format(elapsed=describe_elapsed(gap), last=format_moment(max(stamps)), companion_name=names.companion_name, partner_name=names.partner_name))
     elif not stamps:
-        lines.append(templates["time_first"].format(**names))
+        lines.append(templates["time_first"].format(companion_name=names.companion_name, partner_name=names.partner_name))
     return lines
 
 
@@ -539,12 +604,12 @@ def memory_sections(context: PublicContext, sections: list[MemoryLaneTemplate], 
     ``sections`` is the ordered list of ``{"lane", "title"}`` mappings from a
     workflow prompt file. Titles may use ``{companion_name}`` and ``{partner_name}``.
     """
-    names = {"companion_name": context.companion_name, "partner_name": context.partner_name}
+    names = PromptNames(context.companion_name, context.partner_name)
     blocks: list[str] = []
     for section in sections:
         lines = memory_lines(context, exclude_ids=exclude_ids, exclude_texts=exclude_texts, lanes={section["lane"]})
         if lines:
-            blocks.append(section["title"].format(**names) + "\n" + "\n".join(lines))
+            blocks.append(section["title"].format(companion_name=names.companion_name, partner_name=names.partner_name) + "\n" + "\n".join(lines))
     return blocks
 
 
@@ -556,47 +621,46 @@ def plain_memory_text(text: str) -> str:
 
 def ability_lines(context: PublicContext) -> list[str]:
     """Render the domain capabilities as short plain sentences."""
-    capabilities = context.capabilities or {}
-    lines = [f"- {item}" for item in capabilities.get("configured", [])]
-    lines += [f"- Cannot: {item}" for item in capabilities.get("unavailable", [])]
-    lines += [f"- Note: {item}" for item in capabilities.get("notes", [])]
-    if not capabilities.get("human_body", False):
+    capabilities = context.capabilities
+    lines = [f"- {item}" for item in capabilities.configured]
+    lines += [f"- Cannot: {item}" for item in capabilities.unavailable]
+    lines += [f"- Note: {item}" for item in capabilities.notes]
+    if not capabilities.human_body:
         lines.append(f"- {context.companion_name} has no human body and no human senses.")
-    minecraft = capabilities.get("minecraft") or {}
-    lines.append(f"- Minecraft connection right now: {minecraft.get('status', 'unknown')}.")
-    if minecraft.get("status") == "connected":
+    minecraft = capabilities.minecraft
+    lines.append(f"- Minecraft connection right now: {minecraft.status}.")
+    if minecraft.status == "connected":
         lines.append(f"- {context.companion_name} can act inside Minecraft through connected game tools.")
         lines.append("- The tools are reachable now. Connection alone does not establish an observation or completed action.")
-    if minecraft and not minecraft.get("visual_interpretation", False):
+    if not minecraft.visual_interpretation:
         lines.append("- Minecraft observations are structured text. Screenshot pixels have no interpretation support in this session.")
     return lines
 
 
-def task_lines(context: PublicContext, receipts: list[dict] | None = None) -> list[str]:
+@dataclass(frozen=True, slots=True)
+class ToolEvidence:
+    name: str
+    executed: bool
+    result_text: str
+    error: str = ""
+    observed_at: str = ""
+    source: str = ""
+
+
+def task_lines(context: PublicContext, receipts: Sequence[ToolEvidence] = ()) -> list[str]:
     """Render task and tool results without removing their verification facts.
 
     The review receives the same result as the generator. A clipped result
     cannot establish whether a claimed file or world fact was returned.
     """
-    lines = []
-    task = context.task_receipt or {}
-    if task:
-        verified = "verified" if task.get("task_verified") else "not verified"
-        identity = f" (run {task['run_id']})" if task.get("run_id") else ""
-        lines.append(f"- Task {task.get('workflow_name', 'task')}{identity}: worker state {task.get('state', 'unknown')}, requested effect {verified}.")
-        # Worker completion and verified external effects are separate facts.
-        # Keep the receipt's original request and artifacts for both readers.
-        lines.append("  Receipt: " + json.dumps(task, ensure_ascii=False, default=str))
-    for receipt in receipts or []:
-        result = receipt.get("result")
-        failed = (not receipt.get("executed", True) or receipt.get("error")
-                  or (isinstance(result, dict) and result.get("ok") is False))
-        outcome = "failed" if failed else "succeeded"
-        detail = receipt.get("error") or json.dumps(result, ensure_ascii=False, default=str)
-        lines.append(f"- Tool {receipt.get('name', 'tool')} {outcome}: {detail}")
-        provenance = {key: receipt[key] for key in ("observed_at", "executed_at", "scope", "source") if receipt.get(key) is not None}
-        if provenance:
-            lines.append("  Observation time and scope: " + json.dumps(provenance, ensure_ascii=False, default=str))
+    lines: list[str] = []
+    if context.task_receipt:
+        lines.append(render_task_receipt(context.task_receipt))
+    for receipt in receipts:
+        outcome = "succeeded" if receipt.executed and not receipt.error else "failed"
+        lines.append(f"- Tool {receipt.name} {outcome}: {receipt.error or receipt.result_text}")
+        if receipt.observed_at or receipt.source:
+            lines.append(f"  Observed: {receipt.observed_at}; source: {receipt.source}")
     return lines
 
 

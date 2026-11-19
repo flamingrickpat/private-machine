@@ -15,6 +15,8 @@ and the cycle state.
 """
 from __future__ import annotations
 
+from pm.memory.retrieval import RetrievalTrace
+
 import re
 
 from collections.abc import Iterable
@@ -120,7 +122,7 @@ def apply_appraisal(
     *,
     evidence_ids: Iterable[int] | None,
     companion_name: str,
-    memory_trace: dict[str, object] | None = None,
+    memory_trace: RetrievalTrace | None = None,
 ) -> Feature:
     """Stage the appraisal ``Feature`` of one cycle and return it.
 
@@ -148,7 +150,7 @@ def apply_appraisal(
         mental_state_delta_vec=list(affect.delta_vec),
         metadata={
             "memory_kind": "internal_state",
-            "memory_trace": dict(memory_trace or {}),
+            "memory_trace": memory_trace.model_dump(mode="json") if memory_trace is not None else {},
             "origin": "appraisal",
             "evidence_ids": [int(item) for item in (evidence_ids or [])],
             "appraisal": dict(appraisal.appraisal),

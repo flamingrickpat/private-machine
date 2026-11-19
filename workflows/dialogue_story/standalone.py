@@ -11,26 +11,31 @@ saved reports and never rewrites a candidate.
 from __future__ import annotations
 
 import json
-import re
 import threading
 from dataclasses import dataclass
+from uuid import uuid4
 from pathlib import Path
 from typing import Any
+from pydantic import BaseModel, JsonValue
 
 from pm.constants import Sampler
 from pm.utils import yaml_util
-from pm_workflows.runtime import WorkflowRuntime
 
 from pm.memory.store import MemoryStore
 from pm.records.memory_records import Feature
 from pm.records.enums import FeatureType, InterlocusType
 from pm.llm.activation import ChatClient
-from pm.llm.completion import AsyncTextCompletion
-from pm.llm.prompt_encoding import TurnInput
-from collections.abc import Sequence
+from pm.llm.session import ModelSession
+from pm.llm.generation import GenerationSettings
+from pm.llm.stage_model import LazyStageModel
+from pm.runs.role_runtime import PMWorkflowRuntime
+from pm.context_render.prompt import (RenderSettings, RenderedPrompt, RendererInput, RendererCapture,
+    RendererCaptureOptions, RendererCaptureSettings, require_rendered_prompt)
+from pm.context_render.correction import answer_correction_instruction
+from pm.context_render.turns import Role, Turn
 from threading import Event
 from pm.runs.workflow_runner import WorkflowRequest, WorkflowResult, WorkflowRunner, WorkflowStatus
-from workflows.dialogue_story.schemas import StoryQualityScore, StoryReport
+from workflows.dialogue_story.schemas import StoryQualityScore, StoryReport, StoryRequest, StorySituation, EvaluationPrompts
 from pm.memory.bash_view import MemoryBashEnvironment
 
 WORKFLOW_DIR = Path(__file__).resolve().parent
@@ -38,44 +43,32 @@ MANIFEST = WORKFLOW_DIR / "dialogue_story.workflow.md"
 PROJECT_ROOT = WORKFLOW_DIR.parent.parent
 
 
-def read_yaml(path: str | Path) -> dict[str, Any]:
-    """Load one YAML prompt or evaluator file from disk."""
-    return yaml_util.safe_load(Path(path).read_text(encoding="utf-8"))
+def load_situation(path: str | Path) -> StorySituation:
+    return StorySituation.model_validate(yaml_util.safe_load(Path(path).read_text(encoding="utf-8")))
 
 
-def build_story_tools(client: ChatClient) -> dict[str, AsyncTextCompletion]:
-    """Bind generation and repair measurement to the same active client.
+def load_evaluation_prompts(path: str | Path) -> EvaluationPrompts:
+    return EvaluationPrompts.model_validate(yaml_util.safe_load(Path(path).read_text(encoding="utf-8")))
 
-    Empty output uses the shared bounded retry. Cancellation reaches both
-    inference and measurement. Programming and provider errors propagate.
-    """
 
-    async def story_complete(messages: Sequence[TurnInput], **generation: object) -> str:
-        from pm.llm.stage_model import complete_with_retry
-        return await complete_with_retry(client, messages, generation)
-
-    async def measure(messages: Sequence[TurnInput], *, cancel: threading.Event | None = None,
-                      **generation: object) -> dict[str, object]:
-        from pm.llm.context_window import measure_context
-        with client.activation.use(client.connection):
-            return await measure_context(client.connection, messages,
-                                         cancel if cancel is not None else threading.Event(), **generation)
-
-    story_complete.measure_context = measure
-    return {"story_complete": story_complete, "public_complete": story_complete}
+def build_story_session(client: ChatClient, cancel: Event) -> ModelSession:
+    model = LazyStageModel(client.connection, client.activation)
+    session = ModelSession(model, cancel)
+    session.render_settings()
+    return session
 
 
 def make_environment(ghost: MemoryStore) -> MemoryBashEnvironment:
     """Return a read-only working environment over the current store state."""
     view = ghost.snapshot()
-    return MemoryBashEnvironment(view.serialize_knoxels(), view.serialize_gwt(), "read")
+    return MemoryBashEnvironment(view.all_knoxels, view.gwt_turns, "read")
 
 
 def generate_story(
     ghost: MemoryStore,
     environment: MemoryBashEnvironment,
     client: ChatClient,
-    request_payload: dict[str, Any],
+    request: StoryRequest,
     runtime_root: Path,
     run_id: str,
     *,
@@ -87,14 +80,16 @@ def generate_story(
     run that did not complete raises RuntimeError with its kernel summary;
     no partial report is returned as an answer.
     """
-    runtime = WorkflowRuntime(
+    cancel = threading.Event()
+    runtime = PMWorkflowRuntime(
         environment=environment,
-        stop_event=threading.Event(),
-        tools=build_story_tools(client),
+        stop_event=cancel,
+        tools={},
+        model_session=build_story_session(client, cancel),
         propagate_python_errors=True,
     )
     runner = WorkflowRunner(MANIFEST, runtime_root, namespace="dialogue_story", base_dir=PROJECT_ROOT)
-    result = runner.invoke(WorkflowRequest(run_id, request_payload), runtime, resume=resume)
+    result = runner.invoke(WorkflowRequest(run_id, request.model_dump(mode="json")), runtime, resume=resume)
     if result.status is not WorkflowStatus.Completed:
         raise RuntimeError(f"Story run {run_id} did not complete: {result.kernel_summary}")
     report = StoryReport.model_validate(result.report)
@@ -123,15 +118,23 @@ def commit_accepted_dialogue(ghost: MemoryStore, candidate: str, companion_name:
 
 # --------------------------------------------------------------- evaluation
 
-_JSON_OBJECT = re.compile(r"\{.*\}", re.DOTALL)
+@dataclass(frozen=True, slots=True)
+class StoryEvaluationInput:
+    companion_name: str
+    current_user_message: str
+    candidate: str
+    prompts: EvaluationPrompts
+    prior_dialogue: str = ""
+    memories: str = ""
+    correction_turns: tuple[Turn, ...] = ()
 
 
-def extract_json(text: str) -> dict:
-    """Extract the first JSON object from evaluator text. Malformed raises."""
-    match = _JSON_OBJECT.search(text or "")
-    if match is None:
-        raise ValueError("The evaluator returned no JSON object.")
-    return json.loads(match.group(0))
+def render_story_evaluation(input: StoryEvaluationInput, settings: RenderSettings) -> RenderedPrompt:
+    user = input.prompts.user_template.format(companion_name=input.companion_name,
+        current_user_message=input.current_user_message, candidate=input.candidate,
+        prior_dialogue=input.prior_dialogue or "(none)", memories=input.memories or "(none)")
+    turns = (Turn(Role.System, input.prompts.system_prompt), Turn(Role.User, user), *input.correction_turns)
+    return require_rendered_prompt("story evaluation", turns, settings)
 
 
 async def evaluate_candidate(
@@ -140,49 +143,44 @@ async def evaluate_candidate(
     companion_name: str,
     current_user_message: str,
     candidate: str,
-    evaluator_prompt: dict,
+    evaluator_prompt: EvaluationPrompts,
     prior_dialogue: str = "",
     memories: str = "",
+    capture_options: RendererCaptureOptions = RendererCaptureOptions(),
 ) -> StoryQualityScore:
     """Score one saved candidate. Invalid output is an evaluation error."""
-    user = evaluator_prompt["user_template"].format(
-        companion_name=companion_name,
-        current_user_message=current_user_message,
-        candidate=candidate,
-        prior_dialogue=prior_dialogue or "(none)",
-        memories=memories or "(none)",
-    )
-    from pm.llm.structured import complete_json_async
-    from pm.llm.context_window import measure_context
+    from pm.llm.structured import extract_json, JsonOutputError
+    from pm.llm.workflow_sessions import serving_context
+    from pydantic import ValidationError
+    capacity, _source = await serving_context(evaluator.connection, Event())
+    output_tokens = evaluator.connection.completion_token_limit
+    if output_tokens is None:
+        raise ValueError("Story evaluation requires a configured output allowance.")
+    settings = RenderSettings(context_window=capacity, input_fraction=evaluator.connection.context_input_fraction,
+                              reserved_output_tokens=output_tokens)
+    corrections: tuple[Turn, ...] = ()
+    while True:
+        input = StoryEvaluationInput(companion_name, current_user_message, candidate, evaluator_prompt,
+                                     prior_dialogue, memories, corrections)
+        capture_settings = RendererCaptureSettings(capture_options.directory / "story_evaluation" / uuid4().hex,
+            capture_options.capture_input, capture_options.capture_output)
+        with RendererCapture(capture_settings, RendererInput("story_evaluation", input, settings)) as capture:
+            prompt = render_story_evaluation(input, settings)
+            capture.save_output(prompt)
+        raw = (await evaluator.complete(prompt.turns, settings=GenerationSettings(temperature=Sampler.TempReasoning))).text
+        try:
+            return StoryQualityScore.model_validate(extract_json(raw))
+        except (JsonOutputError, ValidationError) as error:
+            corrections = (Turn(Role.Assistant, raw), Turn(Role.User, answer_correction_instruction("story evaluation", str(error))))
 
-    async def complete(turns: Sequence[TurnInput], **generation: object) -> str:
-        """Return the evaluator's final text, never its reasoning."""
-        return (await evaluator.complete(turns, **generation)).text
-
-    async def measure(turns: Sequence[TurnInput], *, cancel: Event | None = None,
-                      **generation: object) -> dict[str, object]:
-        return await measure_context(evaluator.connection, turns, cancel or Event(), **generation)
-
-    return await complete_json_async(complete,
-        [{"role": "system", "content": evaluator_prompt["system_prompt"]}, {"role": "user", "content": user}],
-        StoryQualityScore, measure=measure, temperature=Sampler.TempReasoning)
 
 
-
-def save_json(path: Path, payload: Any) -> None:
+def save_json(path: Path, payload: JsonValue | BaseModel | tuple[BaseModel, ...]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
-
-
-__all__ = [
-    "MANIFEST",
-    "PROJECT_ROOT",
-    "build_story_tools",
-    "commit_accepted_dialogue",
-    "evaluate_candidate",
-    "extract_json",
-    "generate_story",
-    "make_environment",
-    "read_yaml",
-    "save_json",
-]
+    if isinstance(payload, BaseModel):
+        encoded = payload.model_dump(mode="json")
+    elif isinstance(payload, tuple):
+        encoded = [item.model_dump(mode="json") for item in payload]
+    else:
+        encoded = payload
+    path.write_text(json.dumps(encoded, indent=2, ensure_ascii=False), encoding="utf-8")

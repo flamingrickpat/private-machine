@@ -32,6 +32,10 @@ memory.
 """
 from __future__ import annotations
 
+from workflows.main_cognition.prompt_values import AppraisalTemplateValues
+
+from pm.llm.role_model import role_model
+
 from pm_workflows.python_role import RoleContext
 
 from pm.context_render.turns import Turn, format_content
@@ -52,17 +56,16 @@ from workflows.main_cognition.affect import appraise_state, describe_mental_stat
 from workflows.main_cognition.csm_view import Embedder
 from workflows.main_cognition.cycle_work import CycleWork, primary_group
 from workflows.main_cognition.interval_review import render_interval_review
-from workflows.main_cognition.model_json import PhasePrompts
+from workflows.main_cognition.prompt_config import PhasePrompts
 from workflows.main_cognition.phases.model import complete, phase_prompts
 from workflows.main_cognition.schemas import AppraisalAffect, AppraisalResult, ExpectationOutcome
 from workflows.main_cognition.story_prefix import StoryPrefix
-from workflows.main_cognition.context_reduction import evidence_text
 
 
 def render_triage(work: CycleWork) -> str:
     """Render each triage item with its reasoning and the matching stimulus text."""
     stimuli = {item.knoxel_id: item.text for item in work.request.stimuli}
-    lines = []
+    lines: list[str] = []
     for item in work.triage.items:
         lines.append(
             f"- id={item.knoxel_id} category={item.category} "
@@ -80,15 +83,16 @@ def build_messages(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix) 
     review = request.interval_review
     if review is None:
         raise ValueError("The appraise phase requires the cycle's interval review.")
-    user = format_content(prefix.fill(prompts.user_template),
-        interval_review=evidence_text(render_interval_review(review, companion_name=request.companion_name), "appraise-interval"),
+    user = format_content(prefix.fill(prompts.user_template), AppraisalTemplateValues(
+        interval_review=render_interval_review(review, companion_name=request.companion_name),
         state_summary=work.state_summary or "(no feeling recorded yet)",
-        active_goals=evidence_text("; ".join(request.active_goals) or "(nothing in particular)", "appraise-goals"),
-        triage=evidence_text(render_triage(work), "appraise-triage", [item.knoxel_id for item in work.request.stimuli]),
-        expectations=evidence_text(expectations.render_outcomes(work.expectations), "appraise-expectations",
-                                  [item.record_id for item in work.expectations]),
-    )
-    return prefix.ask(user)
+        active_goals="; ".join(request.active_goals) or "(nothing in particular)",
+        triage=render_triage(work),
+        expectations=expectations.render_outcomes(work.expectations)))
+    instruction = user.text
+    if request.public_context is not None:
+        instruction += "\nPrior accepted feeling: " + request.public_context.feelings
+    return prefix.ask(instruction)
 
 
 def merge_expectations(result: AppraisalResult, outcomes: list[ExpectationOutcome]) -> AppraisalResult:
@@ -103,7 +107,10 @@ def merge_expectations(result: AppraisalResult, outcomes: list[ExpectationOutcom
     error, fear = expectations.effect(outcomes)
     deltas = dict(result.emotion_delta)
     deltas["fear"] = max(-1.0, min(1.0, (deltas["fear"] if "fear" in deltas else 0.0) + fear))
-    return result.model_copy(update={"expectation_error": error, "emotion_delta": deltas})
+    merged = result.model_copy()
+    merged.expectation_error = error
+    merged.emotion_delta = deltas
+    return merged
 
 
 def partner_entity(work: CycleWork) -> int | None:
@@ -190,11 +197,11 @@ def update_affect(work: CycleWork, appraisal: AppraisalResult) -> AppraisalAffec
 
 def run(context: RoleContext, work: CycleWork) -> CycleWork:
     prompts = phase_prompts("appraise")
-    prefix = StoryPrefix(work)
+    prefix = StoryPrefix(work, settings=role_model(context.runtime).render_settings(),
+            capture_settings=role_model(context.runtime).capture_settings("main-cognition"))
     relevant = expectations.relevant_expectations(work, Embedder(context, work.records))
     work.expectations = expectations.check(context, work, prefix, prompts, relevant)
-    result = complete(context, work, build_messages(work, prompts, prefix), AppraisalResult,
-                      grounded=True, emotion=True, grounding_at=len(prefix.turns))
+    result = complete(context, build_messages(work, prompts, prefix), AppraisalResult)
     result = merge_expectations(result, work.expectations)
     work.appraisal = result
     work.affect = update_affect(work, result)

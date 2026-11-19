@@ -1,5 +1,7 @@
 """Shared helpers of the project roles: request, tree store, decision identity, and instruction boundary."""
 from __future__ import annotations
+from workflows.minecraft.runtime import require_minecraft_runtime
+from pm.runs.managed_boundary import BoundaryReadSettings
 
 from pathlib import Path
 from typing import TypeVar
@@ -22,8 +24,7 @@ RESOURCES = Path(__file__).resolve().parents[1] / "resources"
 Decision = TypeVar("Decision", bound=BaseModel)
 
 
-class InstructionsChanged(RuntimeError):
-    """A leaf became stale before its next action. The world remains intact."""
+from pm.runs.managed_boundary import InstructionRevisionChanged as InstructionsChanged
 
 
 def request(context: RoleContext) -> ProjectRequest:
@@ -59,7 +60,7 @@ def identity(context: RoleContext, store: TreeStore, *, node: Node | None = None
 
 def boundary(context: RoleContext, store: TreeStore) -> bool:
     """Detect a newer project instruction before another role accepts work."""
-    current = context.runtime.tools["managed_instructions"]()
+    current = require_minecraft_runtime(context.runtime).instructions()
     return current["revision"] == store.state["instruction_revision"]
 
 

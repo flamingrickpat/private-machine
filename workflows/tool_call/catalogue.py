@@ -10,7 +10,7 @@ asked again after ``TOOL_DISCOVERY_RETRY_SECONDS``. Discovery calls no tool.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from dataclasses import dataclass
 import threading
 import time
 
@@ -46,6 +46,12 @@ async def _list_tools(server: McpServerConfig) -> list[ToolEntry]:
                 for item in await client.list_tools()]
 
 
+@dataclass(frozen=True, slots=True)
+class ToolDiscoveryFailure:
+    error_type: str
+    observed_at: float
+
+
 class ToolCatalogue:
     """Discover and describe the tools of every configured MCP server.
 
@@ -53,14 +59,12 @@ class ToolCatalogue:
     the cache consistent when decisions route in parallel.
     """
 
-    def __init__(self, config: ToolCallConfig,
-                 clock: Callable[[], float] = time.monotonic) -> None:
+    def __init__(self, config: ToolCallConfig) -> None:
         """Retain the MCP configuration and the clock used for retry deadlines."""
         self.config = config
-        self.clock = clock
         self._tools: dict[str, list[ToolEntry]] = {}
         #: Server name -> (error type, clock time of the failed listing).
-        self._failures: dict[str, tuple[str, float]] = {}
+        self._failures: dict[str, ToolDiscoveryFailure] = {}
         self._lock = threading.Lock()
 
     def tools(self, server: McpServerConfig) -> list[ToolEntry] | str:
@@ -69,15 +73,15 @@ class ToolCatalogue:
             if server.name in self._tools:
                 return self._tools[server.name]
             if (server.name in self._failures
-                    and self.clock() - self._failures[server.name][1] < TOOL_DISCOVERY_RETRY_SECONDS):
-                return self._failures[server.name][0]
+                    and time.monotonic() - self._failures[server.name].observed_at < TOOL_DISCOVERY_RETRY_SECONDS):
+                return self._failures[server.name].error_type
         try:
             found = asyncio.run(asyncio.wait_for(_list_tools(server), timeout=TOOL_DISCOVERY_SECONDS))
         except (OSError, TimeoutError, httpx.HTTPError, McpError, RuntimeError) as error:
             # An unreachable server is an external state, not our bug. The
             # route then knows that this server cannot help now.
             with self._lock:
-                self._failures[server.name] = (type(error).__name__, self.clock())
+                self._failures[server.name] = ToolDiscoveryFailure(type(error).__name__, time.monotonic())
             return type(error).__name__
         with self._lock:
             self._tools[server.name] = found
@@ -85,7 +89,7 @@ class ToolCatalogue:
 
     def describe(self) -> str:
         """Return the servers and their tools as indented lines for the workflow list."""
-        lines = []
+        lines: list[str] = []
         for server in self.config.mcp_servers:
             found = self.tools(server)
             if isinstance(found, str):

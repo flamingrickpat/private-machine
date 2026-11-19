@@ -30,9 +30,9 @@ from __future__ import annotations
 
 import json
 import threading
-from dataclasses import replace
+from dataclasses import replace, dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 from fastmcp import FastMCP
 from pm_workflows.drivers import PmCoderDriver
@@ -45,10 +45,13 @@ from pm.llm.prompt_log import log_directory
 from pm.memory.agent_tools import MemoryReadSession, MemoryToolConfig, MemoryView
 from pm.memory.bash_view import MemoryBashEnvironment
 from pm.memory.store import MemoryStore
-from pm.records.media import alt_text_view
+from pm.records.media import IMAGE_TAG, RecordImage
+from pm.context_render.images import ImageCatalog
+from pm.context_render.prompt import RenderSettings, RenderedPrompt, RendererCapture, RendererInput, require_rendered_prompt
+from pm.context_render.turns import Role, Turn, Content, Media, MediaKind
 
 from workflows.main_cognition.csm_view import record_view
-from workflows.main_cognition.model_json import ModelFormatError, model_context_budget
+from pm.llm.structured import ModelFormatError
 from workflows.main_cognition.schemas import AgentCodeletAnswer, AgentCodeletJob
 
 if TYPE_CHECKING:
@@ -56,82 +59,111 @@ if TYPE_CHECKING:
 
 SKILL = Path(__file__).resolve().parent / "resources" / "codelet_agent.md"
 
-CodeletAgent = Callable[[RoleContext, AgentCodeletJob], AgentCodeletAnswer]
+@dataclass(frozen=True, slots=True)
+class CodeletAgentRenderInput:
+    job: AgentCodeletJob
+    skill: str
+    problems: tuple[str, ...]
+    images: tuple[RecordImage, ...]
 
 
-def prompt_text(job: AgentCodeletJob, problems: list[str]) -> str:
-    """Return the task text of one session: story, view, instruction, and retrieval plan.
-
-    ``problems`` holds the reasons why earlier sessions of this job failed.
-    The new session reads them last, so it can avoid the same mistake.
-
-    The text carries the alt text of every image tag (see
-    :func:`~pm.records.media.alt_text_view`). The pictures themselves ride on
-    the session's first turn as attachments (:func:`prompt_images`), so the
-    session reads the record text and still sees the pixels.
-    """
+def prompt_text(input: CodeletAgentRenderInput) -> str:
+    job = input.job
     plan = "\n".join(f"- {item}" for item in job.retrieval_plan) or "- (no plan; use your judgment)"
     text = f"{job.story}\n\n{job.view}\n\n{job.instruction}\n\nRetrieval plan:\n{plan}"
-    if problems:
-        text += "\n\nEarlier attempts of this task failed:\n" + "\n".join(f"- {item}" for item in problems)
-    return alt_text_view(text)
+    if input.problems:
+        text += "\n\nEarlier attempts of this task failed:\n" + "\n".join(f"- {item}" for item in input.problems)
+    catalog = ImageCatalog(input.images)
+    parts: list[str] = []
+    cursor = 0
+    for match in IMAGE_TAG.finditer(text):
+        parts.append(text[cursor:match.start()])
+        image = catalog.find_image(match.group(1))
+        if image is None:
+            raise ValueError(f"Native codelet references missing image {match.group(1)}.")
+        parts.append(image.alt_label())
+        cursor = match.end()
+    parts.append(text[cursor:])
+    return "".join(parts)
 
 
-def prompt_images(job: AgentCodeletJob) -> list[ImageAttachment]:
-    """Return the pictures this session should see, with their media types.
-
-    The codelet reads the story of the moment, so it gets the same images that
-    a direct call of the cycle would see: the newest ``PROMPT_MAX_IMAGES``
-    distinct tags of the story, view, and instruction, in text order.
-    """
-    return agent_images(f"{job.story}\n\n{job.view}\n\n{job.instruction}")
+def prompt_images(input: CodeletAgentRenderInput) -> list[ImageAttachment]:
+    job = input.job
+    return agent_images(f"{job.story}\n\n{job.view}\n\n{job.instruction}", ImageCatalog(input.images))
 
 
-def build_codelet_agent(ghost: MemoryStore, environment: MemoryBashEnvironment,
-                        embeddings: EmbeddingService | None, cancel: threading.Event) -> CodeletAgent:
-    """Return the ``codelet_agent`` tool for one run over ``environment``.
+def render_codelet_agent(input: CodeletAgentRenderInput, settings: RenderSettings) -> RenderedPrompt:
+    turns = [Turn(Role.System, input.skill), Turn(Role.User, prompt_text(input))]
+    for index, image in enumerate(prompt_images(input)):
+        turns.append(Turn(Role.User, Content(Media(MediaKind.Image, image.media_type, data=image.data, name=f"codelet-image-{index}"))))
+    return require_rendered_prompt("native codelet initial prompt", tuple(turns), settings)
 
-    ``environment`` is the working target of the run. Its visible records
-    and their reality scopes form the memory grant. ``embeddings`` enables
-    semantic search, or None for lexical search only. ``cancel`` is the
-    cancellation signal of the run.
-    """
-    ids = frozenset(environment.visible_knoxels)
-    scopes = frozenset((raw["data"]["scope"]["reality_id"], raw["data"]["scope"]["frame"])
-                       for raw in environment.visible_knoxels.values())
-    turn = threading.Lock()
 
-    def run(context: RoleContext, job: AgentCodeletJob) -> AgentCodeletAnswer:
+@dataclass(frozen=True, slots=True)
+class CodeletMindView:
+    text: str
+
+    def read(self) -> str:
+        return self.text
+
+
+@dataclass(slots=True)
+class CodeletAgent:
+    ghost: MemoryStore
+    environment: MemoryBashEnvironment
+    embeddings: EmbeddingService | None
+    cancel: threading.Event
+    turn: threading.Lock = field(default_factory=threading.Lock, init=False)
+    ids: frozenset[int] = field(init=False)
+    scopes: frozenset[tuple[int, str]] = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.ids = frozenset(self.environment.records)
+        self.scopes = frozenset((record.scope.reality_id, record.scope.frame.value)
+                                for record in self.environment.records.values())
+
+    def execute(self, context: RoleContext, job: AgentCodeletJob) -> AgentCodeletAnswer:
         """Run sessions until one returns a valid answer. See the module docstring."""
         runtime = context.runtime
+        assert runtime is not None
         if runtime.classification_session is None:
             raise RuntimeError("Agent codelets need workflow models for their pm-coder sessions.")
-        problems = []
-        with turn:
+        problems: list[str] = []
+        with self.turn:
             for attempt in range(1, CODELET_AGENT_ATTEMPTS + 1):
-                memory = MemoryReadSession(MemoryToolConfig(ghost, MemoryView(ids, scopes),
-                    semantic=embeddings is not None, lexical=True, graph=True,
-                    embeddings=embeddings, cancel=cancel))
+                memory = MemoryReadSession(MemoryToolConfig(self.ghost, MemoryView(self.ids, self.scopes),
+                    semantic=self.embeddings is not None, lexical=True, graph=True,
+                    embeddings=self.embeddings, cancel=self.cancel))
                 mind = FastMCP("codelet_mind")
 
-                def mind_view() -> str:
-                    """Return the thoughts that are active in the character's mind, one line per record id."""
-                    return job.view
-
-                mind.tool(name="mind_view")(mind_view)
+                mind_view = CodeletMindView(job.view)
+                mind.tool(name="mind_view")(mind_view.read)
                 session = runtime.classification_session("Default", False, runtime.stop_event)
                 with memory, session as model, serve_services({"memory": memory.server(), "mind": mind}) as servers:
                     config = context.kernel_data / f"codelet-{job.codelet}-mcp.json"
                     config.write_text(json.dumps({"mcpServers": servers}), encoding="utf-8")
                     driver = PmCoderDriver(log_root=log_directory() / "agents",
                                            timeout_seconds=CODELET_AGENT_TIMEOUT_SECONDS)
+                    images: list[RecordImage] = []
+                    texts = f"{job.story}\n{job.view}\n{job.instruction}"
+                    for image_id in sorted({match.group(1) for match in IMAGE_TAG.finditer(texts)}):
+                        image = self.ghost.find_image(image_id)
+                        if image is None:
+                            raise ValueError(f"Native codelet references missing image {image_id}.")
+                        images.append(image.model_copy(deep=True))
+                    from pm.llm.role_model import role_model
+                    model_session = role_model(runtime)
+                    settings = model_session.render_settings()
+                    render_input = CodeletAgentRenderInput(job, SKILL.read_text(encoding="utf-8"), tuple(problems), tuple(images))
+                    with RendererCapture(model_session.capture_settings("native_codelet"), RendererInput("native_codelet", render_input, settings)) as capture:
+                        rendered = render_codelet_agent(render_input, settings)
+                        capture.save_output(rendered)
                     try:
                         result = driver.run_session(
                             run_id=f"{context.task_id}-{job.codelet}", attempt=attempt, skill=str(SKILL),
-                            prompt=prompt_text(job, problems), work_dir=context.workspace,
-                            images=prompt_images(job),
-                            runtime=replace(runtime, agent_model=replace(model, enable_thinking=True,
-                                context_window=min(model.context_window, model_context_budget(context).context_window)),
+                            prompt=rendered.turns[1].content.text, work_dir=context.workspace,
+                            images=prompt_images(render_input),
+                            runtime=replace(runtime, agent_model=replace(model, enable_thinking=True),
                                             mcp_servers=servers),
                             mcp_config=config,
                             trace_file=context.kernel_data / f"codelet-{job.codelet}-{attempt}.jsonl")
@@ -141,7 +173,7 @@ def build_codelet_agent(ghost: MemoryStore, environment: MemoryBashEnvironment,
                     runtime.check_cancelled()
                     from pm.llm.structured import repair_agent_result
                     answer = repair_agent_result(result, AgentCodeletAnswer, model,
-                        instruction=prompt_text(job, problems), cancel=cancel)
+                        instruction=prompt_text(render_input), cancel=self.cancel)
                     permitted = set(memory.accessed) | set(job.view_ids) | set(job.known_ids)
                     uninspected = sorted(set(answer.evidence_ids) - permitted)
                     if uninspected:
@@ -150,10 +182,12 @@ def build_codelet_agent(ghost: MemoryStore, environment: MemoryBashEnvironment,
                         continue
                     views = [record_view(memory.snapshot.get(key)) for key in dict.fromkeys(answer.evidence_ids)
                              if key in memory.records]
-                    return answer.model_copy(update={"records": views, "session_ref": result.session_ref})
+                    completed = answer.model_copy()
+                    completed.records = views
+                    completed.session_ref = result.session_ref
+                    return completed
         raise ModelFormatError(f"Agent codelet {job.codelet} gave no valid answer: {'; '.join(problems)}")
 
-    return run
 
 
-__all__ = ["CodeletAgent", "SKILL", "build_codelet_agent", "prompt_images", "prompt_text"]
+__all__ = ["CodeletAgent", "SKILL", "prompt_images", "prompt_text"]

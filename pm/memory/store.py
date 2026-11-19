@@ -52,6 +52,7 @@ from pm.memory.checkpoint import CommitReceipt, Checkpoint, read_checkpoint, wri
 from pm.records.media import MEDIA_KEY, RecordImage, merge_alt_text, metadata_media
 
 if TYPE_CHECKING:
+    from pm.memory.retrieval import RetrievalResult
     from pm.memory.bash_view import MemoryBashTarget
     from pm.memory.retrieval import ActivitySummary
 
@@ -446,6 +447,31 @@ class MemoryStore(RecordIndex):
         with self.lock:
             return ghost_state_to_dict(self.state())
 
+    def recovery_snapshot_at(self, view: Snapshot) -> Snapshot:
+        with self.lock:
+            self._ensure_history()
+            assert self.causal_history is not None
+            accepted = self.causal_history.accepted() & set(view.commit_ids)
+            projection = self._recovery_records(accepted)
+            visible_ids = set(view.revisions)
+            eligible_ids: set[int] = set()
+            omitted_meaning_ids: set[int] = set()
+            for record_id in visible_ids & set(projection.records):
+                accepted_record = projection.records[record_id]
+                frozen_record = view.get(record_id)
+                if source_fingerprint(accepted_record) != source_fingerprint(frozen_record):
+                    omitted_meaning_ids.add(record_id)
+                    continue
+                eligible_ids.add(record_id)
+            records = {key: projection.records[key] for key in projection.head_ids if key in eligible_ids}
+            historical = {key: record for key, record in projection.records.items()
+                          if key in eligible_ids and key not in records}
+            allowed = set(records) | set(historical)
+            gwt = {tick: turn for tick, turn in view.gwt_turns.items()
+                   if tick in projection.ticks and set(turn.knoxel_ids).issubset(allowed)}
+            return Snapshot(records, gwt, {key: view.revisions[key] for key in allowed},
+                None, frozenset(accepted), historical)
+
     def snapshot(self, visible_ids: Iterable[int] | None = None, *, capture: bool = True) -> Snapshot:
         """Capture membership and revisions while sharing the central record instances.
 
@@ -625,7 +651,7 @@ class MemoryStore(RecordIndex):
                                    view: Snapshot | None = None, visible_ids: Iterable[int] | None = None,
                                    frontier: tuple[int, int] | None = None,
                                    scopes: set[tuple[int, str]] | None = None,
-                                   limit: int = 24, cancel: Event | None = None) -> dict[str, Any]:
+                                   limit: int = 24, cancel: Event | None = None) -> RetrievalResult:
         """Retrieve from the supplied stable view or a fresh permitted snapshot.
 
         Scope and frontier filters run before embedding calls. The returned

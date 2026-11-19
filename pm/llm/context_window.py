@@ -9,8 +9,10 @@ from collections.abc import Sequence
 from pm.llm.config import Connection
 from pm.llm.workflow_sessions import serving_context
 from pm.llm.prompt_encoding import TurnInput
-from pm.llm.contracts import ContextMeasurement, ModelProtocolContext
-from pm.context_render import Role, Turn, render_context
+from pm.llm.contracts import ContextMeasurement
+from pm.llm.generation import GenerationSettings
+from pm.context_render import Turn
+from pm.llm.protocol_context import protocol_turns
 
 
 def measured_turns(messages: Sequence[TurnInput]) -> list[Turn]:
@@ -22,13 +24,12 @@ def measured_turns(messages: Sequence[TurnInput]) -> list[Turn]:
     that carries pictures, while still claiming an image allowance in its
     receipt. Resolving first keeps the estimate and the request the same shape.
     """
-    from pm.llm.multimodal import resolve_turns
-    return resolve_turns(messages)
+    from pm.llm.prompt_encoding import normalize_turns
+    return normalize_turns(messages)
 
 
 async def measure_context(connection: Connection, messages: Sequence[TurnInput], cancel: Event, *,
-                          live_test: bool = False, protocol_context: ModelProtocolContext | None = None,
-                          **generation: object) -> ContextMeasurement:
+                          live_test: bool = False, settings: GenerationSettings = GenerationSettings()) -> ContextMeasurement:
     """Estimate rendered turns locally and reserve the configured output fraction.
 
     Capacity discovery uses the selected serving configuration. Token counting
@@ -39,17 +40,16 @@ async def measure_context(connection: Connection, messages: Sequence[TurnInput],
         raise asyncio.CancelledError
     from pm.context_render.budget import ContextBudget
     context, source = await serving_context(connection, cancel, live_test=live_test)
+    output_tokens = settings.output_allowance(connection.completion_token_limit)
+    input_ceiling = min(int(context * connection.context_input_fraction), context - output_tokens)
     budget = ContextBudget(context_window=context, input_fraction=connection.context_input_fraction)
-    protocol = protocol_context if protocol_context is not None else ModelProtocolContext.model_validate(generation)
     turns = measured_turns(messages)
-    if protocol.tools or protocol.response_format is not None or protocol.chat_template_kwargs:
-        turns.append(Turn(Role.System, render_context(protocol.model_dump(exclude_defaults=True))))
+    turns.extend(protocol_turns(settings))
     count = budget.estimate(turns)
-    return {"context_window": context, "cognition_context_window": connection.cognition_context_window,
-            "context_source": source, "input_tokens": count,
+    return {"context_window": context, "context_source": source, "input_tokens": count,
             "measurement": budget.measurement_label(turns),
-            "input_fraction": budget.input_fraction, "input_budget_tokens": budget.input_ceiling,
-            "measurement_complete": False}
+            "input_fraction": budget.input_fraction, "input_budget_tokens": input_ceiling,
+            "measurement_complete": True}
 
 
 def estimate_tokens(model: str, messages: Sequence[TurnInput]) -> tuple[int, str]:

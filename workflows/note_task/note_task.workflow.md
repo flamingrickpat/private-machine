@@ -6,7 +6,7 @@ failure_policy: {max_attempts_per_phase: 1}
 roles:
   note:
     skill: workflows/note_task/steps.py
-    tools: [note_spec]
+    tools: []
     result_contract:
       type: json
       schema:

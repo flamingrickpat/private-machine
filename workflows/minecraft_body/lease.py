@@ -7,10 +7,20 @@ import hashlib
 from pathlib import Path
 import threading
 import time
-from typing import Iterator
+from typing import Iterator, Generator, TypedDict
 from urllib.parse import urlsplit, urlunsplit
 import uuid
 from pm.host.durable_files import BodyBusy, ProcessLock, atomic_json, read_json
+
+
+class BodyLeaseWire(TypedDict):
+    endpoint: str
+    owner: str
+    epoch: int
+    session: str
+    pid: int
+    active: bool
+    acquired_at: float
 
 
 class StaleEpoch(PermissionError):
@@ -41,7 +51,7 @@ class BodyLeases:
         base = Path(OperatingSystem.environment.get("LOCALAPPDATA", str(Path.home() / ".local/share")))
         self.root = Path(root or OperatingSystem.environment.get("PM_BODY_LEASE_ROOT", base / "pm-next-v2/body-leases"))
         self._lock = threading.RLock()
-        self._tokens: dict[str, dict] = {}
+        self._tokens: dict[str, BodyLeaseWire] = {}
 
     def path(self, endpoint: str, suffix: str) -> Path:
         """Return a stable registry path without exposing endpoint credentials."""
@@ -58,14 +68,14 @@ class BodyLeases:
             lock.close()
 
     @contextmanager
-    def acquire(self, endpoint: str, owner: str) -> Iterator[dict]:
+    def acquire(self, endpoint: str, owner: str) -> Generator[BodyLeaseWire, None, None]:
         """Issue one durable epoch after exclusive acquisition. Never expire it."""
         key = body_key(endpoint)
         lock = ProcessLock(self.path(endpoint, ".owner.lock")).acquire()
         path = self.path(endpoint, ".json")
         try:
             previous = read_json(path) if path.exists() else {}
-            token = {"endpoint": key, "owner": owner, "epoch": previous.get("epoch", 0) + 1,
+            token: BodyLeaseWire = {"endpoint": key, "owner": owner, "epoch": previous.get("epoch", 0) + 1,
                      "session": uuid.uuid4().hex, "pid": OperatingSystem.process_id(), "active": True,
                      "acquired_at": time.time()}
             atomic_json(path, token)

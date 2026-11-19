@@ -27,7 +27,7 @@ from collections import defaultdict
 from enum import StrEnum
 from typing import Self
 
-from pydantic import BaseModel, Field, create_model, model_validator
+from pydantic import BaseModel, Field, ValidationInfo, create_model, model_validator
 
 from pm.records.mental_state import AppraisalGeneral, AppraisalSocial
 
@@ -933,30 +933,37 @@ def _percept_names(model: type[BaseModel]) -> list[str]:
     return [name for name in model.model_fields if name in types]
 
 
-def _not_empty(self) -> Self:
-    filled = [(name, getattr(self, name)) for name in _percept_names(type(self)) if getattr(self, name) is not None]
-    if not filled:
-        raise ValueError("Fill at least one of the offered percept types.")
-    for name, percept in filled:
-        if not any(getattr(percept, field) for field in type(percept).model_fields if field not in HEADER_FIELDS):
-            raise ValueError(f"The {name} percept has no story text. Fill its text fields.")
-    return self
+class PerceptConversionCheck(BaseModel):
+    allowed_ids: frozenset[int]
 
 
-def container_model(types: list[CodeletPerceptType], name: str = "PerceptContainer",
-                    **fields: tuple) -> type[BaseModel]:
-    """Return a model with one optional field for each offered percept type.
+class PerceptConversionBase(BaseModel):
+    target: str = "self"
+    about_ids: list[int] = Field(default_factory=list[int])
 
-    The field name is the type value. ``fields`` adds more top-level fields,
-    for example the target of the conversion answer. The percept types stay
-    at the top level too: a nested ``percepts`` object made a real model close
-    its braces too early again and again. The model fills as many types as it
-    likes, but at least one. Port of the container that the old
-    ``AgentSimpleCodelet`` built with ``create_basemodel``.
-    """
+    @model_validator(mode="after")
+    def validate_conversion(self, info: ValidationInfo) -> Self:
+        check = info.context
+        if not isinstance(check, PerceptConversionCheck):
+            raise TypeError("Percept conversion requires PerceptConversionCheck.")
+        unknown = sorted(set(self.about_ids) - check.allowed_ids)
+        if unknown:
+            raise ValueError(f"about_ids {unknown} are not in the MIND list. Use only ids from that list.")
+        filled = percept_items(self)
+        if not filled:
+            raise ValueError("Fill at least one of the offered percept types.")
+        for kind, percept in filled:
+            if not any(getattr(percept, field) for field in type(percept).model_fields if field not in HEADER_FIELDS):
+                raise ValueError(f"The {kind.value} percept has no story text. Fill its text fields.")
+        return self
+
+
+def container_model(types: list[CodeletPerceptType], name: str) -> type[PerceptConversionBase]:
     percepts = {percept.value: (MODEL_BY_TYPE[percept] | None, None) for percept in types}
-    return create_model(name, __validators__={"not_empty": model_validator(mode="after")(_not_empty)},
-                        **fields, **percepts)
+    # Pydantic requires keyword field definitions at its dynamic-schema boundary.
+    return create_model(name, __base__=PerceptConversionBase, __config__=None, __doc__=None,
+                        __module__=__name__, __validators__=None, __cls_kwargs__=None,
+                        __qualname__=name, **percepts)
 
 
 def percept_items(container: BaseModel) -> list[tuple[CodeletPerceptType, PerceptHeader]]:

@@ -101,8 +101,8 @@ def set_tails(work: CycleWork) -> None:
     exclude = {item.knoxel_id for item in work.request.stimuli}
     for stream in work.request.streams:
         shard = work.state.workspace.ensure_shard(stream.key)
-        shard.tail_ids = select_tail(stream.record_ids, lambda record_id: record_tokens(work.records, record_id),
-                                     WORKSPACE_TAIL_TOKENS, exclude)
+        token_costs = {record_id: record_tokens(work.records, record_id) for record_id in stream.record_ids}
+        shard.tail_ids = select_tail(stream.record_ids, token_costs, WORKSPACE_TAIL_TOKENS, exclude)
 
 
 __all__ = ["group_key", "group_stimuli", "set_tails", "start"]

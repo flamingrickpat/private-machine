@@ -17,6 +17,8 @@ The module is runtime code. It never imports ``workflows``.
 """
 from __future__ import annotations
 
+from pm.memory.reconsolidation.pipeline import ReconsolidationProgress
+
 from pm.utils.operating_system import OperatingSystem
 import argparse
 import json
@@ -232,8 +234,8 @@ def import_chat(home: CharacterHome, csv_path: Path, config_path: str, *, limit:
         stage, embeddings = build_models(config_path)
         store.initialize_embeddings(embeddings)
         if do_reconsolidate:
-            receipt.reconsolidation = reconsolidate(store, complete=stage.complete, embeddings=embeddings, force=True,
-                                                    now=now, log=_print)
+            receipt.reconsolidation = reconsolidate(store, complete=stage, embeddings=embeddings, force=True,
+                                                    now=now, progress=ReconsolidationProgress(enabled=True))
         receipt.transfer_ids = add_transfer_records(store, import_id=import_id, imported_at=now)
         _embed_records(store, embeddings, receipt.transfer_ids)
         receipt.status = "completed"
@@ -274,7 +276,7 @@ def reconsolidate_home(home: CharacterHome, config_path: str) -> Reconsolidation
     store = home.open_store()
     stage, embeddings = build_models(config_path)
     store.initialize_embeddings(embeddings)
-    report = reconsolidate(store, complete=stage.complete, embeddings=embeddings, force=True, log=_print)
+    report = reconsolidate(store, complete=stage, embeddings=embeddings, force=True, progress=ReconsolidationProgress(enabled=True))
     home.runtime_root.mkdir(parents=True, exist_ok=True)
     (home.runtime_root / f"reconsolidation-{report.run_id}.json").write_text(report.model_dump_json(indent=2),
                                                                              encoding="utf-8")

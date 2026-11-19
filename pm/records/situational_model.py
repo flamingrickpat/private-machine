@@ -13,9 +13,10 @@ from __future__ import annotations
 
 from pm.records.copying import pickle_copy
 
+from dataclasses import dataclass
 import math
 import random
-from typing import Callable, Collection
+from typing import Collection
 
 from pydantic import BaseModel, Field
 
@@ -36,11 +37,9 @@ from pm.constants import (
 )
 from pm.records.workspace import ShardKey
 
-#: Returns the embedding of a record id. A missing record or an empty
-#: embedding is a caller bug, and the cosine calculation then raises.
-EmbeddingOf = Callable[[int], list[float]]
-#: Returns the token count of the rendered story element of a record id.
-TokensOf = Callable[[int], int]
+@dataclass(frozen=True, slots=True)
+class SituationalBoostSettings:
+    amount: float = CSM_BOOST
 
 
 def _clamp01(value: float) -> float:
@@ -95,13 +94,27 @@ class SituationalItem(BaseModel):
     base_activation: float = CSM_BASE_ACTIVATION
     valence: float | None = None
     salience: float | None = None
-    endorsers: list[str] = Field(default_factory=list)
-    merged_ids: list[int] = Field(default_factory=list)
+    endorsers: list[str] = Field(default_factory=list[str])
+    merged_ids: list[int] = Field(default_factory=list[int])
     shard_hint: ShardKey | None = None
 
     def represents(self, record_ids: Collection[int]) -> bool:
         """Return True when this item or one of its merged records is in ``record_ids``."""
         return self.record_id in record_ids or any(merged in record_ids for merged in self.merged_ids)
+
+
+@dataclass(frozen=True, slots=True)
+class SnapshotEvidence:
+    vectors: dict[int, list[float]]
+    token_costs: dict[int, int]
+
+
+@dataclass(frozen=True, slots=True)
+class SnapshotSelectionSettings:
+    valence_focus_bias: float
+    salience_bias: float
+    max_tokens: int
+    precursor_ids: frozenset[int] = frozenset()
 
 
 class SituationalModel(BaseModel):
@@ -111,7 +124,7 @@ class SituationalModel(BaseModel):
     the keys as text, and ``model_validate`` converts them back to integers.
     """
 
-    items: dict[int, SituationalItem] = Field(default_factory=dict)
+    items: dict[int, SituationalItem] = Field(default_factory=dict[int, SituationalItem])
 
     def rekey(self, mapping: dict[int, int]) -> None:
         """Replace record ids by the ids in ``mapping``.
@@ -146,8 +159,8 @@ class SituationalModel(BaseModel):
             item.base_activation *= CSM_BASE_FORGET
             item.ticks_present += 1
 
-    def add_or_boost(self, item: SituationalItem, endorser: str, embedding_of: EmbeddingOf, *,
-                     boost: float = CSM_BOOST) -> SituationalItem:
+    def add_or_boost(self, item: SituationalItem, endorser: str, vectors: dict[int, list[float]],
+                     settings: SituationalBoostSettings = SituationalBoostSettings()) -> SituationalItem:
         """Add ``item`` or boost the existing item that holds the same content.
 
         The existing item is the item with the same record id, the item that
@@ -168,10 +181,10 @@ class SituationalModel(BaseModel):
         target = next((existing for existing in self.items.values()
                        if existing.record_id == item.record_id or item.record_id in existing.merged_ids), None)
         if target is None:
-            embedding = embedding_of(item.record_id)
+            embedding = vectors[item.record_id]
             best_score = CSM_MERGE_SIMILARITY
             for existing in self.items.values():
-                score = cosine(embedding, embedding_of(existing.record_id))
+                score = cosine(embedding, vectors[existing.record_id])
                 if score >= best_score:
                     target, best_score = existing, score
             if target is not None:
@@ -182,7 +195,7 @@ class SituationalModel(BaseModel):
                 added.endorsers.append(endorser)
             self.items[added.record_id] = added
             return added
-        target.activation = min(1.0, target.activation + boost)
+        target.activation = min(1.0, target.activation + settings.amount)
         target.base_activation += CSM_BASE_LEARN_RATE * (1.0 - target.base_activation)
         target.last_boost_tick = item.entered_tick
         if endorser not in target.endorsers:
@@ -214,9 +227,8 @@ class SituationalModel(BaseModel):
                 removed.append(item.record_id)
         return removed
 
-    def snapshot_for(self, query_embedding: list[float], embedding_of: EmbeddingOf, tokens_of: TokensOf, *,
-                     attention_bias: tuple[float, float], max_tokens: int, rng: random.Random,
-                     precursor_ids: Collection[int] = ()) -> list[int]:
+    def snapshot_for(self, query_embedding: list[float], evidence: SnapshotEvidence,
+                     settings: SnapshotSelectionSettings, rng: random.Random) -> list[int]:
         """Return one codelet's view of the CSM as record ids, best first.
 
         Port of ``GhostCodelets.get_snapshot``. Each item gets a rating:
@@ -245,15 +257,16 @@ class SituationalModel(BaseModel):
         story. ``rng`` supplies all randomness, so a seeded generator gives a
         repeatable view. The method does not change the CSM.
         """
-        _, salience_bias = attention_bias
+        attention_bias = (settings.valence_focus_bias, settings.salience_bias)
+        salience_bias = settings.salience_bias
         sharp = 1.0 + 4.0 * salience_bias
         ratings: dict[int, float] = {}
         for record_id, item in self.items.items():
             affect = CSM_DEFAULT_AFFECT_TERM
             if item.salience is not None:
                 affect = affect_term(item.valence or 0.0, item.salience, attention_bias)
-            relevance = _clamp01(cosine(query_embedding, embedding_of(record_id)))
-            bonus = CSM_PRECURSOR_BONUS if record_id in precursor_ids else 0.0
+            relevance = _clamp01(cosine(query_embedding, evidence.vectors[record_id]))
+            bonus = CSM_PRECURSOR_BONUS if record_id in settings.precursor_ids else 0.0
             noise = rng.uniform(-CSM_SNAPSHOT_NOISE, CSM_SNAPSHOT_NOISE) * (1.0 - salience_bias)
             ratings[record_id] = _clamp01(relevance * affect + bonus + noise)
 
@@ -272,8 +285,8 @@ class SituationalModel(BaseModel):
         selected: list[int] = []
         used = 0
         for record_id in order:
-            tokens = tokens_of(record_id)
-            if used + tokens > max_tokens:
+            tokens = evidence.token_costs[record_id]
+            if used + tokens > settings.max_tokens:
                 break
             selected.append(record_id)
             used += tokens

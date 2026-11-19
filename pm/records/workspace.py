@@ -36,6 +36,9 @@ class ShardKey(BaseModel):
     kind: ShardKind = "self"
     ref: str = ""
 
+    def __hash__(self) -> int:
+        return hash((self.kind, self.ref))
+
 
 SELF_SHARD = ShardKey(kind="self")
 

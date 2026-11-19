@@ -18,12 +18,15 @@ from datetime import datetime, timezone
 import math
 import re
 from threading import Event
-from typing import TYPE_CHECKING, Any, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict, Literal
+from pydantic import BaseModel, ConfigDict
 
 from pm.memory.references import referenced_ids
 from pm.memory.evidence import memory_kind as memory_kind, evidence_role as evidence_role
 from pm.records.base import RecordBase
-from pm.records.memory_records import Feature
+from pm.records.memory_records import Feature, Narrative, Stimulus
+from pm.records.cognitive_records import Intention, BeliefRecord, ExpectationRecord, OntologyBindingRecord
+from pm.memory.evidence import EvidenceItem, EvidenceScoreComponents
 from pm.records.graph_records import GraphNode, GraphEdge, ConceptNode
 from pm.memory.snapshot import Snapshot
 from pm.llm.http_client import ModelError
@@ -69,30 +72,24 @@ MEMORY_TYPES = frozenset({
 GRAPH_TYPES = frozenset({"GraphNode", "GraphEdge", "ConceptNode"})
 
 
-def record_text(raw: RecordBase | dict) -> str:
-    """Expose accepted affect values instead of generated sensory descriptions.
+class RetrievalTextMetadata(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    affect_summary: str = ""
 
-    The original appraisal content remains available by its evidence ID.
-    Its free-form interpretation cannot establish another factual experience.
-    """
-    if isinstance(raw, RecordBase):
-        if memory_kind(raw) == "internal_state":
-            return raw.metadata.get("affect_summary") or "Accepted internal state; no prepared affect summary."
-        if isinstance(raw, GraphNode):
-            fields = [raw.name, raw.content]
-        elif isinstance(raw, GraphEdge):
-            fields = [raw.fact_text, raw.content]
-        elif isinstance(raw, ConceptNode):
-            fields = [raw.description, raw.content]
-        else:
-            fields = [raw.content]
-        return "\n".join(dict.fromkeys(text for text in fields if text))
+
+def record_text(raw: RecordBase) -> str:
     if memory_kind(raw) == "internal_state":
-        return raw["data"].get("metadata", {}).get("affect_summary") or "Accepted internal state; no prepared affect summary."
-    data = raw["data"]
-    fields = {"GraphNode": ("name", "content"), "GraphEdge": ("fact_text", "content"),
-              "ConceptNode": ("description", "content")}.get(raw["__type__"], ("content",))
-    return "\n".join(dict.fromkeys(str(data[field]) for field in fields if data.get(field)))
+        metadata = RetrievalTextMetadata.model_validate(raw.metadata)
+        return metadata.affect_summary or "Accepted internal state; no prepared affect summary."
+    if isinstance(raw, GraphNode):
+        fields = [raw.name, raw.content]
+    elif isinstance(raw, GraphEdge):
+        fields = [raw.fact_text, raw.content]
+    elif isinstance(raw, ConceptNode):
+        fields = [raw.description, raw.content]
+    else:
+        fields = [raw.content]
+    return "\n".join(dict.fromkeys(text for text in fields if text))
 
 
 def scoped_records(view: Snapshot, *, frontier: tuple[int, int] | None = None,
@@ -104,8 +101,8 @@ def scoped_records(view: Snapshot, *, frontier: tuple[int, int] | None = None,
     and within the frontier. This prevents a summary from exposing hidden data.
     """
     all_records = view.all_knoxels
-    eligible = {}
-    rejected = {}
+    eligible: dict[int, RecordBase] = {}
+    rejected: dict[int, str] = {}
     for key, raw in all_records.items():
         position = (raw.tick_id, raw.sub_tick_id)
         scope = raw.scope
@@ -115,7 +112,7 @@ def scoped_records(view: Snapshot, *, frontier: tuple[int, int] | None = None,
             rejected[key] = "different_scope"
         else:
             eligible[key] = raw
-    records = {}
+    records: dict[int, RecordBase] = {}
     for key, raw in eligible.items():
         if raw.type.value not in record_types or not record_text(raw).strip():
             continue
@@ -151,27 +148,18 @@ def excerpt(text: str, terms: Iterable[str], limit: int = 1200) -> str:
     return ("…" if start else "") + text[start:start + limit] + ("…" if start + limit < len(text) else "")
 
 
-def candidate(view: Snapshot, key: int, raw: RecordBase | dict[str, Any], *, terms: Iterable[str] | None = None,
-              score: float = 0.0, reasons: Iterable[str] = (),
-              passage: str | None = None) -> dict[str, Any]:
-    """Render one result with inspectable source and historical-status fields.
+class CandidateMetadata(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    stale: bool = False
+    seed_sha256: str | None = None
+    executed_at: str | datetime | None = None
+    deception_intent_id: int | None = None
 
-    The returned mapping is the evidence contract that prompt planning and
-    tool replies consume. It always holds ``knoxel_id``, ``text`` (label plus
-    excerpt), ``revision``, ``memory_kind``, ``scope``, ``provenance``,
-    ``source_ids``, ``timestamp``, ``historical``, ``score``, ``reasons``,
-    ``deception_intent_id``, and ``evidence_role``. Later stages add ranking or
-    metadata fields; none of them change the stored record.
 
-    ``historical`` is true for a superseded, retracted, expired, or imported
-    record and for every recalled world observation: a recalled observation
-    never establishes current world state.
-    """
-    if isinstance(raw, RecordBase):
-        raw = raw.as_payload(include_embedding=False)
-    data = raw["data"]
-    metadata = data.get("metadata", {})
-    source_ids = set()
+def candidate(view: Snapshot, key: int, raw: RecordBase, *, terms: Iterable[str] | None = None,
+              score: float = 0.0, reasons: Iterable[str] = (), passage: str | None = None) -> EvidenceItem:
+    metadata = CandidateMetadata.model_validate(raw.metadata)
+    source_ids: set[int] = set()
     pending = list(referenced_ids(view.get(key)))
     while pending:
         source_id = pending.pop()
@@ -180,47 +168,100 @@ def candidate(view: Snapshot, key: int, raw: RecordBase | dict[str, Any], *, ter
         source_ids.add(source_id)
         if source_id in view.revisions:
             pending.extend(referenced_ids(view.get(source_id)) - source_ids)
-    source_ids = sorted(source_ids)
-    stale = (key not in view.all_knoxels or bool(metadata.get("stale")) or data.get("active") is False
-             or data.get("status") in {"superseded", "retracted"}
-             or bool(data.get("invalid_at") and utc_time(data["invalid_at"]) <= datetime.now(timezone.utc)))
-    if raw["__type__"] in {"WorldPlaceKnoxel", "WorldObjectKnoxel", "BodyEpisodeKnoxel"}:
-        stale = True  # A recalled observation never establishes current world state.
+    stale = key not in view.all_knoxels or metadata.stale
+    if isinstance(raw, (Intention, BeliefRecord, OntologyBindingRecord)):
+        stale = stale or not raw.active
+    if isinstance(raw, (Intention, ExpectationRecord)):
+        stale = stale or raw.status in {"superseded", "retracted"}
+    if isinstance(raw, GraphEdge) and raw.invalid_at is not None:
+        stale = stale or utc_time(raw.invalid_at) <= datetime.now(timezone.utc)
+    if raw.type.value in {"WorldPlaceKnoxel", "WorldObjectKnoxel", "BodyEpisodeKnoxel"}:
+        stale = True
     kind = memory_kind(raw)
-    imported_history = kind == "background" and bool(metadata.get("seed_sha256"))
-    speaker = data.get("override_source", "")
-    if not speaker and data.get("entity_id") in view.revisions:
-        speaker = view.get(data["entity_id"]).content
+    imported_history = kind == "background" and bool(metadata.seed_sha256)
+    speaker = raw.override_source if isinstance(raw, Feature) else ""
+    entity_id = raw.entity_id if isinstance(raw, (Feature, Narrative, Stimulus, Intention, ConceptNode)) else None
+    if not speaker and entity_id is not None and entity_id in view.revisions:
+        speaker = view.get(entity_id).content
     text = excerpt(passage if passage is not None else record_text(raw), terms or [])
-    label = f"[{kind}; source={speaker or raw['__type__']}; evidence={key}"
-    # The generated context must retain chronology, not just the trace JSON.
-    # Otherwise, a reply can mistake an older record for post-restart speech.
-    recorded_at = metadata.get("executed_at") or data.get("timestamp_world_begin")
-    if recorded_at:
-        label += f"; recorded_at={utc_time(recorded_at).isoformat()}"
-    if data.get("belief_key"):
-        label += f"; belief_key={data['belief_key']}"
+    label = f"[{kind}; source={speaker or raw.type.value}; evidence={key}"
+    recorded_at = metadata.executed_at or raw.timestamp_world_begin
+    label += f"; recorded_at={utc_time(recorded_at).isoformat()}"
+    if isinstance(raw, BeliefRecord) and raw.belief_key:
+        label += f"; belief_key={raw.belief_key}"
     if stale:
         label += "; historical, reobserve or use the correction"
     elif imported_history:
         label += "; imported history, not a current observation"
     label += "] "
-    return {
-        "knoxel_id": key, "text": label + text, "revision": view.revisions[key],
-        "memory_kind": kind, "scope": data.get("scope", {}),
-        "provenance": data.get("provenance"), "source_ids": source_ids,
-        "timestamp": data.get("timestamp_world_begin"), "historical": stale or imported_history,
-        "score": round(score, 6), "reasons": list(reasons),
-        "deception_intent_id": metadata.get("deception_intent_id"),
-        "evidence_role": evidence_role(view, raw),
-    }
+    return EvidenceItem(knoxel_id=key, text=label + text, revision=view.revisions[key], memory_kind=kind,
+        scope=raw.scope, provenance=raw.provenance, source_ids=sorted(source_ids),
+        timestamp=raw.timestamp_world_begin.isoformat(), historical=stale or imported_history,
+        score=score, reasons=list(reasons), deception_intent_id=metadata.deception_intent_id,
+        evidence_role=evidence_role(view, raw))
+
+
+class RetrievalCoverage(BaseModel):
+    indexed: int
+    total: int
+    missing: int
+
+
+class RetrievalSemantic(BaseModel):
+    status: str
+    reason: str | None = None
+    error: str | None = None
+    fallback: str | None = None
+    base_url: str | None = None
+    model: str | None = None
+
+
+class RetrievalRejection(BaseModel):
+    id: int
+    reason: str
+
+
+class RetrievalCompetitor(BaseModel):
+    id: int
+    score: float
+    reason: str
+
+
+class RetrievalQueryRewrite(BaseModel):
+    query: str
+    evidence_use: Literal["event", "utterance", "general"] = "general"
+    status: str = "rewritten"
+
+
+class RetrievalTrace(BaseModel):
+    requested_method: str
+    effective_method: str
+    query: str
+    frontier: tuple[int, int] | None
+    scopes: tuple[tuple[int, str], ...] | None
+    coverage: RetrievalCoverage
+    semantic: RetrievalSemantic
+    selected_ids: tuple[int, ...]
+    rejected_counts: dict[str, int]
+    rejected: tuple[RetrievalRejection, ...]
+    competing: tuple[RetrievalCompetitor, ...]
+    original_query: str = ""
+    query_rewrite: RetrievalQueryRewrite | None = None
+    speech_only_excluded_ids: tuple[int, ...] = ()
+    context_selected_ids: tuple[int, ...] = ()
+
+
+class RetrievalResult(BaseModel):
+    matches: tuple[EvidenceItem, ...]
+    trace: RetrievalTrace
+
 
 
 async def retrieve(view: Snapshot, query: str, embeddings: EmbeddingService | None = None, *,
                    frontier: tuple[int, int] | None = None, scopes: set[tuple[int, str]] | None = None,
                    limit: int = 24, cancel: Event | None = None,
                    record_types: Iterable[str] = MEMORY_TYPES,
-                   method: str = "combined", reserve_context: bool = True) -> dict[str, Any]:
+                   method: str = "combined", reserve_context: bool = True) -> RetrievalResult:
     """Rank visible evidence with stored record vectors and lexical terms.
 
     Returns ``matches`` (see :func:`candidate`) and ``trace``: the requested and
@@ -248,29 +289,26 @@ async def retrieve(view: Snapshot, query: str, embeddings: EmbeddingService | No
     lexical = {key: sum(math.log(1 + len(texts) / (1 + frequency[term]))
                         for term in terms if term in text.casefold()) for key, text in texts.items()}
     recent = sorted(records, key=lambda key: (records[key].tick_id, key), reverse=True)[:6]
-    semantic = {}
-    semantic_passages = {}
-    semantic_status = {"status": "disabled"}
+    semantic: dict[int, float] = {}
+    semantic_status = RetrievalSemantic(status="disabled")
     if method != "lexical" and embeddings is None and not reserve_context:
-        semantic_status = {"status": "unavailable", "reason": "embedding_service_not_configured", "fallback": "lexical"}
-    coverage = {"indexed": 0, "total": len(texts), "missing": len(texts)}
+        semantic_status = RetrievalSemantic(status="unavailable", reason="embedding_service_not_configured", fallback="lexical")
+    coverage = RetrievalCoverage(indexed=0, total=len(texts), missing=len(texts))
     if method != "lexical" and embeddings is not None and texts:
         typed = records
         try:
             ranked = await embeddings.search(excerpt(query, terms, limit=2000), typed,
                                              index=view.embedding_index, cancel=cancel)
-            semantic_status = {"status": "ready", "base_url": embeddings.config.base_url,
-                               "model": embeddings.config.model}
+            semantic_status = RetrievalSemantic(status="ready", base_url=embeddings.config.base_url, model=embeddings.config.model)
         except ModelError as error:
             ranked = []
-            semantic_status = {"status": "unavailable", "base_url": embeddings.config.base_url,
-                               "model": embeddings.config.model, "error": str(error),
-                               "fallback": "lexical_and_recent" if reserve_context else "lexical"}
+            semantic_status = RetrievalSemantic(status="unavailable", base_url=embeddings.config.base_url,
+                model=embeddings.config.model, error=str(error), fallback="lexical_and_recent" if reserve_context else "lexical")
         semantic = dict(ranked)
         indexed = sum(bool(record.embedding) for record in typed.values())
-        coverage = {"indexed": indexed, "total": len(texts), "missing": len(texts) - indexed}
+        coverage = RetrievalCoverage(indexed=indexed, total=len(texts), missing=len(texts) - indexed)
     lex_max = max(lexical.values(), default=1) or 1
-    semantic_ready = semantic_status["status"] == "ready"
+    semantic_ready = semantic_status.status == "ready"
     # Prompt context keeps a semantic bias (0.65) with lexical terms as the
     # tie-breaker. A direct tool query uses the method it asked for, and drops
     # the semantic leg entirely when the provider is unavailable.
@@ -286,8 +324,11 @@ async def retrieve(view: Snapshot, query: str, embeddings: EmbeddingService | No
     # Repeated generated answers can outrank their original reports. Reserve
     # a separate source pool so recall can escape that feedback loop.
     source_reserve = min(8, limit // 3) if reserve_context else 0
-    archive_ids = [key for key in ranked_ids
-                   if records[key].provenance is not None and records[key].provenance.source_kind == "Migration"]
+    archive_ids: list[int] = []
+    for key in ranked_ids:
+        provenance = records[key].provenance
+        if provenance is not None and provenance.source_kind == "Migration":
+            archive_ids.append(key)
     original_ids = [key for key in archive_ids if evidence_role(view, records[key]) == "user_report"]
     episode_ids = [key for key in archive_ids if records[key].type.value in {"MemoryClusterKnoxel", "CauseEffectKnoxel"}]
     source_pool = list(dict.fromkeys([*episode_ids[:source_reserve // 2], *original_ids]))[:source_reserve]
@@ -300,21 +341,19 @@ async def retrieve(view: Snapshot, query: str, embeddings: EmbeddingService | No
         *( ["semantic"] if key in semantic else []),
         *( ["lexical"] if lexical[key] else []),
         *( ["recent"] if key in recent else []),
-    ], passage=semantic_passages.get(key) if not lexical[key] else None) for key in selected]
+    ]) for key in selected]
     for match in matches:
-        key = match["knoxel_id"]
-        match["score_components"] = {"lexical": round(lexical[key] / lex_max, 6),
-                                     "semantic": semantic.get(key)}
-    return {"matches": matches, "trace": {
-        "requested_method": method,
-        "effective_method": method if semantic_ready or method == "lexical" else "lexical",
-        "query": query, "frontier": frontier, "scopes": sorted(scopes) if scopes is not None else None,
-        "coverage": coverage, "semantic": semantic_status, "selected_ids": selected,
-        "rejected_counts": dict(Counter(rejected.values())),
-        "rejected": [{"id": key, "reason": reason} for key, reason in list(rejected.items())[:40]],
-        "competing": [{"id": key, "score": round(scores[key], 6), "reason": "below_limit"}
-                      for key in ranked_ids if key not in selected][:16],
-    }}
+        key = match.knoxel_id
+        match.score_components = EvidenceScoreComponents(lexical=lexical[key] / lex_max, semantic=semantic.get(key))
+    trace = RetrievalTrace(requested_method=method,
+        effective_method=method if semantic_ready or method == "lexical" else "lexical",
+        query=query, frontier=frontier, scopes=tuple(sorted(scopes)) if scopes is not None else None,
+        coverage=coverage, semantic=semantic_status, selected_ids=tuple(selected),
+        rejected_counts=dict(Counter(rejected.values())),
+        rejected=tuple(RetrievalRejection(id=key, reason=reason) for key, reason in list(rejected.items())[:40]),
+        competing=tuple(RetrievalCompetitor(id=key, score=round(scores[key], 6), reason="below_limit")
+                        for key in ranked_ids if key not in selected)[:16])
+    return RetrievalResult(matches=tuple(matches), trace=trace)
 
 
 def utc_time(value: str | datetime) -> datetime:

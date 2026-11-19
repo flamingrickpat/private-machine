@@ -17,6 +17,11 @@ resumes, so a resumed run reads the files it stopped with.
 """
 from __future__ import annotations
 
+from pm.llm.stage_model import LazyStageModel
+from pm.memory.embeddings import EmbeddingService
+from pm.llm.session import ModelSession
+from pm.runs.role_runtime import PMWorkflowRuntime
+
 import threading
 import asyncio
 from concurrent.futures import CancelledError as FutureCancelledError
@@ -24,7 +29,7 @@ import uuid
 from abc import abstractmethod
 from pathlib import Path
 import json
-from typing import Any, Callable, Mapping, TypedDict
+from typing import Any, Callable, Mapping, TypedDict, Protocol
 
 from fastmcp import FastMCP
 from pm_workflows.runtime import AgentModel, WorkflowRuntime
@@ -32,14 +37,20 @@ from pm_workflows.working_target import WorkingEnvironment, WorkingTarget
 
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope, new_id
-from pm.host.mcp_listeners import serve_services
+from pm.host.mcp_listeners import serve_services, McpServerDescriptor
 from pm.host.application import BusModule
 from pm.llm.workflow_sessions import WorkflowModels
 from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowResult, WorkflowRunner, WorkflowStatus
 from pm.bus.envelopes import Envelope
-from pm.memory.store_tools import build_tools
+from pm.memory.store_tools import MemoryTools
+from pm.memory.bash_view import MemoryBashEnvironment
 from pm.memory.read_scope import ReadScope, current as current_reads
 from pm.memory.store import MemoryStore
+from pm.memory.write_batch import WriteBatch
+
+
+class WorkflowMcpServices(Protocol):
+    def services(self, environment: WorkingEnvironment) -> Mapping[str, FastMCP]: ...
 
 
 class PendingInvocation(TypedDict):
@@ -55,6 +66,8 @@ class PendingInvocation(TypedDict):
     envelopes: list[Envelope]
     question_id: str | None
     resume_phase: str | None
+
+
 
 
 class WorkflowModule(BusModule):
@@ -73,14 +86,15 @@ class WorkflowModule(BusModule):
         *,
         working_target: WorkingTarget,
         workflow: Path,
-        tools_factory: Callable[[Any, Any], Mapping[str, Callable]],
+        tools_factory: Callable[[WorkingEnvironment, WriteBatch | None], Mapping[str, Callable]] | None,
         runtime_root: Path,
         success_status: str = "done",
         agent_model: AgentModel | None = None,
         batch_provider: Callable[[], Any] | None = None,
-        mcp_services_factory: Callable[[Any], Mapping[str, FastMCP]] | None = None,
+        mcp_services: WorkflowMcpServices | None = None,
         child_factory: Callable[[str], WorkflowRuntime] | None = None,
         workflow_models: WorkflowModels | None = None,
+        stage_model: LazyStageModel | None = None,
     ) -> None:
         super().__init__(module_id, bus, on_error, clock, tick_seconds)
         self.working_target = working_target
@@ -90,9 +104,12 @@ class WorkflowModule(BusModule):
         self.success_status = success_status
         self.agent_model = agent_model
         self.batch_provider = batch_provider
-        self.mcp_services_factory = mcp_services_factory
+        self.mcp_services = mcp_services
         self.child_factory = child_factory
         self.workflow_models = workflow_models
+        self.stage_model = stage_model
+        self.embedding_service: EmbeddingService | None = None
+        self.invocation_id: str | None = None
         # The active run's cancellation signal. Distinct from ``stop_event``
         # so a single run can be cancelled without stopping the module.
         self.run_stop = threading.Event()
@@ -250,7 +267,7 @@ class WorkflowModule(BusModule):
         from pm.memory.snapshot import GhostCancelled
         from pm.llm.prompt_log import invocation_scope
         try:
-            with ReadScope(), invocation_scope(self.module_id, lambda: self.invocation_id):
+            with ReadScope(), invocation_scope(self.module_id, self):
                 self._handle_batch(batch)
         except (asyncio.CancelledError, FutureCancelledError, GhostCancelled):
             # Only an explicit cancellation signal makes cancellation expected.
@@ -307,6 +324,15 @@ class WorkflowModule(BusModule):
             resume=True,
         )
 
+    def create_runtime(self, environment: WorkingEnvironment, proposal_batch: WriteBatch | None,
+                       descriptors: dict[str, McpServerDescriptor] | None) -> PMWorkflowRuntime:
+        tools = self.tools_factory(environment, proposal_batch) if self.tools_factory is not None else {}
+        return PMWorkflowRuntime(
+            environment=environment, stop_event=self.run_stop, tools=tools,
+            propagate_python_errors=True, embedding_service=self.embedding_service,
+            model_session=ModelSession(self.stage_model, self.run_stop) if self.stage_model is not None else None,
+            agent_model=self.agent_model, mcp_servers=descriptors, child_factory=self.child_factory)
+
     def _execute(
         self,
         request: WorkflowRequest,
@@ -317,18 +343,9 @@ class WorkflowModule(BusModule):
     ) -> None:
         """Run one kernel invocation and route exactly its terminal outcome."""
         proposal_batch = self.batch_provider() if self.batch_provider else None
-        tools = self.tools_factory(environment, proposal_batch)
-        servers = self.mcp_services_factory(environment) if self.mcp_services_factory else {}
+        servers = self.mcp_services.services(environment) if self.mcp_services is not None else {}
         with serve_services(servers) as descriptors:
-            runtime = WorkflowRuntime(
-                environment=environment,
-                stop_event=self.run_stop,
-                tools=tools,
-                propagate_python_errors=True,
-                agent_model=self.agent_model,
-                mcp_servers=descriptors or None,
-                child_factory=self.child_factory,
-            )
+            runtime = self.create_runtime(environment, proposal_batch, descriptors or None)
             result = self._runner().invoke(request, runtime, resume=resume)
         self.last_result = result
         self.last_kernel_summary = result.kernel_summary
@@ -433,14 +450,15 @@ class CognitiveWorkflow(WorkflowModule):
         ghost: MemoryStore,
         working_target: WorkingTarget,
         workflow: Path,
-        tools_factory: Callable[[Any, Any], Mapping[str, Callable]],
+        tools_factory: Callable[[WorkingEnvironment, WriteBatch | None], Mapping[str, Callable]] | None,
         runtime_root: Path,
         success_status: str = "done",
         agent_model: AgentModel | None = None,
         batch_provider: Callable[[], Any] | None = None,
-        mcp_services_factory: Callable[[Any], Mapping[str, FastMCP]] | None = None,
+        mcp_services: WorkflowMcpServices | None = None,
         child_factory: Callable[[str], WorkflowRuntime] | None = None,
         workflow_models: WorkflowModels | None = None,
+        stage_model: LazyStageModel | None = None,
     ) -> None:
         """Forward the module configuration and retain the memory store."""
         super().__init__(
@@ -456,15 +474,17 @@ class CognitiveWorkflow(WorkflowModule):
             success_status=success_status,
             agent_model=agent_model,
             batch_provider=batch_provider,
-            mcp_services_factory=mcp_services_factory,
+            mcp_services=mcp_services,
             child_factory=child_factory,
             workflow_models=workflow_models,
+            stage_model=stage_model,
         )
         self.ghost = ghost
 
     def prepare_input(self, batch: list[Envelope]) -> dict[str, Any]:
         # Resolve input through the invocation scope, never the unrestricted Ghost.
-        tools = build_tools(self.last_environment)
+        assert isinstance(self.last_environment, MemoryBashEnvironment)
+        tools = MemoryTools(self.last_environment)
         messages = []
         for envelope in batch:
             message = {
@@ -476,12 +496,12 @@ class CognitiveWorkflow(WorkflowModule):
                 "causation_id": envelope.causation_id,
                 "target": envelope.target,
                 "payload": envelope.payload,
-                "knoxel": tools["ghost_get"](envelope.payload["knoxel_id"]),
+                "knoxel": tools.ghost_get(envelope.payload["knoxel_id"]),
             }
             if "gwt_tick" in envelope.payload:
                 message["gwt"] = {
                     "__type__": "GwtTurnRecord",
-                    "data": tools["ghost_gwt"](envelope.payload["gwt_tick"]),
+                    "data": tools.ghost_gwt(envelope.payload["gwt_tick"]),
                 }
             messages.append(message)
         return {

@@ -323,17 +323,10 @@ class FocusManagement(BusModule):
                     critical_epoch=control.publication_epoch() if control is not None else 0)
                 generation = control.generation if control is not None else 0
 
-                def commit_private(changes: WriteBatch) -> None:
-                    """Commit through the control fence, with explicit graph dependencies only."""
-                    with ReadScope() as reads:
-                        reads.collecting = False
-                        if control is None:
-                            self.ghost.commit(changes)
-                        else:
-                            control.commit_private(changes, generation)
-
-                owner = PrivateInquiryOwner(self.ghost, commit=commit_private, cancel=self.stop_event,
-                                            limits=self._limits())
+                from workflows.inner_thought.graph_host import PrivateCommitOwner
+                owner = PrivateInquiryOwner(self.ghost,
+                    commit_owner=PrivateCommitOwner(self.ghost, control, generation),
+                    cancel=self.stop_event, limits=self._limits())
                 admission = DeliberateAdmission(action_record_id=action_id, instruction=requested.instruction,
                     evidence_ids=evidence_ids, operation=requested.first_operation, reason=requested.reason,
                     subject_entity_id=requested.subject_entity_id)

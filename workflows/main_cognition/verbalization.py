@@ -33,11 +33,11 @@ from __future__ import annotations
 
 import math
 import re
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal
 
-from pm.records.mental_state import AppraisalGeneral, AppraisalSocial, FullMentalState, MentalState, PersonalityProfile, StateCognition, StateCore, StateEmotions, StateExpression, StateExpressionExt, StateNeeds, StateNeurochemical, StateRelationship
+from pm.records.mental_state import FullMentalState, MentalState, PersonalityProfile, StateCognition, StateCore, StateEmotions, StateExpression, StateExpressionExt, StateNeeds, StateRelationship
 
 
 Mode = Literal["absolute", "delta"]
@@ -580,15 +580,13 @@ def verbalize_state_sequence(states: Sequence[FullMentalState], mode: Mode = "ab
     return " ".join(parts)
 
 
-def _primitive_rise(states: Sequence[FullMentalState], getter: Callable[[FullMentalState], float]) -> float:
-    values = [float(getter(state) or 0.0) for state in states]
+def _primitive_rise(values: Sequence[float]) -> float:
     if not values:
         return 0.0
     return max(values) - values[0]
 
 
-def _primitive_peak(states: Sequence[FullMentalState], getter: Callable[[FullMentalState], float]) -> float:
-    values = [float(getter(state) or 0.0) for state in states]
+def _primitive_peak(values: Sequence[float]) -> float:
     return max(values) if values else 0.0
 
 
@@ -608,13 +606,13 @@ def verbalize_primitive_appraisal_trace(states: Sequence[FullMentalState]) -> st
         return ""
 
     parts: list[str] = []
-    body_rise = _primitive_rise(states, lambda state: state.appraisal_general.body_signal)
-    aversive_rise = _primitive_rise(states, lambda state: state.appraisal_general.aversive_pressure)
-    salience_rise = _primitive_rise(states, lambda state: state.appraisal_general.salience)
-    repulsor_rise = _primitive_rise(states, lambda state: state.appraisal_general.repulsor_distance)
-    approach_peak = _primitive_peak(states, lambda state: state.state_expression_ext.primitive_approach_pressure)
-    avoidance_peak = _primitive_peak(states, lambda state: state.state_expression_ext.primitive_avoidance_pressure)
-    regulation_rise = _primitive_rise(states, lambda state: state.state_cognition.willpower)
+    body_rise = _primitive_rise([state.appraisal_general.body_signal for state in states])
+    aversive_rise = _primitive_rise([state.appraisal_general.aversive_pressure for state in states])
+    salience_rise = _primitive_rise([state.appraisal_general.salience for state in states])
+    repulsor_rise = _primitive_rise([state.appraisal_general.repulsor_distance for state in states])
+    approach_peak = _primitive_peak([state.state_expression_ext.primitive_approach_pressure for state in states])
+    avoidance_peak = _primitive_peak([state.state_expression_ext.primitive_avoidance_pressure for state in states])
+    regulation_rise = _primitive_rise([state.state_cognition.willpower for state in states])
 
     if body_rise >= 0.08:
         parts.append(_primitive_phrase("body signal", body_rise))
@@ -862,7 +860,6 @@ def judge_self_report_candidates(
         )
 
     best_candidate: str | None = None
-    best_score = -1
     best_reason = ""
     rejection_reasons: list[str] = []
 
@@ -891,7 +888,6 @@ def judge_self_report_candidates(
         # Candidate passed all gates; first-wins tie-break
         if best_candidate is None:
             best_candidate = candidate
-            best_score = score
             best_reason = f"grounded in experienced dynamics ({score} grounding hits)"
 
     if best_candidate is not None:

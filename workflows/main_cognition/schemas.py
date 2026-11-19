@@ -9,11 +9,13 @@ The request and the shared phase state are in
 """
 from __future__ import annotations
 
-from datetime import datetime
+from pm.memory.evidence import EvidenceItem as MemoryCandidate
+
 from typing import Literal, Self
+from workflows.public_speech.task_receipts import TaskReceipt, read_optional_task_receipt
 
 from pydantic import (
-    BaseModel, ConfigDict, Field, JsonValue, SerializerFunctionWrapHandler, ValidationInfo, model_serializer, model_validator,
+    BaseModel, ConfigDict, Field, JsonValue, SerializerFunctionWrapHandler, ValidationInfo, model_serializer, model_validator, field_validator,
 )
 
 from pm.constants import CODELET_BUDGET_DEFAULT, CODELET_BUDGET_MAX, DECISION_VARIANTS, EXPECTATION_COUNT
@@ -69,7 +71,7 @@ class ActionArguments(BaseModel):
     workflow_name: str = ""
     instructions: str = ""
     instruction: str = ""
-    minecraft_read: str = ""
+    minecraft_read: Literal["", "inventory", "state"] = ""
     timeout_seconds: float | None = Field(default=None, strict=True)
 
     @model_serializer(mode="wrap")
@@ -78,7 +80,7 @@ class ActionArguments(BaseModel):
         return {key: value for key, value in data.items()
                 if key in self.model_fields_set or key not in type(self).model_fields}
 
-    def payload(self) -> dict:
+    def payload(self) -> dict[str, JsonValue]:
         """Return the supplied arguments for the target workflow."""
         return self.model_dump(mode="json")
 
@@ -97,8 +99,8 @@ class ExpectationDraft(BaseModel):
     content: str = ""
     expected_valence: float = Field(default=0.0, ge=-1.0, le=1.0)
     urgency: float = Field(default=0.3, ge=0.0, le=1.0)
-    about_entity_ids: list[int] = Field(default_factory=list)
-    supersedes_ids: list[int] = Field(default_factory=list)
+    about_entity_ids: list[int] = Field(default_factory=list[int])
+    supersedes_ids: list[int] = Field(default_factory=list[int])
 
 
 class ActionDispatch(BaseModel):
@@ -128,16 +130,16 @@ class ActionDispatch(BaseModel):
     action_type: str = "Reply"
     content: str = ""
     arguments: ActionArguments = Field(default_factory=ActionArguments)
-    depends_on: list[str] = Field(default_factory=list)
-    requires_completed: list[str] = Field(default_factory=list)
+    depends_on: list[str] = Field(default_factory=list[str])
+    requires_completed: list[str] = Field(default_factory=list[str])
     gwt_tick_id: int | None = None
     status: str = "proposed"  # proposed | dispatched | queued | rejected
     rejection_reason: str = ""
     presentation: Presentation = Field(default_factory=Presentation)
     group: ShardKey = Field(default_factory=ShardKey)
-    stimulus_ids: list[int] = Field(default_factory=list)
+    stimulus_ids: list[int] = Field(default_factory=list[int])
     correlation_id: str = ""
-    expectations: list[ExpectationDraft] = Field(default_factory=list)
+    expectations: list[ExpectationDraft] = Field(default_factory=list[ExpectationDraft])
 
 
 class RequestShard(BaseModel):
@@ -191,18 +193,23 @@ class ActionRequest(BaseModel):
     group: ShardKey = Field(default_factory=ShardKey)
     partner_entity_id: int | None = None
     partner_name: str = ""
-    stimuli: list[Stimulus] = Field(default_factory=list)
-    shards: list[RequestShard] = Field(default_factory=list)
+    stimuli: list[Stimulus] = Field(default_factory=list[Stimulus])
+    shards: list[RequestShard] = Field(default_factory=list[RequestShard])
     presentation: Presentation = Field(default_factory=Presentation)
     workspace: str = ""
     affect: str = ""
     regulation: str = ""
-    task_receipt: dict = Field(default_factory=dict)
+    task_receipt: TaskReceipt | None = None
     recovery_outcome: str = ""
     action_origin: Literal["main", "interaction", "task_reply"] = "main"
     interaction_selection_id: str = ""
     interaction_dependencies: WorkDependencies | None = None
     entity_contexts: list[EntityContextView] = Field(default_factory=list[EntityContextView])
+
+    @field_validator("task_receipt", mode="before")
+    @classmethod
+    def read_task_receipt(cls, value: object) -> TaskReceipt | None:
+        return read_optional_task_receipt(value)
 
     def payload(self) -> dict[str, JsonValue]:
         """Return the JSON payload of the envelope."""
@@ -262,11 +269,16 @@ class TriageItem(BaseModel):
     urgency: float = 0.0
     relevance: float = 0.0
     reasoning: str = ""
-    evidence_ids: list[int] = Field(default_factory=list)
+    evidence_ids: list[int] = Field(default_factory=list[int])
 
 
 #: Triage categories from the least to the most important.
 TRIAGE_CATEGORIES = ("Insignificant", "Moderate", "Significant", "Critical")
+
+
+class TriageCheck(BaseModel):
+    stimulus_ids: tuple[int, ...]
+    shown_evidence_ids: frozenset[int]
 
 
 class TriageResult(BaseModel):
@@ -277,7 +289,7 @@ class TriageResult(BaseModel):
     and so drop its decision.
     """
 
-    items: list[TriageItem] = Field(default_factory=list)
+    items: list[TriageItem] = Field(default_factory=list[TriageItem])
     codelet_budget: int = Field(default=CODELET_BUDGET_DEFAULT, ge=1, le=CODELET_BUDGET_MAX)
 
     @model_validator(mode="after")
@@ -286,11 +298,17 @@ class TriageResult(BaseModel):
         if unknown:
             raise ValueError(f"Unknown categories {', '.join(map(repr, unknown))}. "
                              f"Use one of {', '.join(TRIAGE_CATEGORIES)}.")
-        if info.context is not None and "stimulus_ids" in info.context:
-            expected_ids = info.context["stimulus_ids"]
+        if info.context is not None:
+            if not isinstance(info.context, TriageCheck):
+                raise TypeError("Triage requires a typed TriageCheck validation context.")
+            expected_ids = info.context.stimulus_ids
             actual_ids = [item.knoxel_id for item in self.items]
             if len(actual_ids) != len(set(actual_ids)) or set(actual_ids) != set(expected_ids):
                 raise ValueError(f"Classify exactly these event IDs once each: {expected_ids}.")
+            for item in self.items:
+                unknown_sources = sorted(set(item.evidence_ids) - info.context.shown_evidence_ids)
+                if unknown_sources:
+                    raise ValueError(f"Evidence IDs {unknown_sources} were not shown. Cite actual source IDs or use an empty evidence_ids list.")
         return self
 
 
@@ -305,10 +323,10 @@ class AppraisalResult(BaseModel):
     """
 
     feeling: str = ""
-    emotion_delta: dict[str, float] = Field(default_factory=dict)
-    need_delta: dict[str, float] = Field(default_factory=dict)
+    emotion_delta: dict[str, float] = Field(default_factory=dict[str, float])
+    need_delta: dict[str, float] = Field(default_factory=dict[str, float])
     appraisal: dict[str, float] = Field(
-        default_factory=dict,
+        default_factory=dict[str, float],
         description="Optional appraisal axes. Keys match AppraisalGeneral or AppraisalSocial fields.",
     )
     expectation_error: float = Field(
@@ -316,7 +334,7 @@ class AppraisalResult(BaseModel):
         description="Observed minus anticipated outcome. Positive is better than expected.",
     )
     reasoning: str = ""
-    evidence_ids: list[int] = Field(default_factory=list)
+    evidence_ids: list[int] = Field(default_factory=list[int])
 
     @model_validator(mode="after")
     def _known_names(self) -> Self:
@@ -360,7 +378,7 @@ class AppraisalAffect(BaseModel):
     """
 
     appraisal_state: FullMentalState = Field(default_factory=FullMentalState)
-    delta_vec: list[float] = Field(default_factory=list)
+    delta_vec: list[float] = Field(default_factory=list[float])
     entity_id: int | None = None
     regulation: str = ""
     felt: str = ""
@@ -389,10 +407,10 @@ class BeliefUpdate(BaseModel):
 
 
 class ContextResult(BaseModel):
-    memories: list[str] = Field(default_factory=list)
-    active_goals: list[str] = Field(default_factory=list)
-    capabilities: list[str] = Field(default_factory=list)
-    candidate_ids: list[int] = Field(default_factory=list)
+    memories: list[str] = Field(default_factory=list[str])
+    active_goals: list[str] = Field(default_factory=list[str])
+    capabilities: list[str] = Field(default_factory=list[str])
+    candidate_ids: list[int] = Field(default_factory=list[int])
     belief_updates: list[BeliefUpdate] = Field(default_factory=list[BeliefUpdate], max_length=4)
 
 
@@ -415,13 +433,13 @@ class VariantPercept(BaseModel):
     record_id: int = 0
     percept_type: str = ""
     text: str = ""
-    details: dict[str, str | list[str]] = Field(default_factory=dict)
+    details: dict[str, str | list[str]] = Field(default_factory=dict[str, str | list[str]])
     salience: float = 0.0
     valence: float = 0.0
-    appraisal_general: AppraisalGeneral = Field(default_factory=AppraisalGeneral)
-    appraisal_social: AppraisalSocial = Field(default_factory=AppraisalSocial)
-    appraisal_vec: list[float] = Field(default_factory=list)
-    delta_vec: list[float] = Field(default_factory=list)
+    appraisal_general: AppraisalGeneral = Field(default=AppraisalGeneral(goal_congruence=0.0, certainty=0.5, control_self=0.5, agency_other=0.0, novelty=0.0, norm_violation=0.0, bodily_threat=0.0, pattern_fit=0.0, body_signal=0.0, aversive_pressure=0.0, attractor_distance=0.0, repulsor_distance=0.0, salience=0.0))
+    appraisal_social: AppraisalSocial = Field(default=AppraisalSocial(perceived_warmth=0.0, fairness=0.0, inclusion_exclusion=0.0, reciprocity=0.0, power_imbalance=0.0, perceived_intimacy=0.0, trust_cues=0.0, embarrassment=0.0, admiration=0.0, contempt=0.0))
+    appraisal_vec: list[float] = Field(default_factory=list[float])
+    delta_vec: list[float] = Field(default_factory=list[float])
     activation: float = 0.0
 
 
@@ -438,16 +456,16 @@ class CodeletVariant(BaseModel):
 
     recommendation: str = ""
     recommendation_id: int = 0
-    recommendation_vec: list[float] = Field(default_factory=list)
-    recommendation_delta_vec: list[float] = Field(default_factory=list)
+    recommendation_vec: list[float] = Field(default_factory=list[float])
+    recommendation_delta_vec: list[float] = Field(default_factory=list[float])
     salience: float = 0.0
     valence: float = 0.0
-    percepts: list[VariantPercept] = Field(default_factory=list)
+    percepts: list[VariantPercept] = Field(default_factory=list[VariantPercept])
     target_shard: ShardKey = Field(default_factory=ShardKey)
     #: The target word the model wrote, when it named a shard that this cycle
     #: does not have. Empty when the target needed no correction.
     target_note: str = ""
-    about_ids: list[int] = Field(default_factory=list)
+    about_ids: list[int] = Field(default_factory=list[int])
 
 
 class CodeletOutput(BaseModel):
@@ -456,7 +474,7 @@ class CodeletOutput(BaseModel):
     codelet: str = ""
     mode: str = ""
     wave: int = 0
-    variants: list[CodeletVariant] = Field(default_factory=list)
+    variants: list[CodeletVariant] = Field(default_factory=list[CodeletVariant])
 
 
 class ActivationScore(BaseModel):
@@ -490,8 +508,8 @@ class PathwayBoost(BaseModel):
     source: str = ""
     target: str = ""
     strength: float = 0.0
-    skipped: list[str] = Field(default_factory=list)
-    precursor_ids: list[int] = Field(default_factory=list)
+    skipped: list[str] = Field(default_factory=list[str])
+    precursor_ids: list[int] = Field(default_factory=list[int])
 
 
 class CodeletRun(BaseModel):
@@ -508,8 +526,8 @@ class CodeletRun(BaseModel):
     status: str = "ran"
     reason: str = ""
     score: float = 0.0
-    view_ids: list[int] = Field(default_factory=list)
-    precursor_ids: list[int] = Field(default_factory=list)
+    view_ids: list[int] = Field(default_factory=list[int])
+    precursor_ids: list[int] = Field(default_factory=list[int])
     calls: int = 0
     seconds: float = 0.0
 
@@ -538,13 +556,13 @@ class CodeletsResult(BaseModel):
     definitions_version: str = ""
     definitions_digest: str = ""
     budget: int = 0
-    scores: list[ActivationScore] = Field(default_factory=list)
-    ratings: dict[str, float] = Field(default_factory=dict)
+    scores: list[ActivationScore] = Field(default_factory=list[ActivationScore])
+    ratings: dict[str, float] = Field(default_factory=dict[str, float])
     patterns: str = ""
-    echo_ids: list[int] = Field(default_factory=list)
-    runs: list[CodeletRun] = Field(default_factory=list)
-    outputs: list[CodeletOutput] = Field(default_factory=list)
-    pathway_boosts: list[PathwayBoost] = Field(default_factory=list)
+    echo_ids: list[int] = Field(default_factory=list[int])
+    runs: list[CodeletRun] = Field(default_factory=list[CodeletRun])
+    outputs: list[CodeletOutput] = Field(default_factory=list[CodeletOutput])
+    pathway_boosts: list[PathwayBoost] = Field(default_factory=list[PathwayBoost])
     cost: CodeletCost = Field(default_factory=CodeletCost)
 
 
@@ -559,7 +577,7 @@ class CodeletRatings(BaseModel):
     """
 
     patterns: str = ""
-    ratings: dict[str, float] = Field(default_factory=dict)
+    ratings: dict[str, float] = Field(default_factory=dict[str, float])
 
     @model_validator(mode="after")
     def _bounded(self) -> Self:
@@ -583,10 +601,10 @@ class AgentCodeletJob(BaseModel):
     codelet: str = ""
     story: str = ""
     instruction: str = ""
-    retrieval_plan: list[str] = Field(default_factory=list)
+    retrieval_plan: list[str] = Field(default_factory=list[str])
     view: str = ""
-    view_ids: list[int] = Field(default_factory=list)
-    known_ids: list[int] = Field(default_factory=list)
+    view_ids: list[int] = Field(default_factory=list[int])
+    known_ids: list[int] = Field(default_factory=list[int])
 
 
 class AgentCodeletAnswer(BaseModel):
@@ -599,8 +617,8 @@ class AgentCodeletAnswer(BaseModel):
     """
 
     recommendation: str = Field(default="", min_length=1)
-    evidence_ids: list[int] = Field(default_factory=list)
-    records: list[RecordView] = Field(default_factory=list)
+    evidence_ids: list[int] = Field(default_factory=list[int])
+    records: list[RecordView] = Field(default_factory=list[RecordView])
     session_ref: str = ""
 
 
@@ -613,7 +631,7 @@ class ShardStream(BaseModel):
     """
 
     key: ShardKey = Field(default_factory=ShardKey)
-    record_ids: list[int] = Field(default_factory=list)
+    record_ids: list[int] = Field(default_factory=list[int])
 
 
 class StructureDraft(BaseModel):
@@ -634,8 +652,8 @@ class StructureDraft(BaseModel):
     kind: str = ""
     theme: str = ""
     reason: str = ""
-    record_ids: list[int] = Field(default_factory=list)
-    relations: list[StructureRelation] = Field(default_factory=list)
+    record_ids: list[int] = Field(default_factory=list[int])
+    relations: list[StructureRelation] = Field(default_factory=list[StructureRelation])
     target_shard: ShardKey = Field(default_factory=ShardKey)
     valence: float = 0.0
     salience: float = 0.0
@@ -663,8 +681,8 @@ class BoundStructure(BaseModel):
 
     theme: str = Field(default="", min_length=1)
     reason: str = Field(default="", min_length=1)
-    record_ids: list[int] = Field(default_factory=list, min_length=2)
-    relations: list[BoundRelation] = Field(default_factory=list)
+    record_ids: list[int] = Field(default_factory=list[int], min_length=2)
+    relations: list[BoundRelation] = Field(default_factory=list[BoundRelation])
     target: str = "self"
 
 
@@ -673,7 +691,7 @@ class BinderAnswer(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    structures: list[BoundStructure] = Field(default_factory=list)
+    structures: list[BoundStructure] = Field(default_factory=list[BoundStructure])
 
 
 class StructuresResult(BaseModel):
@@ -684,8 +702,8 @@ class StructuresResult(BaseModel):
     number of topical clusters.
     """
 
-    structures: list[StructureDraft] = Field(default_factory=list)
-    view_ids: list[int] = Field(default_factory=list)
+    structures: list[StructureDraft] = Field(default_factory=list[StructureDraft])
+    view_ids: list[int] = Field(default_factory=list[int])
     clusters: int = 0
     calls: int = 0
 
@@ -705,7 +723,7 @@ class StructureRatings(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    ratings: list[StructureRating] = Field(default_factory=list)
+    ratings: list[StructureRating] = Field(default_factory=list[StructureRating])
 
 
 class RatedStructure(BaseModel):
@@ -731,7 +749,7 @@ class ShardRatings(BaseModel):
     """The attention scores of all structures for one shard."""
 
     key: ShardKey = Field(default_factory=ShardKey)
-    ratings: list[RatedStructure] = Field(default_factory=list)
+    ratings: list[RatedStructure] = Field(default_factory=list[RatedStructure])
 
 
 class AttentionResult(BaseModel):
@@ -744,10 +762,10 @@ class AttentionResult(BaseModel):
     a ``deliberate_focus`` endorsement. ``calls`` counts the rating calls.
     """
 
-    ratings: list[ShardRatings] = Field(default_factory=list)
-    changes: list[ShardChange] = Field(default_factory=list)
+    ratings: list[ShardRatings] = Field(default_factory=list[ShardRatings])
+    changes: list[ShardChange] = Field(default_factory=list[ShardChange])
     focus: FocusState | None = None
-    focus_ids: list[int] = Field(default_factory=list)
+    focus_ids: list[int] = Field(default_factory=list[int])
     calls: int = 0
 
 
@@ -760,7 +778,7 @@ class GoalChange(BaseModel):
 
 
 class GoalsResult(BaseModel):
-    changes: list[GoalChange] = Field(default_factory=list)
+    changes: list[GoalChange] = Field(default_factory=list[GoalChange])
 
 
 class GroupExperience(BaseModel):
@@ -797,7 +815,7 @@ class ExperienceResult(BaseModel):
     text: str = ""
     seed: str = ""
     record_id: int = 0
-    groups: list[GroupExperience] = Field(default_factory=list)
+    groups: list[GroupExperience] = Field(default_factory=list[GroupExperience])
 
     def text_for(self, key: ShardKey) -> str:
         """Return the experience that the calls of group ``key`` read."""
@@ -852,7 +870,7 @@ class DecisionCheck(BaseModel):
     names one is routing text, not a choice of the character.
     """
 
-    workflow_names: list[str] = Field(default_factory=list)
+    workflow_names: list[str] = Field(default_factory=list[str])
 
 
 class DecisionAnswer(BaseModel):
@@ -867,13 +885,15 @@ class DecisionAnswer(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    variants: list[str] = Field(default_factory=list)
+    variants: list[str] = Field(default_factory=list[str])
 
     @model_validator(mode="after")
     def _story_words(self, info: ValidationInfo) -> Self:
         if len(self.variants) not in (0, DECISION_VARIANTS):
             raise ValueError(f"Write exactly {DECISION_VARIANTS} decision variants, or an empty list.")
-        check = DecisionCheck.model_validate(info.context or {})
+        check = info.context if info.context is not None else DecisionCheck()
+        if not isinstance(check, DecisionCheck):
+            raise TypeError("Decision validation requires DecisionCheck.")
         for text in self.variants:
             words = text.strip()
             if not words:
@@ -891,7 +911,7 @@ class DecisionAnswer(BaseModel):
 class RouteCheck(BaseModel):
     """The validation context of one route answer: the available workflow names."""
 
-    workflow_names: list[str] = Field(default_factory=list)
+    workflow_names: list[str] = Field(default_factory=list[str])
 
 
 class RouteChoice(BaseModel):
@@ -927,11 +947,16 @@ class RouteAnswer(RouteChoice):
     def _known(self, info: ValidationInfo) -> Self:
         if self.action_type not in ACTION_TYPES:
             raise ValueError(f"Unsupported action_type {self.action_type!r}. Allowed: {', '.join(ACTION_TYPES)}.")
-        allowed = RouteCheck.model_validate(info.context or {}).workflow_names
+        check = info.context if info.context is not None else RouteCheck()
+        if not isinstance(check, RouteCheck):
+            raise TypeError("Route validation requires RouteCheck.")
+        allowed = check.workflow_names
         if self.action_type not in QUIET_ACTIONS and self.workflow_name not in allowed:
             raise ValueError(f"workflow_name {self.workflow_name!r} is not available. "
                              f"Available: {', '.join(allowed)}.")
         if self.action_type == "Sleep" and "timeout_seconds" in self.arguments.model_fields_set:
+            if self.arguments.timeout_seconds is None:
+                raise ValueError("Sleep requires a numeric timeout_seconds.")
             WaitRequest(seconds=self.arguments.timeout_seconds)
         return self
 
@@ -946,7 +971,7 @@ class RoutedDecision(BaseModel):
     """
 
     group: ShardKey = Field(default_factory=ShardKey)
-    stimulus_ids: list[int] = Field(default_factory=list)
+    stimulus_ids: list[int] = Field(default_factory=list[int])
     correlation_id: str = ""
     decision: str = ""
     route: RouteChoice = Field(default_factory=RouteChoice)
@@ -967,7 +992,7 @@ class ExpectationAnswer(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    expectations: list[ExpectationAnswerItem] = Field(default_factory=list)
+    expectations: list[ExpectationAnswerItem] = Field(default_factory=list[ExpectationAnswerItem])
 
     @model_validator(mode="after")
     def _count(self) -> Self:
@@ -992,7 +1017,7 @@ class OpenExpectation(BaseModel):
     fulfillment: float = 0.0
     tick_id: int = 0
     revision: int = 1
-    about_entity_ids: list[int] = Field(default_factory=list)
+    about_entity_ids: list[int] = Field(default_factory=list[int])
     origin: Literal["main_cognition", "private_loop"] = Field(
         description="Which loop recorded the expectation. Main cognition checks both kinds.")
     counted_observation_ids: list[int] = Field(
@@ -1019,7 +1044,7 @@ class ExpectationCheckAnswer(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    fulfillments: list[ExpectationFulfillment] = Field(default_factory=list)
+    fulfillments: list[ExpectationFulfillment] = Field(default_factory=list[ExpectationFulfillment])
 
 
 class ExpectationOutcome(BaseModel):
@@ -1043,29 +1068,7 @@ class ExpectationOutcome(BaseModel):
     valence_impact: float = 0.0
     fear_impact: float = 0.0
     status: str = "pending"
-    observation_ids: list[int] = Field(default_factory=list)
-
-
-class MemoryCandidate(BaseModel):
-    """One retrieved memory that the cycle may select.
-
-    ``scope`` and ``provenance`` are record fields as the retrieval service
-    serialized them. The cycle passes them on unchanged.
-    """
-
-    knoxel_id: int = 0
-    text: str = ""
-    revision: int = 1
-    memory_kind: str = "attributed_record"
-    scope: dict = Field(default_factory=dict)
-    provenance: dict | None = None
-    source_ids: list[int] = Field(default_factory=list)
-    timestamp: str | None = None
-    historical: bool = False
-    score: float = 0.0
-    reasons: list[str] = Field(default_factory=list)
-    deception_intent_id: int | None = None
-    evidence_role: str = "background"
+    observation_ids: list[int] = Field(default_factory=list[int])
 
 
 class WorkflowOption(BaseModel):
@@ -1102,8 +1105,8 @@ class MentalProposal(BaseModel):
     instruction: str = ""
     summary: str = ""
     disposition: str = "propose"
-    evidence_ids: list[int] = Field(default_factory=list)
-    goal_changes: list[GoalChange] = Field(default_factory=list)
+    evidence_ids: list[int] = Field(default_factory=list[int])
+    goal_changes: list[GoalChange] = Field(default_factory=list[GoalChange])
 
 
 class FocusProposalRef(BaseModel):

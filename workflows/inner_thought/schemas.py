@@ -13,7 +13,7 @@ until those episodes finish. They never invent absent graph judgments.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal, Self
+from typing import Literal, Self, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -190,45 +190,6 @@ class IntegrationResult(BaseModel):
     summary: str = ""
     progress: str = "none"
     progress_reason: str = ""
-
-
-class InnerRequest(BaseModel):
-    """The frozen input of one private cycle.
-
-    The host derives every field from committed state and records the
-    revisions it read. The loop's own attention is the candidate list: the
-    model sees only these records as citable evidence.
-    """
-
-    run_id: str = ""
-    companion_name: str = ""
-    character: str = Field(default="", description="The configured companion's character context for private interpretation and attention.")
-    context_limits: tuple[str, ...] = Field(default=(), description="Explicit limits on ancillary context supplied to this private operation.")
-    user_name: str = ""
-    state_summary: str = ""
-    #: The accepted mental state of the last cycle, or None before the first cycle.
-    mental_state: FullMentalState | None = None
-    mental_state_age_seconds: float = 0.0
-    seconds_since_user_input: float | None = None
-    tick_id: int = 0
-    #: The newest main turn: tick, summary, surprise, and ``frame_id``. Since
-    #: A19F step 10, ``frame_id`` is the subjective experience of that turn.
-    #: A19G gives the inner loop typed fields for this.
-    main_frame: MainFrameView = Field(default_factory=MainFrameView)
-    main_frame_age_ticks: int = 0
-    active_goal_records: list[GoalView] = Field(default_factory=list[GoalView])
-    pending_expectations: list[ExpectationView] = Field(default_factory=list[ExpectationView])
-    recent_thoughts: list[RecentThoughtView] = Field(default_factory=list[RecentThoughtView])
-    candidates: list[ThoughtCandidate] = Field(default_factory=list[ThoughtCandidate])
-    trigger_candidates: list[TriggerCandidate] = Field(default_factory=list[TriggerCandidate])
-    channels: dict[str, QualeChannelState] = Field(default_factory=dict[str, QualeChannelState])
-    operations: list[OperationSuggestion] = Field(default_factory=list[OperationSuggestion])
-    #: Selected implementation evidence for a capability or episode inspection.
-    #: The host builds it from the real source grant and the real records, so
-    #: the model reads a bounded view instead of scanning the repository.
-    inspection: PrivateInspection | None = None
-    episode: LegacyEpisodeContext = Field(default_factory=lambda: LegacyEpisodeContext())
-    reflection: ReflectionContext = Field(default_factory=ReflectionContext)
 
 
 class InnerReport(BaseModel):
@@ -741,6 +702,50 @@ class LegacyThoughtMetadata(BaseModel):
     continuation: str = ""
     evidence_ids: tuple[int, ...] = ()
     control_generation: int | None = None
+
+
+class PrivateRoleResult(TypedDict):
+    status: Literal["done"]
+    summary: str
+
+
+class InnerRequest(BaseModel):
+    """The frozen input of one private cycle.
+
+    The host derives every field from committed state and records the
+    revisions it read. The loop's own attention is the candidate list: the
+    model sees only these records as citable evidence.
+    """
+
+    run_id: str = ""
+    companion_name: str = ""
+    character: str = Field(default="", description="The configured companion's character context for private interpretation and attention.")
+    context_limits: tuple[str, ...] = Field(default=(), description="Explicit limits on ancillary context supplied to this private operation.")
+    user_name: str = ""
+    state_summary: str = ""
+    #: The accepted mental state of the last cycle, or None before the first cycle.
+    mental_state: FullMentalState | None = None
+    mental_state_age_seconds: float = 0.0
+    seconds_since_user_input: float | None = None
+    tick_id: int = 0
+    #: The newest main turn: tick, summary, surprise, and ``frame_id``. Since
+    #: A19F step 10, ``frame_id`` is the subjective experience of that turn.
+    #: A19G gives the inner loop typed fields for this.
+    main_frame: MainFrameView = Field(default_factory=MainFrameView)
+    main_frame_age_ticks: int = 0
+    active_goal_records: list[GoalView] = Field(default_factory=list[GoalView])
+    pending_expectations: list[ExpectationView] = Field(default_factory=list[ExpectationView])
+    recent_thoughts: list[RecentThoughtView] = Field(default_factory=list[RecentThoughtView])
+    candidates: list[ThoughtCandidate] = Field(default_factory=list[ThoughtCandidate])
+    trigger_candidates: list[TriggerCandidate] = Field(default_factory=list[TriggerCandidate])
+    channels: dict[str, QualeChannelState] = Field(default_factory=dict[str, QualeChannelState])
+    operations: list[OperationSuggestion] = Field(default_factory=list[OperationSuggestion])
+    #: Selected implementation evidence for a capability or episode inspection.
+    #: The host builds it from the real source grant and the real records, so
+    #: the model reads a bounded view instead of scanning the repository.
+    inspection: PrivateInspection | None = None
+    episode: LegacyEpisodeContext = Field(default_factory=LegacyEpisodeContext)
+    reflection: ReflectionContext = Field(default_factory=ReflectionContext)
 
 
 __all__ = [

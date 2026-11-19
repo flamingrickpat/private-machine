@@ -38,8 +38,12 @@ repeatable. Exhausted repairs raise ``ModelFormatError``, and the host
 retries the whole cycle.
 """
 from __future__ import annotations
-from workflows.main_cognition.model_json import fit_internal_prompt
-from workflows.main_cognition.context_reduction import evidence_text
+
+from workflows.main_cognition.prompt_values import CodeletViewTemplateValues, CodeletJobTemplateValues, CodeletConversionTemplateValues, CodeletSelectionTemplateValues
+
+from workflows.main_cognition.runtime import cognition_runtime
+
+from pm.llm.role_model import role_model
 
 import math
 import random
@@ -47,7 +51,7 @@ import time
 from collections.abc import Sequence
 
 from pm_workflows.python_role import RoleContext
-from pydantic import BaseModel, Field, create_model, model_validator
+from pydantic import BaseModel, Field
 
 from pm.constants import (
     CODELET_ECHO_SIMILARITY,
@@ -60,17 +64,20 @@ from pm.constants import (
     CSM_SELECTED_MEMORY_ACTIVATION,
 )
 from pm.context_render.turns import Role, Turn, format_content
-from pm.llm.concurrency import ordered_parallel_map
+from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
+from pm.llm.concurrency import wait_model_futures
 from pm.llm.context_window import estimate_tokens
+from workflows.main_cognition.response_checks import CheckedCodeletRatings, CodeletRatingCheck
 from pm.llm.prompt_encoding import TurnInput
 from pm.records.mental_state import compute_attention_bias
-from pm.records.situational_model import SituationalItem, affect_term, cosine
+from pm.records.situational_model import SituationalItem, SnapshotEvidence, SnapshotSelectionSettings, affect_term, cosine
 from pm.records.workspace import ShardKey
 
 from workflows.inference_settings import CODELET_WORKERS
 from workflows.main_cognition.affect import percept_affect
 from workflows.main_cognition.codelet_percepts import (
-    HEADER_FIELDS, CodeletPerceptType, container_model, percept_items, percept_text, sample_percept_types, schema_text,
+    HEADER_FIELDS, PerceptConversionCheck, CodeletPerceptType, container_model, percept_items, percept_text, sample_percept_types, schema_text,
 )
 from workflows.main_cognition.codelet_registry import (
     CodeletDefinition, activation_score, add_rating, apply_pathway_boost, fill,
@@ -78,7 +85,7 @@ from workflows.main_cognition.codelet_registry import (
 )
 from workflows.main_cognition.csm_view import Embedder, csm_protected, render_story, story_line, story_tokens
 from workflows.main_cognition.cycle_work import CycleWork, provisional_tick
-from workflows.main_cognition.model_json import PhasePrompts, model_context_budget
+from workflows.main_cognition.prompt_config import PhasePrompts
 from workflows.main_cognition.phases.appraise import partner_entity
 from workflows.main_cognition.phases.model import complete, complete_prose, phase_prompts
 from workflows.main_cognition.schemas import (
@@ -105,17 +112,17 @@ class CodeletJob(BaseModel):
     mode: str = ""
     wave: int = 0
     score: float = 0.0
-    view_ids: list[int] = Field(default_factory=list)
+    view_ids: list[int] = Field(default_factory=list[int])
     view: str = ""
-    precursor_ids: list[int] = Field(default_factory=list)
-    percept_types: list[list[CodeletPerceptType]] = Field(default_factory=list)
+    precursor_ids: list[int] = Field(default_factory=list[int])
+    percept_types: list[list[CodeletPerceptType]] = Field(default_factory=list[list[CodeletPerceptType]])
 
 
 class JobResult(BaseModel):
     """The model output of one codelet run, before it changes any state."""
 
-    variants: list[CodeletVariant] = Field(default_factory=list)
-    records: list[RecordView] = Field(default_factory=list)
+    variants: list[CodeletVariant] = Field(default_factory=list[CodeletVariant])
+    records: list[RecordView] = Field(default_factory=list[RecordView])
     calls: int = 0
     input_tokens: int = 0
     output_tokens: int = 0
@@ -136,8 +143,9 @@ class CodeletFrame:
     its shard key: ``self`` and one label for each stimulus group.
     """
 
-    def __init__(self, work: CycleWork, prompts: PhasePrompts) -> None:
-        story = StoryPrefix(work)
+    def __init__(self, work: CycleWork, prompts: PhasePrompts, context: RoleContext) -> None:
+        story = StoryPrefix(work, settings=role_model(context.runtime).render_settings(),
+            capture_settings=role_model(context.runtime).capture_settings("main-cognition"))
         self.prompts = prompts
         self.companion = story.companion
         self.entity = story.entity
@@ -152,46 +160,25 @@ class CodeletFrame:
 
     def view_text(self, view: str) -> str:
         """Return the view part of a codelet call."""
-        return format_content(self.fill(self.prompts.view_template), view=view).text.strip()
+        return format_content(self.fill(self.prompts.view_template), CodeletViewTemplateValues(
+        view=view)).text.strip()
 
     def job_text(self, definition: CodeletDefinition) -> str:
         """Return the codelet instruction. It comes last in call 1."""
-        return format_content(self.fill(self.prompts.job_template), codelet_name=definition.name,
-                              description=self.fill(definition.description),
-                              instructions=self.fill(definition.prompt).strip()).text.strip()
+        return format_content(self.fill(self.prompts.job_template), CodeletJobTemplateValues(
+        codelet_name=definition.name,
+        description=self.fill(definition.description),
+        instructions=self.fill(definition.prompt).strip())).text.strip()
 
     def ask(self, definition: CodeletDefinition, job: CodeletJob) -> list[Turn]:
         """Return the turns of call 1: the prefix, then the view and the instruction."""
-        return [*self.prefix, Turn(Role.User, evidence_text(self.view_text(job.view), "codelet-view", job.view_ids)
-                                   + f"\n\n{self.job_text(definition)}")]
-
-    def conversion_schema(self, types: list[CodeletPerceptType], allowed_ids: set[int]) -> type[BaseModel]:
-        """Return the answer model of call 2 for the offered percept types.
-
-        The answer holds ``target``, ``about_ids``, and one optional field
-        for each offered percept type, all at the top level.
-
-        An unknown ``target`` is not a repair case. The model often names the
-        partner instead of a shard label, and a repair round repeats the whole
-        story prefix for a word that carries no information. The caller
-        resolves the target instead. An id outside ``allowed_ids`` stays a
-        repair case, because the caller cannot choose the record for the model.
-        """
-        def check(answer: BaseModel) -> BaseModel:
-            unknown = sorted(set(answer.about_ids) - allowed_ids)
-            if unknown:
-                raise ValueError(f"about_ids {unknown} are not in the MIND list. Use only ids from that list.")
-            return answer
-
-        model = container_model(types, "PerceptConversion", target=(str, "self"), about_ids=(list[int], []))
-        return create_model("PerceptConversion", __base__=model,
-                            __validators__={"check": model_validator(mode="after")(check)})
+        return [*self.prefix, Turn(Role.User, f"{self.view_text(job.view)}\n\n{self.job_text(definition)}")]
 
     def conversion_text(self, types: list[CodeletPerceptType]) -> str:
         """Return the instruction of call 2."""
-        return format_content(self.fill(self.prompts.conversion_template),
-                              schema=schema_text(types, self.companion),
-                              targets=", ".join(f'"{label}"' for label in self.targets)).text.strip()
+        return format_content(self.fill(self.prompts.conversion_template), CodeletConversionTemplateValues(
+        schema=schema_text(types, self.companion),
+        targets=", ".join(f'"{label}"' for label in self.targets))).text.strip()
 
 
 def convert(context: RoleContext, work: CycleWork, frame: CodeletFrame, asked: list[Turn], prose: str,
@@ -203,7 +190,8 @@ def convert(context: RoleContext, work: CycleWork, frame: CodeletFrame, asked: l
     Returns the variant and the estimated input and output tokens.
     """
     messages = [*asked, Turn(Role.Assistant, prose), Turn(Role.User, frame.conversion_text(types))]
-    answer = complete(context, work, messages, frame.conversion_schema(types, allowed_ids))
+    answer = complete(context, messages, container_model(types, "PerceptConversion"),
+                      validation_context=PerceptConversionCheck(allowed_ids=frozenset(allowed_ids)))
     percepts = [VariantPercept(percept_type=kind.value, text=percept_text(kind, percept),
                                details={name: getattr(percept, name) for name in type(percept).model_fields
                                         if name not in HEADER_FIELDS},
@@ -231,24 +219,14 @@ def execute(context: RoleContext, work: CycleWork, frame: CodeletFrame, definiti
     asked = frame.ask(definition, job)
     for types in job.percept_types:
         allowed = set(job.view_ids)
+        agent_evidence_ids: list[int] = []
         if job.mode == "agent":
-            from workflows.main_cognition.codelet_agent import SKILL
-            task = (frame.view_text(job.view) + "\n\n" + frame.job_text(definition) +
-                    "\nRetrieval plan:\n" + "\n".join(frame.fill(item) for item in definition.data_aquisation) +
-                    "\n" + SKILL.read_text(encoding="utf-8"))
-            fitted = fit_internal_prompt(context, [*frame.prefix[:2], Turn(Role.User,
-                evidence_text(frame.view_text(job.view), "codelet-view", job.view_ids) +
-                task.removeprefix(frame.view_text(job.view)))], model_context_budget(context))
-            story = "\n\n".join(turn.content.text for turn in fitted.turns[:2])
-            context.runtime.environment.write_text(f"scratch/{definition.name}-agent-context.json", fitted.receipt().model_dump_json())
-            native_instruction = frame.job_text(definition)
-            if fitted.omitted:
-                native_instruction += f"\n{len(fitted.omitted)} optional story groups were omitted. Read original sources with the granted memory tools when needed."
-            answer = context.runtime.tools["codelet_agent"](context, AgentCodeletJob(
-                codelet=definition.name, story=story,
-                instruction=native_instruction,
+            answer = cognition_runtime(context.runtime).codelet_agent.execute(context, AgentCodeletJob(
+                codelet=definition.name, story=frame.story_text,
+                instruction=frame.job_text(definition),
                 retrieval_plan=[frame.fill(item) for item in definition.data_aquisation],
                 view=frame.view_text(job.view), view_ids=list(job.view_ids), known_ids=list(work.records)))
+            agent_evidence_ids = list(answer.evidence_ids)
             prose = answer.recommendation.strip()
             allowed |= set(answer.evidence_ids)
             result.records.extend(answer.records)
@@ -260,7 +238,7 @@ def execute(context: RoleContext, work: CycleWork, frame: CodeletFrame, definiti
             result.output_tokens += tokens([Turn(Role.Assistant, prose)])
         variant, used, produced = convert(context, work, frame, asked, prose, types, allowed)
         if job.mode == "agent":
-            variant.about_ids = list(dict.fromkeys([*variant.about_ids, *answer.evidence_ids]))
+            variant.about_ids = list(dict.fromkeys([*variant.about_ids, *agent_evidence_ids]))
         result.variants.append(variant)
         result.calls += 1
         result.input_tokens += used
@@ -307,18 +285,12 @@ def select(context: RoleContext, work: CycleWork, frame: CodeletFrame, candidate
     listing = "\n".join(f"- {item.name}: {frame.fill(item.description)}" for item in candidates)
     lines = render_story(work.records, echo_ids, with_id=False)
     echo = frame.fill(frame.prompts.echo_template).format(count=len(echo_ids), lines=lines) if echo_ids else ""
-    text = format_content(frame.fill(frame.prompts.selector_template), candidates=listing,
-                          echoes=echo).text.strip()
+    text = format_content(frame.fill(frame.prompts.selector_template), CodeletSelectionTemplateValues(
+        candidates=listing,
+        echoes=echo)).text.strip()
 
-    def known(answer: CodeletRatings) -> CodeletRatings:
-        unknown = sorted(set(answer.ratings) - names)
-        if unknown:
-            raise ValueError(f"Unknown mechanism names {', '.join(unknown)}. Use only: {', '.join(sorted(names))}.")
-        return answer
-
-    schema = create_model("SelectorRatings", __base__=CodeletRatings,
-                          __validators__={"known": model_validator(mode="after")(known)})
-    return complete(context, work, [*frame.prefix, Turn(Role.User, text)], schema)
+    return complete(context, [*frame.prefix, Turn(Role.User, text)], CheckedCodeletRatings,
+                    validation_context=CodeletRatingCheck(names=frozenset(names)))
 
 
 def enter(work: CycleWork, embedder: Embedder, *, record_id: int, codelet: str, content: str, activation: float,
@@ -329,7 +301,7 @@ def enter(work: CycleWork, embedder: Embedder, *, record_id: int, codelet: str, 
                                          source=codelet, content=content, timestamp=work.request.cycle_time)
     work.state.csm.add_or_boost(SituationalItem(
         record_id=record_id, entered_tick=tick, last_boost_tick=tick, activation=activation,
-        valence=valence, salience=salience, shard_hint=shard), codelet, embedder.record)
+        valence=valence, salience=salience, shard_hint=shard), codelet, embedder.comparison_vectors(work.state.csm, record_id))
 
 
 def integrate(work: CycleWork, embedder: Embedder, definition: CodeletDefinition, job: CodeletJob,
@@ -374,7 +346,7 @@ def integrate(work: CycleWork, embedder: Embedder, definition: CodeletDefinition
         for record_id in variant.about_ids:
             state.csm.add_or_boost(SituationalItem(record_id=record_id, entered_tick=tick, last_boost_tick=tick,
                                                    activation=CSM_SELECTED_MEMORY_ACTIVATION),
-                                   definition.name, embedder.record)
+                                   definition.name, embedder.comparison_vectors(state.csm, record_id))
     mark_fired(state.codelets.runtime(definition.name), tick, produced)
     for boost in pathway_boosts(definition.name, registered):
         boost.precursor_ids = list(produced)
@@ -397,7 +369,7 @@ def collect(context: RoleContext, work: CycleWork, prompts: PhasePrompts) -> Cod
     loaded = load_definitions(request.codelet_definitions or None)
     definitions = loaded.by_name()
     registered = set(definitions)
-    frame = CodeletFrame(work, prompts)
+    frame = CodeletFrame(work, prompts, context)
     embedder = Embedder(context, work.records)
     rng = random.Random(f"{request.run_id}:codelets")
     tick = provisional_tick(work)
@@ -433,14 +405,16 @@ def collect(context: RoleContext, work: CycleWork, prompts: PhasePrompts) -> Cod
         waiting = [name for name in definitions if name not in ran]
         chosen = score(waiting)[:size]
         embedder.prefetch_records(work.state.csm.items)
-        jobs = []
+        jobs: list[CodeletJob] = []
         for item in chosen:
             definition = definitions[item.codelet]
             precursors = list(registry.runtime(item.codelet).precursor_ids)
-            view_ids = work.state.csm.snapshot_for(
-                signatures[item.codelet], embedder.record,
-                lambda record_id: story_tokens(story_line(work.records[record_id], with_id=True)),
-                attention_bias=bias, max_tokens=CODELET_VIEW_TOKENS, rng=rng, precursor_ids=precursors)
+            snapshot_evidence = SnapshotEvidence(
+                vectors={record_id: embedder.record(record_id) for record_id in work.state.csm.items},
+                token_costs={record_id: story_tokens(story_line(work.records[record_id], with_id=True))
+                             for record_id in work.state.csm.items})
+            snapshot_settings = SnapshotSelectionSettings(bias[0], bias[1], CODELET_VIEW_TOKENS, frozenset(precursors))
+            view_ids = work.state.csm.snapshot_for(signatures[item.codelet], snapshot_evidence, snapshot_settings, rng)
             jobs.append(CodeletJob(
                 codelet=item.codelet, mode=definition.mode(), wave=wave, score=item.score,
                 view_ids=view_ids, view=render_story(work.records, view_ids, with_id=True) or EMPTY_VIEW,
@@ -448,9 +422,13 @@ def collect(context: RoleContext, work: CycleWork, prompts: PhasePrompts) -> Cod
                 percept_types=[sample_percept_types(definition.families, CODELET_PERCEPT_TYPES,
                                                     CODELET_PERCEPT_TEMPERATURE, rng)
                                for _ in range(CODELET_OUTPUT_VARIANTS)]))
-        results = ordered_parallel_map(
-            lambda job: execute(context, work, frame, definitions[job.codelet], job), jobs,
-            workers=CODELET_WORKERS, cancel=context.runtime.stop_event)
+        session = role_model(context.runtime)
+        if session.model.connection.disable_threading:
+            results = [execute(context, work, frame, definitions[job.codelet], job) for job in jobs]
+        else:
+            with ThreadPoolExecutor(max_workers=CODELET_WORKERS) as executor:
+                futures = [executor.submit(copy_context().run, execute, context, work, frame, definitions[job.codelet], job) for job in jobs]
+                results = wait_model_futures(futures, session.cancel)
         for job, result in zip(jobs, results, strict=True):
             integrate(work, embedder, definitions[job.codelet], job, result, registered, codelets)
             ran.append(job.codelet)

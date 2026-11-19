@@ -12,6 +12,8 @@ from pathlib import PurePosixPath
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pm.context_render.records import RecordEvidence
+from pm.records.media import RecordImage
 
 REPORT_SCHEMA = "pm.tool-call-report.v1"
 CONTEXT_SCHEMA = "pm.tool-call-context.v1"
@@ -49,6 +51,13 @@ class SourceStimulus(BaseModel):
     text: str = ""
 
 
+class ToolContextEvidence(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    record: RecordEvidence
+    activation: float
+    in_recent_tail: bool
+
+
 class SourceAction(BaseModel):
     """The action that started the run, as the source cycle stored it.
 
@@ -68,9 +77,9 @@ class SourceAction(BaseModel):
     action_type: str
     group: str
     partner_name: str = ""
-    stimuli: list[SourceStimulus] = Field(default_factory=list)
-    shard_names: list[str] = Field(default_factory=list)
-    shard_story: str = ""
+    stimuli: list[SourceStimulus] = Field(default_factory=list[SourceStimulus])
+    shard_names: list[str] = Field(default_factory=list[str])
+    evidence: tuple[ToolContextEvidence, ...] = ()
     workspace: str = ""
     affect: str = ""
 
@@ -111,9 +120,10 @@ class ToolCallContext(BaseModel):
     user_name: str
     character_card: str
     source_action: SourceAction | None = None
-    gwt_turns: list[TurnSummary] = Field(default_factory=list)
-    records: list[ContextRecord] = Field(default_factory=list)
-    missing_record_ids: list[int] = Field(default_factory=list)
+    gwt_turns: list[TurnSummary] = Field(default_factory=list[TurnSummary])
+    records: list[ContextRecord] = Field(default_factory=list[ContextRecord])
+    missing_record_ids: list[int] = Field(default_factory=list[int])
+    images: tuple[RecordImage, ...] = ()
 
 
 class ToolCallRequest(BaseModel):
@@ -184,10 +194,10 @@ class AgentOutcome(BaseModel):
 
     outcome: Literal["succeeded", "failed", "blocked", "uncertain"]
     summary: str = Field(min_length=1)
-    artifacts: list[ArtifactClaim] = Field(default_factory=list)
-    observations: list[str] = Field(default_factory=list)
+    artifacts: list[ArtifactClaim] = Field(default_factory=list[ArtifactClaim])
+    observations: list[str] = Field(default_factory=list[str])
     quality_assessment: str = ""
-    uncertainty: list[str] = Field(default_factory=list)
+    uncertainty: list[str] = Field(default_factory=list[str])
 
 
 class ArtifactEvidence(BaseModel):
@@ -243,7 +253,7 @@ class ToolCallReport(BaseModel):
     started the run.
     """
 
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+    model_config = ConfigDict(extra="forbid", populate_by_name=True, serialize_by_alias=True)
 
     schema_id: Literal["pm.tool-call-report.v1"] = Field(default=REPORT_SCHEMA, alias="schema")
     run_id: str
@@ -255,26 +265,26 @@ class ToolCallReport(BaseModel):
     verified: Literal[False] = False
     rejection_reason: str = ""
     agent_outcome: AgentOutcome | None = None
-    artifacts: list[ArtifactEvidence] = Field(default_factory=list)
-    tool_images: list[ToolImage] = Field(default_factory=list)
-    tool_calls: list[ToolCallSeen] = Field(default_factory=list)
+    artifacts: list[ArtifactEvidence] = Field(default_factory=list[ArtifactEvidence])
+    tool_images: list[ToolImage] = Field(default_factory=list[ToolImage])
+    tool_calls: list[ToolCallSeen] = Field(default_factory=list[ToolCallSeen])
     context_source: Literal["dispatch", "launch", ""] = ""
     action_id: str = ""
     action_schema_id: int | None = None
     source_tick_id: int | None = None
     correlation_id: str = ""
-    stimulus_ids: list[int] = Field(default_factory=list)
+    stimulus_ids: list[int] = Field(default_factory=list[int])
     context_tick_id: int | None = None
-    context_turn_ids: list[int] = Field(default_factory=list)
-    context_record_revisions: dict[int, int] = Field(default_factory=dict)
+    context_turn_ids: list[int] = Field(default_factory=list[int])
+    context_record_revisions: dict[int, int] = Field(default_factory=dict[int, int])
     instruction_revision: int | None = None
     final_instruction_revision: int | None = None
-    mcp_server_names: list[str] = Field(default_factory=list)
+    mcp_server_names: list[str] = Field(default_factory=list[str])
     #: Servers that answered the reachability probe, and servers that did not.
     #: The session opens only the live ones. A dead server is named here so a
     #: reader can tell a missing tool from an unreachable server.
-    mcp_live_servers: list[str] = Field(default_factory=list)
-    mcp_dead_servers: list[str] = Field(default_factory=list)
+    mcp_live_servers: list[str] = Field(default_factory=list[str])
+    mcp_dead_servers: list[str] = Field(default_factory=list[str])
     agent_session: str = ""
     trace_path: str = ""
     error_type: str = ""

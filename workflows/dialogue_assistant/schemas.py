@@ -7,11 +7,26 @@ receipt, not by the model's memory.
 """
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
-from workflows.public_speech.public_context import PublicContext
+from pm.records.media import RecordImage
+from pm.context_render.turns import Role, ProviderState
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
+from workflows.public_speech.public_context import PublicContext, ToolEvidence
 from workflows.public_speech.speech_review import SpeechReview
+
+
+class AssistantFunctionCall(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str
+    arguments: str
+
+
+class AssistantToolCall(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str
+    type: Literal["function"] = "function"
+    function: AssistantFunctionCall
 
 
 class AssistantMessage(BaseModel):
@@ -19,14 +34,12 @@ class AssistantMessage(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    role: Literal["system", "user", "assistant", "tool"]
+    role: Role
     content: str = ""
-    tool_calls: list[dict] = Field(default_factory=list)
+    tool_calls: list[AssistantToolCall] = Field(default_factory=list[AssistantToolCall])
     tool_call_id: str = ""
     name: str = ""
-    reasoning: str | None = None
-    reasoning_content: str | None = None
-    reasoning_details: list[dict] | None = None
+    provider_state: ProviderState | None = None
 
 
 class ToolDescriptor(BaseModel):
@@ -35,7 +48,7 @@ class ToolDescriptor(BaseModel):
 
     name: str
     description: str = ""
-    parameters: dict = Field(default_factory=dict)
+    parameters: dict[str, JsonValue] = Field(default_factory=dict[str, JsonValue])
     read_only: bool = False
 
 
@@ -44,17 +57,29 @@ class ToolReceipt(BaseModel):
 
     tool_call_id: str
     name: str
-    arguments: dict = Field(default_factory=dict)
+    arguments_json: str = "{}"
     executed: bool
-    result: Any = None
+    result_text: str = ""
+    succeeded: bool = False
     error: str = ""
     transport: str = "python"
+
+    def evidence(self) -> ToolEvidence:
+        return ToolEvidence(self.name, self.executed and self.succeeded, self.result_text, self.error)
+
+
+class McpEndpoint(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    url: str
+    type: Literal["http"] = "http"
 
 
 class AssistantRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     schema_version: Literal["pm.assistant-request.v1"] = "pm.assistant-request.v1"
+    images: tuple[RecordImage, ...] = Field(default_factory=tuple)
+    task_result_supplied: bool = False
     companion_name: str = Field(min_length=1)
     partner_name: str = Field(min_length=1)
     character_card: str = ""
@@ -64,11 +89,11 @@ class AssistantRequest(BaseModel):
     time: str = ""
     # Accepted feelings in words.
     feelings: str = ""
-    prior_dialogue: list[AssistantMessage] = Field(default_factory=list)
+    prior_dialogue: list[AssistantMessage] = Field(default_factory=list[AssistantMessage])
     current_user_message: str
     memories: list[str] = Field(default_factory=list)
     workspace: str = ""
-    tools: list[ToolDescriptor] = Field(default_factory=list)
+    tools: list[ToolDescriptor] = Field(default_factory=list[ToolDescriptor])
     tool_grant: list[str] = Field(default_factory=list)
     max_tool_turns: int = 8
     selected_action: str = ""

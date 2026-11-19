@@ -11,23 +11,27 @@ from __future__ import annotations
 
 from pm.utils.operating_system import OperatingSystem
 import asyncio
+import json
+import httpx
 import logging
-from collections.abc import Iterator, Sequence
+from collections.abc import Sequence
 from contextlib import contextmanager
 from pathlib import Path
 from threading import Event, Lock
-from typing import TypedDict
+from typing import TypedDict, Required, Literal
+from collections.abc import Generator
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, JsonValue, TypeAdapter
 
-from pm.llm.http_client import EmptyCompletionError, JsonClient, ModelError, cancellable, wait_until_ready
+from pm.llm.http_client import EmptyCompletionError, JsonClient, ModelError, cancellable, EndpointRetry
 from pm.llm.config import Connection
 from pm.llm.multimodal import encode_messages
-from pm.llm.prompt_encoding import TurnInput, tool_calls_from_wire
-from pm.llm.completion import Completion, Reasoning
+from pm.llm.prompt_encoding import TurnInput
+from pm.llm.completion import Completion, Reasoning, ProviderTokenUsage
 from pm.llm.reasoning import ReasoningOptions
-from pm.context_render.turns import Role, Turn
+from pm.llm.generation import GenerationSettings
+from pm.context_render.turns import Role, Turn, ProviderState, ToolCall
 
 
 class ModelDiscoveryLimits(TypedDict, total=False):
@@ -49,7 +53,7 @@ class ModelDiscoveryReasoning(TypedDict, total=False):
 class ModelDiscoveryProvider(TypedDict, total=False):
     """The provider-side caps that a hosted catalog publishes for one model."""
 
-    max_completion_tokens: int
+    max_completion_tokens: int | None
 
 
 class ModelDiscoveryEntry(TypedDict, total=False):
@@ -59,7 +63,7 @@ class ModelDiscoveryEntry(TypedDict, total=False):
     optional fields, and the entry keeps them untouched.
     """
 
-    id: str
+    id: Required[str]
     context_length: int
     reasoning: ModelDiscoveryReasoning
     top_provider: ModelDiscoveryProvider
@@ -130,9 +134,13 @@ class ModelActivation:
         ``asyncio.CancelledError``. ``live_test=True`` fails on the first
         error, which is what tests and diagnostic gates need.
         """
-        return await wait_until_ready(
-            lambda: self._activate(connection, cancel=cancel, live_test=live_test), cancel,
-            live_test=live_test, label=f"Model {connection.model} at {connection.base_url}")
+        retry = EndpointRetry(f"Model {connection.model} at {connection.base_url}", cancel, live_test=live_test)
+        while True:
+            try:
+                return await self._activate(connection, cancel=cancel, live_test=live_test)
+            except (ModelError, httpx.HTTPError) as error:
+                await retry.wait(error)
+
 
     async def _activate(self, connection: Connection, *, cancel: Event | None = None,
                         live_test: bool = False) -> None:
@@ -148,9 +156,9 @@ class ModelActivation:
         try:
             if connection.startup_script is not None:
                 await run_startup(connection.startup_script, cancel)
-            result = await JsonClient(connection, live_test=live_test).request("GET", "models", cancel=cancel)
+            result = ModelCatalog.model_validate(await JsonClient(connection, live_test=live_test).request("GET", "models", cancel=cancel))
             try:
-                aliases = {entry["id"] for entry in result["data"]}
+                aliases = {entry["id"] for entry in result.data}
             except (KeyError, TypeError):
                 raise ModelError("Model discovery returned an invalid model list.") from None
             if connection.model not in aliases:
@@ -160,14 +168,14 @@ class ModelActivation:
                 # Keep the catalog entry so a later call can read the served
                 # context window and the advertised reasoning support.
                 self._metadata[(connection.base_url, connection.model)] = next(
-                    entry for entry in result["data"] if entry["id"] == connection.model)
+                    entry for entry in result.data if entry["id"] == connection.model)
         finally:
             with self._lock:
                 self._switching = False
             logger.info("Model activation exit model=%s ready=%s", connection.model, self.is_ready(connection))
 
     @contextmanager
-    def use(self, connection: Connection) -> Iterator[None]:
+    def use(self, connection: Connection) -> Generator[None, None, None]:
         """Hold one active call so no activation can switch the model meanwhile."""
         with self._lock:
             if self._switching or self._ready.get(connection.base_url) != connection.model:
@@ -190,6 +198,19 @@ class ModelActivation:
         return ModelDiscoveryEntry(**entry)
 
 
+class ChatFunctionCall(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    name: str
+    arguments: str
+
+
+class ChatToolCall(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    id: str
+    type: Literal["function"] = "function"
+    function: ChatFunctionCall
+
+
 class ChatMessage(BaseModel):
     """One provider assistant message, keeping provider extras for replay.
 
@@ -200,10 +221,10 @@ class ChatMessage(BaseModel):
 
     model_config = ConfigDict(extra="allow", hide_input_in_errors=True)
     content: str | None = None
-    tool_calls: list[dict[str, object]] = Field(default_factory=list)
+    tool_calls: list[ChatToolCall] = Field(default_factory=list[ChatToolCall])
     reasoning: str | None = None
     reasoning_content: str | None = None
-    reasoning_details: list[dict[str, object]] | None = None
+    reasoning_details: list[dict[str, JsonValue]] | None = None
 
 
 class ChatChoice(BaseModel):
@@ -234,70 +255,22 @@ class ChatResult(BaseModel):
         """
         choice = self.choices[0]
         message = choice.message
-        state = {key: value for key, value in message.model_dump(mode="json").items()
-                 if key not in {"content", "tool_calls", "role"} and value is not None}
-        turn = Turn(Role.Assistant, message.content or "", tool_calls_from_wire(message.tool_calls), provider_state=state or None)
-        reasoning = Reasoning(message.reasoning or message.reasoning_content or "", tuple(message.reasoning_details or []))
-        return Completion(turn, reasoning, (self.model_extra or {}).get("usage") or {}, self.model, choice.finish_reason)
+        details = json.dumps(message.reasoning_details, ensure_ascii=False) if message.reasoning_details is not None else None
+        state = ProviderState(message.reasoning, message.reasoning_content, details)
+        turn = Turn(Role.Assistant, message.content or "", tuple(ToolCall(call.id, call.function.name, call.function.arguments) for call in message.tool_calls), provider_state=state)
+        reasoning = Reasoning(message.reasoning or message.reasoning_content or "", details)
+        usage = ProviderTokenUsage.model_validate((self.model_extra or {}).get("usage") or {})
+        return Completion(turn, reasoning, usage, self.model, choice.finish_reason)
+
 
 
 OPENROUTER_HOST = "openrouter.ai"
 
 
-def provider_generation(connection: Connection, generation: dict) -> dict:
-    """Translate reasoning controls without changing the caller's dictionaries.
 
-    The mapping stays open: any other provider generation setting passes
-    through as given, because each endpoint accepts its own keyword set.
 
-    ``reasoning`` accepts ReasoningOptions or its dictionary fields. OpenRouter
-    receives that object and requires parameter support during routing. Local
-    serving receives template controls and Strata's reasoning_budget_tokens.
-    Explicit reasoning takes precedence over the legacy thinking switch.
-    Duplicate budget or effort sources raise ValueError. Other kwargs pass through.
-    """
-    host = (urlsplit(connection.base_url).hostname or "").lower()
-    result = dict(generation)
-    tokens = result.pop("reasoning_tokens", None)
-    local_tokens = result.pop("reasoning_budget_tokens", None)
-    if local_tokens is not None:
-        if tokens is not None:
-            raise ValueError("Specify one reasoning token allowance.")
-        tokens = local_tokens
-    effort = result.pop("reasoning_effort", None)
-    thinking = result.pop("enable_thinking", (result.get("chat_template_kwargs") or {}).get("enable_thinking"))
-    if "reasoning" in result:
-        if tokens is not None or effort is not None:
-            raise ValueError("Use reasoning fields or legacy reasoning aliases, not both.")
-        supplied = result.pop("reasoning")
-        options = supplied if isinstance(supplied, ReasoningOptions) else ReasoningOptions.model_validate(supplied)
-    else:
-        options = ReasoningOptions(enabled=thinking, max_tokens=tokens, effort=effort)
-    controls = options.model_dump(exclude_none=True)
-    if host == OPENROUTER_HOST:
-        result.pop("chat_template_kwargs", None)
-        if controls:
-            result["reasoning"] = controls
-            result["provider"] = {"require_parameters": True, **result.get("provider", {})}
-        return result
-    template = dict(result.get("chat_template_kwargs") or {})
-    if options.enabled is not None:
-        template["enable_thinking"] = options.enabled
-    elif options.max_tokens is not None:
-        template["enable_thinking"] = True
-    if options.effort is not None:
-        result["reasoning_effort"] = options.effort
-        if options.effort == "none":
-            template["enable_thinking"] = False
-        elif "enable_thinking" in template:
-            template["enable_thinking"] = True
-    if template:
-        result["chat_template_kwargs"] = template
-    if options.max_tokens is not None:
-        result["reasoning_budget_tokens"] = options.max_tokens
-    if options.exclude is not None:
-        result["reasoning"] = {"exclude": options.exclude}
-    return result
+class ModelCatalog(BaseModel):
+    data: list[ModelDiscoveryEntry]
 
 
 class ChatClient:
@@ -315,55 +288,64 @@ class ChatClient:
         self.client = JsonClient(connection, live_test=live_test)
 
     async def complete(self, messages: Sequence[TurnInput], *, cancel: Event | None = None,
-                       **generation: object) -> ChatResult:
+                       settings: GenerationSettings = GenerationSettings()) -> ChatResult:
         """Return one validated completion for these turns."""
-        if "model" in generation or "stream" in generation:
-            raise ValueError("Use the resolved model and non-streaming response path.")
         if cancel is not None and cancel.is_set():
             raise asyncio.CancelledError
-        # Bound the visible answer before the reasoning budget reads the output
-        # ceiling. An unbounded completion can run to 131072 tokens; one such
-        # sample held the inference slot for 691 seconds, so the connection's
-        # limit applies unless the caller asked for a different bound.
-        if generation.get("max_tokens") is None and generation.get("max_completion_tokens") is None:
-            limit = self.connection.completion_token_limit
-            if limit is not None:
-                generation["max_tokens"] = limit
-        # A reasoning budget reserves hidden thinking space inside the serving
-        # context. Its token count is measured from the same rendered prompt.
-        budget = generation.pop("reasoning_budget", None)
+        maximum = settings.output_allowance(self.connection.completion_token_limit)
+        reasoning = settings.reasoning
+        tokens = settings.reasoning_tokens or settings.reasoning_budget_tokens
+        if settings.reasoning_tokens is not None and settings.reasoning_budget_tokens is not None:
+            raise ValueError("Specify one reasoning token allowance.")
+        if reasoning is not None and (tokens is not None or settings.reasoning_effort is not None):
+            raise ValueError("Use reasoning options or legacy aliases, not both.")
+        if reasoning is None:
+            thinking = settings.enable_thinking
+            if thinking is None and settings.chat_template_kwargs is not None:
+                thinking = settings.chat_template_kwargs.enable_thinking
+            reasoning = ReasoningOptions(enabled=thinking, max_tokens=tokens, effort=settings.reasoning_effort)
+        budget = settings.reasoning_budget
         if budget is not None:
-            if generation.keys() & {"reasoning", "reasoning_tokens", "reasoning_effort", "reasoning_budget_tokens"}:
-                raise ValueError("Choose a reasoning policy or explicit reasoning controls, not both.")
-            if budget.fraction == 0:
-                generation.update(enable_thinking=False)
-            else:
-                from pm.llm.context_window import estimate_tokens
-                metadata = self.activation.metadata(self.connection)
-                if ((urlsplit(self.connection.base_url).hostname or "").lower() == OPENROUTER_HOST
-                        and not (metadata.get("reasoning") or {}).get("supports_max_tokens")):
-                    raise ModelError("The model does not advertise numeric reasoning-budget support.")
-                context = self.connection.context_window or metadata.get("context_length") or metadata["meta"]["n_ctx"]
-                if type(context) is not int or context <= 0:
-                    raise ModelError("A reasoning budget needs a configured or advertised context window.")
-                context = min(context, self.connection.override_context or context)
-                maximum = (metadata.get("top_provider") or {}).get("max_completion_tokens") or context
-                maximum = min(maximum, generation.get("max_tokens", maximum), generation.get("max_completion_tokens", maximum))
-                if "tools" in generation:
-                    import json
-                    measured = [*messages, Turn(Role.User, json.dumps(generation["tools"], ensure_ascii=False))]
-                else:
-                    measured = messages
-                input_tokens, _ = estimate_tokens(self.connection.model, measured)
-                generation.update(budget.generation(context_window=context, input_tokens=input_tokens, max_output_tokens=maximum))
-        # Image tags become image parts or alt text here, and only here.
+            if settings.reasoning is not None or tokens is not None or settings.reasoning_effort is not None:
+                raise ValueError("Choose a reasoning budget or explicit reasoning controls.")
+            from pm.llm.context_window import estimate_tokens
+            from pm.llm.workflow_sessions import serving_context
+            context, _source = await serving_context(self.connection, cancel if cancel is not None else Event(), live_test=self.client.live_test)
+            input_tokens, _label = estimate_tokens(self.connection.model, messages)
+            reasoning = budget.generation(context_window=context, input_tokens=input_tokens, max_output_tokens=maximum)
         encoded = encode_messages(messages)
-        outbound = provider_generation(self.connection, generation)
+        outbound = settings.model_dump(mode="json", by_alias=True, exclude_none=True,
+            exclude={"reasoning_budget", "reasoning", "enable_thinking", "reasoning_tokens", "reasoning_budget_tokens",
+                     "reasoning_effort", "chat_template_kwargs"})
+        if not settings.tools:
+            outbound.pop("tools")
+        if settings.max_tokens is None and settings.max_completion_tokens is None:
+            outbound["max_tokens"] = maximum
+        controls = reasoning.model_dump(exclude_none=True)
+        host = (urlsplit(self.connection.base_url).hostname or "").lower()
+        if host == OPENROUTER_HOST:
+            if controls:
+                outbound["reasoning"] = controls
+        else:
+            template = settings.chat_template_kwargs.model_dump(exclude_none=True) if settings.chat_template_kwargs is not None else {}
+            if reasoning.enabled is not None:
+                template["enable_thinking"] = reasoning.enabled
+            elif reasoning.max_tokens is not None:
+                template["enable_thinking"] = True
+            if reasoning.effort is not None:
+                outbound["reasoning_effort"] = reasoning.effort
+                template["enable_thinking"] = reasoning.effort != "none"
+            if template:
+                outbound["chat_template_kwargs"] = template
+            if reasoning.max_tokens is not None:
+                outbound["reasoning_budget_tokens"] = reasoning.max_tokens
+            if reasoning.exclude is not None:
+                outbound["reasoning"] = {"exclude": reasoning.exclude}
+        payload = TypeAdapter(dict[str, JsonValue]).validate_python({
+            **outbound, "model": self.connection.model, **encoded, "stream": False,
+        })
         with self.activation.use(self.connection):
-            response = await self.client.request("POST", "chat/completions", payload={
-                **outbound, "model": self.connection.model,
-                **encoded, "stream": False,
-            }, cancel=cancel)
+            response = await self.client.request("POST", "chat/completions", payload=payload, cancel=cancel)
         try:
             result = ChatResult.model_validate(response)
         except ValidationError:
@@ -376,7 +358,7 @@ class ChatClient:
         message = result.choices[0].message
         if not (message.content or "").strip() and not message.tool_calls:
             raise EmptyCompletionError("The model returned no content or tool call. Inspect its generation config.")
-        if (outbound.get("reasoning") or {}).get("exclude"):
+        if reasoning.exclude:
             # Local servers can retain reasoning in their wire response. Hide
             # it here too, while preserving final content, usage and raw logs.
             for choice in result.choices:
@@ -393,7 +375,7 @@ class OpenAICompletionBackend:
         self.client = client
 
     async def complete(self, turns: Sequence[TurnInput], *, cancel: Event | None = None,
-                       **generation: object) -> Completion:
+                       settings: GenerationSettings = GenerationSettings()) -> Completion:
         """Return content and reasoning separately; transport errors propagate."""
-        result = await self.client.complete(turns, cancel=cancel, **generation)
+        result = await self.client.complete(turns, cancel=cancel, settings=settings)
         return result.completion()

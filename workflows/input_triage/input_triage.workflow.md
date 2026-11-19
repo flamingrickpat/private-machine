@@ -7,7 +7,7 @@ failure_policy: {max_attempts_per_phase: 1}
 roles:
   classify:
     skill: workflows/input_triage/steps.py
-    tools: [llm_complete]
+    tools: []
     result_contract:
       type: json
       schema:

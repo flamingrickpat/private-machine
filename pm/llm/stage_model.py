@@ -19,13 +19,14 @@ from __future__ import annotations
 import asyncio
 from threading import Event, Lock
 from collections.abc import Sequence
-from dataclasses import dataclass
-from pm.llm.contracts import ContextMeasurement, ModelProtocolContext
+from pm.llm.contracts import ContextMeasurement
+from pm.llm.generation import GenerationSettings
 
-from pm.llm.activation import ChatClient, ChatResult, ModelActivation, OpenAICompletionBackend
+from pm.llm.activation import ChatClient, ChatResult, ModelActivation
 from pm.llm.http_client import EmptyCompletionError
 from pm.llm.config import Connection
-from pm.llm.completion import AsyncTextCompletion, Completion, ToolCompletion
+from pm.llm.completion import Completion
+from pm.context_render.prompt import RendererCaptureOptions
 from pm.llm.prompt_encoding import TurnInput
 from pm.llm.concurrency import inference_admission
 
@@ -33,7 +34,8 @@ from pm.llm.concurrency import inference_admission
 async def complete_chat_with_retry(
     client: ChatClient,
     messages: Sequence[TurnInput],
-    generation: dict[str, object],
+    settings: GenerationSettings,
+    cancel: Event | None = None,
 ) -> ChatResult:
     """One completion with a bounded empty-content retry, as the provider returned it.
 
@@ -45,7 +47,7 @@ async def complete_chat_with_retry(
     last: EmptyCompletionError | None = None
     for attempt in range(2):
         try:
-            return await client.complete(messages, **generation)
+            return await client.complete(messages, settings=settings, cancel=cancel)
         except EmptyCompletionError as error:
             if attempt == 1:
                 raise
@@ -57,10 +59,11 @@ async def complete_chat_with_retry(
 async def complete_with_retry(
     client: ChatClient,
     messages: Sequence[TurnInput],
-    generation: dict[str, object],
+    settings: GenerationSettings,
+    cancel: Event | None = None,
 ) -> str:
     """Return the final text of :func:`complete_chat_with_retry`."""
-    result = await complete_chat_with_retry(client, messages, generation)
+    result = await complete_chat_with_retry(client, messages, settings, cancel)
     return result.text
 
 
@@ -73,34 +76,37 @@ class LazyStageModel:
         owner: ModelActivation,
         *,
         live_test: bool = False,
+        capture_options: RendererCaptureOptions | None = None,
     ) -> None:
         self.connection = connection
         self.owner = owner
         self.live_test = live_test
+        self.capture_options = capture_options if capture_options is not None else RendererCaptureOptions()
         self.admission = inference_admission(connection.base_url, max_concurrent_requests=connection.max_concurrent_requests)
         self._lock = Lock()
         self._client: ChatClient | None = None
 
-    async def _preflight(self, messages: Sequence[TurnInput], cancel: Event | None, generation: dict[str, object]) -> Sequence[TurnInput]:
-        """Fit annotated context before every text, reasoning, or tool call."""
+    async def _preflight(self, messages: Sequence[TurnInput], cancel: Event | None, settings: GenerationSettings) -> None:
         from pm.llm.context_window import measure_context
-        from pm.llm.prompt_fitting import fit_measured_prompt
-        from pm.llm.prompt_encoding import normalize_turns
+        from pm.context_render.budget import RequiredContextTooLarge
         measurement = await measure_context(self.connection, messages, cancel if cancel is not None else Event(),
-            live_test=self.live_test, protocol_context=ModelProtocolContext.model_validate(generation))
+            live_test=self.live_test, settings=settings)
         if measurement["input_tokens"] > measurement["input_budget_tokens"]:
-            return fit_measured_prompt(normalize_turns(messages), measurement).turns
-        return messages
+            raise RequiredContextTooLarge(f"Rendered prompt estimate {measurement['input_tokens']} exceeds input ceiling {measurement['input_budget_tokens']}.")
 
-    async def _complete_chat(self, messages: Sequence[TurnInput], generation: dict[str, object]) -> ChatResult:
-        cancel = generation.get("cancel")
-        assert cancel is None or isinstance(cancel, Event)
-        messages = await self._preflight(messages, cancel, generation)
-        return await complete_chat_with_retry(self.ensure_client(cancel=cancel), messages, generation)
+    async def complete_chat_async(self, messages: Sequence[TurnInput], settings: GenerationSettings = GenerationSettings(),
+                                  cancel: Event | None = None) -> ChatResult:
+        await self._preflight(messages, cancel, settings)
+        client = await self.ensure_client_async(cancel=cancel)
+        return await complete_chat_with_retry(client, messages, settings, cancel)
 
-    async def _complete(self, messages: Sequence[TurnInput], generation: dict[str, object]) -> str:
-        result = await self._complete_chat(messages, generation)
-        return result.text
+    async def ensure_client_async(self, *, cancel: Event | None = None) -> ChatClient:
+        if not self.owner.is_ready(self.connection):
+            await self.owner.activate(self.connection, cancel=cancel, live_test=self.live_test)
+        with self._lock:
+            if self._client is None:
+                self._client = ChatClient(self.connection, self.owner, live_test=self.live_test)
+            return self._client
 
     @property
     def activated(self) -> bool:
@@ -133,105 +139,24 @@ class LazyStageModel:
                 self._client = ChatClient(self.connection, self.owner, live_test=self.live_test)
             return self._client
 
-    def complete(self, messages: Sequence[TurnInput], **generation: object) -> str:
-        """Synchronous completion for Python-role stages."""
-        return self.complete_chat(messages, **generation).text
+    def complete(self, messages: Sequence[TurnInput], settings: GenerationSettings = GenerationSettings(),
+                 cancel: Event | None = None) -> str:
+        return self.complete_chat(messages, settings, cancel).text
 
-    def complete_chat(self, messages: Sequence[TurnInput], **generation: object) -> ChatResult:
-        """Run the same completion as :meth:`complete` and keep the provider result.
+    def complete_chat(self, messages: Sequence[TurnInput], settings: GenerationSettings = GenerationSettings(),
+                      cancel: Event | None = None) -> ChatResult:
+        return asyncio.run(self.complete_chat_async(messages, settings, cancel))
 
-        The result carries the provider usage block beside the final text.
-        :meth:`complete` returns only its text. A caller that retains cost
-        receipts, such as the scenario recorder, uses this method instead.
-        """
-        self.ensure_client(cancel=generation.get("cancel"))
-        return asyncio.run(self._complete_chat(messages, generation))
+    def complete_result(self, messages: Sequence[TurnInput], settings: GenerationSettings = GenerationSettings(),
+                        cancel: Event | None = None) -> Completion:
+        return self.complete_chat(messages, settings, cancel).completion()
 
-    def complete_result(self, messages: Sequence[TurnInput], **generation: object) -> Completion:
-        """Return final content and reasoning separately for an explicit caller.
-
-        Activation and provider errors retain their existing boundaries.
-        This method does not substitute reasoning for a missing final answer.
-        """
-        client = self.ensure_client(cancel=generation.get("cancel"))
-
-        async def complete() -> Completion:
-            cancel = generation.get("cancel")
-            assert cancel is None or isinstance(cancel, Event)
-            prepared = await self._preflight(messages, cancel, generation)
-            return await OpenAICompletionBackend(client).complete(prepared, **generation)
-
-        return asyncio.run(complete())
-
-    def measure_context(self, messages: Sequence[TurnInput], *, cancel: Event | None = None, **generation: object) -> ContextMeasurement:
-        """Measure tokens using the same activated connection as inference.
-
-        A dead endpoint pauses this call until the endpoint returns. It does
-        not raise for an unavailable endpoint.
-        """
-        from threading import Event
+    def measure_context(self, messages: Sequence[TurnInput], *, cancel: Event | None = None,
+                        settings: GenerationSettings = GenerationSettings()) -> ContextMeasurement:
         from pm.llm.context_window import measure_context
-        self.ensure_client(cancel=cancel)
-        with self.owner.use(self.connection):
-            return asyncio.run(measure_context(self.connection, messages, cancel if cancel is not None else Event(),
-                                               live_test=self.live_test, **generation))
+        return asyncio.run(measure_context(self.connection, messages, cancel if cancel is not None else Event(),
+                                           live_test=self.live_test, settings=settings))
 
-    def build_async_tool(self, *, cancel: Event | None = None) -> AsyncTextCompletion:
-        """Return an async completion callable for roles that run their own loop.
-
-        Activation happens now, when the tool is built on the module thread,
-        so the tool body only awaits an already-activated client. ``cancel``
-        also stops readiness waits before the tool exists.
-        """
-        self.ensure_client(cancel=cancel)
-
-        return AsyncModelTool(self, cancel)
-
-    def build_tool_completion(self, *, cancel: Event | None = None) -> ToolCompletion:
-        """Return an async tool-calling completion that preserves tool_calls.
-
-        Assistant dialogue needs the full assistant message, including any
-        requested tool calls. Activation happens when the tool is built.
-        ``cancel`` stops that activation when the owning workflow stops.
-        """
-        client = self.ensure_client(cancel=cancel)
-
-        async def complete_tool(messages: Sequence[TurnInput], tools=None, **generation: object) -> Completion:
-            selected_cancel = generation.get("cancel", cancel)
-            assert selected_cancel is None or isinstance(selected_cancel, Event)
-            if tools:
-                generation["tools"] = tools
-            messages = await self._preflight(messages, selected_cancel, generation)
-            last: EmptyCompletionError | None = None
-            for attempt in range(3):
-                try:
-                    result = await client.complete(messages, **generation)
-                    return result.completion()
-                except EmptyCompletionError as error:
-                    last = error
-                    if attempt == 2:
-                        raise
-                    await asyncio.sleep(0.3 * (attempt + 1))
-            raise last if last is not None else EmptyCompletionError("The model returned no content.")
-
-        return complete_tool
 
 
 __all__ = ["LazyStageModel", "complete_chat_with_retry", "complete_with_retry"]
-
-
-@dataclass(frozen=True)
-class AsyncModelTool:
-    """A measured asynchronous completion with an explicit owner cancellation event."""
-
-    model: LazyStageModel
-    owner_cancel: Event | None
-
-    async def __call__(self, turns: Sequence[TurnInput], /, *, cancel: Event | None = None,
-                       **generation: object) -> str:
-        generation["cancel"] = cancel if cancel is not None else self.owner_cancel
-        return await self.model._complete(turns, generation)
-
-    def measure_context(self, messages: Sequence[TurnInput], *, cancel: Event | None = None,
-                        **generation: object) -> ContextMeasurement:
-        return self.model.measure_context(messages, cancel=cancel if cancel is not None else self.owner_cancel, **generation)

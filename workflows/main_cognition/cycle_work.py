@@ -21,7 +21,10 @@ No phase writes the memory store. The host owns the store and the bus.
 """
 from __future__ import annotations
 
+from pm.memory.retrieval import RetrievalTrace
+
 from pm import vclock
+from pm.records.media import RecordImage
 
 from datetime import datetime
 
@@ -100,57 +103,62 @@ class CycleRequest(BaseModel):
     user_name: str = ""
     user_entity_id: int | None = None
     self_entity_id: int | None = None
-    entity_names: dict[int, str] = Field(default_factory=dict)
+    entity_names: dict[int, str] = Field(default_factory=dict[int, str])
     state_summary: str = ""
     previous_state: CycleState | None = None
     cycle_time: datetime = Field(default_factory=vclock.utcnow)
-    state_history: list[MentalStateSample] = Field(default_factory=list)
-    appraised_partner_input_ids: list[int] = Field(default_factory=list,
+    state_history: list[MentalStateSample] = Field(default_factory=list[MentalStateSample])
+    appraised_partner_input_ids: list[int] = Field(default_factory=list[int],
         description="This request's partner inputs already claimed by an earlier accepted main cycle.")
-    personality: PersonalityProfile = Field(default_factory=PersonalityProfile)
-    active_goals: list[str] = Field(default_factory=list)
-    stimuli: list[Stimulus] = Field(default_factory=list)
-    memory_candidates: list[MemoryCandidate] = Field(default_factory=list)
-    memory_trace: dict = Field(default_factory=dict)
-    capabilities: list[str] = Field(default_factory=list)
-    available_workflows: list[WorkflowOption] = Field(default_factory=list)
+    personality: PersonalityProfile = Field(default=PersonalityProfile(
+        openness=0.5, conscientiousness=0.5, extraversion=0.5, agreeableness=0.5, neuroticism=0.5,
+        bas_drive=0.5, bis_sensitivity=0.5, attachment_anxiety=0.5, attachment_avoidance=0.5,
+        affiliation_need=0.5, self_control=0.5, propriety_baseline=0.5, humor_playfulness=0.5,
+        warmth_expressive=0.5, bluntness_assertive=0.5))
+    active_goals: list[str] = Field(default_factory=list[str])
+    stimuli: list[Stimulus] = Field(default_factory=list[Stimulus])
+    memory_candidates: list[MemoryCandidate] = Field(default_factory=list[MemoryCandidate])
+    memory_trace: RetrievalTrace | None = None
+    capabilities: list[str] = Field(default_factory=list[str])
+    available_workflows: list[WorkflowOption] = Field(default_factory=list[WorkflowOption])
     public_context: PublicContext | None = None
-    situational_guidance: list[SituationalGuidance] = Field(default_factory=list)
+    situational_guidance: list[SituationalGuidance] = Field(default_factory=list[SituationalGuidance])
     early_triage: TriageResult | None = None
-    managed_runs: list[ManagedRunView] = Field(default_factory=list)
+    managed_runs: list[ManagedRunView] = Field(default_factory=list[ManagedRunView])
     # Inputs of the codelets phase. The module derives them from committed state.
-    stimulus_revisions: dict[int, int] = Field(default_factory=dict)
-    active_goal_records: list[GoalRecordView] = Field(default_factory=list)
+    stimulus_revisions: dict[int, int] = Field(default_factory=dict[int, int])
+    active_goal_records: list[GoalRecordView] = Field(default_factory=list[GoalRecordView])
     seconds_since_user_input: float | None = None
     character_card: str = ""
+    images: tuple[RecordImage, ...] = ()
     # Path of a codelet definitions file. Empty selects codelets.yaml.
     codelet_definitions: str = ""
     # A view of every record that the CSM can hold in this cycle: the items
     # of the previous CSM, the stimuli, the recent dialogue, and the memory
     # candidates. JSON stores the keys as text; validation restores ints.
-    records: dict[int, RecordView] = Field(default_factory=dict)
+    records: dict[int, RecordView] = Field(default_factory=dict[int, RecordView])
     # The last dialogue turns before the stimuli, oldest first.
-    recent_dialogue_ids: list[int] = Field(default_factory=list)
-    narrative_ids: list[int] = Field(default_factory=list)
-    streams: list[ShardStream] = Field(default_factory=list)
-    open_expectations: list[OpenExpectation] = Field(default_factory=list)
+    recent_dialogue_ids: list[int] = Field(default_factory=list[int])
+    narrative_ids: list[int] = Field(default_factory=list[int])
+    streams: list[ShardStream] = Field(default_factory=list[ShardStream])
+    open_expectations: list[OpenExpectation] = Field(default_factory=list[OpenExpectation])
     #: Stimuli that report an observed event. A thought, a reconsideration
     #: marker, or another derived stimulus is left out and moves no expectation.
-    observed_stimulus_ids: list[int] = Field(default_factory=list)
+    observed_stimulus_ids: list[int] = Field(default_factory=list[int])
     #: What the companion did since the last accepted review. The main host
     #: always sets it; None only in a request that never reaches the appraise
     #: or goals phase (grouping helpers, triage, the interaction fast path),
     #: and those phases raise when it is missing.
     interval_review: IntervalReview | None = None
     active_focus: FocusState | None = None
-    focus_proposals: list[FocusProposalRef] = Field(default_factory=list)
-    mental_proposals: list[MentalProposal] = Field(default_factory=list)
-    reflection_guidance: list[ReflectionGuidance] = Field(default_factory=list)
+    focus_proposals: list[FocusProposalRef] = Field(default_factory=list[FocusProposalRef])
+    mental_proposals: list[MentalProposal] = Field(default_factory=list[MentalProposal])
+    reflection_guidance: list[ReflectionGuidance] = Field(default_factory=list[ReflectionGuidance])
     wait_default_seconds: float = 1800
     #: Quiet window that a spoken reply arms. Zero means the operator disabled it.
     post_reply_seconds: float = 0.0
     #: Ordinary sources whose local action belongs to the interaction workflow.
-    interaction_source_ids: list[int] = Field(default_factory=list)
+    interaction_source_ids: list[int] = Field(default_factory=list[int])
 
 
 class CycleWork(BaseModel):
@@ -190,23 +198,23 @@ class CycleWork(BaseModel):
     request: CycleRequest = Field(default_factory=CycleRequest)
     state: CycleState = Field(default_factory=lambda: CycleState(tick_id=0))
     state_summary: str = ""
-    phases: list[PhaseReceipt] = Field(default_factory=list)
+    phases: list[PhaseReceipt] = Field(default_factory=list[PhaseReceipt])
     triage: TriageResult = Field(default_factory=TriageResult)
     appraisal: AppraisalResult = Field(default_factory=AppraisalResult)
     affect: AppraisalAffect = Field(default_factory=AppraisalAffect)
     context: ContextResult = Field(default_factory=ContextResult)
-    selected_memories: list[MemoryCandidate] = Field(default_factory=list)
+    selected_memories: list[MemoryCandidate] = Field(default_factory=list[MemoryCandidate])
     codelets: CodeletsResult = Field(default_factory=CodeletsResult)
     structures: StructuresResult = Field(default_factory=StructuresResult)
     attention: AttentionResult = Field(default_factory=AttentionResult)
-    expectations: list[ExpectationOutcome] = Field(default_factory=list)
+    expectations: list[ExpectationOutcome] = Field(default_factory=list[ExpectationOutcome])
     goals: GoalsResult = Field(default_factory=GoalsResult)
     experience: ExperienceResult = Field(default_factory=ExperienceResult)
-    routes: list[RoutedDecision] = Field(default_factory=list)
-    dispatches: list[ActionDispatch] = Field(default_factory=list)
+    routes: list[RoutedDecision] = Field(default_factory=list[RoutedDecision])
+    dispatches: list[ActionDispatch] = Field(default_factory=list[ActionDispatch])
     wait_request: WaitRequest | None = None
     summary: str = ""
-    records: dict[int, RecordView] = Field(default_factory=dict)
+    records: dict[int, RecordView] = Field(default_factory=dict[int, RecordView])
     last_pending_id: int = -1
 
     def appraisal_view(self) -> AppraisalView:

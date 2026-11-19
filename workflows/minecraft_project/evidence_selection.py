@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 
 from pm_workflows.python_role import RoleContext
+from workflows.minecraft_project.planning.context_contracts import SourceBinding, SourceRead
 from workflows.minecraft_body.journal import read_actor_journal
 from workflows.minecraft_body.call_outcomes import GameplayEvidence
 from workflows.minecraft_project.schemas import (
@@ -40,7 +41,7 @@ def dependency_scope(tree: TaskTree, targets: list[str]) -> set[str]:
     return selected
 
 
-def catalog(context: RoleContext, store: TreeStore) -> dict[str, dict[str, str]]:
+def catalog(context: RoleContext, store: TreeStore) -> dict[str, SourceBinding]:
     """Bind readable sources to exact paths and hashes without exposing secrets."""
     sources: dict[str, Path] = {}
     for folder in ("planning", "verification", "attempts"):
@@ -53,10 +54,9 @@ def catalog(context: RoleContext, store: TreeStore) -> dict[str, dict[str, str]]
     request_path = store.root / "inbox/request.yaml"
     if request_path.exists():
         sources["project_request"] = request_path
-    external = context.runtime.tools.get("minecraft_evidence_sources")
-    if external is not None:
-        sources.update({name: Path(path) for name, path in external().items()})
-    return {name: {"path": str(path.resolve()), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+    from workflows.minecraft.runtime import require_minecraft_runtime
+    sources.update(require_minecraft_runtime(context.runtime).evidence_sources)
+    return {name: SourceBinding(path=str(path.resolve()), sha256=hashlib.sha256(path.read_bytes()).hexdigest())
             for name, path in sources.items()}
 
 
@@ -73,12 +73,12 @@ def accepted_inputs(store: TreeStore, keys: set[str]) -> dict:
     return result
 
 
-def read_source(sources: dict[str, dict[str, str]], request: EvidenceRead) -> dict[str, object]:
+def read_source(sources: dict[str, SourceBinding], request: EvidenceRead) -> SourceRead:
     """Read numbered source lines; reject changed or undeclared original files."""
     binding = sources[request.source.replace("\\", "/")]
-    path = Path(binding["path"])
+    path = Path(binding.path)
     contents = path.read_bytes()
-    if hashlib.sha256(contents).hexdigest() != binding["sha256"]:
+    if hashlib.sha256(contents).hexdigest() != binding.sha256:
         raise ValueError("An original evidence source changed during inference: " + request.source)
     lines = contents.decode("utf-8-sig").splitlines()
     if request.query:
@@ -86,9 +86,8 @@ def read_source(sources: dict[str, dict[str, str]], request: EvidenceRead) -> di
         start = matches[0] if matches else len(lines)
     else:
         start = request.start_line - 1
-    return {"source": request.source, "sha256": binding["sha256"], "total_lines": len(lines),
-            "start_line": start + 1, "lines": lines[start:start + request.line_count],
-            "query": request.query}
+    return SourceRead(source=request.source, sha256=binding.sha256, total_lines=len(lines),
+        start_line=start + 1, lines=tuple(lines[start:start + request.line_count]), query=request.query)
 
 
 def review_nodes(store: TreeStore) -> list[Node]:

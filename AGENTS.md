@@ -23,7 +23,69 @@
 
 If a task-specific instruction conflicts with these rules, resolve the conflict explicitly. Do not silently choose the easier path for the coding agent.
 
+## 0A. Mandatory addendum: the owner must be able to debug the code
+
+**Debuggability is an acceptance requirement. Code that works but cannot be followed in the owner's Python IDE is not acceptable.** This requirement already exists above. This addendum makes its consequences explicit. It governs new code and revisions to existing code; existing violations are defects, not precedents to copy.
+
+The owner must be able to set a breakpoint at an operation, step through ordinary functions and methods, inspect named state, and follow the actual execution path. Understanding a model request must not require reconstructing a graph of closures, injected callables, string registrations, delegates, and generic runners.
+
+### Use direct calls and concrete objects
+
+- Write ordinary classes and functions with explicit, typed inputs and results. Put required dependencies and operation state in named, typed fields or parameters.
+- Call concrete methods directly. Pass the object that owns an operation, rather than extracting and passing its bound method as a delegate.
+- **Do not pass callbacks, delegates, function pointers, lambdas, or callable factories around to select internal application behavior.** Do not replace these with callable objects or a `Protocol.__call__` interface to evade this rule.
+- For a fixed set of operations, pass a domain `Enum` and dispatch explicitly with `match` or `if` in the owning class or function. Each branch calls a named implementation directly. Carry operation data in typed request objects.
+- Prefer a direct named method when the caller already knows the operation. Do not add enum dispatch where a direct call is sufficient.
+- Do not use dictionaries of functions, string-keyed tool bags, dynamic method lookup, or plugin-style registration for behavior owned by this repository.
+- Do not return closures that capture runtime dependencies. Use a concrete class with inspectable fields and a named method.
+- Do not attach capabilities or metadata to function objects, such as `complete.measure_context = measure`. Declare those capabilities as ordinary typed methods or fields on their owner.
+- Do not hide mutable operation state or required services in globals, closure cells, thread-local state, or implicit ambient context. Make ownership and lifetime visible.
+- External libraries may require callbacks or registration. Keep that mechanism inside a narrow, named boundary adapter, explain the external requirement, and call concrete application methods from it. This exception does not authorize callback-based internal orchestration.
+
+### Keep the execution path readable
+
+- A stack frame should represent a meaningful operation, ownership boundary, or necessary external adapter. Remove wrappers that only rename, forward, or repack the same call without owning a distinct responsibility.
+- Do not route a known Python operation through generic runners, kernels, dispatchers, or registries merely because that machinery exists. Establish the actual required semantics first. Preserve necessary scheduling, persistence, isolation, and cancellation behavior explicitly.
+- Do not bounce between synchronous and asynchronous execution through nested runners just to connect wrappers. Keep async boundaries explicit and located where execution actually requires them.
+- Use descriptive methods that the owner can navigate to and call. Do not make every useful operation private by habit or force inspection through a generic `invoke` interface.
+- Keep related steps together when that makes the operation easier to follow. Do not scatter a linear operation across many tiny forwarding helpers or build a giant class that owns unrelated subsystems.
+- Avoid generic names such as repeated `complete`, `run`, and `invoke` across adapter layers when a domain-specific name would explain the frame's actual responsibility.
+- Comments, diagrams, logs, and tracing do not compensate for opaque source control flow. Fix the code structure itself.
+
+### Make failures and intermediate state inspectable
+
+- Keep the request, selected operation, configuration, cancellation state, and intermediate results in meaningful typed variables or fields. The debugger must expose their contents without decoding anonymous dictionaries or captured callables.
+- For prompt construction and context fitting, expose the actual rendered input, context limit, reserved output budget, measured or estimated token counts, mandatory evidence, selected optional evidence, omissions, and reduction result through named contracts. Keep credentials out of diagnostics.
+- Separate context selection, compaction, rendering, measurement, model transport, and response parsing by their real responsibilities. Give each one a direct entry point and clear ownership; do not obscure them behind interchangeable completion wrappers.
+- Preserve the original traceback and exception cause. A failure must identify the operation and relevant values. Do not replace a useful exception with an unexplained generic stage failure.
+- Internal impossible requirements must fail at the boundary that can explain them. Retry transient external failures at the concrete owner of the external operation, with inspectable attempt state and cancellation.
+
+### Required review before calling implementation complete
+
+For each changed execution path, inspect the source and answer:
+
+1. Where does the operation start, and which concrete methods does it call?
+2. Can ordinary IDE navigation reach those implementations without resolving runtime registrations or callable values?
+3. At a breakpoint, are dependencies, inputs, intermediate state, and outputs visible as named, typed objects?
+4. Does each application wrapper or dispatch boundary own a necessary responsibility? Can a forwarding layer be removed?
+5. If the operation fails, does the traceback retain the cause and show where the first incorrect state arose?
+
+For runtime refactors, exercise the affected real path and inspect the resulting call stack and state when prerequisites are available. State explicitly when debugger or live-path verification was not performed. Passing tests, successful imports, or a plausible architecture explanation do not establish debuggability.
+
+**Do not reinterpret this requirement as a request for a more elaborate dependency-injection framework. The owner's chosen style is simple classes, explicit state, direct function and method calls, and enum dispatch where runtime selection is needed.** If a design requires departing from that style, present the concrete need and consequences before implementing it. Existing code does not grant an exception. This addendum does not authorize an unrelated whole-project rewrite.
+
 ## 1. What this repository is
+
+### Mandatory addendum: explicit function arguments
+
+- Do not use variadic argument bundles (`*args`, `**kwargs`) in application contracts or forward them between functions.
+- Every function signature must show exactly what the caller can pass. Name and type every parameter.
+- Do not use `object`, `Any`, or `Callable[..., object]` as placeholders for application inputs, results, or dependencies. Name the real domain type. Do not move an untyped argument bundle into a wrapper to evade this rule.
+- Put optional settings in a named Pydantic BaseModel or typed dataclass. Pass that settings object directly.
+- Anonymous dictionaries may exist only inside the function that creates them. Do not pass them to another application function or return them as structured results.
+- Use named BaseModels, dataclasses, or explicit existing domain contracts for structured inputs and outputs. Do not hide an argument bundle in a dictionary field or generic settings bag.
+- Real maps keyed by domain IDs remain valid domain structures. Foreign wire serialization belongs at the final external boundary; it does not justify passing anonymous mappings through application code.
+- These rules apply to new code and every execution path revised during a refactor. Existing violations are defects to remove, not patterns to copy.
 
 `private-machine` is a cognitive runtime and companion system built from independently understandable modules and workflows. Its long-term goal is consistent, immersive character simulation, not a chatbot with a role-play prompt. The same architecture may later support game NPCs and other persistent agents.
 

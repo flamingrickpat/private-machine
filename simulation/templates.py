@@ -17,8 +17,7 @@ from urllib.parse import urlsplit
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from pm.host.durable_files import atomic_json
-from pm.llm.structured import JsonOutputError
-from simulation.agents import Agents
+from simulation.agents import Agents, SimulationOperation
 from simulation.analysis import AnalysisSettings, analyze_run
 from simulation.actors import ActorProfile, load_profile, suggested_start
 from simulation.engine import ParticipantSelection, RunEngine
@@ -140,14 +139,7 @@ def generate_plan(template: SimulationTemplate, agents: Agents, profile: ActorPr
             director=settings, scene_times=times, target=template.participants[0].id,
             speaker=profile.speaker_name, companion=profile.companion_name, previous_scenes=steps)
 
-        def validate_day(value: ScenarioPlan) -> ScenarioPlan:
-            if len(value.steps) != len(times) or [step.at for step in value.steps] != times:
-                raise JsonOutputError("Use exactly the supplied scene_times, one scene per time, in order.")
-            if any(step.speaker != payload.speaker or step.target != payload.target for step in value.steps):
-                raise JsonOutputError("Use the supplied target and speaker for every scene.")
-            return value
-
-        daily = agents.call("plan_day",
+        daily = agents.call(SimulationOperation.DayPlan,
             "Plan only day_number of an eventful text-based AI companion simulation. The brief and director "
             "define the whole arc. Respect scheduled_events and previous_scenes. Create exactly one step at "
             "each supplied scene_time. Mix mundane chat, consequences, and developing story threads. "
@@ -160,14 +152,18 @@ def generate_plan(template: SimulationTemplate, agents: Agents, profile: ActorPr
             "from initial choices. Use event or commitment kinds, unique IDs, assigned fact_ids and semantic "
             "completion conditions. Not every exchange needs drama. Avoid checklist dialogue. "
             "start_time is the first scene_time. All timestamps retain the supplied UTC offset.",
-            payload, schema=ScenarioPlan, prepare=validate_day)
+            payload, schema=ScenarioPlan)
         prefix = f"d{day + 1}-"
         for fact in daily.facts:
-            facts.append(fact.model_copy(update={"id": prefix + fact.id}))
+            scoped_fact = fact.model_copy()
+            scoped_fact.id = prefix + fact.id
+            facts.append(scoped_fact)
         for step in daily.steps:
-            steps.append(step.model_copy(update={"id": prefix + step.id,
-                "fact_ids": [prefix + key for key in step.fact_ids],
-                "minimum_turns": settings.minimum_turns_per_scene}))
+            scoped_step = step.model_copy()
+            scoped_step.id = prefix + step.id
+            scoped_step.fact_ids = [prefix + key for key in step.fact_ids]
+            scoped_step.minimum_turns = settings.minimum_turns_per_scene
+            steps.append(scoped_step)
         atomic_json(agents.evidence / "planning-progress.json", {"completed_days": day + 1,
             "total_days": settings.duration_days, "steps": [step.model_dump(mode="json") for step in steps]})
     return ScenarioPlan(title=template.title, brief=template.brief, start_time=start,
@@ -176,10 +172,9 @@ def generate_plan(template: SimulationTemplate, agents: Agents, profile: ActorPr
 
 def create_run(template: SimulationTemplate, root: Path, config: str) -> RunEngine:
     """Create a run from an exact plan or real daily planner calls."""
-    template = template.model_copy(update={"participants": [
-        TemplateParticipant(id=item.id, home=str(Path(item.home).expanduser().resolve()),
-                            minecraft_mcp_url=item.minecraft_mcp_url)
-        for item in template.participants]})
+    template = template.model_copy()
+    template.participants = [TemplateParticipant(id=item.id, home=str(Path(item.home).expanduser().resolve()),
+        minecraft_mcp_url=item.minecraft_mcp_url) for item in template.participants]
     profile = load_profile(Path(template.participants[0].home))
     plan = template.plan
     if plan is None:
@@ -188,7 +183,9 @@ def create_run(template: SimulationTemplate, root: Path, config: str) -> RunEngi
                     for item in template.participants]
     edges = [{"source": item.source, "target": item.target, "name": item.name} for item in template.edges]
     engine = RunEngine.create(root, plan, participants, edges, config, time_multiplier=template.time_multiplier)
-    atomic_json(root / "template.json", template.model_copy(update={"plan": plan}).model_dump(mode="json"))
+    retained_template = template.model_copy()
+    retained_template.plan = plan
+    atomic_json(root / "template.json", retained_template.model_dump(mode="json"))
     atomic_json(root / "analysis-settings.json", template.analysis.model_dump(mode="json"))
     return engine
 

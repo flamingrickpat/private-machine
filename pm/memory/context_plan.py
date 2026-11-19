@@ -38,14 +38,15 @@ import math
 from array import array
 from collections import Counter
 from datetime import datetime
-from typing import Callable, Literal
+from dataclasses import dataclass
+from typing import Literal
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
 from pm.memory.embeddings import valid_vector
 from pm.records.base import RecordBase
-from pm.records.memory_records import Feature, MemoryClusterRecord, DeclarativeFactRecord, SemanticRecord
+from pm.records.memory_records import Feature, MemoryClusterRecord, DeclarativeFactRecord, SemanticRecord, Narrative
 from pm.memory.retrieval import distinctive_terms, record_text, utc_time
 
 
@@ -91,6 +92,11 @@ class LaneSpec(BaseModel):
     # Hard cap on this lane's budget regardless of redistribution.
     # None means no cap. Prevents a high-priority lane from absorbing all spare.
     max_tokens: int | None = Field(default=None, gt=0)
+    type_token_shares: dict[str, float] = Field(default_factory=dict[str, float])
+    type_item_limits: dict[str, int] = Field(default_factory=dict[str, int])
+    expand_topical_blocks: bool = False
+    expand_summary_children: bool = False
+
 
 
 class PlanSpec(BaseModel):
@@ -104,6 +110,30 @@ class PlanSpec(BaseModel):
     redistribution_rounds: int = Field(default=3, ge=0)
 
 
+class WeightedFocusText(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    weight: float
+    text: str
+
+
+class WeightedFocusVector(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    weight: float
+    vector: list[float]
+
+
+@dataclass(frozen=True, slots=True)
+class NormalizedFocusVector:
+    weight: float
+    vector: array[float]
+
+
+@dataclass(frozen=True, slots=True)
+class WeightedFocusTerm:
+    weight: float
+    term: str
+
+
 class Focus(BaseModel):
     """What the current workspace is about.
 
@@ -114,10 +144,23 @@ class Focus(BaseModel):
     """
 
     model_config = ConfigDict(extra="forbid")
-    texts: list[tuple[float, str]] = Field(default_factory=list)
-    vectors: list[tuple[float, list[float]]] = Field(default_factory=list)
-    required_ids: list[int] = Field(default_factory=list)
-    exclude_ids: list[int] = Field(default_factory=list)
+    texts: list[WeightedFocusText] = Field(default_factory=list[WeightedFocusText])
+    vectors: list[WeightedFocusVector] = Field(default_factory=list[WeightedFocusVector])
+    required_ids: list[int] = Field(default_factory=list[int])
+    exclude_ids: list[int] = Field(default_factory=list[int])
+
+
+class CompetingRecord(BaseModel):
+    id: int
+    score: float | None
+    reason: Literal["similar", "budget"]
+    tokens: int | None = None
+
+
+class BudgetRedistribution(BaseModel):
+    round: int
+    spare: int
+    to: str
 
 
 class LanePlan(BaseModel):
@@ -126,11 +169,11 @@ class LanePlan(BaseModel):
     name: str
     budget: int
     used: int = 0
-    ids: list[int] = Field(default_factory=list)
+    ids: list[int] = Field(default_factory=list[int])
     candidates: int = 0
     exhausted: bool = False
-    scores: dict[int, float] = Field(default_factory=dict)
-    competing: list[dict] = Field(default_factory=list)
+    scores: dict[int, float] = Field(default_factory=dict[int, float])
+    competing: list[CompetingRecord] = Field(default_factory=list[CompetingRecord])
 
 
 class ContextPlan(BaseModel):
@@ -138,7 +181,7 @@ class ContextPlan(BaseModel):
 
     spec: str
     lanes: list[LanePlan]
-    rounds: list[dict] = Field(default_factory=list)
+    rounds: list[BudgetRedistribution] = Field(default_factory=list[BudgetRedistribution])
 
     def lane(self, name: str) -> LanePlan:
         return next(item for item in self.lanes if item.name == name)
@@ -180,9 +223,12 @@ def _matches(raw: RecordBase, lane: LaneSpec) -> bool:
 def _latest_per(keys: list[int], records: dict[int, RecordBase], fields: list[str]) -> list[int]:
     if not fields:
         return keys
-    newest: dict[tuple, int] = {}
+    newest: dict[tuple[str, int | None], int] = {}
     for key in keys:
-        group = tuple(str(getattr(records[key], field, "")) for field in fields)
+        record = records[key]
+        if fields != ["narrative_type", "entity_id"] or not isinstance(record, Narrative):
+            raise ValueError(f"Unsupported latest-per context grouping: {fields} for {record.type}.")
+        group = (record.narrative_type, record.entity_id)
         if group not in newest or (_timestamp(records[key]), key) > (_timestamp(records[newest[group]]), newest[group]):
             newest[group] = key
     kept = set(newest.values())
@@ -193,21 +239,21 @@ class _Scorer:
     """Score records against one focus. Lexical weights use inverse frequency."""
 
     def __init__(self, records: dict[int, RecordBase], focus: Focus,
-                 vector_of: Callable[[int], list[float] | None], now: datetime) -> None:
+                 vectors: dict[int, list[float] | None], now: datetime) -> None:
         self.records = records
         self.focus = focus
-        self.vector_of = vector_of
+        self.vectors = vectors
         # One plan owns a frozen record view. Keep vectors and semantic scores
         # across its lanes and budget rounds. A new plan gets fresh caches.
         self._vectors: dict[int, array[float] | None] = {}
         self._semantic: dict[int, float] = {}
-        self._queries = [(weight, self._normalized(vector)) for weight, vector in focus.vectors]
+        self._queries = [NormalizedFocusVector(query.weight, self._normalized(query.vector)) for query in focus.vectors]
         self.now = now
-        self.terms = [(weight, term) for weight, text in focus.texts for term in distinctive_terms(text)]
+        self.terms = [WeightedFocusTerm(query.weight, term) for query in focus.texts for term in distinctive_terms(query.text)]
         texts = {key: record_text(raw).casefold() for key, raw in records.items()}
         self.texts = texts
-        frequency = Counter(term for _, term in self.terms for text in texts.values() if term in text)
-        self.idf = {term: math.log(1 + len(texts) / (1 + frequency[term])) for _, term in self.terms}
+        frequency = Counter(item.term for item in self.terms for text in texts.values() if item.term in text)
+        self.idf = {item.term: math.log(1 + len(texts) / (1 + frequency[item.term])) for item in self.terms}
         self.lexical_max = max((self._lexical_raw(key) for key in texts), default=1.0) or 1.0
 
     @staticmethod
@@ -220,13 +266,13 @@ class _Scorer:
     def _vector(self, key: int) -> array[float] | None:
         """Read each record vector once during this frozen plan."""
         if key not in self._vectors:
-            vector = self.vector_of(key)
+            vector = self.vectors[key]
             self._vectors[key] = self._normalized(vector) if vector is not None else None
         return self._vectors[key]
 
     def _lexical_raw(self, key: int) -> float:
         text = self.texts.get(key, "")
-        return sum(weight * self.idf[term] for weight, term in self.terms if term in text)
+        return sum(item.weight * self.idf[item.term] for item in self.terms if item.term in text)
 
     def similar(self, key: int, chosen: list[int], threshold: float) -> bool:
         """Return whether a candidate repeats selected text or a unit vector.
@@ -262,8 +308,8 @@ class _Scorer:
     def score(self, key: int, weights: LaneWeights) -> float:
         if key not in self._semantic:
             vector = self._vector(key)
-            total = sum(weight for weight, _ in self._queries) or 1.0
-            self._semantic[key] = (sum(weight * math.sumprod(vector, query) for weight, query in self._queries) / total
+            total = sum(query.weight for query in self._queries) or 1.0
+            self._semantic[key] = (sum(query.weight * math.sumprod(vector, query.vector) for query in self._queries) / total
                                    if vector is not None and self._queries else 0.0)
         semantic = self._semantic[key]
         lexical = self._lexical_raw(key) / self.lexical_max
@@ -276,8 +322,32 @@ class _Scorer:
         return round(value, 6)
 
 
+def selection_group(key: int, lane: LaneSpec, pool: set[int], records: dict[int, RecordBase],
+                    already_selected: set[int]) -> list[int]:
+    from pm.records.enums import ClusterType
+    record = records[key]
+    if isinstance(record, MemoryClusterRecord) and lane.expand_summary_children:
+        references = record.included_event_ids or record.included_cluster_ids
+        if references is None:
+            raise ValueError(f"Cluster {key} has no child references to expand.")
+        children = [int(value.strip()) for value in references.split(",") if value.strip()]
+        if all(child in pool or child in already_selected for child in children):
+            return [child for child in children if child not in already_selected]
+    if lane.expand_topical_blocks:
+        for cluster_id in sorted(records):
+            cluster = records[cluster_id]
+            if not isinstance(cluster, MemoryClusterRecord) or cluster.cluster_type is not ClusterType.Topical:
+                continue
+            if cluster.included_event_ids is None:
+                raise ValueError(f"Topical cluster {cluster_id} has no event references.")
+            children = [int(value.strip()) for value in cluster.included_event_ids.split(",") if value.strip()]
+            if key in children and all(child in pool or child in already_selected for child in children):
+                return [child for child in children if child not in already_selected]
+    return [key]
+
+
 def _run_pass(records: dict[int, RecordBase], spec: PlanSpec, budgets: dict[str, int], scorer: _Scorer,
-              tokens_of: Callable[[int], int]) -> list[LanePlan]:
+              token_costs: dict[int, int]) -> list[LanePlan]:
     """Run every lane once with the given budgets."""
     excluded = {int(key) for key in scorer.focus.exclude_ids}
     required = [int(key) for key in scorer.focus.required_ids if int(key) in records and int(key) not in excluded]
@@ -294,14 +364,15 @@ def _run_pass(records: dict[int, RecordBase], spec: PlanSpec, budgets: dict[str,
             pool = [key for key in pool if _end_timestamp(records[key]) < boundary]
         pool = _latest_per(pool, records, lane.latest_per)
         plan.candidates = len(pool)
+        chosen: list[int]
         if lane.temporal_mode == "preserve_history":
-            chosen = _run_preserve_history_lane(lane, pool, records, scorer, tokens_of, plan)
+            chosen = _run_preserve_history_lane(lane, pool, records, scorer, token_costs, plan)
         elif lane.select == "recent":
             ranked = sorted(pool, key=lambda key: (_timestamp(records[key]), key), reverse=True)
             chosen = []
             budget_limited = False
             for key in ranked:
-                cost = tokens_of(key)
+                cost = token_costs[key]
                 if plan.used + cost > plan.budget:
                     budget_limited = True
                     break
@@ -315,14 +386,27 @@ def _run_pass(records: dict[int, RecordBase], spec: PlanSpec, budgets: dict[str,
             budget_limited = False
             for key in ranked:
                 if lane.max_similarity is not None and scorer.similar(key, chosen, lane.max_similarity):
-                    plan.competing.append({"id": key, "score": plan.scores.get(key), "reason": "similar"})
+                    plan.competing.append(CompetingRecord(id=key, score=plan.scores.get(key), reason="similar"))
                     continue
-                cost = tokens_of(key)
-                if plan.used + cost > plan.budget:
+                if key in chosen:
+                    continue
+                group = selection_group(key, lane, set(pool), records, used_ids | set(chosen))
+                cost = sum(token_costs[record_id] for record_id in group)
+                type_tokens: dict[str, int] = {}
+                type_items: dict[str, int] = {}
+                for record_id in [*chosen, *group]:
+                    record_type = records[record_id].type.value
+                    type_tokens[record_type] = type_tokens.get(record_type, 0) + token_costs[record_id]
+                    type_items[record_type] = type_items.get(record_type, 0) + 1
+                exceeds_type_budget = any(type_tokens.get(record_type, 0) > int(plan.budget * share)
+                                          for record_type, share in lane.type_token_shares.items())
+                exceeds_type_count = any(type_items.get(record_type, 0) > limit
+                                         for record_type, limit in lane.type_item_limits.items())
+                if plan.used + cost > plan.budget or exceeds_type_budget or exceeds_type_count:
                     budget_limited = True
-                    plan.competing.append({"id": key, "score": plan.scores.get(key), "tokens": cost, "reason": "budget"})
+                    plan.competing.append(CompetingRecord(id=key, score=plan.scores.get(key), tokens=cost, reason="budget"))
                     continue
-                chosen.append(key)
+                chosen.extend(group)
                 plan.used += cost
             plan.exhausted = not budget_limited
             plan.competing = plan.competing[:8]
@@ -335,7 +419,7 @@ def _run_pass(records: dict[int, RecordBase], spec: PlanSpec, budgets: dict[str,
 
 
 def _run_preserve_history_lane(lane: LaneSpec, pool: list[int], records: dict[int, RecordBase],
-                               scorer: _Scorer, tokens_of: Callable[[int], int],
+                               scorer: _Scorer, token_costs: dict[int, int],
                                plan: LanePlan) -> list[int]:
     """Select records for a preserve_history lane using the temporal DP solver.
 
@@ -345,67 +429,57 @@ def _run_preserve_history_lane(lane: LaneSpec, pool: list[int], records: dict[in
     from pm.records.memory_records import Feature, MemoryClusterRecord
     from pm.records.enums import ClusterType
 
-    features = [records[key] for key in pool if isinstance(records[key], Feature) and records[key].causal]
-    summaries = [records[key] for key in pool
-                 if isinstance(records[key], MemoryClusterRecord) and records[key].cluster_type == ClusterType.Temporal]
+    features: list[Feature] = []
+    summaries: list[MemoryClusterRecord] = []
+    for key in pool:
+        record = records[key]
+        if isinstance(record, Feature) and record.causal:
+            features.append(record)
+        elif isinstance(record, MemoryClusterRecord) and record.cluster_type == ClusterType.Temporal:
+            summaries.append(record)
     if not features:
         plan.exhausted = True
         return []
     # Use the first focus vector as the relevance query for the DP solver.
     embedding: list[float] | None = None
     if scorer.focus.vectors:
-        embedding = scorer.focus.vectors[0][1]
+        embedding = scorer.focus.vectors[0].vector
     if embedding is None:
         # No embedding available: fall back to greedy score selection.
         plan.scores = {key: scorer.score(key, lane.weights) for key in pool}
         ranked = sorted(pool, key=lambda key: (-plan.scores[key], -key))
         chosen: list[int] = []
         for key in ranked:
-            cost = tokens_of(key)
+            cost = token_costs[key]
             if plan.used + cost > plan.budget:
                 break
             chosen.append(key)
             plan.used += cost
         plan.exhausted = len(chosen) >= len(pool)
         return chosen
-    try:
-        selected = build_temporal_context(
-            features=features,
-            temporal_summaries=summaries,
-            embedding=embedding,
-            ratio=lane.raw_ratio,
-            max_tokens=plan.budget,
-            vector_of=scorer.vector_of,
-            require_temporal_history=True,
-            require_contiguous_temporal_span=True,
-            run_final_checks=False,
-        )
-    except Exception:
-        # Solver failure: fall back to greedy score selection.
-        plan.scores = {key: scorer.score(key, lane.weights) for key in pool}
-        ranked = sorted(pool, key=lambda key: (-plan.scores[key], -key))
-        chosen = []
-        for key in ranked:
-            cost = tokens_of(key)
-            if plan.used + cost > plan.budget:
-                break
-            chosen.append(key)
-            plan.used += cost
-        plan.exhausted = len(chosen) >= len(pool)
-        return chosen
+    selected = build_temporal_context(
+        features=features,
+        temporal_summaries=summaries,
+        embedding=embedding,
+        ratio=lane.raw_ratio,
+        max_tokens=plan.budget,
+        vectors=scorer.vectors,
+        token_costs=token_costs,
+        require_temporal_history=True,
+        require_contiguous_temporal_span=True,
+        run_final_checks=True,
+    )
     chosen = [item.id for item in selected]
-    plan.used = sum(tokens_of(key) for key in chosen)
-    # The DP uses its own tiktoken count. The caller adds per-record overhead.
-    # Trim from the least-relevant end if the caller's count exceeds the budget.
-    while plan.used > plan.budget and len(chosen) > 1:
-        removed = chosen.pop() if lane.order == "time" else chosen.pop(0)
-        plan.used -= tokens_of(removed)
-    plan.exhausted = True  # The DP solver fills the budget optimally.
+    plan.used = sum(token_costs[key] for key in chosen)
+    if plan.used > plan.budget:
+        from pm.context_render.budget import RequiredContextTooLarge
+        raise RequiredContextTooLarge(f"History selection uses {plan.used} tokens; lane budget is {plan.budget}.")
+    plan.exhausted = len(chosen) >= len(pool)
     return chosen
 
 
 def plan_context(records: dict[int, RecordBase], spec: PlanSpec, focus: Focus, *,
-                 vector_of: Callable[[int], list[float] | None], tokens_of: Callable[[int], int],
+                 vectors: dict[int, list[float] | None], token_costs: dict[int, int],
                  now: datetime, total_tokens: int | None = None) -> ContextPlan:
     """Plan all lanes, then move unused budget to priority lanes and plan again.
 
@@ -422,11 +496,11 @@ def plan_context(records: dict[int, RecordBase], spec: PlanSpec, focus: Focus, *
     for name in [*spec.priority, *(lane.before_lane for lane in spec.lanes if lane.before_lane)]:
         if name not in names:
             raise ValueError(f"Plan {spec.name} names unknown lane {name}.")
-    scorer = _Scorer(records, focus, vector_of, now)
+    scorer = _Scorer(records, focus, vectors, now)
     total = total_tokens if total_tokens is not None else spec.total_tokens
     budgets = {lane.name: min(int(total * lane.budget_share), lane.max_tokens) if lane.max_tokens else int(total * lane.budget_share) for lane in spec.lanes}
-    rounds: list[dict] = []
-    lanes = _run_pass(records, spec, budgets, scorer, tokens_of)
+    rounds: list[BudgetRedistribution] = []
+    lanes = _run_pass(records, spec, budgets, scorer, token_costs)
     for round_index in range(spec.redistribution_rounds):
         # Only redistribute budget from lanes that genuinely cannot use more:
         # no candidates, or all candidates already selected. Lanes exhausted
@@ -456,8 +530,8 @@ def plan_context(records: dict[int, RecordBase], spec: PlanSpec, focus: Focus, *
             if add > 0:
                 budgets[name] += add
                 remaining -= add
-        rounds.append({"round": round_index + 1, "spare": spare, "to": hungry[0]})
-        lanes = _run_pass(records, spec, budgets, scorer, tokens_of)
+        rounds.append(BudgetRedistribution(round=round_index + 1, spare=spare, to=hungry[0]))
+        lanes = _run_pass(records, spec, budgets, scorer, token_costs)
     return ContextPlan(spec=spec.name, lanes=lanes, rounds=rounds)
 
 

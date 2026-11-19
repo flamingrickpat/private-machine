@@ -1,24 +1,89 @@
 """Provide a task group's draft tools and validator to a native session."""
 from __future__ import annotations
+from workflows.minecraft.runtime import require_minecraft_runtime
+from pm.runs.managed_boundary import BoundaryReadSettings
 
 from contextlib import nullcontext
-from dataclasses import replace
+from dataclasses import replace, dataclass
+from pydantic import BaseModel, JsonValue, TypeAdapter
+from pm.llm.session import ModelSession
+from pm.context_render.prompt import RenderSettings
+from workflows.minecraft_project.planning.context_contracts import PlanningContext, ArchiveReference, SourceBinding, SourceRead, DecisionIdentity
 import json
 
 from pm.runs.draft_session import run_draft_session
-from pm.memory.agent_tools import MemoryReadSession
+from pm.runs.role_runtime import PMWorkflowRuntime
+from pm.memory.agent_tools import MemoryReadSession, MemoryTraceFile
 from workflows.minecraft_body.gateway import READ_TOOLS
 from workflows.minecraft_body.lease import BODY_LEASES
 from workflows.minecraft_project.evidence_selection import catalog, read_source
 from pm_workflows.python_role import RoleContext
 from workflows.minecraft_project.schemas import EvidenceRead, PlanProposal
-from workflows.minecraft_project.planning.draft import TaskDraft
-from workflows.minecraft_project.planning.run_context import identity, InstructionsChanged, RESOURCES
-from workflows.minecraft_project.planning.decisions import native_decision_context
-from pm.context_render import render_context
+from workflows.minecraft_project.planning.draft import TaskDraft, DraftSettings, PlanningBoundary
+from workflows.minecraft_project.planning.run_context import identity
+from workflows.minecraft_project.planning.context_selection import native_decision_context
+from workflows.minecraft_project.tree_store import TreeStore
+from pm.llm.role_model import role_model
+from pm.context_render.prompt import RendererCapture, RendererInput
+from workflows.minecraft_body.planning_prompt import MinecraftActionTool
+from workflows.minecraft_body.world_text import world_result_text, foreign_operands_text
+from workflows.minecraft_project.planning.context_sources import decision_identity
+from workflows.minecraft_project.planning.rendering import (ProjectDecisionRenderInput, render_project_decision, NativePlannerRenderInput, render_native_planner)
 
 
-def plan_session(context: RoleContext, store: TreeStore, payload: dict[str, object],
+
+class WorldReadRequest(BaseModel):
+    tool: str
+    arguments: dict[str, JsonValue]
+
+
+class NativePlanningInput(BaseModel):
+    identity: DecisionIdentity
+    context: PlanningContext
+    mode: str = "native_mcp_draft"
+
+
+@dataclass(slots=True)
+class NativePlanningTools:
+    boundary: PlanningBoundary
+    model: ModelSession
+    render_settings: RenderSettings
+    context_input: ProjectDecisionRenderInput
+    sources: dict[str, SourceBinding]
+
+    def plan_context(self) -> str:
+        with RendererCapture(self.model.capture_settings("minecraft.native_context"),
+                RendererInput("minecraft.native_context", self.context_input, self.render_settings)) as capture:
+            rendered = render_project_decision(self.context_input, self.render_settings)
+            capture.save_output(rendered)
+        return rendered.turns[1].content.text
+
+    def world_read(self, request: WorldReadRequest) -> str:
+        self.boundary.check_current()
+        if request.tool not in READ_TOOLS:
+            raise ValueError("Planning requires a read-only tool. Read world_contracts for its exact schema.")
+        runtime = self.boundary.runtime
+        with BODY_LEASES.command(require_minecraft_runtime(runtime).minecraft_transport.settings.endpoint, runtime.stop_event):
+            reply = require_minecraft_runtime(runtime).minecraft_transport.call(request.tool, request.arguments)
+        self.boundary.check_current()
+        wire = TypeAdapter[dict[str, JsonValue]](dict[str, JsonValue]).validate_python(reply)
+        if not wire["ok"]:
+            return "Read failed: " + foreign_operands_text(wire)
+        return world_result_text(request.tool, wire["result"])
+
+    def world_contracts(self) -> tuple[MinecraftActionTool, ...]:
+        return tuple(row for row in require_minecraft_runtime(self.boundary.runtime).minecraft_transport.tool_schemas() if row.name in READ_TOOLS)
+
+    def evidence_list(self) -> tuple[str, ...]:
+        return tuple(sorted(self.sources))
+
+    def evidence_read(self, request: EvidenceRead) -> SourceRead:
+        self.boundary.check_current()
+        if request.source.replace("\\", "/") not in self.sources:
+            raise ValueError("Unknown source. Read evidence_list for its exact name.")
+        return read_source(self.sources, request)
+
+def plan_session(context: RoleContext, store: TreeStore, payload: PlanningContext,
                  *, scope: set[str] | None = None) -> PlanProposal:
     """Edit a retained draft through MCP and validate each completed turn.
 
@@ -27,69 +92,42 @@ def plan_session(context: RoleContext, store: TreeStore, payload: dict[str, obje
     commit, independent review, and world verification can release an actor.
     """
     runtime = context.runtime
+    if runtime is None:
+        raise RuntimeError("Minecraft planning requires its workflow runtime.")
     name = f"decisions/{len(store.state['decisions']) + 1:04d}-planner"
-    store.write(name + "/input.json", {"identity": identity(context, store), "context": payload,
-                                       "mode": "native_mcp_draft"})
+    store.write(name + "/input.json", NativePlanningInput(identity=decision_identity(context, store), context=payload))
     store.state["decisions"].append({"role": "planner", "path": name, "identity": identity(context, store)})
     store.save()
-    instruction_revision = runtime.tools["managed_instructions"]()["revision"]
+    instruction_revision = require_minecraft_runtime(runtime).instructions()["revision"]
 
-    def check_current() -> None:
-        """Refuse a cancelled run or a project instruction that changed mid-session."""
-        runtime.check_cancelled()
-        if runtime.tools["managed_instructions"]()["revision"] != instruction_revision:
-            raise InstructionsChanged("Project instructions changed during planning. Retain effects and read the new request.")
-
-    draft = TaskDraft(store, payload["goal"], lambda value: store.write(name + "/draft.json", value),
-        check_current, base=store.load() if store.state["revision"] else None, scope=scope,
-        refinement_target=payload.get("refinement_target", ""))
+    boundary = PlanningBoundary(runtime, instruction_revision)
+    draft = TaskDraft(store, payload.goal, name + "/draft.json", boundary,
+        DraftSettings(base=store.load() if store.state["revision"] else None,
+            scope=frozenset(scope) if scope is not None else None,
+            refinement_target=payload.refinement_target,
+            require_leaf_change=bool(store.state.get("require_leaf_change", False))))
     server = draft.server()
     archive = f"planning/context/{len(store.state['decisions']):04d}-full-input.json"
     store.write(archive, payload)
     sources = catalog(context, store)
     selected_context = native_decision_context(payload)
-    selected_context["context_archive"] = {"original_receipt": archive, "catalog_source": archive}
+    selected_context.context_archive = ArchiveReference(original_receipt=archive, catalog_source=archive)
 
-    @server.tool()
-    def plan_context() -> str:
-        """Read the current request, observations, history, and repair feedback."""
-        return render_context(selected_context, schema_path=RESOURCES / "llm_context.json").text
-
-    @server.tool()
-    def world_read(tool: str, arguments: dict = {}) -> str:
-        """Obtain current read-only Minecraft facts. This planner cannot mutate the world."""
-        check_current()
-        if tool not in READ_TOOLS:
-            return render_context({"ok": False,
-                "error": "Planning uses read-only tools. Use world_contracts to read their actual schemas."},
-                schema_path=RESOURCES / "llm_context.json").text
-        with BODY_LEASES.command(runtime.tools["minecraft_endpoint"](), runtime.stop_event):
-            reply = runtime.tools["minecraft_call"](tool, arguments)
-        check_current()
-        return render_context(reply, schema_path=RESOURCES / "llm_context.json").text
-
-    @server.tool()
-    def world_contracts() -> list[dict]:
-        """Read the configured schemas for allowed world observations."""
-        return [row for row in runtime.tools["minecraft_tool_schemas"]() if row["name"] in READ_TOOLS]
-
-    @server.tool()
-    def evidence_list() -> list[str]:
-        """List original evidence sources that this planning group can inspect."""
-        return sorted(sources)
-
-    @server.tool()
-    def evidence_read(source: str, start_line: int = 1, line_count: int = 100, query: str = "") -> dict:
-        """Read numbered original source lines without reconstructing their contents."""
-        check_current()
-        if source.replace("\\", "/") not in sources:
-            return {"ok": False, "error": "Unknown source. Use evidence_list to read its exact name."}
-        return read_source(sources, EvidenceRead(source=source, start_line=start_line, line_count=line_count, query=query))
+    session_model = role_model(runtime)
+    render_settings = session_model.render_settings()
+    context_input = ProjectDecisionRenderInput("Minecraft native context",
+        "Read these original task facts and technical operands.", (), context=selected_context, native=True)
+    tools = NativePlanningTools(boundary, session_model, render_settings, context_input, sources)
+    server.tool()(tools.plan_context)
+    server.tool()(tools.world_read)
+    server.tool()(tools.world_contracts)
+    server.tool()(tools.evidence_list)
+    server.tool()(tools.evidence_read)
 
     prompt = (
         "You are the companion's private Minecraft planner. Use the project_plan MCP tools to edit the task draft. "
         "Read plan_context and task_list first. You do not need to return a JSON tree or reproduce unchanged nodes. "
-        "Input tables use table_fields and table_rows: zip each row with its fields. Input positions use [x,y,z]. "
+
         "Use ordinary condition objects for edits. Full context remains in context_archive through evidence_read. "
         "The backend assigns new IDs, parent links, and revision counters. task_edit changes only named fields. "
         "condition_set accepts an inclusive box for exact rectangular block cells. condition_copy preserves exact operands. "
@@ -117,24 +155,27 @@ def plan_session(context: RoleContext, store: TreeStore, payload: dict[str, obje
         "If no preference is available, choose a practical option within the current request. "
         "Match planning effort to this task's consequences and requested review mode. "
         "For a small reversible task, prefer one useful executable leaf over speculative future phases. "
-        "Current goal: " + payload["goal"])
+        "")
+    initial_input = NativePlannerRenderInput(prompt, payload.goal)
+    with RendererCapture(session_model.capture_settings("minecraft.native_planner"),
+            RendererInput("minecraft.native_planner", initial_input, render_settings)) as capture:
+        initial_prompt = render_native_planner(initial_input, render_settings)
+        capture.save_output(initial_prompt)
+    prompt = initial_prompt.turns[0].content.text
     session = (nullcontext(runtime.agent_model) if runtime.agent_model is not None else
                runtime.classification_session("Default", False, runtime.stop_event))
     memory = None
-    if "memory_config" in runtime.tools:
-        def trace(row: dict[str, object]) -> None:
-            """Journal one memory access beside this planning decision."""
-            with store.path_for(name + "/memory.jsonl").open("a", encoding="utf-8") as journal:
-                journal.write(json.dumps(row, ensure_ascii=False) + "\n")
-        memory = MemoryReadSession(replace(runtime.tools["memory_config"](), trace=trace))
+    if isinstance(runtime, PMWorkflowRuntime) and runtime.memory_context is not None:
+        memory = MemoryReadSession(replace(runtime.memory_context.create(),
+            trace=MemoryTraceFile(store.path_for(name + "/memory.jsonl"))))
     # Each group receives a fresh grant. Native child processes receive only
     # its read listener. Cleanup revokes access before another group starts.
     with (memory if memory is not None else nullcontext()), session as model:
         result = run_draft_session(replace(runtime, agent_model=replace(model, enable_thinking=True)),
             run_id=context.task_id + "-" + name.replace("/", "-"), prompt=prompt, servers={"project_plan": server},
-            validate=draft.validate, artifact_dir=store.path_for(name + "/native"), memory=memory)
+            validator=draft, artifact_dir=store.path_for(name + "/native"), memory=memory)
         revisions = dict(memory.accessed) if memory is not None else {}
-    check_current()
+    boundary.check_current()
     store.write(name + "/output.json", result.value.model_dump(mode="json"))
     store.write(name + "/session.json", {"session_ref": result.session_ref,
         "validation_attempts": result.validation_attempts, "mode": "native_mcp_draft"})

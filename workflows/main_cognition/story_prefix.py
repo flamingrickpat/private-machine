@@ -23,21 +23,22 @@ record ids and no embeddings.
 """
 from __future__ import annotations
 
+from dataclasses import replace
+from uuid import uuid4
+from pm.context_render.prompt import RenderSettings, RendererCaptureSettings, RendererCapture, RendererInput
+from workflows.main_cognition.rendering import CognitionShardInput, CognitionStoryInput, render_cognition_story, cognition_story_turns, render_cognition_guidance
+
 from pm.context_render.story import (
     RecordView, shard_block_text, shard_name, story_entity_names, story_shards,
 )
-from pm.context_render.turns import Role, Turn, format_content
+from pm.context_render.turns import Turn
 from pm.records.workspace import SELF_SHARD, ShardKey, WorkspaceShard
 
 from workflows.main_cognition.codelet_registry import fill
 from workflows.main_cognition.csm_view import render_story
 from workflows.main_cognition.cycle_work import CycleRequest, CycleWork
-from workflows.main_cognition.model_json import PhasePrompts
+from workflows.main_cognition.prompt_config import PhasePrompts
 from workflows.main_cognition.phases.model import phase_prompts
-from workflows.public_speech.situational_guidance import render_situational_guidance
-from workflows.main_cognition.prompt_context import shard_content
-from pm.context_render.turns import Content
-from workflows.main_cognition.context_reduction import evidence_text
 
 
 def shard_label(key: ShardKey, request: CycleRequest) -> str:
@@ -49,7 +50,7 @@ def shard_label(key: ShardKey, request: CycleRequest) -> str:
     lives in :func:`pm.context_render.story.shard_name`, which the memory
     inspector calls with the names of the checkpoint.
     """
-    return shard_name(key, user_entity_id=request.user_entity_id, user_name=request.user_name,
+    return shard_name(key, user_entity_id=request.user_entity_id or 0, user_name=request.user_name,
                       entity_names=request.entity_names)
 
 
@@ -84,7 +85,7 @@ def story_entities(work: CycleWork) -> str:
     :func:`pm.context_render.story.story_entity_names`.
     """
     return story_entity_names([group.key for group in work.state.stimulus_groups],
-                              user_entity_id=work.request.user_entity_id, user_name=work.request.user_name,
+                              user_entity_id=work.request.user_entity_id or 0, user_name=work.request.user_name,
                               entity_names=work.request.entity_names)
 
 
@@ -143,7 +144,8 @@ class StoryPrefix:
     """
 
     def __init__(self, work: CycleWork, prompts: PhasePrompts | None = None,
-                 group: ShardKey | None = None) -> None:
+                 group: ShardKey | None = None, *, settings: RenderSettings,
+                 capture_settings: RendererCaptureSettings | None = None, select_context: bool = True) -> None:
         """Build the prefix of the whole moment, or with ``group`` the prefix of one stimulus group.
 
         The prefix of one group shows the self shard and that group's shard,
@@ -159,12 +161,7 @@ class StoryPrefix:
         self.entity = story_entities(work) if group is None else (
             shard_label(group, request) if group.kind == "entity" else request.user_name)
         hidden = set(work.experience.hidden_for(group))
-        blocks = Content("")
-        for position, shard in enumerate(shown_shards(work, group)):
-            if position:
-                blocks += "\n\n"
-            blocks += shard_content(shard, work.records, self.prompts, shard_label(shard.key, request),
-                                    self.companion, [record_id for record_id in shard.tail_ids if record_id not in hidden])
+        shards = shown_shards(work, group)
         new_ids = [record_id for item in groups for record_id in item.stimulus_ids] if group is not None else [
             item.knoxel_id for item in request.stimuli]
         system = self.fill(self.prompts.system_prompt).strip()
@@ -173,19 +170,29 @@ class StoryPrefix:
         if group is not None:
             situations = [situation for situation in situations
                           if situation.partner is not None and situation.partner.entity_id == target_id]
-        story = format_content(self.fill(self.prompts.story_template),
-            character_card=request.character_card.strip() or "(no character card)",
-            shards=blocks,
-            feeling=work.affect.felt or work.state_summary or "(no feeling recorded)",
-            situational_guidance=evidence_text("\n\n".join(render_situational_guidance(situation) for situation in situations)
-                                 or f"Runtime world time: {request.cycle_time.isoformat()} UTC. Partner receptivity is unknown without evidence.",
-                                 "story-situation"),
-            new=evidence_text(render_story(work.records, new_ids, with_id=False) or "(nothing new happens)",
-                              "story-new", new_ids),
-        ).strip()
-        self.turns = [Turn(Role.System, system), Turn(Role.User, story),
-                      Turn(Role.Assistant, self.fill(self.prompts.story_ack).strip())]
-        self.story_text = f"{system}\n\n{story.text}"
+        shard_inputs = tuple(CognitionShardInput(shard.key, shard_label(shard.key, request),
+            tuple(shard.item_ids()), tuple(record_id for record_id in shard.tail_ids if record_id not in hidden),
+            {item.record_id: item.activation_at_entry for item in shard.items},
+            frozenset(item.record_id for item in shard.items if item.required_by == "entity_context")) for shard in shards)
+        record_ids = set(new_ids)
+        for shard in shard_inputs:
+            record_ids.update(shard.item_ids)
+            record_ids.update(shard.tail_ids)
+        self.render_input = CognitionStoryInput("main cognition story", self.companion, system,
+            self.fill(self.prompts.story_template), self.fill(self.prompts.story_ack).strip(),
+            self.prompts.shard_template, self.prompts.shard_labels,
+            request.character_card.strip() or "(no character card)",
+            work.affect.felt or work.state_summary or "(no feeling recorded)",
+            f"Runtime world time: {request.cycle_time.isoformat()} UTC. Partner receptivity is unknown without evidence.",
+            render_story(work.records, new_ids, with_id=False) or "(nothing new happens)",
+            frozenset(new_ids), {record_id: work.records[record_id] for record_id in record_ids}, shard_inputs, situations=tuple(situations), images=request.images)
+        self.select_context = select_context
+        self.settings = settings
+        self.capture_settings = capture_settings
+        prefix_input = replace(self.render_input, optional_ceiling=settings.input_ceiling * 2 // 3)
+        rendered = render_cognition_story(prefix_input, settings)
+        self.turns = list(rendered.turns)
+        self.story_text = rendered.raw_text
         self.targets: dict[str, ShardKey] = {"self": SELF_SHARD}
         for item in groups:
             if item.key != SELF_SHARD:
@@ -195,9 +202,20 @@ class StoryPrefix:
         """Replace the name placeholders ``{companion_name}`` and ``{entity_name}``."""
         return fill(text, self.companion, self.entity)
 
-    def ask(self, instruction: Content | str) -> list[Turn]:
+    def ask(self, instruction: str) -> list[Turn]:
         """Return the prefix and then ``instruction`` as the last user turn."""
-        return [*self.turns, Turn(Role.User, instruction.strip())]
+        input = replace(self.render_input, instruction=instruction.strip(), optional_ceiling=self.settings.input_ceiling - 1500)
+        if not self.select_context:
+            if input.situations:
+                input = replace(input, guidance=render_cognition_guidance(list(input.situations), self.settings), situations=())
+            return list(cognition_story_turns(input, frozenset(input.records) - input.new_ids))
+        settings = self.settings
+        if self.capture_settings is None:
+            return list(render_cognition_story(input, settings).turns)
+        with RendererCapture(replace(self.capture_settings, directory=self.capture_settings.directory / uuid4().hex), RendererInput("main cognition story", input, settings)) as capture:
+            rendered = render_cognition_story(input, settings)
+            capture.save_output(rendered)
+        return list(rendered.turns)
 
     def label(self, key: ShardKey) -> str:
         """Return the target label of ``key``. A key that is not a target raises StopIteration."""

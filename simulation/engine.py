@@ -75,7 +75,7 @@ def replied_after(rows: Sequence[Mapping[str, JsonValue]], delivery_id: str, sou
             return True
     return False
 from simulation.personas import fork_home
-from simulation.plans import ScenarioPlan, SimulationTiming, StageJudgment, facts_for_scene
+from simulation.plans import ScenarioPlan, SimulationTiming, facts_for_scene
 from simulation.source import freeze_source
 from simulation.analysis import AnalysisSettings, analyze_run
 
@@ -555,37 +555,12 @@ class RunEngine:
         delivered = process.post("/control/delivery", {"delivery_id": pending["delivery_id"]})
         if not delivered["accepted"]:
             raise RuntimeError("Main cognition did not admit the delivered scenario input.")
-        actor_messages = {row["delivery_id"]: row for row in self.state["timeline"] if row.get("kind") == "actor"}
-        facts = {item.id: item for item in self.plan.facts}
         delivered_facts = set(self.state["facts"])
-
-        def check(judgment: StageJudgment) -> StageJudgment:
-            """Reject a judgment that cites facts or deliveries this run does not hold; the director is asked again."""
-            supported = set(judgment.supported_fact_ids)
-            unknown = sorted(supported - set(facts))
-            if unknown:
-                raise ValueError(f"supported_fact_ids names unknown facts {unknown}; cite only {sorted(facts)}.")
-            outside = sorted(supported - set(step.fact_ids) - delivered_facts)
-            if outside:
-                raise ValueError(f"supported_fact_ids names facts {outside} outside this stage; this stage holds "
-                                 f"{sorted(step.fact_ids)} and earlier stages delivered {sorted(delivered_facts)}.")
-            for fact_id in sorted(supported - delivered_facts):
-                for delivery_id in judgment.fact_evidence[fact_id]:
-                    message = actor_messages.get(delivery_id)
-                    if message is None or message["target"] != step.target:
-                        recent = [key for key, row in actor_messages.items() if row["target"] == step.target][-10:]
-                        raise ValueError(f"fact_evidence for {fact_id} cites {delivery_id!r}, which is not an actor "
-                                         f"message to {step.target}; the latest such messages are {recent}.")
-                    at = facts[fact_id].at
-                    if at is not None and datetime.fromisoformat(message["timestamp"]) != at:
-                        raise ValueError(f"fact_evidence for {fact_id} cites {delivery_id!r}, sent at "
-                                         f"{message['timestamp']}, but the fact happens at {at.isoformat()}.")
-            return judgment
 
         judgment = agents.judge(StageContext(scenario=self.plan, stage=step,
             companion_name=profile.companion_name,
             conversation=[DeliveryEvidence.model_validate(row) for row in self.state["timeline"]],
-            delivered_fact_ids=list(self.state["facts"])), check=check)
+            delivered_fact_ids=list(self.state["facts"])))
         if judgment.failure:
             raise RuntimeError(f"Scenario director reported failure: {judgment.failure}")
         supported = set(judgment.supported_fact_ids)

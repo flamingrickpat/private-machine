@@ -50,7 +50,7 @@ class ReasoningBudget(BaseModel):
     answer_reserve_tokens: int = Field(default=2048, gt=0)
     input_margin_fraction: float = Field(default=0.1, ge=0, le=1)
 
-    def generation(self, *, context_window: int, input_tokens: int, max_output_tokens: int) -> dict:
+    def generation(self, *, context_window: int, input_tokens: int, max_output_tokens: int) -> ReasoningOptions:
         """Return neutral controls. Insufficient answer headroom raises ModelError.
 
         The answer reserve comes out first, because the visible reply needs
@@ -58,10 +58,10 @@ class ReasoningBudget(BaseModel):
         then split by ``fraction`` and bounded by ``ceiling_tokens``.
         """
         if self.fraction == 0:
-            return {"enable_thinking": False}
+            return ReasoningOptions(enabled=False)
         remaining = min(max_output_tokens, context_window - int(input_tokens * (1 + self.input_margin_fraction)))
         headroom = remaining - self.answer_reserve_tokens
         if headroom < self.minimum_tokens:
             raise ModelError("The reasoning request has insufficient output headroom. Reduce input or adjust its budget.")
         tokens = min(headroom, self.ceiling_tokens, max(self.minimum_tokens, int(headroom * self.fraction)))
-        return {"enable_thinking": True, "reasoning_tokens": tokens}
+        return ReasoningOptions(enabled=True, max_tokens=tokens)

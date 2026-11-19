@@ -14,10 +14,13 @@ The parent report is data for the host. The host owns the commit boundary.
 """
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
-from typing import TYPE_CHECKING, Any
+from collections.abc import Mapping
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from workflows.inner_thought.stage_runner import PrivateStageRunner
+    from workflows.inner_thought.host import PrivateInvocation
+from typing import TYPE_CHECKING
 
-from workflows.reflection.schemas import ReflectionSource
 from workflows.public_speech.public_context import EvidenceItem
 
 from workflows.inner_thought.operations import validate_operation
@@ -28,7 +31,7 @@ from workflows.inner_thought.schemas import (
     IntegrationResult,
     REALITY_LABELS,
     ThoughtResult,
-    TriggerChoice,
+
 )
 
 if TYPE_CHECKING:
@@ -72,8 +75,8 @@ def citable_ids(request: InnerRequest) -> set[int]:
 
 def run_cycle(
     request: InnerRequest,
-    run_stage: Callable[[str, dict[str, Any]], dict[str, Any]],
-    retrieve_memory: Callable[[str], dict[str, Any]] | None = None,
+    run_stage: PrivateStageRunner,
+    retrieve_memory: PrivateInvocation | None = None,
 ) -> InnerReport:
     """Run the three private stages and return the typed parent report."""
     # The trigger policy already decided this cycle has nothing to do. The
@@ -84,8 +87,10 @@ def run_cycle(
             summary="no trigger fired; the private cycle stays idle",
         )
 
-    base = request.model_dump(mode="json")
-    trigger = TriggerChoice.model_validate(run_stage("trigger", dict(base)))
+    from workflows.inner_thought.stages.thought.steps import ThoughtEnvelope
+    from workflows.inner_thought.stages.integrate.steps import IntegrationEnvelope
+    from workflows.inner_thought.request_views import OperationSuggestion
+    trigger = run_stage.trigger(request)
     known = citable_ids(request)
     if trigger.operation == "none" or not trigger.operation:
         return InnerReport(
@@ -99,8 +104,8 @@ def run_cycle(
         if retrieve_memory is None:
             raise ModelProposalError("Private recall requested an unavailable retrieval tool.")
         from workflows.inner_thought.schemas import ThoughtCandidate
-        recall = retrieve_memory(trigger.retrieval_query)
-        retrieved = [EvidenceItem.model_validate(item) for item in recall["matches"]]
+        recall = retrieve_memory.retrieve_memory(trigger.retrieval_query)
+        retrieved = list(recall.matches)
         existing = {item.knoxel_id for item in request.candidates}
         for item in retrieved:
             if item.knoxel_id not in existing:
@@ -111,20 +116,17 @@ def run_cycle(
         known = citable_ids(request)
         if request.reflection.records or request.reflection.episodes or request.reflection.experiments:
             source_ids = {item.knoxel_id for item in request.reflection.records}
-            for item in recall.get("reflection_sources", [memory.model_dump(mode="json") for memory in retrieved]):
-                if item["knoxel_id"] not in source_ids:
-                    request.reflection.records.append(ReflectionSource.model_validate(item))
-                    source_ids.add(item["knoxel_id"])
-        base = request.model_dump(mode="json")
+            for item in recall.reflection_sources:
+                if item.knoxel_id not in source_ids:
+                    request.reflection.records.append(item)
+                    source_ids.add(item.knoxel_id)
     narrowed = [int(item) for item in trigger.candidate_ids if int(item) in known] or [
         int(item.knoxel_id) for item in request.candidates]
-    trigger = trigger.model_copy(update={"candidate_ids": narrowed})
+    trigger = trigger.model_copy()
+    trigger.candidate_ids = narrowed
 
-    thought = ThoughtResult.model_validate(run_stage("thought", {
-        **base, "trigger": trigger.model_dump(mode="json"),
-        "operation": {"name": operation.name, "group": operation.group, "mode": operation.mode,
-                      "temporal_focus": operation.temporal_focus, "description": operation.description},
-    }))
+    operation_choice = OperationSuggestion(name=operation.name)
+    thought = run_stage.thought(ThoughtEnvelope(request=request, trigger=trigger, operation=operation_choice))
     if thought.reality not in REALITY_LABELS:
         raise ModelProposalError(f"the thought stage returned an unknown reality label: {thought.reality}")
     invalid = [int(item) for item in thought.evidence_ids if int(item) not in known]
@@ -142,17 +144,15 @@ def run_cycle(
         raise ModelProposalError("a continuing thought must name its next operation")
     focus = operation.temporal_focus if trigger.temporal_focus not in {"past", "present", "future"} else trigger.temporal_focus
 
-    integration = IntegrationResult.model_validate(run_stage("integrate", {
-        **base, "trigger": trigger.model_dump(mode="json"), "thought": thought.model_dump(mode="json"),
-        "operation": {"name": operation.name, "group": operation.group},
-    }))
+    integration = run_stage.integrate(IntegrationEnvelope(request=request, trigger=trigger,
+        thought=thought, operation=operation_choice))
     validate_integration(integration, known, request)
     progress, progress_reason = concrete_progress(integration, thought, request)
 
     from workflows.reflection.schemas import ReflectionDecision
     reflection = ReflectionDecision()
     if operation.name == "reflection_review":
-        reflection = ReflectionDecision.model_validate(run_stage("reflection", dict(base)))
+        reflection = run_stage.reflect(request)
 
     return InnerReport(
         run_id=request.run_id,

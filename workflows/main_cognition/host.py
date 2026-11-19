@@ -66,6 +66,10 @@ lifecycle; the ``phases`` package holds the cognitive work of each phase.
 """
 from __future__ import annotations
 
+from pm.memory.retrieval import RetrievalTrace
+
+from workflows.minecraft_body.capabilities import CapabilitySnapshotOwner
+
 from pm import vclock
 
 from pm.records.copying import pickle_copy
@@ -74,9 +78,16 @@ import asyncio
 import json
 import threading
 import traceback
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Sequence, Mapping
 from datetime import datetime, timedelta
 from pathlib import Path
+from dataclasses import dataclass
+from pm.bus.bus import BusSystem
+from pm_workflows.working_target import WorkingEnvironment, WorkingTarget
+from pm.llm.workflow_sessions import WorkflowModels
+from pm.memory.bash_view import MemoryBashEnvironment
+from pm.runs.role_runtime import PMWorkflowRuntime
+from workflows.main_cognition.runtime import CognitionRuntime
 from typing import TYPE_CHECKING, Callable
 
 from pydantic import BaseModel, JsonValue, ValidationError
@@ -87,16 +98,18 @@ from pm.constants import (
     CCQ_LENGTH, CSM_RECENT_DIALOGUE_TURNS, CYCLE_RETRY_DELAY_SECONDS, CYCLE_RETRY_MAX_DELAY_SECONDS,
     WORKSPACE_TAIL_CANDIDATES,
 )
-from pm.llm.completion import TextCompletion
+from pm.llm.stage_model import LazyStageModel
+from pm.host.mcp_listeners import McpServerDescriptor
+from workflows.main_cognition.retrieval_query import QueryRewrite, QueryRewriter
 from pm.llm.concurrency import InferenceRole, inference_role
 from pm.memory.dependencies import SourceDependency, capture_source
 from pm.llm.http_client import ModelError
-from pm.llm.structured import context_measure
-from pm.llm.prompt_encoding import TurnInput, normalize_turns
+from pm.llm.prompt_encoding import TurnInput
 from pm.memory.snapshot import GhostCancelled, Snapshot
 from pm.memory.store import MemoryStore
 from pm.memory.write_batch import WriteBatch
 from pm.records.base import Provenance, RecordBase, RecordScope
+from pm.records.media import RecordImage, image_ids, record_media
 from pm.records.codelet_records import AffectMeta, CodeletPercept, Structure
 from pm.records.cognitive_records import ExpectationRecord
 from pm.records.cycle_records import ActionDispatchRef, BroadcastRef
@@ -111,7 +124,8 @@ from pm.runs.workflow_module import CognitiveWorkflow
 from workflows.cognitive_control.schemas import MentalPlan
 from workflows.inference_settings import REASONING
 from workflows.main_cognition.action_request import partner_key, request_shards
-from workflows.main_cognition.codelet_agent import build_codelet_agent
+from workflows.main_cognition.catalogue import WorkflowCatalogue
+from workflows.main_cognition.codelet_agent import CodeletAgent
 from workflows.main_cognition.csm_view import record_view
 from workflows.main_cognition.cycle_work import CycleRequest, CycleWork, provisional_tick
 from workflows.main_cognition.experience import consolidate_cycle, update_beliefs
@@ -126,7 +140,7 @@ from workflows.entity_context.schemas import EntityProjectionQuery, EntityUpdate
 from workflows.main_cognition.expectations import SOURCE_REF as EXPECTATION_SOURCE
 from workflows.main_cognition.expectations import is_observed, offered_expectations
 from workflows.main_cognition.interval_review import build_interval_review
-from workflows.main_cognition.model_json import ModelFormatError
+from pm.llm.structured import ModelFormatError
 from workflows.main_cognition.phases.codelets import RECOMMENDATION
 from workflows.main_cognition.phases.intake import group_key
 from workflows.main_cognition.schemas import (
@@ -160,69 +174,9 @@ if TYPE_CHECKING:
     from workflows.cognitive_control.host import CognitiveControl
 
 
-def build_main_cognition_tools(
-    ghost: MemoryStore,
-    runtime_root: Path,
-    llm_complete: TextCompletion,
-    *,
-    cancel_provider: Callable[[], threading.Event] | None = None,
-    embeddings: EmbeddingService | None = None,
-) -> Callable[[object, object], dict[str, Callable[..., object]]]:
-    """Return the ``tools_factory(environment, batch)`` of the main module.
-
-    The factory grants these tools to each run:
-
-    - ``llm_complete``: one model call. It turns hidden reasoning off,
-      because a reasoning budget exhausted real completions before. It passes
-      the run's cancellation signal, so a failed parallel call or a
-      cancelled run also stops its sibling calls.
-    - ``embed_texts``: the embeddings of a list of texts, through
-      ``embeddings`` (a ``pm.memory.embeddings.EmbeddingService``). The
-      service embeds temporary texts directly. Record views carry stored vectors.
-    - ``codelet_agent``: one agent codelet session over the frozen grant of
-      the run (:func:`~workflows.main_cognition.codelet_agent.build_codelet_agent`).
-
-    Without ``embeddings`` the factory grants ``llm_complete`` only. The
-    codelets phase then fails, so real cognition must pass the service.
-    ``runtime_root`` stays in the signature for the application wiring.
-    Phases never read the store through these tools; the agent session reads
-    the frozen grant only.
-    """
-
-    def factory(environment: object, batch: object) -> dict[str, Callable[..., object]]:
-        stop = cancel_provider() if cancel_provider is not None else threading.Event()
-
-        def complete(messages: Sequence[TurnInput], **generation: object) -> str:
-            generation["reasoning_budget"] = REASONING["off"]
-            return llm_complete(normalize_turns(messages), cancel=stop, **generation)
-
-        tools: dict[str, Callable[..., object]] = {"llm_complete": complete}
-        measure = context_measure(llm_complete)
-        if measure is not None:
-            complete.measure_context = measure
-        if embeddings is not None:
-            async def embed_all(texts: list[str]) -> list[list[float]]:
-                return [await embeddings.embed(text, cancel=stop) for text in texts]
-
-            def embed_texts(texts: list[str]) -> list[list[float]]:
-                return asyncio.run(embed_all(list(texts)))
-
-            tools["embed_texts"] = embed_texts
-            tools["codelet_agent"] = build_codelet_agent(ghost, environment, embeddings, stop)
-        return tools
-
-    return factory
-
-
 ACTION_BY_NAME = {member.value: member for member in ActionType}
 
 
-class QueryRewrite(BaseModel):
-    """The retrieval query that the rewrite provider derived from the stimuli."""
-
-    query: str = ""
-    evidence_use: str = "general"
-    status: str = "literal"
 
 
 class WorkflowQuestionPayload(BaseModel):
@@ -295,6 +249,22 @@ def seconds_since_user_input(ghost: MemoryStore, exclude_ids: Iterable[int]) -> 
     return max(0.0, (vclock.utcnow() - max(times)).total_seconds())
 
 
+@dataclass(frozen=True, slots=True)
+class MainCognitionOptions:
+    workflow_catalogue: tuple[WorkflowOption, ...] = ()
+    embedding_config_path: str | Path | None = None
+    ghost_backups: bool = False
+    codelet_definitions: str | Path | None = None
+    workflow_models: WorkflowModels | None = None
+    codelet_embeddings: EmbeddingService | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class MainRetrieval:
+    matches: tuple[MemoryCandidate, ...]
+    trace: RetrievalTrace
+
+
 class MainCogLoop(CognitiveWorkflow):
     """Real cognitive parent: one typed phase sequence, committed GWT, typed dispatches.
 
@@ -312,6 +282,7 @@ class MainCogLoop(CognitiveWorkflow):
     construction. Each stays None when the application does not use it.
     """
 
+    ghost: MemoryStore
     WORKFLOW_NAME = "main_cognition"
     inference_admission = None
     DATA_TOPICS = frozenset({
@@ -322,30 +293,39 @@ class MainCogLoop(CognitiveWorkflow):
         "entity.action_reconsider",
     })
 
-    def __init__(self, *args: object, workflow_catalogue: Iterable[dict[str, object]] | None = None,
-                 embedding_config_path: str | Path | None = None,
-                 ghost_backups: bool = False,
-                 codelet_definitions: str | Path | None = None, **kwargs: object) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(self, module_id: str, bus: BusSystem,
+                 on_error: Callable[[BaseException], None], clock: Callable[[], float],
+                 tick_seconds: float | None, *, ghost: MemoryStore, working_target: WorkingTarget,
+                 workflow: Path,
+                 runtime_root: Path, stage_model: LazyStageModel,
+                 options: MainCognitionOptions) -> None:
+        super().__init__(module_id, bus, on_error, clock, tick_seconds, ghost=ghost,
+            working_target=working_target, workflow=workflow, tools_factory=None,
+            runtime_root=runtime_root, stage_model=stage_model, workflow_models=options.workflow_models)
+        self.codelet_embeddings = options.codelet_embeddings
+        workflow_catalogue = options.workflow_catalogue
+        embedding_config_path = options.embedding_config_path
+        ghost_backups = options.ghost_backups
+        codelet_definitions = options.codelet_definitions
         self.ghost_backups: bool = ghost_backups
         # The codelet definitions are a workflow resource. ``None`` selects
         # codelets.yaml; a gate or persona can name another file.
         self.codelet_definitions = str(codelet_definitions) if codelet_definitions else ""
         # Configuration supplies the action space. The decide phase uses its
         # default action space when this list is empty.
-        self.workflow_catalogue = [WorkflowOption.model_validate(item) for item in workflow_catalogue or []]
+        self.workflow_catalogue = list(workflow_catalogue)
         # An optional provider rebuilds the action space at each cycle, for
         # example with the MCP tools that are reachable now. Only the route
         # prompt renders the descriptions.
-        self.workflow_catalogue_provider: Callable[[], list[WorkflowOption]] | None = None
+        self.workflow_catalogue_owner: WorkflowCatalogue | None = None
         self.embedding_config_path = embedding_config_path
         self._embeddings = None
         self._cancelled_invocation_id: str | None = None
         self.invocation_id: str | None = None
         self.cognitive_control: CognitiveControl | None = None
         self.release_private_results: Callable | None = None
-        self.capability_provider: Callable | None = None
-        self.retrieval_query_provider: Callable | None = None
+        self.capability_owner: CapabilitySnapshotOwner | None = None
+        self.retrieval_query_provider: QueryRewriter | None = None
         # Per-batch state. ``prepare_input`` sets it and ``publish_output``
         # reads it for the same invocation.
         self._event_stimuli: dict[str, tuple[int | None, str, str]] = {}
@@ -364,6 +344,18 @@ class MainCogLoop(CognitiveWorkflow):
         self.interaction_enabled: bool = False
         self.entity_context_owner: EntityContextOwner | None = None
         self._published_entity_reconsiderations: set[int] = set()
+
+    def create_runtime(self, environment: WorkingEnvironment, proposal_batch: WriteBatch | None,
+                       descriptors: dict[str, McpServerDescriptor] | None) -> PMWorkflowRuntime:
+        if not isinstance(environment, MemoryBashEnvironment):
+            raise TypeError("Main cognition requires a frozen memory environment.")
+        base = super().create_runtime(environment, proposal_batch, descriptors)
+        agent = CodeletAgent(self.ghost, environment, self.codelet_embeddings, self.run_stop)
+        return CognitionRuntime(environment=base.environment, stop_event=base.stop_event, tools=base.tools,
+            propagate_python_errors=base.propagate_python_errors, agent_model=base.agent_model,
+            mcp_servers=base.mcp_servers, child_factory=base.child_factory,
+            classification_models=base.classification_models, classification_session=base.classification_session,
+            model_session=base.model_session, embedding_service=base.embedding_service, codelet_agent=agent)
 
     def prioritize_critical(self, source_ids: set[int]) -> None:
         """Interrupt older full cognition and retain its unaccepted causes.
@@ -510,8 +502,13 @@ class MainCogLoop(CognitiveWorkflow):
                 if attempt == 3:
                     raise
 
+    def available_workflow_options(self) -> list[WorkflowOption]:
+        if self.workflow_catalogue_owner is None:
+            return list(self.workflow_catalogue)
+        return self.workflow_catalogue_owner.options()
+
     def _retrieve(self, stimuli: list[Stimulus], memory_view: Snapshot,
-                  sources: list[RecordBase]) -> tuple[list[MemoryCandidate], dict[str, object]]:
+                  sources: list[RecordBase]) -> MainRetrieval:
         """Retrieve memory candidates for the stimuli by embedding.
 
         Returns the candidates and the retrieval trace of ``pm.memory``. The
@@ -527,17 +524,17 @@ class MainCogLoop(CognitiveWorkflow):
             self._embeddings = EmbeddingService(load_config(self.embedding_config_path).embedding)
         original_query = "\n".join(item.text for item in stimuli)
         if self.retrieval_query_provider is not None and any(item.source == "user_input" for item in stimuli):
-            rewrite = QueryRewrite.model_validate(self.retrieval_query_provider(original_query))
+            rewrite = self.retrieval_query_provider.rewrite(original_query, self.run_stop)
         else:
             rewrite = QueryRewrite(query=original_query)
         retrieval = asyncio.run(self.ghost.retrieve_experiences(
             rewrite.query, self._embeddings, view=memory_view,
             frontier=frontier, scopes=scopes, cancel=self.run_stop,
         ))
-        trace = retrieval["trace"]
-        trace["original_query"] = original_query
-        trace["query_rewrite"] = rewrite.model_dump(mode="json")
-        matches = [MemoryCandidate.model_validate(item) for item in retrieval["matches"]]
+        trace = retrieval.trace
+        trace.original_query = original_query
+        trace.query_rewrite = rewrite
+        matches = list(retrieval.matches)
         if rewrite.evidence_use == "event":
             from pm.memory.retrieval import evidence_role
             selected_sources = {key for item in matches for key in item.source_ids if key in memory_view.revisions}
@@ -549,8 +546,8 @@ class MainCogLoop(CognitiveWorkflow):
                             if item.evidence_role in {"companion_utterance", "intent", "imagined", "interpretation"}
                             or item.evidence_role == "derived" and not original_sources.intersection(item.source_ids)}
             matches = [item for item in matches if item.knoxel_id not in rejected_ids]
-            trace["speech_only_excluded_ids"] = sorted(rejected_ids)
-        return matches, trace
+            trace.speech_only_excluded_ids = tuple(sorted(rejected_ids))
+        return MainRetrieval(tuple(matches), trace)
 
     def prepare_input(self, batch: list[Envelope]) -> dict:
         """Build the typed cycle request from the batch and committed state.
@@ -600,7 +597,9 @@ class MainCogLoop(CognitiveWorkflow):
         self_entity_id = self.ghost.get_entity_id(self.ghost.get_companion_name())
         for stimulus, source in zip(stimuli, sources, strict=True):
             stimulus.entity_id = self._speaker_entity(stimulus, source, self_entity_id)
-        matches, trace = self._retrieve(stimuli, memory_view, sources)
+        retrieved = self._retrieve(stimuli, memory_view, sources)
+        matches = list(retrieved.matches)
+        trace = retrieved.trace
         self._memory_view = memory_view
 
         from workflows.cognitive_control.attention import active_focus, focus_versions
@@ -653,10 +652,9 @@ class MainCogLoop(CognitiveWorkflow):
             record = memory_view.get(key)
             self._focus_source_revisions[key] = memory_view.revisions[key]
             if key not in present:
-                raw = record.as_payload(include_embedding=False)
                 matches.append(MemoryCandidate(knoxel_id=key, text=record.content,
                     revision=memory_view.revisions[key], source_ids=[key],
-                    memory_kind=memory_kind(raw), evidence_role=evidence_role(memory_view, raw),
+                    memory_kind=memory_kind(record), evidence_role=evidence_role(memory_view, record),
                     reasons=["deliberate mental recall"]))
         previous = next((state for state in reversed(self.ghost.read_cycles())
                          if state.tick_id in memory_view.gwt_turns
@@ -666,7 +664,7 @@ class MainCogLoop(CognitiveWorkflow):
         # features that produced it come from the same committed ticks.
         with self.ghost.lock:
             history = features_to_history(self.ghost.all_features, self.ghost.all_codelet_percepts)
-        capabilities = self.capability_provider() if self.capability_provider is not None else None
+        capabilities = self.capability_owner.snapshot() if self.capability_owner is not None else None
         public = build_public_context(self.ghost, ActionRequest(stimuli=stimuli), capabilities=capabilities)
         user_entity_id = self.ghost.get_entity_id(self.ghost.get_user_name())
         keys = [group_key(item, CycleRequest(user_entity_id=user_entity_id)) for item in stimuli]
@@ -722,7 +720,21 @@ class MainCogLoop(CognitiveWorkflow):
             for key, source_ids in ordinary_groups.items():
                 if key not in main_groups:
                     interaction_sources.extend(source_ids)
+        required_image_ids: set[str] = set()
+        for record in records.values():
+            required_image_ids.update(image_ids(record.content))
+        for stimulus in stimuli:
+            required_image_ids.update(image_ids(stimulus.text))
+        captured_images: dict[str, RecordImage] = {}
+        for source_record in memory_view.all_knoxels.values():
+            for image in record_media(source_record).images:
+                if image.id in required_image_ids:
+                    captured_images[image.id] = image.model_copy(deep=True)
+        missing_images = required_image_ids - captured_images.keys()
+        if missing_images:
+            raise ValueError(f"Main cognition frozen input references missing images: {sorted(missing_images)}")
         request = CycleRequest(
+            images=tuple(captured_images[key] for key in sorted(captured_images)),
             interaction_source_ids=interaction_sources,
             run_id=self.invocation_id or "",
             correlation_id=correlation,
@@ -753,8 +765,7 @@ class MainCogLoop(CognitiveWorkflow):
             wait_default_seconds=control.config.wait_seconds if control is not None else 1800,
             post_reply_seconds=control.config.post_reply_seconds if control is not None else 0.0,
             capabilities=_capabilities(self.ghost),
-            available_workflows=(self.workflow_catalogue_provider() if self.workflow_catalogue_provider is not None
-                                 else self.workflow_catalogue),
+            available_workflows=self.available_workflow_options(),
             public_context=public,
             situational_guidance=situational_guidance,
             managed_runs=[ManagedRunView.model_validate(run)
@@ -1033,8 +1044,9 @@ class MainCogLoop(CognitiveWorkflow):
         # turn record. A failure here aborts the whole batch, so stale proposals never
         # partly update accepted state. The appraise phase already computed the
         # appraisal affect and the EMA mental state; the commit stores them.
-        memory_trace = {**request.memory_trace,
-                        "context_selected_ids": [item.knoxel_id for item in work.selected_memories]}
+        assert request.memory_trace is not None
+        memory_trace = request.memory_trace.model_copy(deep=True)
+        memory_trace.context_selected_ids = tuple(item.knoxel_id for item in work.selected_memories)
         appraisal_feature = apply_appraisal(
             changes, work.appraisal, work.affect,
             evidence_ids=list(self._stimulus_ids),
@@ -1127,12 +1139,15 @@ class MainCogLoop(CognitiveWorkflow):
                                               "parent_record_ids": [experience_feature.id]}))
         created_order.append(selection.id)
         if focus is not None and focus.fresh and focus.accept:
-            from workflows.cognitive_control.attention import stage_focus
+            from workflows.cognitive_control.attention import stage_focus, FocusStagingSettings
             accepted_focus = stage_focus(changes, self._memory_view,
-                instruction=focus.instruction, focus=focus.model_dump(mode="json"),
+                instruction=focus.instruction, focus=focus,
                 companion_name=self.ghost.get_companion_name(),
                 expires_at=(vclock.utcnow() + timedelta(seconds=focus.seconds)).isoformat(),
-                lineage=lineage.model_copy(update={"operation": "focus_acceptance"}))
+                settings=FocusStagingSettings(lineage=RecordLineage(episode_id=lineage.episode_id,
+                    operation="focus_acceptance", sequence=lineage.sequence, parent_record_ids=list(lineage.parent_record_ids),
+                    source_event_ids=list(lineage.source_event_ids), intention_ids=list(lineage.intention_ids),
+                    topic_hints=list(lineage.topic_hints), reality=lineage.reality)))
             created_order.append(accepted_focus.id)
         memory_evidence = [item.model_dump(mode="json") for item in work.selected_memories]
         # The check results come first, so a superseded expectation keeps
@@ -1187,11 +1202,11 @@ class MainCogLoop(CognitiveWorkflow):
                 partner_name=shard_label(partner, request) if partner is not None else request.user_name,
                 stimuli=[stimuli[key] for key in dispatch.stimulus_ids],
                 shards=request_shards(work.state.workspace, dispatch.group, partner,
-                                      lambda key: shard_label(key, request),
+                                      {key: shard_label(key, request) for key in (SELF_SHARD, dispatch.group, partner) if key is not None},
                                       hidden=experience.hidden_for(dispatch.group)),
                 presentation=presentation, workspace=experience.text_for(dispatch.group),
                 affect=work.affect.felt, regulation=work.affect.regulation,
-                task_receipt=terminal_reply.task_receipt if terminal_reply is not None else {},
+                task_receipt=terminal_reply.task_receipt if terminal_reply is not None else None,
                 action_origin="task_reply" if terminal_reply is not None else "main",
                 entity_contexts=[context for guidance in request.situational_guidance
                     if guidance.partner is not None and guidance.partner.entity_id == (int(partner.ref) if partner is not None else request.user_entity_id)
@@ -1217,7 +1232,7 @@ class MainCogLoop(CognitiveWorkflow):
                     "self_origin": not user_stimuli.intersection(dispatch.stimulus_ids),
                     "regulation": work.affect.regulation,
                     "memory_evidence": memory_evidence,
-                    "memory_trace": memory_trace,
+                    "memory_trace": memory_trace.model_dump(mode="json"),
                     "belief_updates": belief_receipt,
                     "presentation": presentation.model_dump(mode="json"),
                     "dispatch_status": "pending",
@@ -1385,7 +1400,9 @@ class MainCogLoop(CognitiveWorkflow):
                                               correlation_id=metadata.dispatch_correlation)
         task_evidence = ""
         if request.task_receipt:
-            task_evidence = "\nThe task already has this terminal receipt; do not execute it again:\n" + json.dumps(request.task_receipt)
+            from workflows.public_speech.task_receipts import render_task_receipt
+            task_evidence = "\nThe task already has this terminal receipt; do not execute it again:\n" + render_task_receipt(
+                request.task_receipt)
         return changes.create(Feature(content=f"A selected public action awaits reconsideration: {reason}\n"
             f"Original selected move: {request.content}{task_evidence}",
             feature_type=FeatureType.StateUpdate, interlocus=InterlocusType.PrivateInternal, causal=True,
@@ -1865,7 +1882,7 @@ def apply_expectation_outcomes(changes: WriteBatch, view: Snapshot, work: CycleW
         changes.replace(record)
 
 
-__all__ = ["InnerThoughtLoop", "MainCogLoop", "apply_expectation_outcomes", "build_main_cognition_tools",
+__all__ = ["InnerThoughtLoop", "MainCogLoop", "apply_expectation_outcomes",
            "dialogue_partner",
            "mark_causal", "remap_pending", "seconds_since_user_input", "stage_expectations", "stage_percepts",
            "stage_structures"]

@@ -5,8 +5,10 @@ from collections.abc import Sequence
 from threading import Event
 from typing import Protocol
 from dataclasses import dataclass, field
+from pydantic import BaseModel, ConfigDict
 
 from pm.llm.prompt_encoding import TurnInput
+from pm.llm.generation import GenerationSettings
 from pm.context_render.turns import Turn
 
 @dataclass(frozen=True)
@@ -18,7 +20,15 @@ class Reasoning:
     """
 
     text: str = ""
-    details: tuple[dict, ...] = ()
+    details_json: str | None = None
+
+
+class ProviderTokenUsage(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="allow")
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    total_tokens: int | None = None
+    cost: float | None = None
 
 
 @dataclass(frozen=True)
@@ -27,7 +37,7 @@ class Completion:
 
     turn: Turn
     reasoning: Reasoning = field(default_factory=Reasoning)
-    usage: dict = field(default_factory=dict)
+    usage: ProviderTokenUsage = field(default_factory=ProviderTokenUsage)
     model: str = ""
     finish_reason: str | None = None
 
@@ -37,27 +47,8 @@ class Completion:
         return self.turn.content.text
 
 
-class TextCompletion(Protocol):
-    """Complete turns and return final text. Reasoning is not final text."""
-
-    def __call__(self, turns: Sequence[TurnInput], /, *, cancel: Event | None = None, **generation: object) -> str: ...
-
-
-class AsyncTextCompletion(Protocol):
-    """Complete turns asynchronously and return final text."""
-
-    async def __call__(self, turns: Sequence[TurnInput], /, *, cancel: Event | None = None, **generation: object) -> str: ...
-
-
-class ToolCompletion(Protocol):
-    """Return a typed provider result with tool calls and separate reasoning."""
-
-    async def __call__(self, turns: Sequence[TurnInput], /, *, cancel: Event | None = None,
-                       tools: list[dict] | None = None, **generation: object) -> Completion: ...
-
-
 class CompletionBackend(Protocol):
     """A backend consumes neutral turns and returns a neutral completion."""
 
     async def complete(self, turns: Sequence[TurnInput], *, cancel: Event | None = None,
-                       **generation: object) -> Completion: ...
+                       settings: GenerationSettings = GenerationSettings()) -> Completion: ...

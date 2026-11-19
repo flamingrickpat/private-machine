@@ -9,29 +9,27 @@ predates the graph, finishes on the trigger/thought/integrate pipeline through
 """
 from __future__ import annotations
 
-from typing import Any
+from workflows.inner_thought.host import PrivateThoughtRuntime
 
 from pm_workflows.python_role import RoleContext
 
-from workflows.inner_thought.pipeline import run_cycle
-from workflows.inner_thought.schemas import InnerReport, InnerRequest
-from workflows.main_cognition.model_json import read_request, write_report
+from workflows.inner_thought.schemas import InnerRequest, PrivateRoleResult
+from pm.runs.role_io import read_request, write_report
 
 
-def run(context: RoleContext) -> dict[str, Any]:
+def run(context: RoleContext) -> PrivateRoleResult:
     """Run one private cycle and write its typed parent report."""
-    request = InnerRequest.model_validate(read_request(context.runtime.environment))
+    assert isinstance(context.runtime, PrivateThoughtRuntime)
+    invocation = context.runtime.private_invocation
+    request = read_request(context.runtime.environment, InnerRequest)
     # Every fresh private opportunity goes through the inquiry graph. Only a
     # retained linear episode, which predates the graph, finishes on the old
     # trigger/thought/integrate pipeline.
     if request.episode.state is None:
-        from workflows.inner_thought.graph_execution import PrivateGraphResult
-        graph_report = PrivateGraphResult.model_validate(
-            context.runtime.tools["run_private_inquiry"](request.model_dump(mode="json")))
+        graph_report = invocation.run_private_inquiry(request)
         write_report(context.runtime.environment, graph_report)
         return {"status": "done", "summary": graph_report.summary}
-    report = run_cycle(request, context.runtime.tools["run_stage"],
-                       context.runtime.tools.get("retrieve_memory"))
+    report = invocation.run_legacy_cycle(request)
     write_report(context.runtime.environment, report)
     return {"status": "done", "summary": report.summary}
 

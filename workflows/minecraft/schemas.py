@@ -3,7 +3,10 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
+from workflows.minecraft.execution_contracts import ActorAcceptance
+from workflows.minecraft.persona import MinecraftPersona
+from workflows.minecraft_project.planning.context_contracts import DecisionIdentity, ProjectIntent
 
 
 class MinecraftRequest(BaseModel):
@@ -20,14 +23,14 @@ class MinecraftRequest(BaseModel):
     goal: str = ""
     body_id: str = "body"
     action_tool: str = ""
-    action_arguments: dict = Field(default_factory=dict)
+    action_arguments: dict[str, JsonValue] = Field(default_factory=dict[str, JsonValue])
     allowed_tools: list[str] = Field(default_factory=list)
     mode: Literal["actor", "boundary_check"] = "actor"
     specialist: Literal["gatherer", "navigator", "recovery", "builder", "miner"] = "gatherer"
-    persona_context: dict = Field(default_factory=dict)
-    acceptance: dict = Field(default_factory=dict)
-    task_reference: dict = Field(default_factory=dict)
-    project_intent: dict = Field(default_factory=dict)
+    persona_context: MinecraftPersona = Field(default_factory=MinecraftPersona)
+    acceptance: ActorAcceptance = Field(default_factory=ActorAcceptance)
+    task_reference: DecisionIdentity | None = None
+    project_intent: ProjectIntent | None = None
     include_image: bool = True
     wait_for_cancel: bool = False
     wait_for_update: bool = False

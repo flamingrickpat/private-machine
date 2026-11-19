@@ -4,8 +4,9 @@ from __future__ import annotations
 from collections import Counter
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator, ValidationInfo
 from pm.runs.review import ReviewMode
+from workflows.minecraft.persona import MinecraftPersona
 
 
 class Contract(BaseModel):
@@ -35,10 +36,10 @@ class Condition(Contract):
     description: str = Field(min_length=1)
     kind: Literal["inventory", "block", "region", "position", "alive", "food", "health", "accepted"]
     node_id: str = ""
-    names: list[str] = Field(default_factory=list, description="Exact MCP block names or inventory globs. The vanilla minecraft: prefix is optional.")
+    names: list[str] = Field(default_factory=list[str], description="Exact MCP block names or inventory globs. The vanilla minecraft: prefix is optional.")
     minimum: int = Field(default=1, ge=0, description="Inclusive count, food, or health threshold. Food and health use the observed 0..20 scale. A block condition requires every specified cell.")
     position: Point | None = None
-    positions: list[Point] = Field(default_factory=list)
+    positions: list[Point] = Field(default_factory=list[Point])
     end: Point | None = Field(default=None, description="Inclusive opposite corner for region only. For exact blocks, use positions instead.")
     radius: float = Field(default=2.0, ge=0)
     dimension: str = "overworld"
@@ -79,14 +80,14 @@ class Node(Contract):
     revision: int = Field(default=1, ge=1)
     kind: Literal["goal", "story", "leaf"]
     parent: str | None = Field(default=None, description="Containing goal or story ID. Only the root goal uses null; copy the actual parent in a replacement node.")
-    children: list[str] = Field(default_factory=list, description="Every contained child ID. Leaves use an empty list; replacement parents retain their actual child references.")
-    depends_on: list[str] = Field(default_factory=list, description="Explicit prerequisite node IDs. A leaf citing an accepted node certificate must include that source ID directly, even when another prerequisite also depends on it.")
+    children: list[str] = Field(default_factory=list[str], description="Every contained child ID. Leaves use an empty list; replacement parents retain their actual child references.")
+    depends_on: list[str] = Field(default_factory=list[str], description="Explicit prerequisite node IDs. A leaf citing an accepted node certificate must include that source ID directly, even when another prerequisite also depends on it.")
     instruction: str = Field(min_length=1)
     specialist: Literal["gatherer", "navigator", "recovery", "builder", "miner"] = "gatherer"
     deferred: bool = Field(default=False, description="Keep this unfinished leaf and its effects while other useful work proceeds.")
     defer_reason: str = ""
     criteria: list[Condition] = Field(min_length=1)
-    assumptions: list[Condition] = Field(default_factory=list)
+    assumptions: list[Condition] = Field(default_factory=list[Condition])
 
     @model_validator(mode="after")
     def deferral(self) -> Node:
@@ -122,10 +123,10 @@ class ProjectRequest(Contract):
     question_id: str = ""
     resume_phase: str = ""
     body_id: str = "body"
-    persona_context: dict = Field(default_factory=dict)
+    persona_context: MinecraftPersona = Field(default_factory=MinecraftPersona)
     plan_only: bool = False
     review_mode: ReviewMode = Field(default="flexible", description="Flexible review accepts good enough or equivalent improvements. Explicit requirements and completion evidence still apply.")
-    constraints: list[str] = Field(default_factory=list)
+    constraints: list[str] = Field(default_factory=list[str])
     proposed_tree: TaskTree | None = None
     include_image: bool = False
 
@@ -142,7 +143,7 @@ class EvidenceRead(Contract):
 class EvidenceDecision(Contract):
     """Request original evidence before the workflow accepts a decision."""
 
-    evidence_requests: list[EvidenceRead] = Field(default_factory=list)
+    evidence_requests: list[EvidenceRead] = Field(default_factory=list[EvidenceRead])
 
 
 class Renewal(Contract):
@@ -157,13 +158,13 @@ class RetentionChoice(EvidenceDecision):
 
     status: Literal["planned", "unchanged", "waiting", "blocked"]
     summary: str
-    restore_nodes: list[str] = Field(default_factory=list)
+    restore_nodes: list[str] = Field(default_factory=list[str])
 
 
 class RetentionProposal(RetentionChoice):
     """Restore original proof and preserve superseded current requirements."""
 
-    renewals: list[Renewal] = Field(default_factory=list)
+    renewals: list[Renewal] = Field(default_factory=list[Renewal])
 
 
 class PlanProposal(EvidenceDecision):
@@ -172,10 +173,10 @@ class PlanProposal(EvidenceDecision):
     status: Literal["planned", "survey", "waiting", "blocked"]
     summary: str
     tree: TaskTree | None = None
-    updates: list[Node] = Field(default_factory=list, description="Complete replacements or additions by stable node ID. Use only with a previous tree; omitted nodes remain unchanged.")
-    restore_nodes: list[str] = Field(default_factory=list, description="Stable IDs from retained_acceptance_candidates. Restore their exact historical specifications and proof instead of rewriting them or repeating consumed work.")
-    queries: list[Condition] = Field(default_factory=list, description="Read-only world operands. Survey thresholds do not establish completion.")
-    recipe_queries: list[str] = Field(default_factory=list, max_length=10, description="Read-only recipe-search patterns when current recipe evidence is missing or names need correction.")
+    updates: list[Node] = Field(default_factory=list[Node], description="Complete replacements or additions by stable node ID. Use only with a previous tree; omitted nodes remain unchanged.")
+    restore_nodes: list[str] = Field(default_factory=list[str], description="Stable IDs from retained_acceptance_candidates. Restore their exact historical specifications and proof instead of rewriting them or repeating consumed work.")
+    queries: list[Condition] = Field(default_factory=list[Condition], description="Read-only world operands. Survey thresholds do not establish completion.")
+    recipe_queries: list[str] = Field(default_factory=list[str], max_length=10, description="Read-only recipe-search patterns when current recipe evidence is missing or names need correction.")
 
     @model_validator(mode="after")
     def survey_scope(self) -> PlanProposal:
@@ -205,10 +206,10 @@ class RevisionProposal(EvidenceDecision):
 
     status: Literal["planned", "survey", "waiting", "blocked"]
     summary: str
-    updates: list[Node] = Field(default_factory=list, description="Complete replacements or additions by stable ID. Omitted nodes remain unchanged. Retain every existing root child when replacing its parent.")
-    restore_nodes: list[str] = Field(default_factory=list, description="Explicitly restore these retained_acceptance_candidates, including their changed dependencies. Use IDs rather than copying or paraphrasing historical specifications.")
-    queries: list[Condition] = Field(default_factory=list)
-    recipe_queries: list[str] = Field(default_factory=list, max_length=10)
+    updates: list[Node] = Field(default_factory=list[Node], description="Complete replacements or additions by stable ID. Omitted nodes remain unchanged. Retain every existing root child when replacing its parent.")
+    restore_nodes: list[str] = Field(default_factory=list[str], description="Explicitly restore these retained_acceptance_candidates, including their changed dependencies. Use IDs rather than copying or paraphrasing historical specifications.")
+    queries: list[Condition] = Field(default_factory=list[Condition])
+    recipe_queries: list[str] = Field(default_factory=list[str], max_length=10)
 
     @model_validator(mode="after")
     def scope(self) -> RevisionProposal:
@@ -225,9 +226,9 @@ class RefinementProposal(EvidenceDecision):
     status: Literal["planned", "survey", "waiting", "blocked"]
     summary: str
     replacement: Node | None = Field(description="The complete replacement for refinement_target, preserving its stable ID, parent, and acceptance conditions. Use null for a survey or blocker.")
-    additions: list[Node] = Field(default_factory=list, description="New descendant nodes only. Do not copy existing unrelated nodes.")
-    queries: list[Condition] = Field(default_factory=list)
-    recipe_queries: list[str] = Field(default_factory=list, max_length=10)
+    additions: list[Node] = Field(default_factory=list[Node], description="New descendant nodes only. Do not copy existing unrelated nodes.")
+    queries: list[Condition] = Field(default_factory=list[Condition])
+    recipe_queries: list[str] = Field(default_factory=list[str], max_length=10)
 
     @model_validator(mode="after")
     def scope(self) -> RefinementProposal:
@@ -252,6 +253,11 @@ class RefinementProposal(EvidenceDecision):
         return self
 
 
+class ReviewValidationContext(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    node_ids: frozenset[str]
+
+
 class PlanReview(EvidenceDecision):
     """An independent scope and acceptance review of an exact tree revision."""
 
@@ -260,9 +266,22 @@ class PlanReview(EvidenceDecision):
     target_id: str = ""
 
 
+    @model_validator(mode="after")
+    def check_target(self, info: ValidationInfo) -> PlanReview:
+        context = info.context
+        if isinstance(context, ReviewValidationContext) and self.target_id and self.target_id not in context.node_ids:
+            raise ValueError("target_id must be empty or identify an original task topology node.")
+        return self
+
+
 class VerificationReview(EvidenceDecision):
     """Interpret observed facts without replacing the mechanical evidence gate."""
 
     status: Literal["accepted", "good_enough", "equivalent_or_better", "replan", "waiting", "blocked"]
     summary: str
-    criterion_ids: list[str] = Field(default_factory=list, description="Optional cited criterion IDs. The backend records complete coverage from its actual checks.")
+    criterion_ids: list[str] = Field(default_factory=list[str], description="Optional cited criterion IDs. The backend records complete coverage from its actual checks.")
+
+
+class ProjectPhaseResult(Contract):
+    status: str
+    summary: str

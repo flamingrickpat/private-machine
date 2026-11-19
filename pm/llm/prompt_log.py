@@ -17,12 +17,14 @@ different directory.
 """
 from __future__ import annotations
 
+from pydantic import JsonValue
+
 from pm.utils.operating_system import OperatingSystem
 import json
 import sys
 import textwrap
 import uuid
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -37,10 +39,14 @@ DEFAULT_DIR = Path.home() / ".pm" / "private-machine" / "cache"
 _EVENT_LOCK = Lock()
 _PERSONA_ROOT: Path | None = None
 _SCOPED_ROOT: ContextVar[Path | None] = ContextVar("pm_prompt_log_root", default=None)
-_INVOCATION: ContextVar[tuple | None] = ContextVar("pm_prompt_invocation", default=None)
+_INVOCATION: ContextVar[tuple[str, RunId] | None] = ContextVar("pm_prompt_invocation", default=None)
 
 #: A run id that the host may assign only after module preparation started.
-RunId = str | Callable[[], str]
+class InvocationOwner(Protocol):
+    invocation_id: str | None
+
+
+RunId = str | InvocationOwner
 
 
 class LogTarget(Protocol):
@@ -266,7 +272,7 @@ def _event(path: Path, event: dict) -> None:
     #      f"output={usage.get('completion_tokens', 'unknown')} log={path}", file=sys.stderr)
 
 
-def start_prompt_log(*, connection: LogTarget, payload: dict[str, object] | None, route: str,
+def start_prompt_log(*, connection: LogTarget, payload: dict[str, JsonValue] | None, route: str,
                      request_count: int, directory: Path | None = None) -> Path | None:
     """Save the exact inference payload before external I/O. Return its log path.
 
@@ -291,7 +297,7 @@ def start_prompt_log(*, connection: LogTarget, payload: dict[str, object] | None
         invocation = _INVOCATION.get()
         if invocation is not None:
             module, run_id = invocation
-            record.update(module=module, invocation_id=run_id() if callable(run_id) else run_id)
+            record.update(module=module, invocation_id=run_id if isinstance(run_id, str) else run_id.invocation_id)
         path.with_suffix(".json").write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
         generation = {key: value for key, value in (payload or {}).items() if key not in {"messages", "input"}}
         body = ["# Private-machine prompt log", "", "- status: pending",
@@ -302,7 +308,9 @@ def start_prompt_log(*, connection: LogTarget, payload: dict[str, object] | None
             body.extend(_render_messages((payload or {}).get("messages", [])))
         else:
             body.extend(["## user (embedding input)", "", *wrap_text(_pretty((payload or {}).get("input", "")))])
-        path.write_text("\n".join(wrap_text("\n".join(body))), encoding="utf-8")
+
+        txt = "\n".join(wrap_text("\n".join(body)))
+        path.write_text(txt, encoding="utf-8")
         _event(path, {"event": "start", **{key: value for key, value in record.items() if key != "payload"}})
         return path
     except Exception as error:
@@ -310,7 +318,7 @@ def start_prompt_log(*, connection: LogTarget, payload: dict[str, object] | None
         return None
 
 
-def finish_prompt_log(path: Path | None, *, response: dict | None = None,
+def finish_prompt_log(path: Path | None, *, response: dict[str, JsonValue] | None = None,
                       error: BaseException | None = None, elapsed: float = 0.0,
                       replayed: bool = False) -> None:
     """Append provider usage and the response, or record an error or cancellation.

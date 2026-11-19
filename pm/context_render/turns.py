@@ -2,12 +2,12 @@
 from __future__ import annotations
 
 import base64
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 from string import Formatter
 import math
-from typing import Literal, TypeAlias
+from typing import Literal, TypeAlias, Protocol
 
 
 class Role(StrEnum):
@@ -30,29 +30,10 @@ class MediaKind(StrEnum):
 
 
 @dataclass(frozen=True)
-class ContextTag:
-    """Owner-supplied selection and evidence-review policy for a text group.
-
-    ``required`` prevents omission. ``reducible`` permits an internal workflow
-    to replace evidence with a source-linked review after mandatory overflow.
-    The renderer itself performs no model call or reduction.
-    """
-
-    name: str
-    salience: float
-    record_id: int | None = None
-    support_ids: tuple[int, ...] = ()
-    required: bool = False
-    recency: float = 0
-    reducible: bool = False
-
-
-@dataclass(frozen=True)
 class Text:
     """One text segment. Its contents remain verbatim."""
 
     text: str
-    context: ContextTag | None = None
 
 
 @dataclass(frozen=True)
@@ -74,7 +55,7 @@ class Media:
     def __post_init__(self) -> None:
         if (self.data is None) == (self.url is None):
             raise ValueError("Media needs exactly one byte payload or URL.")
-        if not self.mime_type or not isinstance(self.kind, MediaKind):
+        if not self.mime_type:
             raise ValueError("Media needs an explicit kind and MIME type.")
 
     @classmethod
@@ -128,8 +109,6 @@ class Content:
 
     def __init__(self, value: str | ContentPart | tuple[ContentPart, ...] = "", *, notes: tuple[str, ...] = ()) -> None:
         parts = (Text(value),) if isinstance(value, str) else value if isinstance(value, tuple) else (value,)
-        if not all(isinstance(part, (Text, Media, VideoFrames)) for part in parts):
-            raise TypeError("Content needs text or typed media parts.")
         object.__setattr__(self, "parts", parts)
         object.__setattr__(self, "notes", notes)
 
@@ -137,8 +116,8 @@ class Content:
         right = other if isinstance(other, Content) else Content(other)
         parts = list(self.parts)
         for part in right.parts:
-            if parts and isinstance(parts[-1], Text) and isinstance(part, Text) and parts[-1].context == part.context:
-                parts[-1] = replace(parts[-1], text=parts[-1].text + part.text)
+            if parts and isinstance(parts[-1], Text) and isinstance(part, Text):
+                parts[-1] = Text(parts[-1].text + part.text)
             else:
                 parts.append(part)
         return Content(tuple(parts), notes=tuple(dict.fromkeys((*self.notes, *right.notes))))
@@ -152,7 +131,7 @@ class Content:
         if any(not isinstance(part, Text) for part in self.parts):
             raise TypeError("Multimodal content cannot become a plain string.")
         prefix = "\n".join(self.notes) + "\n" if self.notes else ""
-        return prefix + "".join(part.text for part in self.parts)
+        return prefix + "".join(part.text for part in self.parts if isinstance(part, Text))
 
     def __str__(self) -> str:
         return self.text
@@ -161,9 +140,9 @@ class Content:
         """Remove outer text whitespace without removing attachments."""
         parts = list(self.parts)
         if parts and isinstance(parts[0], Text):
-            parts[0] = replace(parts[0], text=parts[0].text.lstrip())
+            parts[0] = Text(parts[0].text.lstrip())
         if parts and isinstance(parts[-1], Text):
-            parts[-1] = replace(parts[-1], text=parts[-1].text.rstrip())
+            parts[-1] = Text(parts[-1].text.rstrip())
         return Content(tuple(parts), notes=self.notes)
 
 
@@ -180,6 +159,13 @@ class ToolCall:
     arguments: str
 
 
+@dataclass(frozen=True, slots=True)
+class ProviderState:
+    reasoning: str | None = None
+    reasoning_content: str | None = None
+    reasoning_details_json: str | None = None
+
+
 @dataclass(frozen=True, init=False)
 class Turn:
     """One role-bound content fragment with optional tool protocol fields.
@@ -193,25 +179,27 @@ class Turn:
     tool_calls: tuple[ToolCall, ...] = ()
     tool_call_id: str = ""
     name: str = ""
-    provider_state: dict | None = None
+    provider_state: ProviderState | None = None
 
     def __init__(self, role: Role | str, content: Content | str = "", tool_calls: tuple[ToolCall, ...] = (),
-                 tool_call_id: str = "", name: str = "", provider_state: dict | None = None) -> None:
+                 tool_call_id: str = "", name: str = "", provider_state: ProviderState | None = None) -> None:
         object.__setattr__(self, "role", Role(role))
         object.__setattr__(self, "content", Content(content) if isinstance(content, str) else content)
         object.__setattr__(self, "tool_calls", tool_calls)
         object.__setattr__(self, "tool_call_id", tool_call_id)
         object.__setattr__(self, "name", name)
         object.__setattr__(self, "provider_state", provider_state)
-        if not isinstance(self.content, Content) or not all(isinstance(call, ToolCall) for call in tool_calls):
-            raise TypeError("Turn content needs a Content object or text.")
         if self.tool_calls and self.role is not Role.Assistant:
             raise ValueError("Only assistant turns can request tools.")
         if self.role is Role.Tool and not self.tool_call_id:
             raise ValueError("A tool result needs its original call ID.")
 
 
-def format_content(template: str, **values: Content | str) -> Content:
+class TemplateValues(Protocol):
+    def field_value(self, name: str) -> Content | str | int | float: ...
+
+
+def format_content(template: str, values: TemplateValues) -> Content:
     """Fill prompt slots without converting media content into text.
 
     Plain string slots support ordinary format specifications. Content slots
@@ -222,11 +210,11 @@ def format_content(template: str, **values: Content | str) -> Content:
         result += literal
         if field is None:
             continue
-        value = values[field]
+        value = values.field_value(field)
         if isinstance(value, Content) and not specification and not conversion:
             result += value
         else:
             text = value.text if isinstance(value, Content) else value
             text = Formatter().convert_field(text, conversion) if conversion else text
-            result += format(text, specification)
+            result += format(text, specification or "")
     return result

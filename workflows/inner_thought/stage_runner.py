@@ -10,89 +10,82 @@ from __future__ import annotations
 
 import asyncio
 import threading
-from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
+from enum import StrEnum
 from uuid import uuid4
 
-from pm_workflows.runtime import WorkflowRuntime
-from pm.llm.structured import context_measure
+from pm.llm.stage_model import LazyStageModel
 from pm.memory.bash_view import MemoryBashEnvironment
-from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
+from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus, WorkflowResult
 
-from workflows.inner_thought.pipeline import STAGE_ORDER
-from workflows.inference_settings import REASONING
+from workflows.inner_thought.schemas import InnerRequest, TriggerChoice, ThoughtAttentionDecision, ThoughtResult, InquiryStep, IntegrationResult, NominationBatch
+from workflows.reflection.schemas import ReflectionDecision
 
 if TYPE_CHECKING:
-    from pm.llm.prompt_encoding import TurnInput
-    from pm.memory.store import MemoryStore
+    from workflows.inner_thought.stages.trigger.rendering import AttentionStageRequest, TriggerEnvelope
+    from workflows.inner_thought.stages.thought.steps import ThoughtEnvelope
+    from workflows.inner_thought.stages.integrate.steps import IntegrationEnvelope
+    from workflows.inner_thought.graph_execution import GraphThoughtRequest
 
 PACKAGE_DIR = Path(__file__).resolve().parent
 PARENT_MANIFEST = PACKAGE_DIR / "inner_thought.workflow.md"
 STAGES_DIR = PACKAGE_DIR / "stages"
 
 
-def make_environment(ghost: MemoryStore) -> MemoryBashEnvironment:
-    """Return a fresh read-only projection of the current store state."""
-    view = ghost.snapshot()
-    return MemoryBashEnvironment(view.serialize_knoxels(), view.serialize_gwt(), "read")
+class PrivateStage(StrEnum):
+    Trigger = "trigger"
+    Nominate = "nominate"
+    Thought = "thought"
+    Integrate = "integrate"
+    Reflection = "reflection"
 
 
-def stage_manifest(name: str) -> Path:
-    if name not in (*STAGE_ORDER, "nominate"):
-        raise KeyError(f"unknown private thought stage: {name}")
-    return STAGES_DIR / name / f"{name}.workflow.md"
+class PrivateStageRunner:
+    def __init__(self, model: LazyStageModel, runtime_root: Path,
+                 read_environment: MemoryBashEnvironment, cancel: threading.Event,
+                 yield_requested: threading.Event) -> None:
+        self.model = model
+        self.yield_requested = yield_requested
+        self.runtime_root = runtime_root
+        self.read_environment = read_environment
+        self.stop = cancel
 
+    def trigger(self, request: InnerRequest) -> TriggerChoice:
+        from workflows.inner_thought.stages.trigger.rendering import TriggerEnvelope
+        return TriggerChoice.model_validate(self.invoke_stage(PrivateStage.Trigger, TriggerEnvelope(request=request)).report)
 
-def build_inner_stage_runner(
-    ghost: MemoryStore,
-    llm_complete: Callable[..., str],
-    runtime_root: Path,
-    read_environment: MemoryBashEnvironment | None = None,
-    *,
-    cancel: threading.Event | None = None,
-) -> Callable[[str, dict[str, Any]], dict[str, Any]]:
-    """Bind private child stages to one model and cancellation signal.
+    def nominate(self, request: InnerRequest) -> NominationBatch:
+        return NominationBatch.model_validate(self.invoke_stage(PrivateStage.Nominate, request).report)
 
-    Requested child cancellation raises asyncio.CancelledError so the parent
-    can discard its proposal. Unexpected termination still raises RuntimeError.
-    Kernel artifacts remain under runtime_root; cancellation returns no report.
-    """
+    def attention(self, request: AttentionStageRequest) -> ThoughtAttentionDecision:
+        return ThoughtAttentionDecision.model_validate(self.invoke_stage(PrivateStage.Trigger, request).report)
 
-    stop = cancel if cancel is not None else threading.Event()
+    def thought(self, request: ThoughtEnvelope) -> ThoughtResult:
+        return ThoughtResult.model_validate(self.invoke_stage(PrivateStage.Thought, request).report)
 
-    def run_stage(name: str, payload: dict[str, Any]) -> dict[str, Any]:
-        """Run one private child stage through the kernel and return its report."""
-        stage_run_id = f"{name}-{uuid4().hex[:12]}"
-        # The invocation's frozen view wins when one exists, so a private
-        # stage cannot read records the main loop accepted meanwhile.
-        environment = (MemoryBashEnvironment(read_environment.visible_knoxels, read_environment.visible_gwt, "read")
-                       if read_environment is not None else make_environment(ghost))
-        def complete(messages: Sequence[TurnInput], **generation: object) -> str:
-            """Complete one stage with the run's cancellation and reasoning budget."""
-            return llm_complete(messages, cancel=stop, reasoning_budget=REASONING["off"], **generation)
+    def inquiry(self, request: GraphThoughtRequest) -> InquiryStep:
+        return InquiryStep.model_validate(self.invoke_stage(PrivateStage.Thought, request).report)
 
-        tools = {"llm_complete": complete}
-        measure = context_measure(llm_complete)
-        if measure is not None:
-            complete.measure_context = measure
-        runtime = WorkflowRuntime(
-            environment=environment,
-            stop_event=stop,
-            tools=tools,
-            propagate_python_errors=True,
-        )
-        runner = WorkflowRunner(stage_manifest(name), Path(runtime_root) / name,
-                                namespace=name, base_dir=PROJECT_ROOT)
-        result = runner.invoke(WorkflowRequest(stage_run_id, payload), runtime)
-        # A requested stop is cancellation, not a failed private stage.
-        if result.status is WorkflowStatus.Cancelled and stop.is_set():
+    def integrate(self, request: IntegrationEnvelope) -> IntegrationResult:
+        return IntegrationResult.model_validate(self.invoke_stage(PrivateStage.Integrate, request).report)
+
+    def reflect(self, request: InnerRequest) -> ReflectionDecision:
+        return ReflectionDecision.model_validate(self.invoke_stage(PrivateStage.Reflection, request).report)
+
+    def invoke_stage(self, stage: PrivateStage, request: InnerRequest | AttentionStageRequest | TriggerEnvelope | ThoughtEnvelope | GraphThoughtRequest | IntegrationEnvelope) -> WorkflowResult:
+        from pm.runs.role_runtime import PMWorkflowRuntime
+        from pm.llm.session import ModelSession
+        stage_run_id = f"{stage.value}-{uuid4().hex[:12]}"
+        environment = MemoryBashEnvironment(self.read_environment.visible_knoxels, self.read_environment.turns, "read")
+        runtime = PMWorkflowRuntime(environment=environment, tools={}, stop_event=self.stop,
+            propagate_python_errors=True, model_session=ModelSession(self.model, self.stop, yield_requested=self.yield_requested))
+        manifest = STAGES_DIR / stage.value / f"{stage.value}.workflow.md"
+        runner = WorkflowRunner(manifest, self.runtime_root / stage.value, namespace=stage.value, base_dir=PROJECT_ROOT)
+        result = runner.invoke(WorkflowRequest(stage_run_id, request.model_dump(mode="json")), runtime)
+        if result.status is WorkflowStatus.Cancelled and self.stop.is_set():
             raise asyncio.CancelledError
         if result.status is not WorkflowStatus.Completed:
-            raise RuntimeError(f"stage {name} did not complete: {result.kernel_summary}")
-        return result.report
-
-    return run_stage
-
-
-__all__ = ["PARENT_MANIFEST", "build_inner_stage_runner", "stage_manifest"]
+            raise RuntimeError(f"stage {stage.value} did not complete: {result.kernel_summary}")
+        assert result.report is not None
+        return result

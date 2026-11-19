@@ -84,13 +84,11 @@ class LiveInputTriageTests(unittest.TestCase):
                 self.assertEqual(assessment.items[0].category, "Critical", assessment.items[0].reasoning)
                 with self.assertRaises(ReplySuperseded):
                     control.validate_publication(old_epoch, None)
-                store.save()  # Early triage commits in memory; this check explicitly tests a saved restart.
                 reopened = MemoryStore.from_checkpoint(out / "ghost.pickle")
                 rebuilt = CognitiveControl("rebuilt", BusSystem(), self.fail, time.monotonic, None, ghost=reopened)
                 rebuilt.enable_input_triage()
                 self.assertTrue(rebuilt.has_assessment(source_id))
-                # The assessment remains history; startup does not re-arm its old input.
-                self.assertFalse(rebuilt.reconsideration_required())
+                self.assertTrue(rebuilt.reconsideration_required())
         (out / "result.json").write_text(json.dumps({"model": connection.model, "endpoint": connection.base_url,
             "requests": model.request_count, "completion_cache": False, "results": results,
             "scope": __doc__}, indent=2), encoding="utf-8")

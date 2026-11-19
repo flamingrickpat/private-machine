@@ -18,9 +18,10 @@ conflicts requeue original causes with newer input. Internal errors propagate.
 """
 from __future__ import annotations
 
+from pm.records.workspace import SELF_SHARD
+
 import hashlib
 import json
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -49,13 +50,14 @@ from workflows.public_speech.situational_guidance import GuidanceDisposition
 from workflows.interaction.steps import prepare_work
 from workflows.main_cognition.action_request import partner_key, request_shards
 from workflows.main_cognition.cycle_commits import active_intentions
-from workflows.main_cognition.schemas import ActionRequest, WorkflowOption
+from workflows.main_cognition.schemas import ActionRequest
 from workflows.main_cognition.story_prefix import shard_label
 from workflows.public_speech.dependencies import InteractionContextChanged, capture_dependencies, validate_dependencies
 from workflows.public_speech.publication_control import ReplySuperseded
 
 if TYPE_CHECKING:
     from workflows.cognitive_control.host import CognitiveControl
+    from workflows.main_cognition.host import MainCogLoop
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,7 +75,7 @@ class Interaction(CognitiveWorkflow):
     DATA_TOPICS = frozenset({"user.input"})
     ghost: MemoryStore
     cognitive_control: CognitiveControl
-    workflow_catalogue_provider: Callable[[], list[WorkflowOption]]
+    main_cognition: MainCogLoop
 
     def validate_selection(self, selection_id: str) -> None:
         """Reject a selected action after a newer local choice replaces its sources."""
@@ -237,7 +239,7 @@ class Interaction(CognitiveWorkflow):
                 raise ValueError("Ordinary interaction requires an accepted main cycle.")
             source_ids = [item.knoxel_id for item in base.cycle.stimuli]
             base.cycle.early_triage = self.cognitive_control.triage_result(source_ids)
-            base.cycle.available_workflows = self.workflow_catalogue_provider()
+            base.cycle.available_workflows = self.main_cognition.available_workflow_options()
             base.cycle.capabilities = list(self.ghost.ghost_config.supported_capabilities)
             partner = base.cycle.stimuli[0].entity_id
             dependencies = capture_dependencies(view, sorted(base.evidence.record_fingerprints),
@@ -313,7 +315,7 @@ class Interaction(CognitiveWorkflow):
                     partner_name=shard_label(partner, request) if partner is not None else request.user_name,
                     stimuli=list(request.stimuli),
                     shards=request_shards(request.previous_state.workspace, dispatch.group, partner,
-                                          lambda key: shard_label(key, request)),
+                                          {key: shard_label(key, request) for key in (SELF_SHARD, dispatch.group, partner) if key is not None}),
                     gwt_tick=receipt.dependencies.guidance_tick,
                     presentation=dispatch.presentation, workspace=request.state_summary,
                     action_origin="interaction", interaction_selection_id=receipt.selection_id,

@@ -4,20 +4,20 @@ ghost_backups: false
 
 chat:
   Default:
+    disable_threading: false
     max_concurrent_requests: 8
     request_timeout_seconds: 99999
     override_context: 65536
-    cognition_context_window: 32768
     base_url: http://127.0.0.1:8080/v1
     model: qwen
     api_key: ""
     startup_script: ""
     context_input_fraction: 0.85
   UnitTestEvaluator:
+    disable_threading: false
     max_concurrent_requests: 8
     request_timeout_seconds: 99999
     override_context: 65536
-    cognition_context_window: 32768
     base_url: http://127.0.0.1:8080/v1
     model: qwen
     api_key: ""

@@ -6,7 +6,6 @@ state_policy: {mutation_model: append_only}
 roles:
   work:
     skill: workflows/inner_thought/stages/integrate/steps.py
-    tools: [llm_complete]
     result_contract:
       type: json
       schema:

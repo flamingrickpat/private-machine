@@ -1,5 +1,7 @@
 """Run a sustained pm-coder specialist and retain independently read effects."""
 from __future__ import annotations
+from workflows.minecraft.runtime import require_minecraft_runtime
+from pm.runs.managed_boundary import BoundaryReadSettings
 
 from dataclasses import replace
 import json
@@ -16,6 +18,11 @@ from pm_workflows.drivers import PmCoderDriver
 from workflows.minecraft_body.gateway import BodyGateway, READ_TOOLS
 from pm.host.mcp_listeners import serve_services
 from workflows.minecraft.schemas import MinecraftRequest
+from workflows.minecraft.execution_contracts import ActorAcceptance, LeafSpecification
+from workflows.minecraft.rendering import (LeafRenderInput, SpecialistRenderInput, ReconciliationEvidence, render_leaf_specification, render_specialist, render_reconciliation)
+from workflows.minecraft_project.planning.context_contracts import RecoveryFacts
+from pm.context_render.prompt import RendererCapture, RendererInput
+from pm.llm.role_model import role_model
 from workflows.minecraft.steps import build_world
 
 RESOURCES = Path(__file__).with_name("resources")
@@ -30,7 +37,7 @@ class ActorOutcome(BaseModel):
     handoff: str
 
 
-def verify_wood_return(receipts: list[dict], initial: dict, final: dict, acceptance: dict) -> dict:
+def verify_wood_return(receipts: list[dict], initial: dict, final: dict, acceptance: ActorAcceptance) -> dict:
     """Require distinct harvested trees, retained logs, travel, and return.
 
     Only actual tool results count. A model statement cannot add a tree.
@@ -56,10 +63,10 @@ def verify_wood_return(receipts: list[dict], initial: dict, final: dict, accepta
     traveled = max([distance(row["result"]["camera"]["feet_position"]) for row in receipts
                     if row["result"].get("camera", {}).get("feet_position")] or [0])
     return_distance = distance(end)
-    checks = {"five_distinct_trees": len(trees) >= acceptance.get("trees", 5),
+    checks = {"five_distinct_trees": len(trees) >= acceptance.trees,
               "retained_logs": logs(final) > logs(initial),
-              "nontrivial_travel": traveled >= acceptance.get("minimum_travel", 16),
-              "returned": return_distance <= acceptance.get("return_radius", 3),
+              "nontrivial_travel": traveled >= acceptance.minimum_travel,
+              "returned": return_distance <= acceptance.return_radius,
               "same_dimension": final["player"]["dimension"] == initial["player"]["dimension"],
               "alive_on_ground": final["player"]["health"] > 0 and final["player"]["on_ground"]
                                  and not final["player"].get("in_water", False)}
@@ -68,24 +75,11 @@ def verify_wood_return(receipts: list[dict], initial: dict, final: dict, accepta
             "final_logs": logs(final), "maximum_travel": traveled, "return_distance": return_distance}
 
 
-def leaf_execution_context(request: MinecraftRequest) -> dict:
-    """Keep current leaf operands separate from historical actor summaries.
-
-    The task reference identifies this attempt. Earlier thresholds and memory
-    claims cannot replace these current criteria or independent verification.
-    """
-    current = {"identity": request.task_reference, "instruction": request.goal or request.instruction,
-               "criteria": request.acceptance.get("criteria", []), "project_intent": request.project_intent}
-    observations = request.acceptance.get("current_criterion_observations")
-    if observations:
-        current["current_criterion_observations"] = observations
-    constraints = request.acceptance.get("project", {}).get("caller_constraints")
-    if constraints is not None:
-        current["caller_constraints"] = constraints
-    check = request.acceptance.get("project", {}).get("latest_project_check")
-    if check is not None:
-        current["latest_project_check"] = check
-    return current
+def leaf_execution_context(request: MinecraftRequest) -> LeafSpecification:
+    return LeafSpecification(identity=request.task_reference, instruction=request.goal or request.instruction,
+        criteria=request.acceptance.criteria, project_intent=request.project_intent,
+        current_criterion_observations=request.acceptance.current_criterion_observations,
+        project=request.acceptance.project)
 
 
 def run_specialist_session(context: RoleContext) -> dict[str, Any]:
@@ -94,16 +88,23 @@ def run_specialist_session(context: RoleContext) -> dict[str, Any]:
     The configured model session preserves pm-coder context discovery and
     automatic compaction. The actor never sends a public companion reply.
     """
-    runtime, environment = context.runtime, context.runtime.environment
+    runtime = require_minecraft_runtime(context.runtime)
+    environment = runtime.environment
     payload = yaml_util.safe_load(environment.read_text("inbox/request.yaml"))
     request = MinecraftRequest.model_validate({key: value for key, value in payload.items()
                                              if not key.startswith("_public_")})
-    endpoint = runtime.tools["minecraft_endpoint"]()
-    gateway = BodyGateway(endpoint, context.task_id, environment, runtime, dict(runtime.tools))
-    request.goal = runtime.tools["managed_instructions"]()["instruction"] or request.goal or request.instruction
+    endpoint = require_minecraft_runtime(runtime).minecraft_transport.settings.endpoint
+    gateway = BodyGateway(endpoint, context.task_id, environment, runtime)
+    request.goal = require_minecraft_runtime(runtime).instructions()["instruction"] or request.goal or request.instruction
     current_leaf = leaf_execution_context(request)
-    environment.write_text("inbox/leaf-specification.json", json.dumps(current_leaf, ensure_ascii=False, indent=2))
-    with runtime.tools["minecraft_lease"]():
+    session_model = role_model(runtime)
+    settings = session_model.render_settings()
+    leaf_input = LeafRenderInput(current_leaf)
+    with RendererCapture(session_model.capture_settings("minecraft.leaf"), RendererInput("minecraft.leaf", leaf_input, settings)) as capture:
+        leaf_prompt = render_leaf_specification(leaf_input, settings)
+        capture.save_output(leaf_prompt)
+    environment.write_text("inbox/leaf-specification.md", leaf_prompt.turns[1].content.text)
+    with runtime.body_lease.acquire():
         try:
             initial = gateway.call("minecraft_observe", {"include_image": request.include_image})
             if not initial["ok"]:
@@ -111,16 +112,20 @@ def run_specialist_session(context: RoleContext) -> dict[str, Any]:
             server_info = gateway.call("minecraft_info", {})
             if not server_info["ok"]:
                 raise RuntimeError("The actor cannot read current server rules.")
-            environment.write_text("inbox/server-rules.json", json.dumps(server_info["result"], ensure_ascii=False, indent=2))
-            previous = request.acceptance.get("previous_attempt", {})
-            sources = [Path(path) for path in previous.get("journals", [])]
-            history_sources = [Path(path) for path in request.acceptance.get("history_journals", [])]
+            environment.write_text("inbox/server-rules.md", server_info["result"].get("server_rules", ""))
+            previous = request.acceptance.previous_attempt
+            sources = [Path(path) for path in previous.journals] if previous is not None else []
+            history_sources = [Path(path) for path in request.acceptance.history_journals]
             reconciliation = gateway.reconcile(sources, history_sources=history_sources)
             # Retained receipts define the original wood-return home across epochs.
             original = next((row for row in gateway.receipts if row["tool"] == "minecraft_observe" and row["ok"]), None)
             baseline = original["result"] if original else initial["result"]
             reconciliation["original_observation"] = baseline
-            environment.write_text("inbox/reconciliation.json", json.dumps(reconciliation, ensure_ascii=False, indent=2))
+            reconciliation_input = ReconciliationEvidence.model_validate(reconciliation)
+            with RendererCapture(session_model.capture_settings("minecraft.reconciliation"), RendererInput("minecraft.reconciliation", reconciliation_input, settings)) as capture:
+                reconciliation_prompt = render_reconciliation(reconciliation_input, settings)
+                capture.save_output(reconciliation_prompt)
+            environment.write_text("inbox/reconciliation.md", reconciliation_prompt.turns[1].content.text)
             schemas = gateway.tool_schemas
             allowed = set(request.allowed_tools) if request.allowed_tools else {row["name"] for row in schemas}
             # Scripts can hide multiple actions from the instruction boundary.
@@ -160,7 +165,7 @@ def run_specialist_session(context: RoleContext) -> dict[str, Any]:
                       "Golden apples supply a regeneration effect. Check their actual recipe and safely gather and craft its prerequisites. "
                       "A flower alone is not food or healing. Prove increased health; absorption does not satisfy a health threshold. "
                       "Obtain ordinary healing items through supported survival actions and actual recipe evidence when health remains low. "
-                      "Read inbox/leaf-specification.json for this attempt's exact current instruction and criteria. "
+                      "Read inbox/leaf-specification.md for this attempt's exact current instruction and criteria. "
                       "Re-read that file before completion. Check every criterion's current operands, not an earlier threshold or memory claim. "
                       "Perform only this leaf's remaining outcomes and required safety actions. "
                       "Retain already correct world state instead of rebuilding it. "
@@ -170,7 +175,7 @@ def run_specialist_session(context: RoleContext) -> dict[str, Any]:
                       "The parent verifier obtains its own fresh reads and can reject that candidate. "
                       "Missing support, unseen cells, and failed exact reads require actual repair or replan. "
                       "Accepted references in acceptance.criteria cite parent-verified earlier leaves. "
-                      "Read their original specification, identity, and checks in acceptance.prerequisites. "
+                      "The opening context supplies each accepted prerequisite specification, identity, and checks. "
                       "Those certificates record past attainment. Perform this leaf's remaining world outcomes. "
                       "Preserve exact tool results in receipts and describe results at their recorded time. "
                       "Natural summaries can round a descriptive position or omit incidental loot when the actual goal permits it. "
@@ -178,13 +183,13 @@ def run_specialist_session(context: RoleContext) -> dict[str, Any]:
                       "Required quantities, exact placement, safety, item identity, and explicit boundaries remain part of the task. "
                       "Nonexistent diamonds or a location thousands of blocks away materially changes a report. "
                       "Explain meaningful shortfalls and uncertainty; independent verification still owns completion. "
-                      "Read acceptance.project before choosing work locations; its ancestor criteria reserve future construction cells. "
+                      "Read the opening ancestor integration requirements before choosing work locations; their criteria reserve future construction cells. "
                       "Its caller_constraints supplies original caller operands and publication audits. "
                       "Use the requirements relevant to this leaf; they do not authorize unrelated project work or prove completion. "
                       "Walk targets identify block cells. Compare actual returned feet positions with world-point criteria and caller spatial bounds. "
                       "Keep workbenches outside reserved floors, interiors, and entrance clearance. "
                       "A previous_attempt handoff records earlier work. Current specifications and fresh observations take precedence. "
-                      "Read inbox/reconciliation.json. It retains earlier calls and fresh reads after interruption. "
+                      "Read inbox/reconciliation.md. It retains earlier calls and fresh reads after interruption. "
                       "Its opening uncertain_world_effects lists unresolved calls across all earlier actors. "
                       "Inspect their known targets before replacing apparently missing supplies. Inventory absence does not prove loss. "
                       "An interrupted smelt can retain input, fuel, and output inside its furnace. "
@@ -195,7 +200,7 @@ def run_specialist_session(context: RoleContext) -> dict[str, Any]:
                       "Its original_observation records the original home and inventory baseline across restarts. "
                       "Never repeat an uncertain mutation from its old plan. Choose work from the current state. "
                       "Read scratch/decision-evidence.json for current safety and next-action facts. "
-                      "acceptance.gameplay_history supplies selected earlier methods and searches. "
+                      "inbox/gameplay-history.md supplies selected earlier methods and searches. "
                       "Full history remains in inbox/gameplay-history.json and scratch/gameplay-evidence.json. Read only relevant older entries when needed. "
                       "The compact history uses method_fields and outcome_fields to label its rows; "
                       "resolve journal source_index through source_paths, method state_index through method_states, and tool_index through tool_names. "
@@ -271,27 +276,23 @@ def run_specialist_session(context: RoleContext) -> dict[str, Any]:
                 agent_runtime = replace(runtime, agent_model=model, mcp_servers=servers)
                 from pm.llm.prompt_log import log_directory
                 driver = PmCoderDriver(log_root=log_directory() / "agents")
+                recovery = gateway.gameplay.recovery_guidance()
+                actor_input = SpecialistRenderInput(skill, current_leaf, request.acceptance, initial["result"],
+                    server_info["result"].get("server_rules", ""),
+                    RecoveryFacts.model_validate(recovery) if recovery is not None else None, reconciliation_input)
+                with RendererCapture(session_model.capture_settings("minecraft.specialist"), RendererInput("minecraft.specialist", actor_input, settings)) as capture:
+                    actor_prompt = render_specialist(actor_input, settings)
+                    capture.save_output(actor_prompt)
                 result = driver.run_session(run_id=context.task_id + "-actor", attempt=1,
-                    skill=str(skill_path), prompt="Execute the Minecraft leaf in inbox/request.yaml. "
-                    "Current leaf operands, which take precedence over retained notes: "
-                    + json.dumps(current_leaf, ensure_ascii=False, separators=(",", ":")) + "\n"
-                    "Unresolved world effects from retained actors; reconcile these before replacing missing resources: "
-                    + json.dumps(reconciliation["uncertain_world_effects"], ensure_ascii=False, separators=(",", ":")) + "\n"
-                    "Current server rules and recovery facts, which also take precedence over retained notes: "
-                    + json.dumps({"server_rules": server_info["result"].get("server_rules", ""),
-                                  "recovery": gateway.gameplay.recovery_guidance()}, ensure_ascii=False, separators=(",", ":")) + "\n"
-                    "Re-read inbox/leaf-specification.json before declaring completion. "
-                    "Read the fresh initial observation in scratch/actor-journal.jsonl. Use the Minecraft MCP tools. "
-                    "Your final JSON must include exactly status, summary, and handoff. "
-                    "The required handoff string can name your written outbox/handoff.md.",
+                    skill=str(skill_path), prompt=actor_prompt.turns[1].content.text,
                     work_dir=context.workspace, runtime=agent_runtime, mcp_config=config,
                     trace_file=context.kernel_data / "actor-agent-trace.jsonl")
             runtime.check_cancelled()
             from pm.llm.structured import repair_agent_result
             outcome = repair_agent_result(result, ActorOutcome, model,
-                instruction="Report the completed Minecraft leaf: " + json.dumps(current_leaf, ensure_ascii=False),
+                instruction="Report the completed Minecraft leaf: " + leaf_prompt.turns[1].content.text,
                 cancel=runtime.stop_event)
-            final_instruction = runtime.tools["managed_instructions"](close=True)
+            final_instruction = require_minecraft_runtime(runtime).instructions(BoundaryReadSettings(close=True))
             if final_instruction["revision"] != gateway.revision:
                 outcome.status = "yield"
                 outcome.summary = "Instructions changed before completion. Resume from the retained evidence."
@@ -302,7 +303,7 @@ def run_specialist_session(context: RoleContext) -> dict[str, Any]:
                 outcome.status = "replan"
                 outcome.summary = "Recovery is active or failed through death. Add or revise a concrete recovery leaf before optional work. " + outcome.summary
             verification = {"verified": False, "reason": "Independent generic leaf verification belongs to A11."}
-            if request.acceptance.get("kind") == "wood_return" and final["ok"]:
+            if request.acceptance.kind == "wood_return" and final["ok"]:
                 verification = verify_wood_return(gateway.receipts, baseline, final["result"], request.acceptance)
             accepted = outcome.status == "complete" and verification["verified"]
             image_paths = [frame["path"] for row in gateway.receipts for frame in row["images"]]
@@ -315,8 +316,8 @@ def run_specialist_session(context: RoleContext) -> dict[str, Any]:
                       "goal": final_instruction["instruction"] or request.goal or request.instruction,
                       "body_id": request.body_id, "summary": outcome.summary,
                       "outcome": outcome.model_dump(), "verification": verification,
-                      "acceptance": request.acceptance, "verified": accepted,
-                      "task_reference": request.task_reference,
+                      "acceptance": request.acceptance.model_dump(mode="json"), "verified": accepted,
+                      "task_reference": request.task_reference.model_dump(mode="json") if request.task_reference is not None else None,
                       "agent_session": result.session_ref, "agent_log_root": str(driver.log_root),
                       "instruction_revision": gateway.revision,
                       "call_count": len(gateway.receipts), "visual_interpretation": False,

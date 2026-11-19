@@ -8,13 +8,15 @@ import hashlib
 import json
 from pathlib import Path
 import time
+from pydantic import BaseModel
 
 from workflows.minecraft_project.schemas import Node, TaskTree
 
 
 def digest(value: object) -> str:
     """Hash canonical JSON so unchanged specifications retain their identity."""
-    return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+    wire = value.model_dump(mode="json", by_alias=True) if isinstance(value, BaseModel) else value
+    return hashlib.sha256(json.dumps(wire, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 
 def node_digest(node: Node) -> str:
@@ -178,7 +180,7 @@ class TreeStore:
         """
         path = self.path_for(relative)
         temporary = path.with_suffix(path.suffix + ".tmp")
-        contents = json.dumps(value, indent=2, ensure_ascii=False)
+        contents = value.model_dump_json(indent=2) if isinstance(value, BaseModel) else json.dumps(value, indent=2, ensure_ascii=False)
         for attempt in range(5):
             try:
                 path.parent.mkdir(parents=True, exist_ok=True)

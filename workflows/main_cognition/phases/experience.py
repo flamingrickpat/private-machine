@@ -26,23 +26,29 @@ seed phrases (``_generate_state_seed_phrases``).
    the content of another group. The calls run in parallel.
 """
 from __future__ import annotations
-from workflows.main_cognition.context_reduction import evidence_text
+
+from workflows.main_cognition.experience_rendering import ExperienceRenderInput, render_experience
+from pm.context_render.prompt import RendererCapture, RendererInput
+
+from pm.llm.role_model import role_model
 
 from pm_workflows.python_role import RoleContext
 from pydantic import BaseModel, ConfigDict, Field
 
 from pm.constants import WORKSPACE_TAIL_TOKENS
-from pm.context_render.turns import Role, Turn, format_content
+from pm.context_render.turns import Turn
 from pm.records.base import persisted_type_name
 from pm.records.enums import FeatureType
 from pm.records.memory_records import Feature
 from pm.records.mental_state import FullMentalState
-from pm.llm.concurrency import ordered_parallel_map
+from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
+from pm.llm.concurrency import wait_model_futures
 from pm.records.workspace import SELF_SHARD, ShardKey
 
 from workflows.main_cognition.csm_view import record_tokens, render_story
 from workflows.main_cognition.cycle_work import CycleWork
-from workflows.main_cognition.model_json import load_yaml
+from pm.runs.role_io import load_yaml
 from workflows.main_cognition.phases.model import PROMPTS_DIR, complete_prose
 from workflows.inference_settings import DECISION_WORKERS
 from workflows.main_cognition.schemas import ExperienceResult, GroupExperience, RecordView
@@ -59,7 +65,7 @@ class SeedSide(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     template: str = ""
-    tiers: list[Tier] = Field(default_factory=list)
+    tiers: list[Tier] = Field(default_factory=list[Tier])
 
 
 class CognitionSeed(BaseModel):
@@ -101,17 +107,17 @@ class SeedTable(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    cognition: list[CognitionSeed] = Field(default_factory=list)
+    cognition: list[CognitionSeed] = Field(default_factory=list[CognitionSeed])
     emotion_threshold: float = 0.4
-    bipolar: list[BipolarSeed] = Field(default_factory=list)
-    unipolar: list[UnipolarSeed] = Field(default_factory=list)
+    bipolar: list[BipolarSeed] = Field(default_factory=list[BipolarSeed])
+    unipolar: list[UnipolarSeed] = Field(default_factory=list[UnipolarSeed])
     fear: UnipolarSeed = Field(default_factory=UnipolarSeed)
-    emotion_tiers: list[Tier] = Field(default_factory=list)
+    emotion_tiers: list[Tier] = Field(default_factory=list[Tier])
     emotion_template: str = ""
-    emotion_adverbs: dict[str, str] = Field(default_factory=dict)
+    emotion_adverbs: dict[str, str] = Field(default_factory=dict[str, str])
     fear_template: str = ""
-    drives: list[str] = Field(default_factory=list)
-    need_tiers: list[Tier] = Field(default_factory=list)
+    drives: list[str] = Field(default_factory=list[str])
+    need_tiers: list[Tier] = Field(default_factory=list[Tier])
     need_template: str = ""
 
 
@@ -128,7 +134,7 @@ class ExperiencePrompts(BaseModel):
 
 def load_experience_prompts() -> ExperiencePrompts:
     """Read and validate ``phases/prompts/experience.yaml``. An invalid file raises."""
-    return ExperiencePrompts.model_validate(load_yaml(PROMPTS_DIR / "experience.yaml"))
+    return load_yaml(PROMPTS_DIR / "experience.yaml", ExperiencePrompts)
 
 
 def tier_word(value: float, tiers: list[Tier]) -> str | None:
@@ -161,7 +167,7 @@ def seed_phrases(state: FullMentalState, table: SeedTable) -> list[str]:
         value = float(getattr(state.state_cognition, seed.axis))
         for side, intensity in ((seed.high, value), (seed.low, seed.low_origin - value)):
             word = tier_word(intensity, side.tiers) if side is not None else None
-            if word is not None:
+            if word is not None and side is not None:
                 phrases.append(side.template.format(word=word))
                 break
 
@@ -172,7 +178,7 @@ def seed_phrases(state: FullMentalState, table: SeedTable) -> list[str]:
             candidates.append((abs(value), seed.positive if value > 0 else seed.negative, False))
     for seed in [*table.unipolar, table.fear]:
         value = axis_value(state, seed.path)
-        if value > table.emotion_threshold:
+        if value is not None and value > table.emotion_threshold:
             candidates.append((value, seed.name, seed is table.fear))
     if candidates:
         value, name, fear = max(candidates, key=lambda item: item[0])
@@ -225,10 +231,27 @@ def render_entered(work: CycleWork, group: ShardKey | None = None) -> str:
 def build_messages(work: CycleWork, prompts: ExperiencePrompts, prefix: StoryPrefix, seed: str,
                    group: ShardKey | None = None) -> list[Turn]:
     """Return the story prefix, the instruction, and the seed as an open assistant turn."""
-    instruction = format_content(prefix.fill(prompts.user_template),
-                                 entered=evidence_text(render_entered(work, group), "experience-entered"))
-    turns = prefix.ask(instruction)
-    return [*turns, Turn(Role.Assistant, seed)] if seed else turns
+    entered = tuple(dict.fromkeys(item.record_id for change in work.attention.changes
+        if group is None or change.key in (SELF_SHARD, group) for item in change.entered))
+    priorities = {record_id: item.activation for record_id, item in work.state.csm.items.items()}
+    for shard_ratings in work.attention.ratings:
+        for rating in shard_ratings.ratings:
+            if not rating.won:
+                continue
+            structure = next(item for item in work.structures.structures if item.record_id == rating.structure_id)
+            for record_id in structure.record_ids:
+                priorities[record_id] = max(priorities.get(record_id, 0.0), rating.score)
+    relevant_ids = set(prefix.render_input.records) | set(entered)
+    records = {record_id: work.records[record_id] for record_id in relevant_ids}
+    priorities = {record_id: priorities.get(record_id, 0.0) for record_id in relevant_ids}
+    input = ExperienceRenderInput(prefix.render_input, prefix.fill(prompts.user_template), seed,
+                                  entered, records, priorities)
+    if prefix.capture_settings is None:
+        return list(render_experience(input, prefix.settings).turns)
+    with RendererCapture(prefix.capture_settings, RendererInput("subjective experience", input, prefix.settings)) as capture:
+        rendered = render_experience(input, prefix.settings)
+        capture.save_output(rendered)
+    return list(rendered.turns)
 
 
 def continuation(raw: str, seed: str) -> str:
@@ -252,8 +275,9 @@ def enter_self_tail(work: CycleWork, record_id: int) -> None:
     """
     shard = work.state.workspace.self_shard
     exclude = {item.knoxel_id for item in work.request.stimuli}
-    shard.tail_ids = select_tail([*shard.tail_ids, record_id], lambda key: record_tokens(work.records, key),
-                                 WORKSPACE_TAIL_TOKENS, exclude)
+    stream_ids = [*shard.tail_ids, record_id]
+    token_costs = {key: record_tokens(work.records, key) for key in stream_ids}
+    shard.tail_ids = select_tail(stream_ids, token_costs, WORKSPACE_TAIL_TOKENS, exclude)
     change = next(change for change in work.attention.changes if change.key == SELF_SHARD)
     change.tail_ids = list(shard.tail_ids)
 
@@ -278,7 +302,8 @@ def experience_groups(work: CycleWork) -> list[ShardKey]:
 def run(context: RoleContext, work: CycleWork) -> CycleWork:
     prompts = load_experience_prompts()
     seed = seed_text(seed_phrases(work.state.mental_state, prompts.seed_phrases), prompts)
-    prefix = StoryPrefix(work)
+    prefix = StoryPrefix(work, settings=role_model(context.runtime).render_settings(),
+            capture_settings=role_model(context.runtime).capture_settings("main-cognition"))
     raw = complete_prose(context, build_messages(work, prompts, prefix, seed))
     text = f"{seed}{continuation(raw, seed)}{focus_phrase(work, prompts)}".strip()
     record_id = _record(work, text)
@@ -290,10 +315,17 @@ def run(context: RoleContext, work: CycleWork) -> CycleWork:
     # hides the whole-moment experience (``hidden_for``). The group text then
     # does not repeat the content of the other groups.
     work.experience.groups = [GroupExperience(key=key, seed=seed) for key in keys]
-    prefixes = [StoryPrefix(work, group=key) for key in keys]
-    texts = ordered_parallel_map(
-        lambda index: complete_prose(context, build_messages(work, prompts, prefixes[index], seed, keys[index])),
-        list(range(len(keys))), workers=DECISION_WORKERS, cancel=context.runtime.stop_event)
+    prefixes = [StoryPrefix(work, group=key, settings=role_model(context.runtime).render_settings(),
+            capture_settings=role_model(context.runtime).capture_settings("main-cognition")) for key in keys]
+    session = role_model(context.runtime)
+    if session.model.connection.disable_threading:
+        texts = [complete_prose(context, build_messages(work, prompts, prefixes[index], seed, keys[index]))
+            for index in range(len(keys))]
+    else:
+        with ThreadPoolExecutor(max_workers=DECISION_WORKERS) as executor:
+            futures = [executor.submit(copy_context().run, complete_prose, context, build_messages(work, prompts, prefixes[index], seed, keys[index]))
+                       for index in range(len(keys))]
+            texts = wait_model_futures(futures, session.cancel)
     for item, raw_group in zip(work.experience.groups, texts, strict=True):
         item.text = f"{seed}{continuation(raw_group, seed)}{focus_phrase(work, prompts, item.key)}".strip()
         item.record_id = _record(work, item.text)

@@ -8,9 +8,9 @@ loops. See :mod:`pm.llm` for the inference subsystem overview.
 from __future__ import annotations
 
 from asyncio import CancelledError
-from collections.abc import AsyncGenerator, Callable, Generator, Iterable
-from concurrent.futures import ThreadPoolExecutor, wait
-from contextvars import ContextVar, copy_context
+from collections.abc import AsyncGenerator, Generator
+from concurrent.futures import Future, FIRST_EXCEPTION, wait
+from contextvars import ContextVar
 from dataclasses import dataclass
 from enum import StrEnum
 import logging
@@ -136,31 +136,24 @@ def inference_admission(endpoint: str, *, max_concurrent_requests: int = 8) -> I
 T = TypeVar("T")
 R = TypeVar("R")
 
-
-def ordered_parallel_map(operation: Callable[[T], R], items: Iterable[T], *, workers: int, cancel: Event) -> list[R]:
-    """Return ordered results with the caller's memory and logging scopes.
-
-    Each worker enters its own context copy. Failure signals cancellation and
-    joins every worker before returning control to the publishing thread.
-    """
-    errors: list[BaseException] = []
-    lock = Lock()
-
-    def call(item: T) -> R:
-        try:
-            if cancel.is_set():
+def wait_model_futures(futures: list[Future[T]], cancel: Event | None = None) -> list[T]:
+    pending = set(futures)
+    while pending:
+        done, pending = wait(pending, timeout=0.1, return_when=FIRST_EXCEPTION)
+        for future in done:
+            if future.cancelled():
+                if cancel is not None:
+                    cancel.set()
                 raise CancelledError
-            return operation(item)
-        except BaseException as error:
-            with lock:
-                if not errors:
-                    errors.append(error)
-            cancel.set()
-            raise
-
-    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="inference") as pool:
-        futures = [pool.submit(copy_context().run, call, item) for item in items]
-        wait(futures)
-    if errors:
-        raise errors[0]
+            error = future.exception()
+            if error is not None:
+                if cancel is not None:
+                    cancel.set()
+                for sibling in pending:
+                    sibling.cancel()
+                raise error
+        if cancel is not None and cancel.is_set():
+            for future in pending:
+                future.cancel()
+            raise CancelledError
     return [future.result() for future in futures]

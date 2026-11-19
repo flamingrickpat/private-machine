@@ -202,43 +202,28 @@ def run(args: argparse.Namespace) -> None:
         OperatingSystem.environment["MINECRAFT_MCP_URL"] = stack.mcp_url
         app = build_app(ROOT / "test_data/personas/spamuel/canon.yaml", runtime_root, cognition="real",
             config_path=str(args.config.resolve()), checkpoint_path=checkpoint, record_lifecycle=False)
-        plan_constraints = getattr(args, "plan_constraints", None)
-        project_check = getattr(args, "project_check", None)
-        if plan_constraints is not None or project_check is not None or decision_generation:
-            from dataclasses import replace
-            import inspect
-            spec = app.supervisor.workflows["minecraft_project"]
-            factory = spec.tools_factory
-            def constrained_tools(run_id, environment):
-                tools = dict(factory(run_id, environment))
-                tools["minecraft_evidence_sources"] = lambda: {
-                    "companion_seed": str(ROOT / "test_data/personas/spamuel/canon.yaml"),
-                    "companion_checkpoint": str(checkpoint)}
-                if decision_generation:
-                    tools["minecraft_decision_generation"] = lambda: dict(decision_generation)
-                if plan_constraints is not None:
-                    tools["minecraft_plan_constraints"] = plan_constraints
-                if project_check is not None:
-                    tools["minecraft_project_check"] = lambda root, tree: project_check(root, tree, receipt["initial_observation"], character)
-                return tools
-            manifest = project_contract_manifest(spec.manifest, out / "minecraft_tasks.workflow.md",
-                                                 plan=plan_constraints is not None, completion=project_check is not None,
-                                                 evidence=True, generation=bool(decision_generation))
-            app.supervisor.workflows["minecraft_project"] = replace(spec, manifest=manifest, tools_factory=constrained_tools)
-            receipt["project_contracts"] = {"manifest": {
-                "source": str(spec.manifest), "source_sha256": hashlib.sha256(spec.manifest.read_bytes()).hexdigest(),
-                "runtime": str(manifest), "runtime_sha256": hashlib.sha256(manifest.read_bytes()).hexdigest()}}
-            for name, callback in (("plan", plan_constraints), ("completion", project_check)):
-                if callback is not None:
-                    source = Path(inspect.getsourcefile(callback))
-                    receipt["project_contracts"][name] = {"module": callback.__module__, "function": callback.__name__,
-                        "source": str(source), "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest()}
+        audit = getattr(args, "audit_owner", None)
         app.supervisor.on_error = lambda error: print(f"Worker error: {type(error).__name__}: {error}", flush=True)
-        from workflows.minecraft_body.mcp_client import build_minecraft_tools
-        initial = build_minecraft_tools(stack.mcp_url)["minecraft_call"]("minecraft_observe", {"include_image": False})
+        from workflows.minecraft_body.mcp_client import MinecraftTransport, MinecraftTransportSettings
+        initial = MinecraftTransport(MinecraftTransportSettings(endpoint=stack.mcp_url), None).call("minecraft_observe", {"include_image": False})
         receipt["initial_observation"] = previous["initial_observation"] if previous else initial["result"]
         if previous is not None:
             receipt["resume_observation"] = initial["result"]
+        if audit is not None:
+            from dataclasses import replace
+            from workflows.minecraft.host import MinecraftRuntimeOwner
+            from workflows.minecraft_project.services import CallerAuditEnvironment
+            spec = app.supervisor.workflows["minecraft_project"]
+            owner = spec.runtime_owner
+            if not isinstance(owner, MinecraftRuntimeOwner):
+                raise TypeError("A project audit requires the concrete Minecraft runtime owner.")
+            bound_audit = audit.bind(CallerAuditEnvironment(receipt["initial_observation"], character))
+            app.supervisor.workflows["minecraft_project"] = replace(spec, runtime_owner=replace(owner,
+                project_audit=bound_audit, evidence_sources={
+                    "companion_seed": ROOT / "test_data/personas/spamuel/canon.yaml",
+                    "companion_checkpoint": checkpoint}))
+            receipt["project_contracts"] = {"owner": type(bound_audit).__name__,
+                "source": str(ROOT / "dev/work_items/alpha_a13_minecraft_gate.py")}
         save()
         arguments = {"plan_only": args.plan_only}
         if args.source_tree:

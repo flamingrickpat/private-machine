@@ -13,24 +13,29 @@ Runtime ownership is described in [the Story host overview][workflows.dialogue_s
 """
 from __future__ import annotations
 
+from workflows.public_speech.public_context import rank_public_evidence, rank_memory_texts
+
 from pm import vclock
 
-from collections.abc import Callable, Sequence
-from dataclasses import dataclass
-from datetime import datetime
+from collections.abc import Sequence
+from dataclasses import dataclass, replace
 from threading import Event
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from pm.memory.embeddings import EmbeddingService
 from pm.memory.retrieval import distinctive_terms
-from pm.context_render.budget import ContextGroup, PromptSelection, TokenEstimator, context_recency, select_rendered_context
-from pm.context_render.turns import Content, Turn
+from workflows.dialogue_story.history_rendering import select_story_history
+from pm.memory.temporal_context import TemporalCoverageSelection
 
-from workflows.dialogue_story.schemas import DialogueTurn, StoryPrompts, StoryRequest
+from pm.context_render.budget import PromptSelection, TokenEstimator, RequiredContextTooLarge
+from pm.context_render.turns import Turn
+from pm.context_render.images import ImageCatalog, resolve_media
+from pm.context_render.prompt import RenderSettings, RenderedPrompt, EvidenceDecision, TemporalHistoryMeasurement, require_rendered_prompt
+
+from workflows.dialogue_story.schemas import StoryPrompts, StoryRequest, StorySituation
 
 if TYPE_CHECKING:
     from pm.memory.store import MemoryStore
-    from workflows.public_speech.public_context import EvidenceItem
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,117 +44,194 @@ class StoryPrompt:
 
     request: StoryRequest
     selection: PromptSelection
+    history: TemporalCoverageSelection | None = None
+    history_measurement: TemporalHistoryMeasurement | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class StoryRenderInput:
+    request: StoryRequest
+    prompts: StoryPrompts
+    repair_turns: tuple[Turn, ...] = ()
+
+
+def render_story(input: StoryRenderInput, settings: RenderSettings) -> RenderedPrompt:
+    request = input.request.model_copy(deep=True)
+    request.input_budget_tokens = settings.input_ceiling
+    planned = select_story_prompt(request, input.prompts, input.repair_turns, settings=settings)
+    selected_ids = set(planned.selection.source_ids)
+    evidence = input.request.public_context.evidence if input.request.public_context is not None else []
+    decisions = tuple(EvidenceDecision(item.knoxel_id, item.score, item.knoxel_id in selected_ids,
+                      "story lane selection" if item.knoxel_id in selected_ids else "budget or duplicate") for item in evidence)
+    decisions += tuple(EvidenceDecision(turn.knoxel_id, 0.0, turn.knoxel_id in selected_ids,
+                       "current exchange or distinct relevant example" if turn.knoxel_id in selected_ids else "unrelated, redundant, or dialogue budget")
+                       for turn in input.request.prior_dialogue if turn.knoxel_id is not None)
+    if planned.history is not None:
+        decisions += tuple(EvidenceDecision(item.record_id, item.relevance, True, "full lifetime cover and detail refinement")
+                           for item in planned.history.items)
+        decisions += tuple(EvidenceDecision(record_id, 0.0, False, "coarsest lifetime cover exceeds actual prompt headroom")
+                           for record_id in planned.history.omitted_feature_ids)
+    rendered = require_rendered_prompt("story generation", planned.selection.turns, settings, decisions,
+        selected_groups=planned.selection.included)
+    return replace(rendered, temporal_history=planned.history, temporal_history_measurement=planned.history_measurement)
 
 
 def select_story_prompt(
     request: StoryRequest,
     prompts: StoryPrompts,
     repair_turns: Sequence[Turn] = (),
-    *,
-    render: Callable[[StoryRequest], Sequence[Turn]] | None = None,
+    settings: RenderSettings | None = None,
 ) -> StoryPrompt:
-    """Fit optional retrieval against a complete Story generation or review prompt.
-
-    Current speech, prior dialogue, shard evidence, private state, instructions,
-    and repair turns remain required. Retrieval records compete by their saved
-    scores. A selected record keeps any support records present in the supplied
-    evidence. Nothing is clipped, and required overflow remains an error.
-    """
     from workflows.dialogue_story.steps import build_story_messages
-    from workflows.public_speech.context_planning import load_plan
 
     if request.input_budget_tokens is None:
-        raise ValueError("Story context selection requires the runtime input ceiling.")
+        raise ValueError("Story rendering requires an explicit input ceiling.")
+    estimator = TokenEstimator(estimate_factor=settings.estimate_factor if settings is not None else 1.5)
     context = request.public_context
-    evidence: list[EvidenceItem] = list(context.evidence) if context is not None else []
-    by_id = {item.knoxel_id: item for item in evidence}
-    retrieval_lanes = {lane.name for lane in load_plan("story").lanes}
-    optional = [item for item in evidence if item.knoxel_id != 0 and item.lane in retrieval_lanes]
-    optional_ids = {item.knoxel_id for item in optional}
-    required_ids = {item.knoxel_id for item in evidence if item.knoxel_id not in optional_ids}
-    required_ids.update(request.required_evidence_ids)
-    required_ids.update(turn.knoxel_id for turn in request.prior_dialogue[-4:] if turn.knoxel_id is not None)
-    if request.guidance is not None:
-        # Keep the first actual reply that used the frame. Otherwise optional
-        # history selection could hide its fulfillment and revive the move.
-        first_reply = next((turn for turn in request.prior_dialogue
-                            if turn.kind == "speech" and turn.speaker == request.companion_name
-                            and turn.knoxel_id is not None
-                            and turn.knoxel_id > request.guidance.through_record_id), None)
-        if first_reply is not None:
-            assert first_reply.knoxel_id is not None
-            required_ids.add(first_reply.knoxel_id)
+    images = ImageCatalog(request.images)
+    evidence = list(context.evidence) if context is not None else []
+    required_ids = set(request.required_evidence_ids)
     if request.current_message_id is not None:
         required_ids.add(request.current_message_id)
-    pending_required = [record_id for record_id in required_ids if record_id in by_id]
-    while pending_required:
-        current = by_id[pending_required.pop()]
-        for source_id in current.source_ids:
+    speech_history = [turn for turn in request.prior_dialogue if turn.kind == "speech"]
+    required_dialogue = speech_history[-2:]
+    if request.guidance is not None:
+        for turn in speech_history:
+            if (turn.speaker == request.companion_name and turn.knoxel_id is not None
+                    and turn.knoxel_id > request.guidance.through_record_id):
+                if turn not in required_dialogue:
+                    required_dialogue = [turn, *required_dialogue]
+                break
+    required_ids.update(turn.knoxel_id for turn in required_dialogue if turn.knoxel_id is not None)
+    by_id = {item.knoxel_id: item for item in evidence}
+    pending = sorted(required_ids)
+    while pending:
+        record_id = pending.pop()
+        if record_id not in by_id:
+            continue
+        for source_id in by_id[record_id].source_ids:
             if source_id in by_id and source_id not in required_ids:
                 required_ids.add(source_id)
-                pending_required.append(source_id)
-    groups = [ContextGroup(name="Required Story context", content=Content(""), salience=0,
-                           required=True, source_ids=tuple(sorted(required_ids)))]
-    for item in optional:
-        if item.knoxel_id in required_ids:
+                pending.append(source_id)
+    selected_evidence = [item for item in evidence if item.knoxel_id in required_ids]
+    selected_dialogue = list(required_dialogue)
+    selected_context = context.model_copy(deep=True) if context is not None else None
+    if selected_context is not None:
+        selected_context.evidence = selected_evidence
+        selected_context.memories = []
+    selected = request.model_copy(deep=True)
+    selected.prior_dialogue = selected_dialogue
+    selected.public_context = selected_context
+    selected.memories = []
+    turns = resolve_media((*build_story_messages(selected, prompts), *repair_turns), images)
+    mandatory_tokens = estimator.estimate(turns)
+    if mandatory_tokens > request.input_budget_tokens:
+        raise RequiredContextTooLarge(f"Story mandatory input uses {mandatory_tokens} estimated tokens; ceiling {request.input_budget_tokens}.")
+    history: TemporalCoverageSelection | None = None
+    history_measurement: TemporalHistoryMeasurement | None = None
+    if selected.public_context is not None and selected.public_context.temporal_history is not None:
+        lifetime = select_story_history(selected, prompts, repair_turns, estimator)
+        history = lifetime.coverage
+        history_measurement = TemporalHistoryMeasurement(lifetime.mandatory_tokens, lifetime.minimum_rendered_tokens,
+            lifetime.rendered_tokens, request.input_budget_tokens - lifetime.mandatory_tokens, lifetime.refinement_attempts)
+        selected, turns = lifetime.request, lifetime.turns
+        selected_evidence = list(selected.public_context.evidence) if selected.public_context is not None else []
+        selected_dialogue = list(selected.prior_dialogue)
+        speech_history = list(selected_dialogue)
+        required_ids.update(item.record_id for item in history.items)
+        mandatory_tokens = lifetime.rendered_tokens
+    remaining = request.input_budget_tokens - mandatory_tokens
+    dialogue_budget = int(remaining * 0.45)
+    dialogue_cost = 0
+    omitted: list[str] = []
+    included = [f"memory:{item.knoxel_id}" for item in selected_evidence]
+    focus_terms = set(distinctive_terms(request.current_user_message))
+    represented_terms: set[str] = set()
+    for turn in selected_dialogue:
+        represented_terms.update(focus_terms.intersection(distinctive_terms(turn.text)))
+    for turn in reversed(speech_history):
+        if turn in selected_dialogue:
             continue
-        support_ids = {item.knoxel_id}
+        shared_terms = focus_terms.intersection(distinctive_terms(turn.text))
+        new_terms = shared_terms - represented_terms
+        if not new_terms:
+            omitted.append(f"dialogue:{turn.knoxel_id}")
+            continue
+        trial_dialogue = [item for item in speech_history if item == turn or item in selected_dialogue]
+        trial = selected.model_copy(deep=True)
+        trial.prior_dialogue = trial_dialogue
+        trial_turns = resolve_media((*build_story_messages(trial, prompts), *repair_turns), images)
+        cost = estimator.estimate(trial_turns) - estimator.estimate(turns)
+        if dialogue_cost + cost > dialogue_budget:
+            omitted.append(f"dialogue:{turn.knoxel_id}")
+            continue
+        selected_dialogue = trial_dialogue
+        represented_terms.update(new_terms)
+        dialogue_cost += cost
+        selected, turns = trial, trial_turns
+    shares = {"history": 0.25, "facts": 0.10, "inner": 0.10, "narratives": 0.06, "rules": 0.04}
+    lane_used = {lane: 0 for lane in shares}
+    seen_texts = {" ".join(turn.text.casefold().split()) for turn in selected_dialogue}
+    seen_texts.add(" ".join(request.current_user_message.casefold().split()))
+    for item in rank_public_evidence(evidence):
+        if any(row.knoxel_id == item.knoxel_id for row in selected_evidence):
+            continue
+        lane = item.lane if item.lane in shares else "inner"
+        text_key = " ".join(item.text.casefold().split())
+        if text_key in seen_texts:
+            omitted.append(f"memory:{item.knoxel_id}")
+            continue
+        support_ids: set[int] = {item.knoxel_id}
         pending = [item.knoxel_id]
         while pending:
-            current = by_id[pending.pop()]
-            for source_id in current.source_ids:
+            record_id = pending.pop()
+            for source_id in by_id[record_id].source_ids:
                 if source_id in by_id and source_id not in support_ids:
                     support_ids.add(source_id)
                     pending.append(source_id)
-        groups.append(ContextGroup(name=f"memory:{item.knoxel_id}", content=Content(item.text),
-                                   salience=item.score, source_ids=tuple(sorted(support_ids)),
-                                   recency=context_recency(item.timestamp)))
-    for index, turn in enumerate(request.prior_dialogue[:-4]):
-        if turn.knoxel_id in required_ids:
+        group = [row for row in evidence if row.knoxel_id in support_ids and row not in selected_evidence]
+        trial_evidence = [*selected_evidence, *group]
+        assert selected.public_context is not None
+        trial_context = selected.public_context.model_copy(deep=True)
+        trial_context.evidence = trial_evidence
+        trial = selected.model_copy(deep=True)
+        trial.public_context = trial_context
+        trial_turns = resolve_media((*build_story_messages(trial, prompts), *repair_turns), images)
+        trial_tokens = estimator.estimate(trial_turns)
+        cost = trial_tokens - estimator.estimate(turns)
+        if lane_used[lane] + cost > int(remaining * shares[lane]) or trial_tokens > request.input_budget_tokens:
+            omitted.append(f"memory:{item.knoxel_id}")
             continue
-        groups.append(ContextGroup(name=f"dialogue:{index}", content=Content(turn.text), salience=0,
-                                   source_ids=(turn.knoxel_id,) if turn.knoxel_id is not None else (),
-                                   recency=context_recency(turn.timestamp)))
-
-    def selected_request(chosen: Sequence[ContextGroup]) -> StoryRequest:
-        selected_ids: set[int] = set()
-        for group in chosen:
-            selected_ids.update(group.source_ids)
-        selected_names = {group.name for group in chosen}
-        dialogue = [turn for index, turn in enumerate(request.prior_dialogue)
-                    if index >= len(request.prior_dialogue) - 4 or f"dialogue:{index}" in selected_names
-                    or turn.knoxel_id in selected_ids]
-        selected_context = context
-        if context is not None:
-            selected_evidence = [item for item in evidence
-                                 if item.knoxel_id not in optional_ids or item.knoxel_id in selected_ids]
-            selected_context = context.model_copy(update={"evidence": selected_evidence})
-        return request.model_copy(update={"public_context": selected_context, "prior_dialogue": dialogue})
-
-    def assemble(chosen: Sequence[ContextGroup], omitted: Sequence[str]) -> Sequence[Turn]:
-        selected = selected_request(chosen)
-        if render is None:
-            turns = build_story_messages(selected, prompts)
-        else:
-            turns = list(render(selected))
-        if omitted:
-            opening = turns[1]
-            notice = "\n\nOmitted optional context groups: " + ", ".join(omitted)
-            turns[1] = Turn(opening.role, opening.content + notice)
-        return [*turns, *repair_turns]
-
-    selection = select_rendered_context(groups, request.input_budget_tokens, assemble, estimator=TokenEstimator())
-    included_names = set(selection.included)
-    included_groups = [group for group in groups if group.name in included_names]
-    return StoryPrompt(selected_request(included_groups), selection)
+        selected_evidence = trial_evidence
+        selected, turns = trial, trial_turns
+        lane_used[lane] += cost
+        seen_texts.add(text_key)
+        included.extend(f"memory:{row.knoxel_id}" for row in group)
+    if context is None:
+        for memory in rank_memory_texts(request.memories, request.current_user_message):
+            trial = selected.model_copy(deep=True)
+            trial.memories = [*selected.memories, memory.text]
+            trial_turns = resolve_media((*build_story_messages(trial, prompts), *repair_turns), images)
+            if estimator.estimate(trial_turns) <= request.input_budget_tokens:
+                selected, turns = trial, trial_turns
+                included.append(f"plain-memory:{memory.position}")
+            else:
+                omitted.append(f"plain-memory:{memory.position}")
+    source_ids = set(required_ids)
+    source_ids.update(item.knoxel_id for item in selected_evidence)
+    source_ids.update(turn.knoxel_id for turn in selected_dialogue if turn.knoxel_id is not None)
+    selection = PromptSelection(tuple(turns), tuple(included), tuple(omitted), estimator.estimate(turns),
+                                tuple(sorted(source_ids)), ())
+    return StoryPrompt(selected, selection, history, history_measurement)
 
 
 async def plan_story_request(
     ghost: MemoryStore,
     embedding: EmbeddingService,
-    situation: dict[str, Any],
+    situation: StorySituation,
     *,
     cancel: Event | None = None,
+    settings: RenderSettings = RenderSettings(context_window=32000, input_fraction=0.85, reserved_output_tokens=8192),
 ) -> StoryRequest:
     """Build the typed Story request for one fixed situation.
 
@@ -161,8 +243,8 @@ async def plan_story_request(
     """
     companion = ghost.get_companion_name()
     user = ghost.get_user_name()
-    prior = [DialogueTurn.model_validate(turn) for turn in situation.get("prior_dialogue", [])]
-    current = str(situation["current_user_message"])
+    prior = list(situation.prior_dialogue)
+    current = situation.current_user_message
 
     from workflows.public_speech.public_context import build_public_context
     from workflows.minecraft_body.capabilities import capability_snapshot
@@ -176,13 +258,14 @@ async def plan_story_request(
     changes = ghost.begin_batch("story-situation:" + uuid4().hex)
     source = changes.create(Feature(content=current, feature_type=FeatureType.Dialogue,
         interlocus=InterlocusType.Public, override_source=user,
-        provenance=Provenance(source_kind=SourceKind.User, source_ref="story-situation:" + str(situation.get("name", "operator"))),
+        provenance=Provenance(source_kind=SourceKind.User, source_ref="story-situation:" + situation.name),
         metadata={"memory_kind": "utterance", "input_source": "standalone_situation"}))
     ghost.commit(changes)
     from workflows.public_speech.context_planning import FocusInput, plan_reply_context
-    workspace = str(situation.get("workspace", ""))
+    workspace = situation.workspace
     planned = await plan_reply_context(ghost.snapshot(), "story", FocusInput(
-        workspace=workspace, current_message=current, exclude_ids=[int(source.id)]), embedding, cancel=cancel)
+        workspace=workspace, current_message=current, exclude_ids=[int(source.id)], current_ids=(int(source.id),)), embedding, cancel=cancel,
+        total_tokens=settings.input_ceiling)
     capabilities = await asyncio.to_thread(capability_snapshot, ghost, [])
     from workflows.main_cognition.schemas import ActionRequest, Stimulus
     public = build_public_context(ghost, ActionRequest(
@@ -191,17 +274,30 @@ async def plan_story_request(
         capabilities=capabilities, planned=planned)
     prior = planned.dialogue or prior
 
+    from pm.records.media import IMAGE_TAG, RecordImage
+    image_texts = [current, public.workspace, public.selected_action, *public.memories]
+    image_texts.extend(turn.text for turn in prior)
+    if public.temporal_history is not None:
+        image_texts.extend(item.content for item in public.temporal_history.items)
+    images: list[RecordImage] = []
+    for image_id in sorted({match.group(1) for text in image_texts for match in IMAGE_TAG.finditer(text)}):
+        image = ghost.find_image(image_id)
+        if image is None:
+            raise ValueError(f"Story lifetime history references missing image {image_id}.")
+        images.append(image.model_copy(deep=True))
     return StoryRequest(
+        images=tuple(images),
         companion_name=companion,
         partner_name=user,
         character_card_story=ghost.get_simple_character_story_block(),
         supported_capabilities=list(ghost.ghost_config.supported_capabilities),
         unsupported_capabilities=[str(item) for item in ghost.ghost_config.unsupported_capabilities],
         capability_notes=[str(item) for item in ghost.ghost_config.capability_notes],
-        now=str(situation.get("now") or vclock.utcnow().isoformat()),
+        now=situation.now or vclock.utcnow().isoformat(),
         prior_dialogue=prior,
         current_user_message=current,
         current_message_id=int(source.id),
+        input_budget_tokens=settings.input_ceiling,
         feelings=public.feelings,
         regulation=public.regulation,
         goals=list(public.goals),

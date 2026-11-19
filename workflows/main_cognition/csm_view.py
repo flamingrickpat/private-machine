@@ -15,7 +15,10 @@ enters the CSM"). Prune keeps the items that the CSM requirements of
 """
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
+import asyncio
+from pm.llm.role_model import role_embeddings
+
+from collections.abc import Iterable
 from pathlib import Path
 
 from pm.constants import (
@@ -34,7 +37,7 @@ from pm_workflows.python_role import RoleContext
 from pm.context_render.story import (
     RecordView, record_tokens, record_view, render_story, story_line, story_tokens,
 )
-from pm.records.situational_model import SituationalItem
+from pm.records.situational_model import SituationalItem, SituationalModel
 from pm.records.workspace import WorkspaceRequirementConfig, load_workspace_requirements
 
 from workflows.main_cognition.cycle_work import CycleWork, provisional_tick
@@ -59,17 +62,27 @@ class Embedder:
     """
 
     def __init__(self, context: RoleContext, records: dict[int, RecordView]) -> None:
-        self._tool: Callable[[list[str]], list[list[float]]] = context.runtime.tools["embed_texts"]
+        self.service = role_embeddings(context.runtime)
+        self.cancel = context.runtime.stop_event if context.runtime is not None else None
         self._records = records
+
+    def embed_texts(self, texts: list[str]) -> list[list[float]]:
+        return asyncio.run(self.embed_texts_async(texts))
+
+    async def embed_texts_async(self, texts: list[str]) -> list[list[float]]:
+        results: list[list[float]] = []
+        for text in texts:
+            results.append(await self.service.embed(text, cancel=self.cancel))
+        return results
 
     def prefetch(self, texts: Iterable[str]) -> dict[str, list[float]]:
         """Return vectors for a group of query texts. The caller owns the results."""
         texts = list(dict.fromkeys(texts))
-        return dict(zip(texts, self._tool(texts), strict=True)) if texts else {}
+        return dict(zip(texts, self.embed_texts(texts), strict=True)) if texts else {}
 
     def text(self, text: str) -> list[float]:
         """Return the embedding of ``text``."""
-        return self._tool([text])[0]
+        return self.embed_texts([text])[0]
 
     def record(self, record_id: int) -> list[float]:
         """Return the stored vector of one record. Embed its content only when missing."""
@@ -78,11 +91,19 @@ class Embedder:
             record.embedding = self.text(record.content)
         return record.embedding
 
+    def comparison_vectors(self, csm: SituationalModel, record_id: int) -> dict[int, list[float]]:
+        for existing in csm.items.values():
+            if existing.record_id == record_id or record_id in existing.merged_ids:
+                return {}
+        record_ids = [*csm.items, record_id]
+        self.prefetch_records(record_ids)
+        return {key: self._records[key].embedding for key in record_ids}
+
     def prefetch_records(self, record_ids: Iterable[int]) -> None:
         """Fill missing vectors on record views in one tool call."""
         records = [self._records[key] for key in dict.fromkeys(record_ids) if not self._records[key].embedding]
         if records:
-            for record, vector in zip(records, self._tool([record.content for record in records]), strict=True):
+            for record, vector in zip(records, self.embed_texts([record.content for record in records]), strict=True):
                 record.embedding = vector
 
 
@@ -157,9 +178,9 @@ def enter_retrieval(work: CycleWork, embedder: Embedder, expectation_ids: Iterab
                                 activation=CSM_EXPECTATION_ACTIVATION) for record_id in expectation_ids]
     embedder.prefetch_records([*csm.items, *(entry.record_id for entry in [*entries, *expected])])
     for entry in entries:
-        csm.add_or_boost(entry, RETRIEVAL, embedder.record)
+        csm.add_or_boost(entry, RETRIEVAL, embedder.comparison_vectors(csm, entry.record_id))
     for entry in expected:
-        csm.add_or_boost(entry, EXPECTATION, embedder.record)
+        csm.add_or_boost(entry, EXPECTATION, embedder.comparison_vectors(csm, entry.record_id))
     return csm.prune(csm_protected(work))
 
 

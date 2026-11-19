@@ -1,15 +1,18 @@
 # OpenRouter chat and local embeddings. Application defaults remain in config.example.yaml.
 chat:
   Default:
+    disable_threading: false
+    provider: null
     base_url: https://openrouter.ai/api/v1
     model: qwen/qwen3.8-flash
     api_key_env: OPENROUTER_API_KEY
     startup_script: ""
     # Discover serving tokens from /props. Remote services can set context_window.
     # Use 80% for project input; reserve the remainder for the response.
-    cognition_context_window: 32768
     context_input_fraction: 0.8
   UnitTestEvaluator:
+    disable_threading: false
+    provider: null
     base_url: https://openrouter.ai/api/v1
     model: qwen/qwen3.8-flash
     api_key_env: OPENROUTER_API_KEY

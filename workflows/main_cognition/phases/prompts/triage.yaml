@@ -29,6 +29,7 @@ user_template: |
   Also set "codelet_budget": how many mental mechanisms work on this moment, from 1 for an unimportant moment to
   {budget_max} for a critical one.
 
+  Cite only source IDs actually shown above. Use an empty evidence_ids list when no additional source supports the judgment.
   Answer with only this JSON object and nothing else, with one item for each event id:
   {{"items": [{{"knoxel_id": 0, "category": "Moderate", "input_kind": "message", "urgency": 0.0, "relevance": 0.0,
-  "reasoning": "one sentence of story prose", "evidence_ids": [0]}}], "codelet_budget": {budget_default}}}
+  "reasoning": "one sentence of story prose", "evidence_ids": []}}], "codelet_budget": {budget_default}}}

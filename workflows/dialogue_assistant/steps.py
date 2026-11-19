@@ -17,13 +17,20 @@ from __future__ import annotations
 import asyncio
 import json
 from pathlib import Path
-from typing import Any
+from dataclasses import dataclass
+from collections.abc import Sequence
+from typing import Literal, TypedDict
 from pm_workflows.python_role import RoleContext
-from pm.llm.activation import ChatResult
-from pm.llm.completion import AsyncTextCompletion, Completion
-from pm.llm.prompt_encoding import OpenAIChatEncoder, normalize_turns
-from pm.context_render.turns import Turn
+from pydantic import TypeAdapter, JsonValue
+from pm.llm.completion import Completion
+from pm.llm.session import ModelSession
+from pm.llm.generation import GenerationSettings, ToolSchema, ToolFunctionSchema
+from pm.llm.role_model import role_model
+from pm.context_render.turns import Turn, ToolCall, Role
+from pm.context_render.prompt import RendererCapture, RendererInput, RenderedPrompt
 
+from workflows.dialogue_assistant.rendering import (AssistantPrompts, AssistantRenderInput, AssistantContinuationInput,
+    render_assistant_prompt, render_assistant_continuation, assistant_transcript)
 from pm.utils import yaml_util
 import httpx
 from workflows.public_speech.public_context import DialogueTurn, memory_sections, task_lines
@@ -34,10 +41,11 @@ from workflows.public_speech.speech_review import (
 )
 
 from workflows.dialogue_assistant.schemas import (
-    AssistantMessage,
+    AssistantMessage, AssistantToolCall, AssistantFunctionCall,
     AssistantReport,
     AssistantRequest,
     ToolReceipt,
+    McpEndpoint as McpEndpoint,
 )
 
 WORKFLOW_DIR = Path(__file__).resolve().parent
@@ -50,15 +58,15 @@ class ToolExecutionError(RuntimeError):
     """A remote tool reports failure after the request reaches its transport."""
 
 
-def load_prompts(path: Path | None = None) -> dict:
-    return yaml_util.safe_load((path or WORKFLOW_DIR / "prompts.yaml").read_text(encoding="utf-8"))
+def load_prompts(path: Path | None = None) -> AssistantPrompts:
+    return TypeAdapter(AssistantPrompts).validate_python(yaml_util.safe_load((path or WORKFLOW_DIR / "prompts.yaml").read_text(encoding="utf-8")))
 
 
 def _bullets(items: list[str]) -> str:
     return "\n".join(f"- {item.strip()}" for item in items if str(item).strip()) or "(none)"
 
 
-def render_memories(request: AssistantRequest, prompts: dict) -> str:
+def render_memories(request: AssistantRequest, prompts: AssistantPrompts) -> str:
     """Render the shard story and the memory lanes, or the plain memory list without a context.
 
     A reply that main cognition chose shows the workspace shards of its
@@ -78,7 +86,7 @@ def render_memories(request: AssistantRequest, prompts: dict) -> str:
     return "\n\n".join(blocks) or "## What comes back to you right now\n(nothing in particular)"
 
 
-def build_messages(request: AssistantRequest, prompts: dict) -> list[AssistantMessage]:
+def build_messages(request: AssistantRequest, prompts: AssistantPrompts) -> list[AssistantMessage]:
     """Return the system message, the preserved prior transcript, then input.
 
     A context turn holds the derived sections and task receipts. The final
@@ -104,71 +112,33 @@ def build_messages(request: AssistantRequest, prompts: dict) -> list[AssistantMe
         tasks="\n".join(tasks) or "- No task result yet.",
         current_user_message=request.current_user_message,
     ).strip()
-    messages = [AssistantMessage(role="system", content=system)]
+    messages = [AssistantMessage(role=Role.System, content=system)]
     messages.extend(request.prior_dialogue)
-    messages.append(AssistantMessage(role="user", content=user))
+    messages.append(AssistantMessage(role=Role.User, content=user))
     if request.current_user_message:
-        messages.append(AssistantMessage(role="user", content=request.current_user_message))
+        messages.append(AssistantMessage(role=Role.User, content=request.current_user_message))
     return messages
 
 
-def tool_schemas(request: AssistantRequest) -> list[dict]:
-    """Return the OpenAI function schemas for the request's declared tools."""
-    return [
-        {
-            "type": "function",
-            "function": {
-                "name": tool.name,
-                "description": tool.description,
-                "parameters": tool.parameters or {"type": "object", "properties": {}},
-            },
-        }
-        for tool in request.tools
-    ]
+def tool_schemas(request: AssistantRequest) -> tuple[ToolSchema, ...]:
+    return tuple(ToolSchema(function=ToolFunctionSchema(name=tool.name, description=tool.description,
+        parameters=tool.parameters)) for tool in request.tools)
 
 
-def wire_message(message: AssistantMessage) -> dict:
-    """Return one OpenAI-compatible message for a request body.
-
-    Omit empty optional fields from the message contract. Always keep ``role``
-    and ``content`` because a tool-call turn can carry empty text.
-    """
-    data = message.model_dump(mode="json")
-    if not data.get("tool_calls"):
-        data.pop("tool_calls", None)
-    for field in ("tool_call_id", "name"):
-        if not data.get(field):
-            data.pop(field, None)
-    for field in ("reasoning", "reasoning_content", "reasoning_details"):
-        if data.get(field) is None:
-            data.pop(field, None)
-    return data
+def completion_turns(messages: Sequence[AssistantMessage]) -> list[Turn]:
+    turns: list[Turn] = []
+    for message in messages:
+        calls = tuple(ToolCall(call.id, call.function.name, call.function.arguments) for call in message.tool_calls)
+        turns.append(Turn(message.role, message.content, calls, message.tool_call_id, message.name, message.provider_state))
+    return turns
 
 
-def wire_messages(messages: list[AssistantMessage]) -> list[dict]:
-    """Return the whole transcript in the request wire form."""
-    return [wire_message(message) for message in messages]
-
-
-def completion_turns(messages: list[AssistantMessage]) -> list[Turn]:
-    """Read the preserved legacy transcript into neutral completion turns."""
-    return normalize_turns(wire_messages(messages))
-
-
-def parse_completion(raw: Any) -> dict:
-    if isinstance(raw, Completion):
-        return OpenAIChatEncoder().message(raw.turn)
-    if isinstance(raw, ChatResult):
-        return raw.choices[0].message.model_dump(mode="json")
-    if isinstance(raw, str):
-        raw = json.loads(raw)
-    try:
-        message = raw["choices"][0]["message"]
-    except (KeyError, IndexError, TypeError):
-        raise ValueError("The assistant completion has no choices[0].message.") from None
-    if not isinstance(message, dict):
-        raise ValueError("The assistant message is not a mapping.")
-    return message
+def parse_completion(raw: Completion) -> AssistantMessage:
+    turn = raw.turn
+    calls = [AssistantToolCall(id=call.id, function=AssistantFunctionCall(name=call.name, arguments=call.arguments))
+             for call in turn.tool_calls]
+    return AssistantMessage(role=turn.role, content=turn.content.text, tool_calls=calls,
+        tool_call_id=turn.tool_call_id, name=turn.name, provider_state=turn.provider_state)
 
 
 # Management claims and the tool receipt that must support each one.
@@ -196,86 +166,92 @@ def unsupported_management_claims(final_text: str, receipts: list[ToolReceipt]) 
     return unsupported
 
 
-def _tool_call(call: dict) -> tuple[str, str, dict]:
-    function = call.get("function") or {}
-    name = str(function.get("name", ""))
-    call_id = str(call.get("id", ""))
-    raw_arguments = function.get("arguments") or {}
-    if isinstance(raw_arguments, str):
-        try:
-            raw_arguments = json.loads(raw_arguments or "{}")
-        except json.JSONDecodeError:
-            raw_arguments = {"_raw": raw_arguments}
-    if not isinstance(raw_arguments, dict):
-        raw_arguments = {"value": raw_arguments}
-    return name, call_id, raw_arguments
+@dataclass(frozen=True, slots=True)
+class ToolInvocation:
+    name: str
+    call_id: str
+    arguments_json: str
 
 
-async def _call_mcp(servers: dict, name: str, arguments: dict) -> Any:
+@dataclass(frozen=True, slots=True)
+class ToolExecutionBatch:
+    receipts: tuple[ToolReceipt, ...]
+    messages: tuple[AssistantMessage, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class McpToolResult:
+    text: str
+    succeeded: bool
+
+
+def render_mcp_result(value: JsonValue, indentation: int = 0) -> str:
+    padding = "  " * indentation
+    if isinstance(value, dict):
+        fields: list[str] = []
+        for name, content in value.items():
+            label = name.replace("_", " ")
+            if isinstance(content, (dict, list)):
+                fields.append(f"{padding}{label}:\n{render_mcp_result(content, indentation + 1)}")
+            else:
+                fields.append(f"{padding}{label}: {render_mcp_result(content)}")
+        return "\n".join(fields)
+    if isinstance(value, list):
+        return "\n".join(f"{padding}- {render_mcp_result(item, indentation + 1).lstrip()}" for item in value)
+    if value is None:
+        return "(none)"
+    if isinstance(value, bool):
+        return "yes" if value else "no"
+    if isinstance(value, float):
+        return f"{value:.3f}"
+    return str(value)
+
+
+async def _call_mcp(servers: Sequence[McpEndpoint], invocation: ToolInvocation) -> McpToolResult:
     from fastmcp import Client
-
-    for descriptor in servers.values():
-        url = descriptor.get("url") if isinstance(descriptor, dict) else None
-        if not url:
-            continue
-        async with Client(url) as client:
+    arguments = TypeAdapter[dict[str, JsonValue]](dict[str, JsonValue]).validate_json(invocation.arguments_json)
+    for descriptor in servers:
+        async with Client(descriptor.url) as client:
             tools = await client.list_tools()
-            if not any(tool.name == name for tool in tools):
+            if not any(tool.name == invocation.name for tool in tools):
                 continue
-            result = await client.call_tool(name, arguments)
+            result = await client.call_tool(invocation.name, arguments)
             if result.is_error:
-                raise ToolExecutionError(f"Tool {name!r} raised: {result}")
-            return result.data if result.data is not None else result.structured_content
-    raise KeyError(name)
+                raise ToolExecutionError(f"Tool {invocation.name!r} raised: {result}")
+            data = result.structured_content if result.structured_content is not None else result.data
+            payload = TypeAdapter[JsonValue](JsonValue).validate_python(data)
+            succeeded = not (isinstance(payload, dict) and payload.get("ok") is False)
+            return McpToolResult(render_mcp_result(payload), succeeded)
+    raise KeyError(invocation.name)
 
 
-async def execute_tool_calls(
-    context: RoleContext,
-    message: dict[str, Any],
-    request: AssistantRequest,
-    servers: dict[str, object],
-) -> tuple[list[ToolReceipt], list[AssistantMessage]]:
-    """Execute granted calls through MCP, or directly when no MCP is bound."""
-    calls = message.get("tool_calls") or []
+async def execute_tool_calls(context: RoleContext, message: AssistantMessage, request: AssistantRequest,
+                             servers: Sequence[McpEndpoint]) -> ToolExecutionBatch:
     receipts: list[ToolReceipt] = []
     tool_messages: list[AssistantMessage] = []
     grant = set(request.tool_grant)
-    direct = {
-        name: fn for name, fn in (context.runtime.tools or {}).items()
-        if name != "assistant_complete"
-    }
-    for call in calls:
-        name, call_id, arguments = _tool_call(call)
-        receipt = ToolReceipt(
-            tool_call_id=call_id, name=name, arguments=arguments, executed=False,
-        )
+    for call in message.tool_calls:
+        invocation = ToolInvocation(call.function.name, call.id, call.function.arguments)
+        receipt = ToolReceipt(tool_call_id=invocation.call_id, name=invocation.name,
+                              arguments_json=invocation.arguments_json, executed=False)
         try:
-            if name not in grant:
-                raise PermissionError(f"Tool {name!r} is not granted for this run.")
-            if name == "minecraft_observe" and name in direct:
-                result = await asyncio.to_thread(direct[name], **arguments)
-                receipt.transport = "python"
-            elif servers:
-                result = await _call_mcp(servers, name, arguments)
-                receipt.transport = "mcp"
-            elif name in direct:
-                result = direct[name](**arguments)
-                receipt.transport = "python"
-            else:
-                raise KeyError(name)
+            if invocation.name not in grant:
+                raise PermissionError(f"Tool {invocation.name!r} is not granted for this run.")
+            if not servers:
+                raise RuntimeError("Assistant tool execution requires its scoped MCP services.")
+            result = await _call_mcp(servers, invocation)
+            content = result.text
+            receipt.succeeded = result.succeeded
+            receipt.transport = "mcp"
             receipt.executed = True
-            receipt.result = result
-            content = json.dumps(result, ensure_ascii=False, default=str)
+            receipt.result_text = content
         except (PermissionError, OSError, httpx.HTTPError, ToolExecutionError) as error:
-            # Denials and transport failures become receipts. Programming errors
-            # and cancellation retain their traceback and reach the caller.
             receipt.error = f"{type(error).__name__}: {error}"
-            content = json.dumps({"error": receipt.error})
+            content = "Tool failed: " + receipt.error
         receipts.append(receipt)
-        tool_messages.append(AssistantMessage(
-            role="tool", content=content, tool_call_id=call_id, name=name,
-        ))
-    return receipts, tool_messages
+        tool_messages.append(AssistantMessage(role=Role.Tool, content=content,
+            tool_call_id=invocation.call_id, name=invocation.name))
+    return ToolExecutionBatch(tuple(receipts), tuple(tool_messages))
 
 
 def validate_public_speech(text: str) -> None:
@@ -312,10 +288,19 @@ def review_conversation(request: AssistantRequest) -> list[DialogueTurn]:
     return turns
 
 
+def capture_assistant_continuation(session: ModelSession, input: AssistantContinuationInput) -> RenderedPrompt:
+    settings = session.settings
+    with RendererCapture(session.capture_settings("assistant-continuation"),
+                         RendererInput("assistant-continuation", input, settings)) as capture:
+        rendered = render_assistant_continuation(input, settings)
+        capture.save_output(rendered)
+    return rendered
+
+
 def review_and_revise(request: AssistantRequest, candidate: str, messages: list[AssistantMessage],
-                      receipts: list[ToolReceipt], prompts: dict,
-                      complete: AsyncTextCompletion,
-                      review_complete: AsyncTextCompletion) -> tuple[str, SpeechReview, list[AssistantMessage]]:
+                      receipts: list[ToolReceipt], prompts: AssistantPrompts,
+                      complete: ModelSession,
+                      review_complete: ModelSession) -> tuple[str, SpeechReview, list[AssistantMessage]]:
     """Revise a blocked reply until one draft passes the evidence review.
 
     Two checks block a draft. The agentic review blocks a false task result.
@@ -337,9 +322,11 @@ def review_and_revise(request: AssistantRequest, candidate: str, messages: list[
     its correction request, oldest first, for the report transcript.
     """
     context = request.public_context
+    if context is None:
+        raise ValueError("Speech review requires the accepted public context.")
     review_prompts = load_review_prompts()
     conversation = review_conversation(request)
-    receipt_payloads = [item.model_dump(mode="json") for item in receipts]
+    receipt_payloads = tuple(item.evidence() for item in receipts)
     retained = list(messages)
     trail: list[AssistantMessage] = []
     repairs: list[AssistantMessage] = []
@@ -349,9 +336,9 @@ def review_and_revise(request: AssistantRequest, candidate: str, messages: list[
     while True:
         attempts += 1
         review = asyncio.run(review_speech(review_complete, text, context, prompts=review_prompts,
-                                           conversation=conversation, receipts=receipt_payloads))
+                                           conversation=conversation, receipts=receipt_payloads, images=request.images))
         text = select_spoken_text(text, review)
-        claims = [] if context.task_receipt else unsupported_management_claims(text, receipts)
+        claims = [] if request.task_result_supplied else unsupported_management_claims(text, receipts)
         reason = (block_reason(review) if is_blocked(review)
                   else "unsupported management claim: " + ", ".join(claims) if claims else "")
         if not reason:
@@ -359,8 +346,8 @@ def review_and_revise(request: AssistantRequest, candidate: str, messages: list[
                 print(f"[dialogue_assistant] Reply accepted after {attempts} attempts.", flush=True)
             return text, review, trail
         print(f"[dialogue_assistant] Reply rejected (attempt {attempts}): {reason}", flush=True)
-        correction = [AssistantMessage(role="assistant", content=text),
-                      AssistantMessage(role="user",
+        correction = [AssistantMessage(role=Role.Assistant, content=text),
+                      AssistantMessage(role=Role.User,
                                        content=prompts["rejected_reply_recovery"].format(reason=reason))]
         trail = [*trail, *correction]
         if followups >= REPAIR_FOLLOWUPS:
@@ -373,21 +360,34 @@ def review_and_revise(request: AssistantRequest, candidate: str, messages: list[
             repairs = [*repairs, *correction]
             followups += 1
         message = parse_completion(asyncio.run(
-            complete(completion_turns([*retained, *repairs]), tools=[], **prompts.get("generation", {}))))
-        text = final_public_speech(str(message.get("content") or "").strip(), request)
+            complete.complete_tools_async(capture_assistant_continuation(complete, AssistantContinuationInput(tuple([*retained, *repairs]), (), request.images, prompts.get("generation", GenerationSettings()))).turns, tools=(), settings=prompts.get("generation", GenerationSettings()))))
+        text = final_public_speech(message.content.strip(), request)
 
 
-def run(context: RoleContext) -> dict[str, Any]:
+class AssistantRoleResult(TypedDict):
+    status: Literal["done"]
+    summary: str
+
+
+def run(context: RoleContext) -> AssistantRoleResult:
     """Kernel entry point for one Assistant reply."""
-    environment = context.runtime.environment
+    from workflows.dialogue_assistant.runtime import assistant_runtime
+    runtime = assistant_runtime(context.runtime)
+    environment = runtime.environment
     request = AssistantRequest.model_validate(
         yaml_util.safe_load(environment.read_text("inbox/request.yaml"))
     )
     prompts = load_prompts()
-    messages = build_messages(request, prompts)
-    servers = dict(context.runtime.mcp_servers or {})
+    completion = role_model(context.runtime)
+    generation = prompts.get("generation", GenerationSettings())
+    settings = completion.render_settings(max_tokens=generation.output_allowance(completion.model.connection.completion_token_limit))
     schemas = tool_schemas(request)
-    completion = context.runtime.tools["assistant_complete"]
+    render_input = AssistantRenderInput(request, prompts, schemas)
+    with RendererCapture(completion.capture_settings("assistant"), RendererInput("assistant", render_input, settings)) as capture:
+        initial = render_assistant_prompt(render_input, settings)
+        capture.save_output(initial)
+    messages = assistant_transcript(initial)
+    servers = runtime.mcp_endpoints
 
     receipts: list[ToolReceipt] = []
     # Retain completed tool effects before another completion can fail.
@@ -395,46 +395,38 @@ def run(context: RoleContext) -> dict[str, Any]:
     final_text = ""
     if request.minecraft_read in {"inventory", "state"}:
         # A body-state question needs one fresh observation, then speech.
-        call = {"tool_calls": [{"id": "body-observation", "type": "function", "function": {
-            "name": "minecraft_observe", "arguments": json.dumps({"include_image": False})}}]}
-        messages.append(AssistantMessage(role="assistant", tool_calls=call["tool_calls"]))
-        observed, tool_messages = asyncio.run(execute_tool_calls(context, call, request, servers))
-        receipts.extend(observed)
+        call = AssistantMessage(role=Role.Assistant, tool_calls=[AssistantToolCall(id="body-observation",
+            function=AssistantFunctionCall(name="minecraft_observe", arguments='{"include_image":false}'))])
+        messages.append(call)
+        observed = asyncio.run(execute_tool_calls(context, call, request, servers))
+        receipts.extend(observed.receipts)
         environment.write_text("scratch/tool-receipts.json", json.dumps([item.model_dump(mode="json") for item in receipts]))
-        messages.extend(tool_messages)
-        schemas = []
+        messages.extend(observed.messages)
+        schemas = ()
     turns = request.max_tool_turns
     for turn in range(turns):
-        payload = completion_turns(messages)
         # On the last allowed turn, ban tools so the model must answer in text.
-        allow_tools = schemas if turn < turns - 1 else []
-        raw = asyncio.run(completion(payload, tools=allow_tools, **prompts.get("generation", {})))
+        allow_tools = schemas if turn < turns - 1 else ()
+        payload = capture_assistant_continuation(completion, AssistantContinuationInput(tuple(messages), allow_tools, request.images, prompts.get("generation", GenerationSettings()))).turns
+        raw = asyncio.run(completion.complete_tools_async(payload, tools=allow_tools, settings=prompts.get("generation", GenerationSettings())))
         message = parse_completion(raw)
-        if message.get("tool_calls") and allow_tools:
-            messages.append(AssistantMessage(
-                role="assistant",
-                content=str(message.get("content") or ""),
-                tool_calls=[dict(call) for call in message["tool_calls"]],
-                reasoning=message.get("reasoning"), reasoning_content=message.get("reasoning_content"),
-                reasoning_details=message.get("reasoning_details"),
-            ))
-            new_receipts, additions = asyncio.run(
-                execute_tool_calls(context, message, request, servers)
-            )
-            messages.extend(additions)
-            receipts.extend(new_receipts)
+        if message.tool_calls and allow_tools:
+            messages.append(message)
+            additions = asyncio.run(execute_tool_calls(context, message, request, servers))
+            messages.extend(additions.messages)
+            receipts.extend(additions.receipts)
             environment.write_text("scratch/tool-receipts.json", json.dumps([item.model_dump(mode="json") for item in receipts]))
             continue
-        final_text = str(message.get("content") or "").strip()
+        final_text = message.content.strip()
         if final_text:
             break
     if not final_text:
         # The tool budget is done and the model returned no text. Force one
         # final, tool-free completion so the run always produces a result.
-        payload = completion_turns(messages)
-        raw = asyncio.run(completion(payload, tools=[], **prompts.get("generation", {})))
+        payload = capture_assistant_continuation(completion, AssistantContinuationInput(tuple(messages), (), request.images, prompts.get("generation", GenerationSettings()))).turns
+        raw = asyncio.run(completion.complete_tools_async(payload, tools=(), settings=prompts.get("generation", GenerationSettings())))
         message = parse_completion(raw)
-        final_text = str(message.get("content") or "").strip()
+        final_text = message.content.strip()
 
     final_text = final_public_speech(final_text, request)
     review = None
@@ -443,9 +435,9 @@ def run(context: RoleContext) -> dict[str, Any]:
         # only an accepted reply ever reaches the report and the host guard.
         final_text, review, trail = review_and_revise(
             request, final_text, messages, receipts, prompts, completion,
-            context.runtime.tools["public_complete"])
+            completion)
         messages.extend(trail)
-    messages.append(AssistantMessage(role="assistant", content=final_text))
+    messages.append(AssistantMessage(role=Role.Assistant, content=final_text))
     report = AssistantReport(
         companion_name=request.companion_name,
         message_roles=[message.role for message in messages],
@@ -479,6 +471,4 @@ __all__ = [
     "run",
     "tool_schemas",
     "unsupported_management_claims",
-    "wire_message",
-    "wire_messages",
 ]

@@ -9,6 +9,8 @@ application. Host failure strings never become companion speech.
 """
 from __future__ import annotations
 
+from workflows.minecraft_body.capabilities import CapabilitySnapshotOwner
+
 from typing import TYPE_CHECKING
 
 from pm.host.durable_files import atomic_json
@@ -19,7 +21,7 @@ from pm.utils import yaml_util
 
 from pm.bus.envelopes import Envelope, new_id
 from workflows.main_cognition.schemas import ActionMetadata, ActionRequest, Stimulus
-from workflows.public_speech.public_context import build_public_context
+from workflows.public_speech.public_context import build_public_context, order_dialogue
 from workflows.public_speech.shard_context import shard_context
 from workflows.public_speech.speech_text import SpeechOutputError
 from workflows.public_speech.publication import commit_public_reply, publish_reply
@@ -45,7 +47,7 @@ def _clip(text: str, limit: int = 500) -> str:
 class PublicDialogue(CognitiveWorkflow):
     """Shared evidence guards and visible failures for public workflows."""
 
-    capability_provider = None
+    capability_owner: CapabilitySnapshotOwner | None = None
     inference_admission = None
 
     # Shared embedding service for context planning. The assembly sets it;
@@ -107,7 +109,7 @@ class PublicDialogue(CognitiveWorkflow):
         # reads the terms and bindings from the frozen public context.
         from workflows.public_speech.ontology import observe_ontology
         observe_ontology(self.ghost, authority_id=request.knoxel_id)
-        capabilities = self.capability_provider() if self.capability_provider else None
+        capabilities = self.capability_owner.snapshot() if self.capability_owner is not None else None
         with self.ghost.lock:
             self._public_context = build_public_context(self.ghost, request, capabilities=capabilities,
                                                         planned=planned, late_ids=list(late_ids))
@@ -133,14 +135,13 @@ class PublicDialogue(CognitiveWorkflow):
         with self.ghost.lock:
             view = self.ghost.snapshot()
         shard = shard_context(view, request, self.ghost.get_companion_name(), late_ids=list(late_ids))
-        if self.context_embeddings is None:
-            return shard
         # Build the focus from the workspace, stimuli, and goals.
         from workflows.public_speech.context_planning import FocusInput, plan_reply_context
         stimulus_texts = [s.text for s in request.stimuli if s.text]
         focus = FocusInput(
             workspace=request.workspace or "",
             current_message=" ".join(stimulus_texts),
+            current_ids=tuple(stimulus.knoxel_id for stimulus in request.stimuli),
             attention_texts=[request.content] if request.content else [],
             exclude_ids=[s.knoxel_id for s in request.stimuli if s.knoxel_id],
         )
@@ -159,6 +160,7 @@ class PublicDialogue(CognitiveWorkflow):
                 merged_evidence.append(item)
                 existing_ids.add(item.knoxel_id)
         shard.evidence = merged_evidence
+        shard.temporal_history = planned.temporal_history
         # Merge planned utterances into the spoken transcript. The shard tail
         # holds the recent window; the planner adds older real utterances. Keep
         # one copy per record and order by world time so the assistant turn
@@ -171,9 +173,8 @@ class PublicDialogue(CognitiveWorkflow):
             merged_dialogue.append(turn)
             if turn.knoxel_id:
                 seen.add(turn.knoxel_id)
-        merged_dialogue.sort(key=lambda t: (t.timestamp or "", t.knoxel_id or 0))
-        shard.dialogue = merged_dialogue
-        shard.trace["planned_lanes"] = planned.trace.get("lanes", [])
+        shard.dialogue = order_dialogue(merged_dialogue)
+        shard.trace.planned_lanes = planned.trace.lanes
         return shard
 
     def prepare_reply(self, request: ActionRequest) -> tuple[list[Stimulus], PlannedContext, PublicContext]:
@@ -389,22 +390,20 @@ class PublicDialogue(CognitiveWorkflow):
             if not self.cognitive_control.wait_for_classification(self.stop_event):
                 return
         try:
-            if self.capability_provider is not None:
-                current = self.capability_provider().get("minecraft", {})
-                prior = self._public_context.capabilities.get("minecraft", {})
-                if (current.get("status"), current.get("tools")) != (prior.get("status"), prior.get("tools")):
+            if self.capability_owner is not None:
+                current = self.capability_owner.snapshot().minecraft
+                prior = self._public_context.capabilities.minecraft
+                if (current.status, current.tools) != (prior.status, prior.tools):
                     raise GhostConflict("Minecraft capability changed during public generation.")
-            if self._public_context.task_receipt.get("task_verified"):
+            task_receipt = self._public_context.task_receipt
+            if task_receipt is not None and (task_receipt.task_verified or task_receipt.file_checks):
                 from workflows.public_speech.reply_recovery import task_evidence
-                try:
-                    current_task = task_evidence(self._public_context.task_receipt)
-                except (OSError, ValueError, KeyError, TypeError, yaml_util.YAMLError) as error:
-                    self._public_context.task_receipt = {**self._public_context.task_receipt,
-                        "task_verified": False, "verification_error": type(error).__name__}
-                    raise GhostConflict("Task evidence became unreadable during public generation.") from error
-                if not current_task.get("task_verified"):
-                    self._public_context.task_receipt = current_task
+                current_task = task_evidence(task_receipt)
+                self._public_context.task_receipt = current_task
+                if task_receipt.task_verified and not current_task.task_verified:
                     raise GhostConflict("Verified task bytes changed during public generation.")
+                if current_task.file_checks != task_receipt.file_checks:
+                    raise GhostConflict("Reported artifact bytes changed during public generation.")
             with self.ghost.lock:
                 reply_id = commit_public_reply(
                     self.ghost, text, envelope.correlation_id, commit_id=self.invocation_id or new_id(),

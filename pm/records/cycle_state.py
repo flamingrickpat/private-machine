@@ -87,8 +87,8 @@ class PersonaConfig(BaseModel):
     )
     character_card_assistant: str | None = None
     supported_capabilities: list[str] = Field(default_factory=list)
-    unsupported_capabilities: list = Field(default_factory=list)
-    capability_notes: list = Field(default_factory=list)
+    unsupported_capabilities: list[str] = Field(default_factory=list)
+    capability_notes: list[str] = Field(default_factory=list)
     # The stable traits as a vector at positions 800-814. A persona without
     # traits gets the neutral PersonalityProfile defaults (0.5), not zeros.
     personality_profile: list[float] = Field(default_factory=lambda: PersonalityProfile().to_vector())
@@ -118,8 +118,8 @@ class CycleStateModel(BaseModel):
     character_card_story: str
     character_card_assistant: str | None
     supported_capabilities: list[str] = Field(default_factory=list)
-    unsupported_capabilities: list = Field(default_factory=list)
-    capability_notes: list = Field(default_factory=list)
+    unsupported_capabilities: list[str] = Field(default_factory=list)
+    capability_notes: list[str] = Field(default_factory=list)
     personality_profile: list[float]
 
     def model_post_init(self, __context: Any) -> None:
