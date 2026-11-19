@@ -31,7 +31,7 @@ from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
 from threading import Event
-from typing import TYPE_CHECKING, Literal, NamedTuple, NotRequired, TypedDict
+from typing import TYPE_CHECKING, NamedTuple
 
 import tiktoken
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, JsonValue
@@ -122,18 +122,11 @@ def _turn(view: Snapshot, key: int, record: RecordBase) -> DialogueTurn:
                         timestamp=record.timestamp_world_begin.isoformat(), kind=kind)
 
 
-class EmbeddingFocusTrace(TypedDict):
-    """Persisted encoder state for one context plan."""
-
-    status: Literal["disabled", "ready"]
-    model: NotRequired[str]
-
-
 class EmbeddedFocus(NamedTuple):
     """The existing weighted vector contract and its named trace boundary."""
 
     vectors: list[WeightedFocusVector]
-    trace: EmbeddingFocusTrace
+    trace: SemanticContextTrace
 
 
 async def _embed_focus(
@@ -143,17 +136,16 @@ async def _embed_focus(
 ) -> EmbeddedFocus:
     """Embed each query. Configured encoder errors retain their real failure."""
     if embeddings is None:
-        return EmbeddedFocus([], EmbeddingFocusTrace(status="disabled"))
+        return EmbeddedFocus([], SemanticContextTrace(status="disabled"))
     vectors: list[WeightedFocusVector] = []
     for query in queries:
         vector = await embeddings.embed(query.text, cancel=cancel)
         vectors.append(WeightedFocusVector(weight=query.weight, vector=vector))
-    return EmbeddedFocus(vectors, EmbeddingFocusTrace(status="ready", model=embeddings.config.model))
+    return EmbeddedFocus(vectors, SemanticContextTrace(status="ready", model=embeddings.config.model))
 
 
 def freeze_temporal_history(view: Snapshot, records: dict[int, RecordBase], focus: FocusInput,
                             embedded: EmbeddedFocus) -> TemporalHistoryInput:
-    query = embedded.vectors[0].vector if embedded.vectors else []
     items: list[TemporalHistoryItem] = []
     for record_id, record in records.items():
         if record_id in focus.current_ids:
@@ -180,10 +172,12 @@ def freeze_temporal_history(view: Snapshot, records: dict[int, RecordBase], focu
         else:
             continue
         relevance = 0.0
-        if query and record.embedding:
-            if len(query) != len(record.embedding):
-                raise ValueError(f"History source {record_id} embedding dimension differs from focus.")
-            relevance = max(0.0, sum(left * right for left, right in zip(query, record.embedding, strict=True)))
+        if record.embedding:
+            for query in embedded.vectors:
+                if len(query.vector) != len(record.embedding):
+                    raise ValueError(f"History source {record_id} embedding dimension differs from focus.")
+                similarity = sum(left * right for left, right in zip(query.vector, record.embedding, strict=True))
+                relevance = max(relevance, query.weight * similarity)
         items.append(TemporalHistoryItem(record_id=record_id, started_at=utc_time(record.timestamp_world_begin),
             ended_at=utc_time(record.timestamp_world_end), kind=kind, level=level, content=content, source=source,
             feature_type=feature_type, evidence_role=evidence_role(view, record),
@@ -240,11 +234,7 @@ async def plan_reply_context(view: Snapshot, plan_name: str, focus: FocusInput,
             item.lane = lane.name
             evidence.append(item)
     dialogue = order_dialogue(dialogue)
-    # This trace is the persisted JSON boundary. Keep encoder state named until
-    # serialization, while retaining the existing disabled/ready wire fields.
-    semantic = SemanticContextTrace(status=embedded_focus.trace["status"],
-        model=embedded_focus.trace["model"] if "model" in embedded_focus.trace else "")
-    trace = ContextPlanningTrace(plan=plan.spec, semantic=semantic, new_embeddings=embedded,
+    trace = ContextPlanningTrace(plan=plan.spec, semantic=embedded_focus.trace, new_embeddings=embedded,
         rounds=tuple(plan.rounds), lanes=tuple(ContextLaneTrace(name=lane.name, budget=lane.budget,
             used=lane.used, selected=len(lane.ids), candidates=lane.candidates, exhausted=lane.exhausted,
             competing=tuple(lane.competing[:4])) for lane in plan.lanes))

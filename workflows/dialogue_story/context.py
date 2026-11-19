@@ -13,7 +13,7 @@ Runtime ownership is described in [the Story host overview][workflows.dialogue_s
 """
 from __future__ import annotations
 
-from workflows.public_speech.public_context import rank_public_evidence, rank_memory_texts
+from workflows.public_speech.public_context import order_dialogue, rank_public_evidence, rank_memory_texts
 
 from pm import vclock
 
@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING
 
 from pm.memory.embeddings import EmbeddingService
 from pm.memory.retrieval import distinctive_terms
-from workflows.dialogue_story.history_rendering import select_story_history, history_turns
+from workflows.dialogue_story.history_rendering import select_story_history, history_turns, history_request
 from pm.memory.temporal_context import TemporalCoverageSelection
 
 from pm.context_render.correction import render_regeneration_feedback
@@ -33,6 +33,7 @@ from pm.context_render.budget import PromptSelection, TokenEstimator, RequiredCo
 from pm.context_render.turns import Turn
 from pm.context_render.prompt import RenderSettings, RenderedPrompt, EvidenceDecision, TemporalHistoryMeasurement, require_rendered_prompt
 
+from workflows.dialogue_story.steps import story_artifact_lines
 from workflows.dialogue_story.schemas import StoryPrompts, StoryRequest, StorySituation
 
 if TYPE_CHECKING:
@@ -74,7 +75,8 @@ def render_story(input: StoryRenderInput, settings: RenderSettings) -> RenderedP
                        "current exchange or distinct relevant example" if turn.knoxel_id in selected_ids else "unrelated, redundant, or dialogue budget")
                        for turn in input.request.prior_dialogue if turn.knoxel_id is not None)
     if planned.history is not None:
-        decisions += tuple(EvidenceDecision(item.record_id, item.relevance, True, "full lifetime cover and detail refinement")
+        decisions += tuple(EvidenceDecision(item.record_id, item.relevance, item.record_id in selected_ids,
+                                           "temporal selection" if item.record_id in selected_ids else "duplicate transcript text")
                            for item in planned.history.items)
         decisions += tuple(EvidenceDecision(record_id, 0.0, False, "coarsest lifetime cover exceeds actual prompt headroom")
                            for record_id in planned.history.omitted_feature_ids)
@@ -118,7 +120,8 @@ def select_story_prompt(
                 required_ids.add(source_id)
                 pending.append(source_id)
     selected_evidence = [item for item in evidence if item.knoxel_id in required_ids]
-    selected_dialogue = list(required_dialogue)
+    selected_dialogue = [turn for turn in request.prior_dialogue
+                         if turn in required_dialogue or turn.knoxel_id in required_ids]
     selected_context = context.model_copy(deep=True) if context is not None else None
     if selected_context is not None:
         selected_context.evidence = selected_evidence
@@ -127,28 +130,23 @@ def select_story_prompt(
     selected.prior_dialogue = selected_dialogue
     selected.public_context = selected_context
     selected.memories = []
+    if context is not None and context.temporal_history is not None:
+        required_history = tuple(item for item in context.temporal_history.items if item.record_id in required_ids)
+        selected = history_request(selected, required_history)
+        assert selected.public_context is not None
+        selected_evidence = list(selected.public_context.evidence)
+        selected_dialogue = list(selected.prior_dialogue)
     turns = history_turns(selected, prompts, repair_turns)
     mandatory_tokens = estimator.estimate(turns)
     if mandatory_tokens > request.input_budget_tokens:
         raise RequiredContextTooLarge(f"Story mandatory input uses {mandatory_tokens} estimated tokens; ceiling {request.input_budget_tokens}.")
     history: TemporalCoverageSelection | None = None
     history_measurement: TemporalHistoryMeasurement | None = None
-    if selected.public_context is not None and selected.public_context.temporal_history is not None:
-        lifetime = select_story_history(selected, prompts, repair_turns, estimator)
-        history = lifetime.coverage
-        history_measurement = TemporalHistoryMeasurement(lifetime.mandatory_tokens, lifetime.minimum_rendered_tokens,
-            lifetime.rendered_tokens, request.input_budget_tokens - lifetime.mandatory_tokens, lifetime.refinement_attempts)
-        selected, turns = lifetime.request, lifetime.turns
-        selected_evidence = list(selected.public_context.evidence) if selected.public_context is not None else []
-        selected_dialogue = list(selected.prior_dialogue)
-        speech_history = list(selected_dialogue)
-        required_ids.update(item.record_id for item in history.items)
-        mandatory_tokens = lifetime.rendered_tokens
     remaining = request.input_budget_tokens - mandatory_tokens
     dialogue_budget = int(remaining * 0.45)
     dialogue_cost = 0
     omitted: list[str] = []
-    included = [f"memory:{item.knoxel_id}" for item in selected_evidence]
+    included: list[str] = []
     focus_terms = set(distinctive_terms(request.current_user_message))
     represented_terms: set[str] = set()
     for turn in selected_dialogue:
@@ -161,7 +159,7 @@ def select_story_prompt(
         if not new_terms:
             omitted.append(f"dialogue:{turn.knoxel_id}")
             continue
-        trial_dialogue = [item for item in speech_history if item == turn or item in selected_dialogue]
+        trial_dialogue = order_dialogue([*selected_dialogue, turn])
         trial = selected.model_copy(deep=True)
         trial.prior_dialogue = trial_dialogue
         trial_turns = history_turns(trial, prompts, repair_turns)
@@ -210,7 +208,6 @@ def select_story_prompt(
         selected, turns = trial, trial_turns
         lane_used[lane] += cost
         seen_texts.add(text_key)
-        included.extend(f"memory:{row.knoxel_id}" for row in group)
     if context is None:
         for memory in rank_memory_texts(request.memories, request.current_user_message):
             trial = selected.model_copy(deep=True)
@@ -221,9 +218,26 @@ def select_story_prompt(
                 included.append(f"plain-memory:{memory.position}")
             else:
                 omitted.append(f"plain-memory:{memory.position}")
-    source_ids = set(required_ids)
-    source_ids.update(item.knoxel_id for item in selected_evidence)
-    source_ids.update(turn.knoxel_id for turn in selected_dialogue if turn.knoxel_id is not None)
+    if selected.public_context is not None and selected.public_context.temporal_history is not None:
+        lifetime = select_story_history(selected, prompts, repair_turns, estimator)
+        history = lifetime.coverage
+        history_measurement = TemporalHistoryMeasurement(mandatory_tokens, lifetime.minimum_rendered_tokens,
+            lifetime.rendered_tokens, request.input_budget_tokens - lifetime.baseline_tokens, lifetime.refinement_attempts)
+        selected, turns = lifetime.request, lifetime.turns
+        selected_evidence = list(selected.public_context.evidence) if selected.public_context is not None else []
+        selected_dialogue = list(selected.prior_dialogue)
+    artifact_ids = {line.record_id for line in story_artifact_lines(selected, prompts)}
+    source_ids = {turn.knoxel_id for turn in selected_dialogue if turn.knoxel_id is not None}
+    source_ids.update(artifact_ids)
+    if selected.current_user_message and selected.current_message_id is not None:
+        source_ids.add(selected.current_message_id)
+    missing = required_ids - source_ids
+    if missing:
+        raise ValueError(f"Story prompt is missing required record IDs {sorted(missing)}.")
+    included.extend(f"memory:{item.knoxel_id}" for item in selected_evidence if item.knoxel_id in artifact_ids)
+    included.extend(f"dialogue:{turn.knoxel_id}" for turn in selected_dialogue if turn.knoxel_id is not None)
+    included_names = set(included)
+    omitted = [name for name in omitted if name not in included_names]
     selection = PromptSelection(tuple(turns), tuple(included), tuple(omitted), estimator.estimate(turns),
                                 tuple(sorted(source_ids)), ())
     return StoryPrompt(selected, selection, history, history_measurement)

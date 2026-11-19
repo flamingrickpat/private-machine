@@ -2,14 +2,19 @@
 from __future__ import annotations
 
 import unittest
+from datetime import UTC, datetime, timedelta
+
+from pm.memory.temporal_context import TemporalHistoryInput, TemporalHistoryItem
+from pm.records.enums import FeatureType
 
 from pm.context_render.budget import RequiredContextTooLarge, TokenEstimator
+from pm.context_render.prompt import RenderSettings
 from pm.context_render.turns import Role, Turn
 from workflows.dialogue_story.context import select_story_prompt
 from workflows.dialogue_story.schemas import StoryRequest
 from workflows.dialogue_story.steps import build_story_messages, load_prompts
 from workflows.public_speech.public_context import DialogueTurn, EvidenceItem, PublicContext
-from workflows.public_speech.speech_review import build_review_messages, load_prompts as load_review_prompts
+from workflows.public_speech.speech_review import SpeechReviewRenderInput, render_speech_review, load_prompts as load_review_prompts
 
 
 class StoryContextBudgetTests(unittest.TestCase):
@@ -28,9 +33,10 @@ class StoryContextBudgetTests(unittest.TestCase):
         strong = EvidenceItem(knoxel_id=2, text="Relevant cat history. " * 30, lane="facts", score=0.9)
         weak = EvidenceItem(knoxel_id=3, text="Unrelated background. " * 2000, lane="facts", score=0.1)
         request = self.request([required, strong, weak])
+        request.required_evidence_ids = (1,)
         prompts = load_prompts()
         baseline = self.request([required])
-        request.input_budget_tokens = TokenEstimator().estimate(build_story_messages(baseline, prompts)) + 500
+        request.input_budget_tokens = TokenEstimator().estimate(build_story_messages(baseline, prompts)) + 3000
         fitted = select_story_prompt(request, prompts)
         assert request.public_context is not None
         assert fitted.request.public_context is not None
@@ -40,7 +46,7 @@ class StoryContextBudgetTests(unittest.TestCase):
         self.assertIn(request.current_user_message, text)
         self.assertIn("This earlier line must remain.", text)
         self.assertIn("The accepted shard state.", text)
-        self.assertIn("Omitted optional context groups: memory:3", text)
+        self.assertNotIn(weak.text, text)
         self.assertLessEqual(fitted.selection.estimated_tokens, request.input_budget_tokens)
         self.assertEqual(len(request.public_context.evidence), 3)
 
@@ -51,13 +57,13 @@ class StoryContextBudgetTests(unittest.TestCase):
             select_story_prompt(request, load_prompts())
 
     def test_repair_feedback_is_required_and_can_displace_optional_memory(self) -> None:
-        optional = EvidenceItem(knoxel_id=2, text="Optional memory. " * 300, lane="facts", score=0.9)
+        optional = EvidenceItem(knoxel_id=2, text="Optional memory. " * 30, lane="facts", score=0.9)
         request = self.request([optional])
         prompts = load_prompts()
-        request.input_budget_tokens = TokenEstimator().estimate(build_story_messages(request, prompts)) + 50
+        request.input_budget_tokens = TokenEstimator().estimate(build_story_messages(request, prompts)) + 2000
         initial = select_story_prompt(request, prompts)
         self.assertIn("memory:2", initial.selection.included)
-        repair = Turn(Role.User, "Correct the unsupported claim. " * 150)
+        repair = Turn(Role.User, "Correct the unsupported claim. " * 230)
         fitted = select_story_prompt(request, prompts, [repair])
         self.assertIn("memory:2", fitted.selection.omitted)
         self.assertEqual(fitted.selection.turns[-1], repair)
@@ -77,18 +83,48 @@ class StoryContextBudgetTests(unittest.TestCase):
         required = EvidenceItem(knoxel_id=1, text="Required observation.", lane="shard:Jesse")
         optional = EvidenceItem(knoxel_id=2, text="Optional history. " * 1000, lane="facts", score=0.1)
         request = self.request([required, optional])
-        draft = "The full candidate reply must reach the reviewer."
+        draft = "I remember that observation."
         review_prompts = load_review_prompts()
 
-        def render(selected: StoryRequest) -> list[Turn]:
-            assert selected.public_context is not None
-            return build_review_messages(draft, selected.public_context, review_prompts)
+        assert request.public_context is not None
+        settings = RenderSettings(context_window=32000, input_fraction=0.85, reserved_output_tokens=8192)
+        fitted = render_speech_review(SpeechReviewRenderInput(draft, request.public_context, review_prompts), settings)
+        self.assertIn(draft, fitted.raw_text)
+        self.assertIn(required.text, fitted.raw_text)
+        self.assertNotIn(optional.text, fitted.raw_text)
+        self.assertLessEqual(fitted.estimated_tokens, settings.input_ceiling)
 
-        request.input_budget_tokens = TokenEstimator().estimate(render(self.request([required]))) + 300
-        fitted = select_story_prompt(request, load_prompts(), render=render)
-        text = "\n".join(turn.content.text for turn in fitted.selection.turns)
-        self.assertIn(draft, text)
-        self.assertIn(required.text, text)
-        self.assertIn("memory:2", fitted.selection.omitted)
-        self.assertNotIn(optional.text, text)
+    def test_required_older_dialogue_and_missing_record(self) -> None:
+        request = self.request([])
+        request.input_budget_tokens = 20000
+        request.prior_dialogue[:0] = [DialogueTurn(speaker="Jesse", text="The original promise.", knoxel_id=11),
+                                      DialogueTurn(speaker="Spamuel", text="I remember.", knoxel_id=12)]
+        request.required_evidence_ids = (11,)
+        fitted = select_story_prompt(request, load_prompts())
+        self.assertIn(11, fitted.selection.source_ids)
+        self.assertIn("The original promise.", "\n".join(turn.content.text for turn in fitted.selection.turns))
+        request.required_evidence_ids = (404,)
+        with self.assertRaisesRegex(ValueError, "404"):
+            select_story_prompt(request, load_prompts())
+
+    def test_fact_survives_competing_lifetime_history(self) -> None:
+        fact = EvidenceItem(knoxel_id=1, text="Jesse already named the cat Juniper.", lane="facts", score=1.0)
+        request = self.request([fact])
+        prompts = load_prompts()
+        request.input_budget_tokens = TokenEstimator().estimate(build_story_messages(request, prompts)) + 900
+        origin = datetime(2026, 1, 1, tzinfo=UTC)
+        history: list[TemporalHistoryItem] = []
+        for day in range(12):
+            moment = origin + timedelta(days=day)
+            history.append(TemporalHistoryItem(record_id=100 + day, started_at=moment, ended_at=moment,
+                kind="feature", level=0, content=f"Day {day}: " + "a remembered conversation " * 25,
+                source="Jesse", feature_type=FeatureType.Dialogue, relevance=0.5, token_cost=90))
+        assert request.public_context is not None
+        request.public_context.temporal_history = TemporalHistoryInput(items=tuple(history))
+        fitted = select_story_prompt(request, prompts)
+        self.assertIn(fact.knoxel_id, fitted.selection.source_ids)
+        self.assertIn(fact.text, "\n".join(turn.content.text for turn in fitted.selection.turns))
+        assert fitted.history is not None
+        self.assertTrue(fitted.history.items)
+        self.assertTrue(fitted.history.omitted_feature_ids)
         self.assertLessEqual(fitted.selection.estimated_tokens, request.input_budget_tokens)

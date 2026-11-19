@@ -20,7 +20,7 @@ class StoryHistorySelection:
     request: StoryRequest
     turns: tuple[Turn, ...]
     coverage: TemporalCoverageSelection
-    mandatory_tokens: int
+    baseline_tokens: int
     minimum_rendered_tokens: int
     rendered_tokens: int
     refinement_attempts: int

@@ -219,7 +219,7 @@ def build_context_message(request: StoryRequest, prompts: StoryPrompts, *, avoid
 def build_story_messages(request: StoryRequest, prompts: StoryPrompts, *, avoid: str = "") -> list[Turn]:
     """Return the interleaved Story turns: system, opening, alternating blocks, directive."""
     dialogue = _split_dialogue(request, prompts)
-    artifacts = _artifact_lines(request, prompts) + _thought_lines(dialogue.private_thoughts, prompts)
+    artifacts = story_artifact_lines(request, prompts) + _thought_lines(dialogue.private_thoughts, prompts)
     if request.guidance is not None:
         artifacts.append(_guidance_line(request, prompts))
     return render_interleaved_story(
@@ -362,7 +362,7 @@ def _thought_lines(thought_turns: list[DialogueTurn], prompts: StoryPrompts) -> 
     return lines
 
 
-def _artifact_lines(request: StoryRequest, prompts: StoryPrompts) -> list[ArtifactLine]:
+def story_artifact_lines(request: StoryRequest, prompts: StoryPrompts) -> list[ArtifactLine]:
     """Evidence records as ArtifactLine items, excluding verbatim transcript lines."""
     context = request.public_context
     if context is None:
