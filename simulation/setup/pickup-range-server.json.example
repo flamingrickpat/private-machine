@@ -1,0 +1,8 @@
+{
+  "defaultItemRange": 1.5,
+  "defaultXpRange": 8.0,
+  "maxRange": 64.0,
+  "minRange": 0.5,
+  "allowPlayerOverride": true,
+  "requirePermission": false
+}

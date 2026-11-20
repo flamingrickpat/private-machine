@@ -1,0 +1,8 @@
+# Relative paths start at the directory containing config_simulation.yaml.
+model_config_path: config.yaml
+# null creates a home from the shipped synthetic Spamuel canon.
+base_checkpoint: null
+mcp_checkout: ../pm-minecraft
+server_installation: ../minecraft-server-real
+# Campaign admission checks the provider key before paid inference.
+require_capped_openrouter_key: true

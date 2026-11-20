@@ -1,0 +1,6 @@
+# Relative executable paths start at the PM repository root.
+browser: C:/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe
+node: node
+# Relative to the MCP checkout.
+python: .venv/Scripts/python.exe
+body_entrypoint: body/dist/main.js

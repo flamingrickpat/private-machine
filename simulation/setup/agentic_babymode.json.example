@@ -1,0 +1,43 @@
+{
+  "player": {
+    "movementSpeedMultiplier": 1.5,
+    "miningSpeedMultiplier": 5.0,
+    "naturalRegeneration": false,
+    "pvp": false
+  },
+  "environment": {
+    "drowningTimeMultiplier": 10.0,
+    "itemsNeverDespawn": true,
+    "hungerPassiveDaysToEmpty": 30.0,
+    "hungerActivityExhaustionMultiplier": 1.0,
+    "starvingFoodDrainPerSecond": 0.02
+  },
+  "mobs": {
+    "movementSpeedMultiplier": 0.06666666666666667,
+    "attackCooldownMultiplier": 3.0,
+    "damageMultiplier": 0.06666666666666667,
+    "damageTakenMultiplier": 2.0,
+    "disablePhantoms": true,
+    "disableCreepers": true,
+    "disablePillagers": true,
+    "disableSkeletons": true
+  },
+  "sleepiness": {
+    "enabled": true,
+    "fullAfterDays": 30.0,
+    "penaltyPercent": 50.0
+  },
+  "nutrition": {
+    "enabled": false,
+    "daysToEmpty": 90.0,
+    "enableWellFedBuffs": false,
+    "deficitThresholdI": 40.0,
+    "deficitThresholdII": 15.0,
+    "starvingThreshold": 10.0,
+    "wellFedThreshold": 75.0,
+    "preventSprintWhenStarving": true
+  },
+  "chat": {
+    "notificationsEnabled": true
+  }
+}
