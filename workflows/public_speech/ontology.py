@@ -26,11 +26,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from pm.bus.envelopes import new_id
-from pm.records.base import Provenance
+from pm.records.base import Provenance, RecordBase
 from pm.records.cognitive_records import OntologyBindingRecord, OntologyTermRecord
 from workflows.public_speech.ontology_context import PublicOntologyTerm, PublicOntologyBinding
 from pm.records.enums import SourceKind
 from pm.records.mental_state import FullMentalState, StateEmotions, StateRelationship
+from pm.records.memory_records import Feature
+from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
     from pm.memory.store import MemoryStore
@@ -136,29 +138,21 @@ def ontology_lines(context: PublicContext) -> list[str]:
     return lines
 
 
-def _existing_terms(records: dict[int, dict[str, Any]]) -> dict[str, int]:
-    """Map a term name to the committed term id."""
-    found: dict[str, int] = {}
-    for key, raw in records.items():
-        if raw["__type__"] != "OntologyTermKnoxel":
-            continue
-        data = raw["data"]
-        name = str(data.get("term") or "").strip()
-        if name:
-            found[name] = int(data.get("id", key))
-    return found
+class InternalStateMetadata(BaseModel):
+    """Metadata used to bind an ontology term to the accepted feeling."""
+
+    memory_kind: str = ""
+    evidence_ids: list[int] = Field(default_factory=list)
 
 
-def _latest_state_feature(ghost: MemoryStore, records: dict[int, dict[str, Any]]) -> dict[str, Any] | None:
+def _latest_state_feature(ghost: MemoryStore, records: tuple[RecordBase, ...]) -> Feature | None:
     """Return the newest accepted internal-state record, if one exists."""
     states = ghost.read_cycles()
     tick = states[-1].tick_id if states else None
-    for raw in reversed(list(records.values())):
-        data = raw["data"]
-        if data.get("metadata", {}).get("memory_kind") != "internal_state":
-            continue
-        if tick is None or data.get("tick_id") == tick:
-            return data
+    for record in reversed(records):
+        if (isinstance(record, Feature) and record.metadata.get("memory_kind") == "internal_state"
+                and (tick is None or record.tick_id == tick)):
+            return record
     return None
 
 
@@ -174,13 +168,13 @@ def observe_ontology(ghost: MemoryStore, *, threshold: float = BIND_THRESHOLD,
     retains their input dependencies; the authority does not admit new stimuli.
     """
     with ghost.lock:
-        records = ghost.snapshot().serialize_knoxels()
-        existing = _existing_terms(records)
+        records = tuple(ghost.snapshot().all_knoxels.values())
+        existing = {record.term.strip(): record.id for record in records
+                    if isinstance(record, OntologyTermRecord) and record.term.strip()}
         missing = [item for item in seed_terms() if item["term"] not in existing]
         state = _latest_state_feature(ghost, records)
-        active = {int(raw["data"].get("term_id", -1)): int(raw["data"].get("id", key))
-                  for key, raw in records.items()
-                  if raw["__type__"] == "OntologyBindingKnoxel" and raw["data"].get("active", True)}
+        active = {record.term_id: record.id for record in records
+                  if isinstance(record, OntologyBindingRecord) and record.active}
         if not missing and (state is None or not active):
             return {"created_terms": [], "created_bindings": [], "bound_terms": []}
 
@@ -201,10 +195,10 @@ def observe_ontology(ghost: MemoryStore, *, threshold: float = BIND_THRESHOLD,
         created_bindings: list[int] = []
         bound_terms: list[str] = []
         if state is not None:
-            vector = state.get("mental_state_appraisal_vec") or state.get("mental_state_latent_vec") or []
+            vector = state.mental_state_appraisal_vec or state.mental_state_latent_vec
             accepted = FullMentalState.init_from_list(vector)
-            evidence_ids = [int(item) for item in state.get("metadata", {}).get("evidence_ids", [])]
-            support_ids = list(dict.fromkeys([int(state.get("id", 0)), *evidence_ids])) if state.get("id") else evidence_ids
+            evidence_ids = InternalStateMetadata.model_validate(state.metadata).evidence_ids
+            support_ids = list(dict.fromkeys([state.id, *evidence_ids]))
             notable = [(name, float(getattr(accepted.state_emotions, name)))
                        for name in StateEmotions.model_fields
                        if float(getattr(accepted.state_emotions, name)) >= threshold]

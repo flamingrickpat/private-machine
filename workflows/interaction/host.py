@@ -242,6 +242,7 @@ class Interaction(CognitiveWorkflow):
             base.cycle.available_workflows = self.main_cognition.available_workflow_options()
             base.cycle.capabilities = list(self.ghost.ghost_config.supported_capabilities)
             partner = base.cycle.stimuli[0].entity_id
+            base.cycle.managed_runs = self.main_cognition.partner_managed_runs(partner, view.get(source_ids[0]).scope)
             dependencies = capture_dependencies(view, sorted(base.evidence.record_fingerprints),
                 guidance_tick=previous.tick_id, critical_epoch=self.cognitive_control.publication_epoch(),
                 partner_entity_id=partner, scopes=[view.get(key).scope for key in source_ids],
@@ -303,9 +304,17 @@ class Interaction(CognitiveWorkflow):
             request = self._request.cycle
             if request.previous_state is None:
                 raise ValueError("Ordinary selection lost its accepted main state.")
+            scope = self.ghost.snapshot({receipt.source_ids[0]}).get(receipt.source_ids[0]).scope
+            if receipt.outcome == InteractionOutcome.WorkflowAction:
+                dispatch = receipt.dispatch
+                if dispatch is None:
+                    raise ValueError("A routine workflow action lost its dispatch.")
+                if (dispatch.correlation_id != request.correlation_id
+                        or not self.main_cognition.can_admit_routine_workflow(
+                            dispatch, receipt.dependencies.partner_entity_id, scope)):
+                    receipt = receipt.model_copy(update={"outcome": InteractionOutcome.Reconsider, "dispatch": None})
             lineage = RecordLineage(episode_id=receipt.selection_id, operation="ordinary_interaction",
                                     source_event_ids=receipt.source_ids, intention_ids=list(self._request.intention_ids))
-            scope = self.ghost.snapshot({receipt.source_ids[0]}).get(receipt.source_ids[0]).scope
             if receipt.dispatch is not None:
                 dispatch = receipt.dispatch
                 partner = partner_key(dispatch.group, request.user_entity_id)
@@ -320,7 +329,7 @@ class Interaction(CognitiveWorkflow):
                     presentation=dispatch.presentation, workspace=request.state_summary,
                     action_origin="interaction", interaction_selection_id=receipt.selection_id,
                     interaction_dependencies=receipt.dependencies, entity_contexts=list(receipt.dependencies.entity_contexts))
-                action = batch.create(ActionSchemaRecord(content=dispatch.content, action_type=ActionType.Reply,
+                action = batch.create(ActionSchemaRecord(content=dispatch.content, action_type=ActionType(dispatch.action_type),
                     scope=scope, intention_ids=list(self._request.intention_ids),
                     lineage=lineage, metadata={"action_id": dispatch.action_id, "workflow_name": dispatch.workflow_name,
                         "dispatch_status": "pending", "dispatch_target": dispatch.workflow_name,
@@ -329,8 +338,9 @@ class Interaction(CognitiveWorkflow):
                         "evidence_ids": receipt.source_ids}))
                 action_request.knoxel_id = action.id
                 action.metadata["dispatch_payload"] = action_request.payload()
-                from workflows.main_cognition.host import stage_expectations
-                stage_expectations(batch, batch.view(), prepare_work(self._request), dispatch, action.id)
+                if receipt.outcome == InteractionOutcome.Reply:
+                    from workflows.main_cognition.host import stage_expectations
+                    stage_expectations(batch, batch.view(), prepare_work(self._request), dispatch, action.id)
                 receipt = receipt.model_copy(update={"action_request": action_request})
             original = "\n".join(f"[{item.knoxel_id}] {item.source}: {item.text}" for item in request.stimuli)
             decision = receipt.decision.variants[0] if receipt.decision.variants else "No local move."

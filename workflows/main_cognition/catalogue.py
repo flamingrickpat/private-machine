@@ -38,5 +38,7 @@ class WorkflowCatalogue:
             spec = self.supervisor.workflows[name]
             if spec.singleton:
                 description += f' One active run for {spec.singleton_key or name}. A busy start returns its owner; choose wait, update, or terminate through self_management.'
-            options.append(WorkflowOption(name=name, description=description))
+            resource = (spec.singleton_key or name) if spec.singleton else ""
+            options.append(WorkflowOption(name=name, description=description,
+                                          routine_start=spec.routine_start, exclusive_resource=resource))
         return options

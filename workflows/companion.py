@@ -148,7 +148,7 @@ def _managed_workflows(
             PROJECT_ROOT / "workflows" / "minecraft" / "minecraft.workflow.md",
             namespace="minecraft",
             resumable=True,
-            singleton=True, singleton_key="minecraft_body",
+            singleton=True, singleton_key="minecraft_body", routine_start=True,
             request_context_owner=MinecraftContextOwner(),
             runtime_owner=build_minecraft_module_tools(stage_model, mcp_url=minecraft_endpoint),
         ),
@@ -156,7 +156,7 @@ def _managed_workflows(
             PROJECT_ROOT / "workflows" / "minecraft_project" / "minecraft_project.workflow.md",
             namespace="minecraft_project",
             resumable=True,
-            singleton=True, singleton_key="minecraft_body",
+            singleton=True, singleton_key="minecraft_body", routine_start=True,
             request_context_owner=MinecraftContextOwner(),
             runtime_owner=build_minecraft_module_tools(stage_model, mcp_url=minecraft_endpoint),
             memory_config_owner=ProjectMemoryOwner(embeddings) if stage_model is not None else None,
@@ -479,6 +479,7 @@ def build_app(
             run = supervisor.status(event["run_id"])
             parent = run.get("parent_correlation", "")
             event = {**event, "artifact_path": run.get("artifact_path", ""),
+                     "workflow_name": run["workflow_name"],
                      "executed_at": vclock.utcnow().isoformat()}
         except Exception:
             parent = ""

@@ -85,4 +85,6 @@ class WorkflowSpec:
     singleton: bool = False
     #: Share admission across workflow names. An empty key uses the workflow name.
     singleton_key: str = ""
+    #: Allow main cognition to accept an explicit partner request during ordinary interaction.
+    routine_start: bool = False
 

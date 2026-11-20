@@ -21,6 +21,7 @@ class InteractionOutcome(StrEnum):
     Reply = "reply"
     Quiet = "quiet"
     Reconsider = "reconsider"
+    WorkflowAction = "workflow_action"
 
 
 class InteractionDecision(DecisionAnswer):
@@ -28,6 +29,8 @@ class InteractionDecision(DecisionAnswer):
 
     guidance_disposition: GuidanceDisposition = GuidanceDisposition.Follow
     guidance_reason: str = Field(default="", description="Why the local exchange declines or suspends prior direction.")
+    explicit_workflow_request: bool = Field(default=False,
+        description="The latest partner turn directly requests the proposed task or an operation on an existing run.")
 
     @model_validator(mode="after")
     def explain_mismatch(self) -> Self:
@@ -75,8 +78,15 @@ class InteractionReceipt(BaseModel):
                 raise ValueError("An ordinary reply requires its selected route and dispatch.")
             if self.dispatch.action_type != "Reply" or self.dispatch.workflow_name != "dialogue_story":
                 raise ValueError("An ordinary reply must use the existing Story speech owner.")
+        elif self.outcome == InteractionOutcome.WorkflowAction:
+            if self.dispatch is None or self.route is None or not self.decision.explicit_workflow_request:
+                raise ValueError("A routine workflow action requires a selected dispatch and explicit partner request.")
+            if self.dispatch.action_type != "ToolCallAndReply" or not self.dispatch.workflow_name:
+                raise ValueError("A routine workflow action requires a named managed action with public reporting.")
+            if self.inhibition is None or not self.inhibition.allow:
+                raise ValueError("A routine workflow action requires an allowed move.")
         elif self.dispatch is not None:
-            raise ValueError("Only an ordinary reply can directly dispatch an action.")
+            raise ValueError("Only a reply or admitted workflow start can carry a dispatch.")
         return self
 
 

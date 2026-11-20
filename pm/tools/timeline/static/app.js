@@ -148,14 +148,29 @@ function savedTheme() {
 
 /* ---------------------------------------------------------------- render */
 
-async function render() {
+async function render(refresh = false) {
   const token = ++renderToken;
   const current = route();
+  document.body.dataset.tab = current.tab || "";
   try {
+    if (refresh === true) cache.clear();
     state.runs = await api("/runs");
     if (token !== renderToken) return;
     renderRunSelect();
-    if (current.page === "runs") return renderRunList();
+    if (current.page === "runs") {
+      $("#meta").textContent = "Simulation runs";
+      return renderRunList();
+    }
+    if (refresh === true || state.run?.summary.id !== current.run || state.attemptPage?.attempt.number !== current.attempt) {
+      const summary = state.runs.find(row => row.id === current.run);
+      $("#meta").textContent = summary ? `${summary.title} · ${summary.status}` : current.run;
+      clear($("#detail"));
+      clear($("#sidebar"));
+      clear($("#tab")).append(h("h1", {}, summary?.title || current.run),
+        h("p", {}, `Loading attempt ${current.attempt || "latest"} records, calls and workflows…`));
+    }
+    if (refresh === true) await api("/refresh", false);
+    if (token !== renderToken) return;
     const run = await api(`/run/${encodeURIComponent(current.run)}`);
     if (token !== renderToken) return;
     const attempt = current.attempt || run.summary.latest_attempt || 1;
@@ -163,13 +178,14 @@ async function render() {
       go(`run/${current.run}/${attempt}/${current.tab}`);
       return;
     }
+    renderAttemptSelect(run);
+    renderTabs(current);
     const attemptPage = await api(`/attempt?run=${encodeURIComponent(current.run)}&attempt=${attempt}`);
     if (token !== renderToken) return;
     state.run = run;
     state.attemptPage = attemptPage;
     if (state.participant && !attemptPage.overviews.some((row) => row.id === state.participant)) state.participant = "";
     if (!state.participant && attemptPage.overviews.length === 1) state.participant = attemptPage.overviews[0].id;
-    renderAttemptSelect(run);
     renderParticipantSelect(attemptPage);
     $("#attempt-select").disabled = ["chat", "records"].includes(current.tab) && state.memorySource !== "capture";
     renderHeaderMeta();
@@ -179,8 +195,9 @@ async function render() {
     if (token !== renderToken) return;
     await renderDetail(current, token);
   } catch (error) {
-    notice(error.message);
-    if (current.page === "run") renderRunList(error.message);
+    if (token !== renderToken) return;
+    $("#meta").textContent = "Could not load debugger data";
+    renderRunList(error.message);
   }
 }
 
@@ -344,77 +361,328 @@ function renderOverview(tab) {
 async function renderProfile(tab, current) {
   const query = new URLSearchParams({run: current.run, attempt: String(current.attempt)});
   if (state.participant) query.set("participant", state.participant);
-  const bars = await api(`/profile?${query}`);
+  const receipts = await api(`/calls?${query}`);
+  const embeddings = new Set(receipts.filter(call => call.route === "embeddings").map(call => call.call_id));
+  const recorded = await api(`/profile?${query}`);
+  const bars = recorded.filter(bar => bar.operation !== "embeddings" && !(bar.kind === "call" && embeddings.has(bar.target_id)));
   tab.append(h("h1", {}, "Cognition profiler"));
   if (!bars.length) {
     tab.append(h("p", {}, "This selection has no recorded workflow spans or timed model receipts."));
     return;
   }
-  const lanes = new Map();
-  let first = Infinity;
-  let last = -Infinity;
+  const children = new Map();
+  const spanIds = new Set(bars.map(bar => bar.span_id).filter(Boolean));
+  const workflows = new Map();
   for (const bar of bars) {
-    const lane = `${bar.participant} / ${bar.lane} / ${bar.evidence?.kind || bar.kind}`;
-    if (!lanes.has(lane)) lanes.set(lane, []);
-    lanes.get(lane).push(bar);
-    first = Math.min(first, Date.parse(bar.start));
-    last = Math.max(last, Date.parse(bar.end || bar.start));
+    if (bar.evidence?.kind === "workflow" && bar.invocation_id) {
+      workflows.set(bar.participant + "/" + bar.invocation_id, bar.span_id);
+    }
   }
-  const duration = Math.max(last - first, 1);
-  const zoom = h("input", {type:"range", min:"1", max:"100", value:"1"});
+  for (const bar of bars) {
+    let parent = spanIds.has(bar.parent_span_id) ? bar.parent_span_id : "";
+    if (!parent && bar.kind === "call" && bar.invocation_id) {
+      parent = workflows.get(bar.participant + "/" + bar.invocation_id) || "";
+    }
+    if (!children.has(parent)) children.set(parent, []);
+    children.get(parent).push(bar);
+  }
+  const roots = children.get("") || [];
+  const search = h("input", {type:"search", placeholder:"Find an operation or participant", "aria-label":"Find an operation or participant"});
+
+  const tree = h("div", {class:"profile-tree"});
+  const timeline = h("section", {class:"profile-time"}, h("h1", {}, "Cognition timeline"));
   const viewport = h("div", {class:"profile-viewport"});
   const chart = h("div", {class:"profile-chart"});
-  zoom.oninput = () => { chart.style.width = `${Number(zoom.value) * 100}%`; };
-  tab.append(h("label", {}, "Zoom ", zoom), h("p", {class:"dim"}, `Wall time ${new Date(first).toISOString()} to ${new Date(last).toISOString()}`), viewport);
+  const zoom = h("input", {type:"range", min:1, max:100, step:0.01, value:1});
+  zoom.oninput = () => { chart.style.width = Number(zoom.value) * 100 + "%"; };
+  // Keep the instant under the pointer stationary while changing horizontal scale.
+  viewport.addEventListener("wheel", event => {
+    if (event.shiftKey || !event.deltaY) return;
+    const delta = event.deltaMode === 1 ? event.deltaY * 16 : event.deltaMode === 2 ? event.deltaY * viewport.clientHeight : event.deltaY;
+    const before = Number(zoom.value);
+    const after = Math.min(100, Math.max(1, before * Math.exp(-delta * 0.002)));
+    if (after === before) return;
+    event.preventDefault();
+    const pointer = event.clientX - viewport.getBoundingClientRect().left;
+    const fraction = (viewport.scrollLeft + pointer) / chart.offsetWidth;
+    zoom.value = String(after);
+    zoom.oninput();
+    viewport.scrollLeft = fraction * chart.offsetWidth - pointer;
+  }, {passive:false});
   viewport.append(chart);
-  for (const [name, events] of lanes) {
-    chart.append(h("small", {class:"profile-label"}, name));
-    const lane = h("div", {class:"profile-lane"});
-    for (const bar of events) {
-      const start = Date.parse(bar.start);
-      const end = Date.parse(bar.end || bar.start);
-      const elapsed = bar.elapsed_seconds == null ? "end unavailable" : `${(bar.elapsed_seconds * 1000).toFixed(1)} ms`;
-      const label = `${bar.operation} | ${bar.outcome} | ${elapsed} | ${bar.invocation_id}`;
-      const box = h("button", {class:"profile-bar", title:label, "aria-label":label}, bar.operation);
-      if (bar.span_id) box.dataset.span = bar.span_id;
-      box.style.left = `${100 * (start - first) / duration}%`;
-      box.style.width = `${100 * (end - start) / duration}%`;
-      box.onclick = () => {
-        const panel = clear($("#detail"));
-        panel.append(h("h2", {}, bar.operation), h("p", {}, label));
-        if (bar.parent_span_id) {
-          const parent = chart.querySelector(`[data-span="${CSS.escape(bar.parent_span_id)}"]`);
-          if (parent) {
-            const parentLink = h("button", {type:"button"}, `Parent · ${parent.textContent}`);
-            parentLink.onclick = () => { parent.scrollIntoView({block:"nearest", inline:"nearest"}); parent.click(); };
-            panel.append(parentLink);
-          }
-        }
-        const evidence = bar.evidence;
-        if (evidence) {
-          for (const [title, ids] of [["Input knoxels", evidence.knoxel_ids],
-                                      ["Retrieved records", evidence.retrieved_record_ids],
-                                      ["Committed records", evidence.outputs]]) {
-            if (!ids?.length) continue;
-            const links = h("div", {class:"profile-records"}, h("strong", {}, title));
-            for (const id of ids) {
-              links.append(h("a", {href:"#/" + runPath(`record/${bar.participant}/${id}`)}, String(id)));
-            }
-            panel.append(links);
-          }
-          if (evidence.tick != null) {
-            panel.append(h("p", {}, h("a", {href:"#/" + runPath(`cycle/${bar.participant}/${evidence.tick}`)}, `Open cycle ${evidence.tick}`)));
-          }
-        }
-        panel.append(jsonBlock(bar));
-        const target = runPath(`${bar.kind}/${bar.participant}/${bar.target_id}`);
-        const link = h("a", {href:"#/" + target}, "Open full evidence");
-        panel.append(link);
-      };
-      lane.append(box);
+  timeline.append(h("label", {}, "Zoom ", zoom), viewport);
+  const operations = h("section", {class:"profile-operations"}, h("h2", {}, "Operations"), search, tree);
+  tab.replaceChildren(timeline, profileDivider("horizontal"), operations, profileDivider("vertical"));
+
+  function inspect(bar) {
+    for (const selected of tab.querySelectorAll("[aria-pressed=true]")) selected.setAttribute("aria-pressed", "false");
+    for (const button of tab.querySelectorAll("[data-operation-id]")) {
+      if (button.dataset.operationId === (bar.span_id || bar.target_id)) button.setAttribute("aria-pressed","true");
     }
-    chart.append(lane);
+    const operation = tree.querySelector('[aria-pressed="true"]');
+    if (operation) {
+      for (let parent = operation.parentElement; tree.contains(parent); parent = parent.parentElement) {
+        if (parent.tagName === "DETAILS") parent.open = true;
+      }
+      operation.scrollIntoView({block:"nearest"});
+    }
+    profileInspector(bar, children, current);
   }
+  function buttonFor(bar, cls) {
+    const button = h("button", {type:"button", class:cls, title:profileLabel(bar),
+      "data-kind":bar.evidence?.kind || bar.kind, "data-operation-id":bar.span_id || bar.target_id,
+      "aria-label":profileLabel(bar), "aria-pressed":"false"}, bar.operation.replaceAll("_"," "));
+    button.onclick = () => inspect(bar);
+    return button;
+  }
+  function paint() {
+    clear(tree); clear(chart);
+    const visible = [];
+    const needle = search.value.trim().toLowerCase();
+    const lanes = new Map();
+    function branch(bar, owner, depth) {
+
+      const nested = (bar.span_id ? children.get(bar.span_id) || [] : []).map(child => branch(child, owner, depth + 1)).filter(Boolean);
+      if (!nested.length && !profileLabel(bar).toLowerCase().includes(needle)) return null;
+      visible.push(bar);
+      if (!lanes.has(owner)) lanes.set(owner, []);
+      lanes.get(owner).push({bar, depth, start:Date.parse(bar.start), end:Date.parse(bar.end || bar.start)});
+      const row = h("div", {class:"operation-row"}, buttonFor(bar,"operation"), h("small",{},profileDuration(bar)));
+      if (!nested.length) return row;
+      const group = h("details", {}, h("summary",{}, "Steps (" + nested.length + ")"), nested);
+      group.open = Boolean(needle);
+      return h("div", {class:"operation-group"}, row, group);
+    }
+    for (const root of roots) {
+      const thread = root.lane.split("/")[1] || root.lane;
+      const owner = root.evidence?.kind === "workflow" ? root.operation :
+        thread.startsWith("ThreadPoolExecutor") ? "Unattributed work" : thread;
+      const node = branch(root, root.participant + " / " + owner, 0);
+      if (node) tree.append(node);
+    }
+    if (!visible.length) {tree.append(h("p",{class:"empty"},"No matching operations.")); return;}
+    let first = Infinity;
+    let last = -Infinity;
+    for (const bar of visible) {
+      first = Math.min(first, Date.parse(bar.start));
+      last = Math.max(last, Date.parse(bar.end || bar.start));
+    }
+    const duration = Math.max(1,last-first);
+    chart.append(h("p",{class:"dim"},time(new Date(first).toISOString())+" UTC to "+time(new Date(last).toISOString())+" UTC"));
+    for (const [name, events] of lanes) {
+      chart.append(h("small",{class:"profile-label"}, name));
+      const lane = h("div",{class:"profile-lane"});
+      // Reserve a band per nesting depth. Overlapping siblings occupy separate rows.
+      events.sort((a,b) => a.depth - b.depth || a.start - b.start || b.end - a.end);
+      const rowEnds = [];
+      let depth = -1;
+      let firstRow = 0;
+      for (const event of events) {
+        if (event.depth !== depth) {
+          depth = event.depth;
+          firstRow = rowEnds.length;
+        }
+        let row = firstRow;
+        while (row < rowEnds.length && rowEnds[row] > event.start) row++;
+        rowEnds[row] = Math.max(event.end,event.start + 1);
+        const box = buttonFor(event.bar,"profile-bar");
+        box.title += " | Thread " + event.bar.lane;
+        box.style.left = (event.start-first)/duration*100+"%";
+        box.style.width = (event.end-event.start)/duration*100+"%";
+        box.style.top = row * 22 + "px";
+        lane.append(box);
+      }
+      lane.style.height = rowEnds.length * 22 + 3 + "px";
+      chart.append(lane);
+    }
+  }
+  search.oninput = paint;
+
+  paint();
+}
+
+function profileDivider(orientation) {
+  const vertical = orientation === "vertical";
+  const property = vertical ? "--inspector-width" : "--timeline-height";
+  const main = $("main");
+  const divider = h("div", {class:"profile-divider "+orientation, role:"separator", tabindex:0,
+    "aria-orientation":orientation, "aria-label":vertical ? "Resize inspection panels" : "Resize timeline",
+    "aria-valuemin":15, "aria-valuemax":85});
+  function resize(percent) {
+    const value = Math.round(Math.max(15, Math.min(85, percent)));
+    main.style.setProperty(property, value + "%");
+    divider.setAttribute("aria-valuenow", String(value));
+    localStorage.setItem(property, String(value));
+  }
+  resize(Number(localStorage.getItem(property)) || 50);
+  divider.onpointerdown = event => { divider.setPointerCapture(event.pointerId); event.preventDefault(); };
+  divider.onpointermove = event => {
+    if (!divider.hasPointerCapture(event.pointerId)) return;
+    const start = vertical ? $("#detail").getBoundingClientRect().left : $(".profile-time").getBoundingClientRect().top;
+    const end = vertical ? $(".profile-operations").getBoundingClientRect().right : $("#detail").getBoundingClientRect().bottom;
+    resize(100 * ((vertical ? event.clientX : event.clientY) - start) / (end - start));
+  };
+  divider.onkeydown = event => {
+    const keys = vertical ? ["ArrowLeft", "ArrowRight"] : ["ArrowUp", "ArrowDown"];
+    if (!keys.includes(event.key)) return;
+    event.preventDefault();
+    resize(Number(divider.getAttribute("aria-valuenow")) + (event.key === keys[0] ? -2 : 2));
+  };
+  return divider;
+}
+
+function profileDuration(bar) {
+  return bar.elapsed_seconds == null ? bar.outcome : bar.elapsed_seconds < 1
+    ? Math.round(bar.elapsed_seconds * 1000) + " ms" : bar.elapsed_seconds.toFixed(1) + " s";
+}
+
+function profileLabel(bar) {
+  return [bar.operation.replaceAll("_"," "), bar.evidence?.kind || bar.kind, bar.participant, profileDuration(bar)].join(" \u00b7 ");
+}
+
+// Evidence is untrusted text. Build Markdown elements directly and keep raw HTML literal.
+function inlineMarkdown(line) {
+  const pieces = [];
+  const tokens = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*\n]+\*|\[[^\]]+\]\(https?:\/\/[^\s)]+\))/g;
+  let end = 0;
+  for (const match of line.matchAll(tokens)) {
+    pieces.push(line.slice(end,match.index));
+    const token = match[0];
+    if (token.startsWith("`")) pieces.push(h("code",{},token.slice(1,-1)));
+    else if (token.startsWith("**")) pieces.push(h("strong",{},token.slice(2,-2)));
+    else if (token.startsWith("*")) pieces.push(h("em",{},token.slice(1,-1)));
+    else {
+      const split = token.indexOf("](");
+      pieces.push(h("a",{href:token.slice(split+2,-1),target:"_blank",rel:"noreferrer"},token.slice(1,split)));
+    }
+    end = match.index + token.length;
+  }
+  pieces.push(line.slice(end));
+  return pieces;
+}
+
+function markdownEvidence(text) {
+  const article = h("div",{class:"evidence-text"});
+  const lines = text.split(/\r?\n/);
+  let paragraph = null;
+  let list = null;
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index];
+    const fence = line.match(/^\s*(`{3,}|~{3,})/);
+    const heading = line.match(/^(#{1,6})\s+(.+)/);
+    const item = line.match(/^\s*([-*+]|\d+\.)\s+(.+)/);
+    if (fence) {
+      const code = [];
+      while (++index < lines.length && !lines[index].trimStart().startsWith(fence[1])) code.push(lines[index]);
+      article.append(h("pre",{},h("code",{},code.join("\n"))));
+    } else if (heading) article.append(h("h"+heading[1].length,{},inlineMarkdown(heading[2])));
+    else if (line.startsWith("> ")) article.append(h("blockquote",{},inlineMarkdown(line.slice(2))));
+    else if (item) {
+      const tag = /^\d/.test(item[1]) ? "ol" : "ul";
+      if (!list || list.localName !== tag) {list=h(tag); article.append(list);}
+      list.append(h("li",{},inlineMarkdown(item[2])));
+      paragraph=null;
+      continue;
+    } else if (line.trim()) {
+      if (!paragraph) {paragraph=h("p"); article.append(paragraph);}
+      else paragraph.append("\n");
+      paragraph.append(...inlineMarkdown(line));
+      list=null;
+      continue;
+    }
+    paragraph=null;
+    list=null;
+  }
+  return article;
+}
+
+function evidenceText(value) {
+  if (typeof value === "string") {
+    try { if (/^\s*[\[{]/.test(value)) return evidenceText(JSON.parse(value)); } catch { /* Ordinary prose. */ }
+  }
+  if (value !== null && typeof value === "object") {
+    return h("div",{class:"evidence-fields"}, Object.entries(value).map(([key, entry]) =>
+      h("details",{},h("summary",{},Array.isArray(value) ? "Item " + (Number(key)+1) : key.replaceAll("_"," ")), evidenceText(entry))));
+  }
+  return markdownEvidence(String(value ?? "No value recorded"));
+}
+
+async function profileInspector(selected, children, current) {
+  const panel = clear($("#detail"));
+  const filter = h("input",{type:"search", placeholder:"Search inputs, outputs and memory", "aria-label":"Search evidence"});
+  const content = h("div",{class:"evidence-tree"});
+  const status = h("p",{class:"dim","aria-live":"polite"},"Reading evidence...");
+  panel.append(h("h1",{},selected.operation.replaceAll("_"," ")),h("p",{class:"dim"},profileLabel(selected)), filter, status, content);
+  function match() {
+    const term = filter.value.trim().toLowerCase();
+    let hits = 0;
+    for (const section of content.querySelectorAll("details")) {
+      const found = section.textContent.toLowerCase().includes(term);
+      section.hidden = !found;
+      if (term && found) {section.open = true; hits++;}
+    }
+    if (term) status.textContent = hits ? "Matching sections expanded" : "No matching text";
+    else status.textContent = content.childElementCount ? "" : "No natural-language evidence recorded for this operation.";
+  }
+  filter.oninput = match;
+  const query = new URLSearchParams({run:current.run, attempt:String(current.attempt), participant:selected.participant});
+  // Group only explicitly recorded links from the selected operation and its children.
+  const inputs = new Set();
+  const retrieved = new Set();
+  const outputs = new Set();
+  function collectRecords(bar) {
+    for (const id of bar.evidence?.knoxel_ids || []) inputs.add(id);
+    for (const id of bar.evidence?.retrieved_record_ids || []) retrieved.add(id);
+    for (const id of bar.evidence?.outputs || []) outputs.add(id);
+    if (bar.span_id) for (const child of children.get(bar.span_id) || []) collectRecords(child);
+  }
+  collectRecords(selected);
+  async function showRecords(label, ids) {
+    if (!ids.size || !content.isConnected) return;
+    const records = h("details",{},h("summary",{},label+" ("+ids.size+")"));
+    content.append(records);
+    for (const id of ids) {
+      if (!content.isConnected) return;
+      const recordQuery = new URLSearchParams(query);
+      recordQuery.set("id",String(id));
+      try {
+        const data = await api("/record?"+recordQuery);
+        records.append(h("details",{},h("summary",{}, "#"+id+" "+data.card.kind+" "+short(data.card.text,64)),
+          h("p",{class:"dim"}, "Tick "+data.card.tick+" | Story "+time(data.record.data.timestamp_world_begin)+" | Created "+time(data.record.data.timestamp_creation)),
+          evidenceText(data.card.text),h("a",{href:"#/"+runPath("record/"+selected.participant+"/"+id)},"Open memory record")));
+      } catch (error) {records.append(h("p",{}, "#"+id+" "+error.message));}
+    }
+  }
+  const seen = new Set();
+  async function read(bar, host) {
+    if (!content.isConnected) return;
+    const body = h("div",{class:"evidence-body"});
+    const section = h("details",{},h("summary",{},profileLabel(bar)),body);
+    section.open = bar === selected;
+    host.append(section);
+    try {
+      if (bar.kind === "call") {
+        const callQuery = new URLSearchParams(query);
+        callQuery.set("call_id",bar.target_id);
+        const call = await api("/call?"+callQuery);
+        for (const msg of call.messages || []) body.append(h("details",{},h("summary",{},"Input \u00b7 "+msg.role),evidenceText(msg.content)));
+        if (call.input_text && !call.messages?.length) body.append(h("details",{},h("summary",{},"Input"),evidenceText(call.input_text)));
+        if (call.response_text) body.append(h("details",{open:true},h("summary",{},"Output"),evidenceText(call.response_text)));
+        if (call.reasoning_text) body.append(h("details",{},h("summary",{},"Reasoning"),evidenceText(call.reasoning_text)));
+        if (call.error) body.append(h("p",{},call.error));
+        if (!call.response_text && call.route === "embeddings") body.append(h("p",{class:"dim"},"Output \u00b7 embedding vector"));
+      }
+      if (bar.span_id && !seen.has(bar.span_id)) {
+        seen.add(bar.span_id);
+        for (const child of children.get(bar.span_id) || []) await read(child,body);
+      }
+      if (!body.childElementCount) body.append(h("p",{class:"dim"},"No input or output text was captured for this step."));
+    } catch (error) {body.append(h("p",{},error.message));}
+  }
+  await Promise.all([showRecords("Input knoxels", inputs), showRecords("Retrieved knoxels", retrieved),
+    showRecords("Output knoxels", outputs), read(selected,content)]);
+  if (!inputs.size && !retrieved.size && !outputs.size) content.append(h("p",{class:"dim"},"No knoxel links recorded for this selection."));
+  if (content.isConnected) match();
 }
 
 async function renderTimeline(tab, current) {
@@ -481,12 +749,40 @@ async function selectMemorySource(tab, query) {
   picker.onchange = () => { state.memorySource = picker.value; render(); };
   tab.append(h("label", {}, "Memory source ", picker));
   query.set("memory", state.memorySource);
+  return sources;
 }
 async function renderChat(tab, current) {
   const query = new URLSearchParams({ run: state.run.summary.id, attempt: String(state.attemptPage.attempt.number) });
   if (state.participant) query.set("participant", state.participant);
-  await selectMemorySource(tab, query);
-  const rows = await api(`/chat?${query}`);
+  const sources = await selectMemorySource(tab, query);
+  const rows = [...await api(`/chat?${query}`)];
+  if (state.memorySource === "ghost.pickle") {
+    // The controller logs speech before the participant saves the corresponding memory.
+    const deliveries = new Set(rows.map(row => row.delivery_id).filter(Boolean));
+    const records = new Set(rows.map(row => row.participant + "/" + row.record_id));
+    for (const event of state.run.state.timeline) {
+      if (event.kind !== "speech" && event.kind !== "actor") continue;
+      const participant = event.kind === "speech" ? event.source : event.target;
+      if (state.participant && state.participant !== participant) continue;
+      if (deliveries.has(event.delivery_id) || records.has(participant + "/" + event.output_id)) continue;
+      rows.push({speaker:event.speaker, participant, text:event.content, at:event.timestamp,
+        wall_at:event.wall_at, delivery_id:event.delivery_id, controller:true});
+    }
+    rows.sort((left,right) => time(left.at).localeCompare(time(right.at)));
+  }
+  const history = h("input", {type:"checkbox"});
+  const hasCheckpoint = sources.includes("initial.pickle");
+  history.disabled = !hasCheckpoint;
+  history.checked = !hasCheckpoint || localStorage.getItem("pm-show-checkpoint-chat") === "true";
+  const checkpointIds = new Set();
+  function speechKey(row) {
+    return row.delivery_id || row.participant + "/" + row.record_id;
+  }
+  if (hasCheckpoint) {
+    const baseline = new URLSearchParams(query);
+    baseline.set("memory","initial.pickle");
+    for (const row of await api(`/chat?${baseline}`)) checkpointIds.add(speechKey(row));
+  }
   let previousDay = "";
   tab.append(h("h1", {}, "Public conversation"));
   const search = h("input", { type: "search", placeholder: "Find speech or speaker" });
@@ -494,7 +790,12 @@ async function renderChat(tab, current) {
   const next = h("button", {type:"button"}, "Next");
   const count = h("span", {class:"dim", "aria-live":"polite"});
   const controls = h("div", {class:"chat-search"}, search, previous, next, count);
-  tab.append(controls);
+  const empty = h("p",{class:"dim"});
+  tab.append(h("label",{},history,hasCheckpoint ? "Show ghost checkpoint history" : "Checkpoint history filter unavailable (no initial snapshot)"),controls,empty);
+  history.onchange = () => {
+    localStorage.setItem("pm-show-checkpoint-chat", String(history.checked));
+    search.oninput();
+  };
   let matches = [];
   let position = -1;
   function move(direction) {
@@ -509,8 +810,10 @@ async function renderChat(tab, current) {
     const needle = search.value.trim().toLocaleLowerCase();
     matches = [];
     position = -1;
+    let visibleRows = 0;
     for (const bubble of tab.querySelectorAll(".chat-row")) {
-      bubble.hidden = !bubble.textContent.toLocaleLowerCase().includes(needle);
+      bubble.hidden = (!history.checked && bubble.dataset.checkpoint === "true") || !bubble.textContent.toLocaleLowerCase().includes(needle);
+      if (!bubble.hidden) visibleRows++;
       if (!bubble.hidden && needle) matches.push(bubble);
     }
     for (const day of tab.querySelectorAll("[data-chat-day]")) {
@@ -523,21 +826,24 @@ async function renderChat(tab, current) {
       day.hidden = !visible;
     }
     previous.disabled = next.disabled = !matches.length;
+    empty.hidden = visibleRows > 0;
+    empty.textContent = needle ? "No matching messages." : history.checked ? "No conversation in this memory source." : "No conversation after the initial checkpoint in this memory source.";
     count.textContent = needle ? `${matches.length} matches` : "";
   };
   for (const row of rows) {
     const day = row.at.slice(0, 10) || "Undated";
     if (day !== previousDay) { tab.append(h("h2", {"data-chat-day":day}, day)); previousDay = day; }
-    const block = h("div", { class: "chat-row" },
-      h("span", { class: "speaker" }, row.speaker), h("span", { class: "when" }, `Story ${time(row.at)} | Real ${time(row.wall_at)}`),
-      h("div", { class: "text" }, row.text));
-    if (row.speaker !== "Jesse") {
+    const companion = row.speaker !== "Jesse";
+    const speaker = companion && row.participant !== "primary" ? row.speaker + " \u00b7 " + row.participant : row.speaker;
+    const block = h(row.controller ? "article" : "a", {class:"chat-row", "data-checkpoint":String(!row.controller && checkpointIds.has(speechKey(row))), href:row.controller ? null : "#/"+runPath("record/"+row.participant+"/"+row.record_id)},
+      h("div",{class:"chat-byline"},h("strong",{class:"speaker"},speaker), row.controller ? h("small",{class:"dim"},"Controller") : null,
+        h("time",{class:"when",title:"Story time: "+time(row.at)+(row.wall_at ? " | Wall time: "+time(row.wall_at) : "")},time(row.at).slice(11,16))),
+      h("div",{class:"text"},row.text));
+    if (companion) {
       block.classList.add("companion-bubble");
-      const hue = Array.from(row.participant).reduce((n, ch) => (31 * n + ch.codePointAt(0)) >>> 0, 0) % 360;
-      block.style.borderInlineEnd = `4px solid hsl(${hue} 55% 55%)`;
-      block.prepend(h("small", {class: "dim"}, row.participant));
+      const hue = Array.from(row.participant).reduce((n,ch) => (31*n+ch.codePointAt(0))>>>0,0)%360;
+      block.style.setProperty("--bubble-hue",String(hue));
     }
-    block.onclick = () => go(runPath(`record/${row.participant}/${row.record_id}`));
     tab.append(block);
   }
   search.oninput();
@@ -653,6 +959,7 @@ async function renderRecords(tab, current) {
 async function renderDetail(current, token) {
   const panel = clear($("#detail"));
   if (!current.detail.length) {
+    if (current.tab === "profile") {panel.append(h("h2", {}, "Operation details"), h("p",{class:"dim"},"Select an operation to inspect its inputs, outputs and memory.")); return;}
     if (state.selectedEvent) return renderSelectedEvent(state.selectedEvent);
     panel.append(h("p", { class: "empty" }, "Select a timeline row, a call, a workflow, a cycle, or a record."));
     return;
@@ -703,19 +1010,19 @@ async function detailCall(panel, participant, callId) {
     panel.append(h("h2", {}, `Request messages (${call.messages.length})`));
     for (const message of call.messages) {
       panel.append(h("details", {}, h("summary", {}, message.role || "message"),
-        h("pre", { class: "prompt" }, message.content)));
+        evidenceText(message.content)));
     }
   } else if (call.input_text) {
     panel.append(h("h2", {}, "Input"));
-    panel.append(h("pre", { class: "prompt" }, call.input_text));
+    panel.append(evidenceText(call.input_text));
   }
   if (call.response_text) {
     panel.append(h("h2", {}, "Response"));
-    panel.append(h("pre", { class: "response" }, call.response_text));
+    panel.append(evidenceText(call.response_text));
   }
   if (call.reasoning_text) {
     panel.append(h("h2", {}, "Reasoning"));
-    panel.append(h("pre", { class: "prompt" }, call.reasoning_text));
+    panel.append(evidenceText(call.reasoning_text));
   }
   if (call.usage_events && call.usage_events.length) {
     panel.append(h("h2", {}, "Usage events"));
@@ -738,7 +1045,7 @@ async function detailRecord(panel, participant, recordId) {
   const data = await api(`/record?${query}`);
   const card = data.card;
   panel.append(menu(`${card.role || card.kind} · #${card.id}`, `${participant} · tick ${card.tick} · ${card.kind}`));
-  panel.append(h("pre", {}, card.text || "(no content)"));
+  panel.append(evidenceText(card.text || "(no content)"));
   if (card.details && Object.keys(card.details).length) {
     panel.append(h("h2", {}, "Stored details"));
     panel.append(kv(Object.entries(card.details)));
@@ -833,7 +1140,7 @@ function boot() {
   setTheme(!EMBEDDED && stored === "dark" ? "dark" : "light");
   if (EMBEDDED) document.documentElement.dataset.embedded = "true";
   $("#theme").onclick = () => setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
-  $("#reload").onclick = async () => { cache.clear(); state.selectedEvent = null; await api("/refresh"); render(); };
+  $("#reload").onclick = () => { state.selectedEvent = null; render(true); };
   window.addEventListener("hashchange", render);
   let polling = false;
   setInterval(async () => {
@@ -852,7 +1159,7 @@ function boot() {
       polling = false;
     }
   }, 10000);
-  api("/refresh").then(render).catch(error => notice(error.message));
+  render(true);
 }
 
 boot();

@@ -70,7 +70,10 @@ def select_interaction(context: RoleContext, request: InteractionRequest) -> Int
         "guidance_disposition is follow, decline, or suspend for this exchange. "
         "If the current situation makes prior guidance unsuitable, explain that mismatch in guidance_reason. "
         "This local choice does not rewrite durable intentions or establish a permanent wait. "
-        "Keep consequential task choices available. Main cognition will reconsider them before execution."))
+        "Set explicit_workflow_request=true only when the latest partner message directly asks you to perform "
+        "the proposed task or requests status, an update, or cancellation of their existing run. "
+        "Ideas, hypotheticals, questions about capability and your own initiatives do not qualify. "
+        "Keep consequential task choices available for main cognition."))
     check = DecisionCheck(workflow_names=[item.name for item in decide.available_workflows(work)])
     answer = complete(context, messages, InteractionDecision, validation_context=check)
     source_ids = [item.knoxel_id for item in request.cycle.stimuli]
@@ -94,6 +97,15 @@ def select_interaction(context: RoleContext, request: InteractionRequest) -> Int
         dispatch = work.dispatches[0]
         dispatch.action_id = request.selection_id + ":reply"
         outcome = InteractionOutcome.Reply
+    elif (answer.explicit_workflow_request and answer.guidance_disposition == GuidanceDisposition.Follow
+          and choice.action_type == "ToolCallAndReply" and work.dispatches
+          and work.dispatches[0].status == "dispatched"
+          and (choice.workflow_name == "self_management" and choice.arguments.operation in {"status", "update", "terminate"}
+               or any(option.name == choice.workflow_name and option.routine_start
+                      for option in decide.available_workflows(work)))):
+        dispatch = work.dispatches[0]
+        dispatch.action_id = request.selection_id + ":workflow"
+        outcome = InteractionOutcome.WorkflowAction
     elif choice.action_type in {"Idle", "Ignore"} and answer.guidance_disposition == GuidanceDisposition.Follow:
         outcome = InteractionOutcome.Quiet
     else:

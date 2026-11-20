@@ -53,14 +53,16 @@ def group_key(stimulus: Stimulus, request: CycleRequest) -> ShardKey:
 def group_stimuli(request: CycleRequest) -> list[StimulusGroup]:
     """Put every stimulus into exactly one group, in order of first arrival.
 
-    The correlation of a group is the correlation of its newest stimulus.
+    The correlation follows the newest stimulus with an exchange identity.
+    An internal event without an exchange cannot erase that causal link.
     """
     groups: dict[ShardKey, StimulusGroup] = {}
     for stimulus in request.stimuli:
         key = group_key(stimulus, request)
         group = groups.setdefault(key, StimulusGroup(key=key))
         group.stimulus_ids.append(stimulus.knoxel_id)
-        group.correlation_id = stimulus.correlation_id
+        if stimulus.correlation_id:
+            group.correlation_id = stimulus.correlation_id
     return list(groups.values())
 
 

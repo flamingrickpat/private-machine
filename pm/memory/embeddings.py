@@ -176,7 +176,8 @@ async def fit_embedding_text(connection: Connection, text: str, cancel: Event | 
     error for diagnostics and tests.
     """
     try:
-        context, source = await serving_context(connection, cancel, live_test=live_test)
+        context_cancel = cancel if cancel is not None else Event()
+        context, source = await serving_context(connection, context_cancel, live_test=live_test)
     except ModelError:
         return text, {"context_window": None, "context_source": None,
                       "original_tokens": None, "input_tokens": None, "truncated": False}

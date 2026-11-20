@@ -12,6 +12,7 @@ from __future__ import annotations
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope, new_id
 from pm.memory.store import MemoryStore
+from pm.records.enums import ActionType
 from pm.records.memory_records import ActionSchemaRecord
 from pm.runs.supervisor import ManagedRunSupervisor
 from workflows.main_cognition.schemas import ActionMetadata, PendingDispatch, RecordMetadataView
@@ -55,7 +56,8 @@ def replay_intents(ghost: MemoryStore, bus: BusSystem, supervisor: ManagedRunSup
         handled.add(correlation)
         exchange = exchange_record(ghost, correlation)
         admitted = any(row["action_id"] == pending.action_id for row in receipts.values() if "action_id" in row)
-        ordinary_resolved = (pending.dispatch_payload.action_origin != "task_reply" and exchange is not None
+        ordinary_resolved = (item.action_type == ActionType.Reply
+                             and pending.dispatch_payload.action_origin != "task_reply" and exchange is not None
                              and RecordMetadataView.model_validate(exchange.metadata).exchange_status == "resolved")
         if admitted or pending.public_reply_id is not None or ordinary_resolved:
             acknowledge_intent(ghost, item.id)

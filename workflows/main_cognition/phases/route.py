@@ -66,6 +66,7 @@ from workflows.main_cognition.schemas import (
     RouteCheck,
     RouteChoice,
     RoutedDecision,
+    WorkflowOption,
 )
 from workflows.main_cognition.story_prefix import StoryPrefix, shard_label
 
@@ -189,7 +190,7 @@ def decision_goal_arguments(workflow_name: str, arguments: ActionArguments) -> A
                                            if key not in {"instructions", "instruction"}})
 
 
-def body_lease(dispatch: ActionDispatch) -> str:
+def body_lease(dispatch: ActionDispatch, workflows: list[WorkflowOption] | None = None) -> str:
     """Return the body that a dispatch claims for its whole run, or empty text.
 
     A start of ``minecraft`` or ``minecraft_project``, directly or through
@@ -202,10 +203,15 @@ def body_lease(dispatch: ActionDispatch) -> str:
     if target == "self_management" and arguments.operation == "start":
         target = arguments.workflow_name
     operation = arguments.operation or ("update" if arguments.run_id else "start")
-    return BODY_WORKFLOWS[target] if target in BODY_WORKFLOWS and operation == "start" else ""
+    if operation != "start":
+        return ""
+    if workflows is None:
+        return BODY_WORKFLOWS.get(target, "")
+    return next((option.exclusive_resource for option in workflows if option.name == target), "")
 
 
-def resolve_conflicts(dispatches: list[ActionDispatch], groups: list[StimulusGroup]) -> list[ActionDispatch]:
+def resolve_conflicts(dispatches: list[ActionDispatch], groups: list[StimulusGroup],
+                      workflows: list[WorkflowOption] | None = None) -> list[ActionDispatch]:
     """Reject the dispatches that conflict with a dispatch of higher priority. Deterministic.
 
     Priority follows the triage category of the group (``Critical`` first),
@@ -225,7 +231,7 @@ def resolve_conflicts(dispatches: list[ActionDispatch], groups: list[StimulusGro
         dispatch = dispatches[index]
         if dispatch.status != "dispatched":
             continue
-        lease = body_lease(dispatch)
+        lease = body_lease(dispatch, workflows)
         reason = ""
         if dispatch.group in acting:
             reason = f"group {dispatch.group.kind}:{dispatch.group.ref} already acts through {acting[dispatch.group]}"
@@ -283,7 +289,7 @@ def select_routes(context: RoleContext, work: CycleWork) -> CycleWork:
             answers = wait_model_futures(futures, stop)
     work.routes = routed_decisions(work, answers)
     dispatches = resolve_prerequisites(resolve_same_cycle(action_dispatches(work.routes)), {})
-    dispatches = resolve_conflicts(dispatches, work.state.stimulus_groups)
+    dispatches = resolve_conflicts(dispatches, work.state.stimulus_groups, work.request.available_workflows or None)
     work.dispatches = dispatches
     return work
 

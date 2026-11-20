@@ -573,7 +573,8 @@ class RunEngine:
             if evidence.target == step.target or evidence.source == step.target:
                 conversation.append(ConversationTurn(speaker=evidence.speaker,
                     at=evidence.timestamp.isoformat(), text=evidence.content))
-        context = ActorContext(identity=identity(profile), at=step.at, scene=step.instruction, intent=step.actor_intent,
+        turn_time = datetime.fromisoformat(self.state["clock"])
+        context = ActorContext(identity=identity(profile), at=turn_time, scene=step.instruction, intent=step.actor_intent,
             current_facts=facts_for_scene(self.plan, step),
             conversation=conversation, guidance=self.plan.director.actor_guidance)
         pending = self.state["pending_input"]

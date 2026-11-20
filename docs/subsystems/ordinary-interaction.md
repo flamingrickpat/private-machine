@@ -19,7 +19,7 @@ Related: [situational guidance](situational-guidance.md), [public dialogue](publ
 | Accepted main state | Ordinary selection | Intentions, feeling, workspace, and prior experience |
 | Current records | Situation projection | Partner evidence, new input, capabilities, and previous moves |
 | Ordinary selection | Public speech | Durable local decision and selected action |
-| Ordinary selection | Main cognition | Consequential proposal or guidance mismatch |
+| Ordinary selection | Main cognition | Proposed workflow action, consequential proposal, or guidance mismatch |
 | Main cognition | Future interaction | Accepted direction and appraisal |
 
 [`workflows.interaction.host.Interaction`][] runs the ordinary selection workflow.
@@ -31,9 +31,18 @@ Before any accepted main guidance exists, initial input uses the full main path.
 The route sees the available action space.
 A reply uses the existing speech owner.
 A quiet choice records a local outcome for its input.
-A consequential action becomes a proposal for main cognition, rather than an immediate external effect.
+Each managed workflow can opt into routine admission.
+When a partner directly requests an opted-in task, main cognition can check and accept the selected route at the ordinary interaction commit.
+The acceptance retains the source exchange, chosen workflow, and action identity.
+Other consequential proposals still go through full reconsideration.
 Quiet selection creates no permanent silence rule or replacement intention.
 Partner availability remains an inference from evidence, without a conversational permission agent.
+
+SelfManagement uses the accepted action to obtain a durable run receipt from the supervisor.
+The receipt can trigger a short public acknowledgment while the workflow runs.
+A later terminal receipt supplies the outcome for a separate reply.
+Ordinary interaction can read the requesting partner's existing runs and direct a status, update, or stop request to that run.
+Managed-run events contribute to the named workflow's shard. Detailed worker evidence stays with the run.
 
 ## Concurrent execution
 

@@ -8,6 +8,7 @@ import sys
 from tempfile import TemporaryDirectory
 
 import yaml
+from pydantic import Field
 
 from pm.host.durable_files import ProcessLock
 from pm.llm.config import load_config
@@ -26,6 +27,10 @@ class Installation(Settings):
     mcp_checkout: Path
     server_installation: Path
     require_capped_openrouter_key: bool = True
+    time_multiplier: float | None = Field(default=None, gt=0, allow_inf_nan=False,
+        description="Story seconds per wall second. Omit to use the scenario's pacing.")
+    reserve_gib: int | None = Field(default=None, ge=0, description="Minimum commit headroom during this run.")
+    participant_gib: int | None = Field(default=None, gt=0, description="Additional startup headroom per participant.")
 
 
 def model_settings(source: Path, destination: Path) -> None:
@@ -81,7 +86,13 @@ def launch(config: Path, sim_config: Path, run_id: str, preflight: bool, check_s
     if sim_config.resolve() != (suite / f"{scenario}.json").resolve():
         raise SetupError(f"Select one of the four versioned scenario files in {suite}.")
     campaign = BaselineCampaign(run_id, config, scenario)
+    if installation.reserve_gib is not None:
+        campaign.manifest.reserve_gib = installation.reserve_gib
+    if installation.participant_gib is not None:
+        campaign.manifest.participant_gib = installation.participant_gib
     run = campaign.runs[0]
+    if installation.time_multiplier is not None:
+        run.template.time_multiplier = installation.time_multiplier
     root = DEFAULT_RUNS / "instances" / run.root.name
     with ProcessLock(root / "launcher.lock"):
         if run.root.exists() and not preflight and not check_services:

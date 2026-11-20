@@ -157,6 +157,7 @@ from workflows.main_cognition.schemas import (
     MemoryCandidate,
     MentalProposal,
     OpenExpectation,
+    PendingDispatch,
     RecordView,
     ShardStream,
     Stimulus,
@@ -192,6 +193,7 @@ class WorkflowEventPayload(BaseModel):
     """The payload fields of a ``workflow.event`` message that cognition reads."""
 
     run_id: str = ""
+    workflow_name: str = ""
     event: str = ""
     detail: str = ""
     message: str = ""
@@ -510,6 +512,50 @@ class MainCogLoop(CognitiveWorkflow):
             return list(self.workflow_catalogue)
         return self.workflow_catalogue_owner.options()
 
+    def partner_managed_runs(self, partner_entity_id: int | None, scope: RecordScope) -> list[ManagedRunView]:
+        """Project recent runs whose original dispatch names this partner."""
+        if partner_entity_id is None:
+            return []
+        runs: list[ManagedRunView] = []
+        for row in self.ghost.read_run_receipts().values():
+            authority_id = row["arguments"].get("_public_action_schema_id")
+            if not isinstance(authority_id, int):
+                continue
+            authority = self.ghost.get_knoxel_by_id(authority_id)
+            if not isinstance(authority, ActionSchemaRecord) or authority.scope != scope:
+                continue
+            request = PendingDispatch.model_validate(authority.metadata).dispatch_payload
+            if request.partner_entity_id == partner_entity_id:
+                runs.append(ManagedRunView.model_validate(row))
+        return runs[-16:]
+
+    def can_admit_routine_workflow(self, dispatch: ActionDispatch, partner_entity_id: int | None,
+                                   scope: RecordScope) -> bool:
+        """Check the current workflow policy at the interaction commit boundary.
+
+        The caller holds the store lock and validates the interaction's source,
+        accepted intentions, and critical epoch before asking for admission.
+        """
+        catalogue = self.workflow_catalogue_owner
+        if (catalogue is None or dispatch.action_type != ActionType.ToolCallAndReply.value
+                or dispatch.status != "dispatched" or not dispatch.correlation_id
+                or dispatch.presentation.mode != "candid" or dispatch.depends_on or dispatch.requires_completed):
+            return False
+        args = dispatch.arguments
+        if {"parent_correlation", "request_id"}.intersection(args.model_extra or {}):
+            return False
+        if dispatch.workflow_name == "self_management":
+            if args.operation not in {"status", "update", "terminate"} or not args.run_id:
+                return False
+            for run in self.partner_managed_runs(partner_entity_id, scope):
+                if run.run_id == args.run_id and run.workflow_name is not None:
+                    spec = catalogue.supervisor.workflows.get(run.workflow_name)
+                    return spec is not None and spec.routine_start
+            return False
+        spec = catalogue.supervisor.workflows.get(dispatch.workflow_name)
+        return (spec is not None and spec.routine_start
+                and args.operation in {"", "start"} and not args.run_id and not args.workflow_name)
+
     def _retrieve(self, stimuli: list[Stimulus], memory_view: Snapshot,
                   sources: list[RecordBase]) -> MainRetrieval:
         """Retrieve memory candidates for the stimuli by embedding.
@@ -573,8 +619,12 @@ class MainCogLoop(CognitiveWorkflow):
             knoxel_id, text, kind = self._stimulus_from(envelope)
             if knoxel_id is None:
                 continue
+            source_name = envelope.source
+            if envelope.topic == "workflow.event":
+                event = WorkflowEventPayload.model_validate(envelope.payload)
+                source_name = event.workflow_name or source_name
             stimuli.append(Stimulus(
-                knoxel_id=knoxel_id, source=envelope.source, text=text,
+                knoxel_id=knoxel_id, source=source_name, text=text,
                 correlation_id=envelope.correlation_id, kind=kind,
             ))
             # Event records that the host created after the view froze are
@@ -955,7 +1005,7 @@ class MainCogLoop(CognitiveWorkflow):
             if detail:
                 text += f": {detail}"
             feature = new_feature(
-                self.ghost, text, FeatureType.WorldEvent, source=envelope.source or "workflow",
+                self.ghost, text, FeatureType.WorldEvent, source=event.workflow_name or envelope.source or "workflow",
                 source_kind=SourceKind.Workflow,
                 metadata={
                     "origin": "workflow.event",
@@ -1180,11 +1230,10 @@ class MainCogLoop(CognitiveWorkflow):
                     "Terminal task reply reconsideration can revise speech or remain quiet; it cannot restart the task."}))
                 continue
             terminal_reply = terminal_context.request if dispatch.action_type == "Reply" else None
-            active_game = self._active_game_request(dispatch, dispatch.correlation_id, batch)
-            if active_game is not None:
+            active_run = self._active_managed_request(dispatch, dispatch.correlation_id, batch)
+            if active_run is not None:
                 rejected.append(dispatch.model_copy(update={"status": "rejected", "rejection_reason":
-                    f"Game run {active_game} already owns this request. Use its management controls; "
-                    "task progress cannot start another game run for the same request."}))
+                    f"Managed run {active_run} already owns this request. Use its management controls."}))
                 continue
             existing = self._existing_action_identity(dispatch)
             if existing is not None:
@@ -1598,9 +1647,9 @@ class MainCogLoop(CognitiveWorkflow):
                 return int(knoxel.id)
         return None
 
-    def _active_game_request(self, dispatch: ActionDispatch, correlation: str,
-                             batch: list[Envelope]) -> str | None:
-        """Keep progress for an active request from starting another game run.
+    def _active_managed_request(self, dispatch: ActionDispatch, correlation: str,
+                                batch: list[Envelope]) -> str | None:
+        """Keep task progress from starting another run on the same resource.
 
         Read the current durable run table before committing an action. A new
         user input permits another request. Updates and cancellation still use
@@ -1611,16 +1660,20 @@ class MainCogLoop(CognitiveWorkflow):
         route = dispatch.workflow_name
         arguments = dispatch.arguments
         operation = arguments.operation or ("update" if arguments.run_id else "start")
-        if route in {"minecraft", "minecraft_project"} and operation != "start":
+        if operation != "start":
             return None
         if route == "self_management" and arguments.operation == "start":
             route = arguments.workflow_name
-        if route not in {"minecraft", "minecraft_project"} or not correlation or any(
-                item.source == "user_input" for item in batch):
+        catalogue = self.workflow_catalogue_owner
+        if catalogue is None or not correlation or any(item.source == "user_input" for item in batch):
+            return None
+        spec = catalogue.supervisor.workflows.get(route)
+        if spec is None:
             return None
         with self.ghost.lock:
             return next((run["run_id"] for run in self.ghost.managed_runs.values()
-                         if run["workflow_name"] in {"minecraft", "minecraft_project"}
+                         if (run["workflow_name"] == route or
+                             spec.singleton and run.get("singleton_key") == (spec.singleton_key or route))
                          and run["parent_correlation"] == correlation
                          and run["state"] in {"accepted", "running", "waiting_for_input"}), None)
 

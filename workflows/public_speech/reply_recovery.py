@@ -29,7 +29,7 @@ from pm.host.application import Application
 import json
 from typing import TYPE_CHECKING, Any
 from collections.abc import Callable
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 from workflows.public_speech.task_receipts import TaskReceipt, TaskReportEvidence, TaskVerificationEvidence
 
 from pm.utils import yaml_util
@@ -198,6 +198,12 @@ class ReplyRecovery(BusModule):
                     self.reply_to_task(operation)
                 elif receipt.get("state") in TERMINAL:
                     self.reply_to_task(receipt)
+                elif receipt.get("state") in {"accepted", "running", "waiting_for_input"}:
+                    workflow = self.supervisor.workflows.get(receipt["workflow_name"])
+                    if workflow is not None and workflow.routine_start:
+                        current = self.supervisor.status(receipt["run_id"])
+                        if current["state"] not in TERMINAL:
+                            self.reply_to_task(current, admission=True)
                 elif envelope.payload.get("status") == "rejected":
                     self.fail_exchange(envelope.correlation_id, "The task request was rejected. "
                                        + envelope.payload.get("summary", "No task execution was verified."))
@@ -222,7 +228,7 @@ class ReplyRecovery(BusModule):
         self.bus.put(Envelope(id=new_id(), source=self.module_id, kind="data", topic="action.request",
             correlation_id=correlation, target="dialogue_assistant", payload=request.payload()))
 
-    def reply_to_task(self, receipt: dict[str, Any]) -> None:
+    def reply_to_task(self, receipt: dict[str, JsonValue], *, admission: bool = False) -> None:
         """Retain the original selected action as the cause of a receipt-based reply.
 
         A receipt that never asked for a public reply, or whose exchange is
@@ -238,8 +244,18 @@ class ReplyRecovery(BusModule):
             return
         if not isinstance(source, ActionSchemaRecord) or source.action_type != ActionType.ToolCallAndReply:
             raise ValueError(f"Task reply lost its selected action: {source_id}")
-        evidence = task_evidence(TaskReceipt.model_validate(receipt))
-        identity = f"task-reply:{receipt['run_id']}:{receipt['revision']}:{source.id}"
+        evidence = TaskReceipt.model_validate(receipt)
+        if admission:
+            identity = f"task-admission:{evidence.run_id}:{source.id}"
+            instruction = "Briefly acknowledge the accepted background task in your own voice."
+            workspace = ("This receipt confirms admission. Describe its actual state in one brief acknowledgment. "
+                         "Any observation, work done, or result requires separate evidence. "
+                         "The terminal outcome will be reported separately.")
+        else:
+            evidence = task_evidence(evidence)
+            identity = f"task-reply:{evidence.run_id}:{receipt['revision']}:{source.id}"
+            instruction = "Answer the original request using this terminal task receipt. Explain verified work, failure, or uncertainty accurately."
+            workspace = "The selected task reached a terminal boundary. Its receipt does not imply unverified instruction execution."
         with self.ghost.lock:
             prior = next((item for item in self.ghost.all_knoxels.values()
                           if isinstance(item, ActionSchemaRecord) and item.metadata.get("action_id") == identity), None)
@@ -253,14 +269,14 @@ class ReplyRecovery(BusModule):
                     changes.depend_on_commits([causality.causal_commit_id])
                 action = changes.create(ActionSchemaRecord(
                     action_type=ActionType.Reply,
-                    content="Answer the original request using this terminal task receipt. Explain verified work, failure, or uncertainty accurately.",
+                    content=instruction,
                     intention_ids=list(source.intention_ids), scope=source.scope,
                     metadata={**source.metadata, "action_id": identity, "workflow_name": "dialogue_assistant",
                               "source_action_schema_id": source.id, "task_run_id": receipt["run_id"]},
                 ))
                 request = user_reply_request(self.ghost, knoxel_id=action.id, action_id=identity,
                     exchange=exchange, task_receipt=evidence,
-                    workspace="The selected task reached a terminal boundary. Its receipt does not imply unverified instruction execution.")
+                    workspace=workspace)
                 action.metadata = {**action.metadata, "dispatch_status": "pending", "dispatch_target": "dialogue_assistant",
                                    "dispatch_correlation": correlation, "dispatch_payload": request.payload()}
                 accepted = self.ghost.commit(changes)
@@ -269,7 +285,7 @@ class ReplyRecovery(BusModule):
                 action_id = prior.id
         request = user_reply_request(self.ghost, knoxel_id=action_id, action_id=identity, exchange=exchange,
             task_receipt=evidence,
-            workspace="The selected task reached a terminal boundary. Its receipt does not imply unverified instruction execution.")
+            workspace=workspace)
         self.bus.put(Envelope(
             id=new_id(), source=self.module_id, kind="data", topic="action.request", correlation_id=correlation,
             target="dialogue_assistant", payload=request.payload(),

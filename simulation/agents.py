@@ -52,6 +52,7 @@ ACTOR_INSTRUCTION = (
     "Match the user's own cadence, humor, casualness "
     "and message length; do not imitate the companion's theatrical monologues. "
     "Use the current scene and private intent as circumstances, never as a script to recite. "
+    "If your own last request is unanswered, a follow-up should add something new. Avoid replaying its opener and instructions. "
     "Respond to the latest companion reply when present. This is an ordinary conversation, not a "
     "report to a system or experimenter. Never call the companion PM unless that is their actual name. "
     "Convey facts naturally over multiple turns when appropriate. No checklist, formal pledge, "
@@ -336,6 +337,7 @@ class Agents:
         return self.call(SimulationOperation.ActorReview,
             "Review the user's next message to their AI companion. Immersion is the highest priority. "
             "Compare with the exact public history: cadence, informality, emotional stance and relationship. "
+            "If the previous turn was the user's, reject a near-repeat of their unanswered request unless the scene explicitly calls for repetition. "
             "Reject parser diagnostics or model/transport error messages presented as the user's own dialogue. "
             "Reject logbook reports, checklist recitation, evaluator language, robotic commitments, or addressing PM "
             "as a name when the companion has another name. They are user and AI companion; do not invent physical "

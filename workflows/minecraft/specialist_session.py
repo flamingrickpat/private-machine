@@ -154,7 +154,8 @@ def run_specialist_session(context: RoleContext) -> dict[str, Any]:
                         "is_solid describes collision bounds; plants with empty bounds can still be dug. "
                         "Observe the resulting cell and preserve required support below it.")
             environment.write_text("inbox/tool-schemas.json", json.dumps(schemas, ensure_ascii=False, indent=2))
-            environment.write_text("inbox/persona.yaml", yaml_util.safe_dump(request.persona_context, allow_unicode=True))
+            persona_payload = request.persona_context.model_dump(mode="json")
+            environment.write_text("inbox/persona.yaml", yaml_util.safe_dump(persona_payload, allow_unicode=True))
             resources = [RESOURCES / "shared.md", RESOURCES / "navigator.md", RESOURCES / f"{request.specialist}.md"]
             skill = "\n\n".join(path.read_text(encoding="utf-8") for path in dict.fromkeys(resources))
             skill += ("\n\nYou are a private specialist of the same companion. Do not address the user. "

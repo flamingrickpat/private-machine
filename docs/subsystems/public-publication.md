@@ -111,7 +111,11 @@ Other errors remain visible during shutdown.
 The operator can inspect the failed workflow and pending input before recovery.
 A restart preserves committed speech and pending publication.
 
-## Terminal task replies
+## Managed task replies
+
+An opted-in workflow can receive a short acknowledgment after the supervisor accepts its start.
+The acknowledgment is a separate speech action keyed by the run and its accepted action.
+It can report the admitted state. Progress and completion require their own evidence.
 
 [`workflows.public_speech.reply_recovery.ReplyRecovery`][] consumes terminal managed-run events.
 It also consumes self-management receipts for rejected requests that never started a worker.

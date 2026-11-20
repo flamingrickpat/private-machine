@@ -1090,6 +1090,8 @@ class ExpectationOutcome(BaseModel):
 class WorkflowOption(BaseModel):
     name: str = ""
     description: str = ""
+    routine_start: bool = False
+    exclusive_resource: str = ""
 
 
 class ManagedRunView(BaseModel):
