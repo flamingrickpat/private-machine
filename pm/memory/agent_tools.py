@@ -228,7 +228,7 @@ class MemoryReadSession:
     def _access_record(self, record_id: int) -> RecordBase:
         """Guard the frozen source grant without serializing arbitrary metadata."""
         if record_id not in self.records:
-            raise ValueError("Record is unavailable in this memory view.")
+            raise ValueError(f"Record {record_id} is unavailable in memory view {self.snapshot_id}.")
         for key in [record_id, *self._sources(record_id)]:
             self.accessed[key] = self.snapshot.revisions[key]
         return self.snapshot.get(record_id)

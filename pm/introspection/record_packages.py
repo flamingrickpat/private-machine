@@ -99,12 +99,12 @@ def capture_records(snapshot: Snapshot, record_ids: Iterable[int], *, title: str
     """
     if view not in {"records", "chat", "gwt", "cycle"}:
         raise ValueError("Use the records, chat, gwt, or cycle display hint.")
-    records = snapshot.serialize_knoxels()
     members = list(dict.fromkeys(record_ids))
     included = list(dict.fromkeys([*members, *related_ids]))
+    records = {key: snapshot.all_knoxels[key].as_payload(include_embedding=False) for key in included}
     if view == "chat" and any(records[key]["data"].get("feature_type") != "Dialogue" for key in members):
         raise ValueError("A chat collection can contain only dialogue records.")
-    gwt = snapshot.serialize_gwt()[tick_id] if tick_id is not None else None
+    gwt = snapshot.gwt_turns[tick_id].model_dump(mode="json") if tick_id is not None else None
     if view == "gwt" and (gwt is None or members != list(gwt["knoxel_ids"])):
         raise ValueError("A GWT collection must contain the selected tick's exact members in order.")
     return {"schema_id": SCHEMA, "title": title, "view": view, "perspective": perspective,
@@ -206,8 +206,7 @@ def capture_cycle(snapshot: Snapshot, state: CycleState, *, title: str = "",
     A named record that the snapshot lacks raises KeyError. The function
     performs no inference, file writes, or memory commits.
     """
-    gwt = snapshot.serialize_gwt()
-    turn = GwtTurnRecord.model_validate(gwt[state.tick_id]) if state.tick_id in gwt else None
+    turn = snapshot.gwt_turns.get(state.tick_id)
     package = capture_records(snapshot, cycle_record_ids(state, turn), title=title or f"Cycle {state.tick_id}",
                               view="cycle", perspective=perspective,
                               tick_id=state.tick_id if turn is not None else None)

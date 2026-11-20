@@ -14,14 +14,23 @@ from __future__ import annotations
 import json
 import threading
 import traceback
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, Field, JsonValue
 
 from pm.tools.timeline.evidence import AttemptSummary, EvidenceError, EvidenceStore, RunSummary
 from pm.tools.timeline.calls import CallSummary
-from pm.tools.timeline.records import ConversationRow, CycleSummary
+from pm.tools.timeline.records import ConversationRow, CycleSummary, RecordIndex
 from pm.tools.timeline.timeline import AttemptView, ParticipantOverview, TimelineEvent
+from pm.host.durable_files import runtime_status
+
+
+class ControllerStatus(BaseModel):
+    """Small projection of the current controller receipt for the live status header."""
+
+    status: str
+    attempt: int
 
 def _text(query: dict[str, list[str]], name: str, default: str = "") -> str:
     """Return one optional query value."""
@@ -75,6 +84,7 @@ class TimelineApi:
         self.store: EvidenceStore = store
         self._lock: threading.RLock = threading.RLock()
         self._views: dict[tuple[str, int], AttemptView] = {}
+        self._memory: dict[Path, RecordIndex] = {}  # pm-lint: allow PM004 -- checkpoint path indexes its loaded records
         self.errors: list[dict[str, str]] = []
 
     def get(self, path: str, query: dict[str, list[str]]) -> tuple[int, object]:
@@ -98,15 +108,41 @@ class TimelineApi:
         if name == "refresh" and not rest:
             with self._lock:
                 self._views.clear()
+                self._memory.clear()
                 self.store.refresh()
             return 200, {"status": "refreshed"}
         if name == "runs" and not rest:
             return 200, [row.model_dump(mode="json") for row in self.store.list_runs()]
+        if name == "controller-status" and len(rest) == 1:
+            root = self.store.run_root(rest[0])
+            controller = ControllerStatus.model_validate_json((root / "state.json").read_bytes())
+            controller.status = runtime_status(root, controller.status)
+            return 200, controller.model_dump(mode="json")  # pm-lint: allow PM007 -- HTTP status response
         if name == "run" and len(rest) == 1:
             run = self.store.run(rest[0])
             return 200, run.model_dump(mode="json")
         if name == "attempt" and not rest:
             return 200, self._attempt(query).model_dump(mode="json")
+        if name == "memory-sources" and not rest:
+            view = self._view(query)
+            participants = self._memory_participants(view, _text(query, "participant"))
+            choices: set[str] | None = None
+            for participant_id in participants:
+                home = self.store.run_root(view.run.summary.id) / "participants" / participant_id
+                names = {path.name for path in (home / "runtime" / "snapshots").glob("*.pickle")}
+                if (home / "ghost.pickle").is_file():
+                    names.add("ghost.pickle")
+                choices = names if choices is None else choices.intersection(names)
+            return 200, sorted(choices or [])
+        if name == "profile" and not rest:
+            from pm.tools.timeline.profile import ProfileBar, profile_bars
+            view = self._view(query)
+            selected = _text(query, "participant")
+            bars: list[ProfileBar] = []
+            for participant in view.participants.values():
+                if not selected or participant.participant == selected:
+                    bars.extend(profile_bars(participant))
+            return 200, [bar.model_dump(mode="json") for bar in bars]  # pm-lint: allow PM007 -- HTTP response serialization
         if name == "timeline" and not rest:
             return 200, self._timeline(query).model_dump(mode="json")
         if name == "chat" and not rest:
@@ -148,6 +184,8 @@ class TimelineApi:
         with self._lock:
             view = self._views.get(key)
             if view is None:
+                self._views.clear()
+                self._memory.clear()
                 view = AttemptView.load(self.store, run_id, attempt)
                 self._views[key] = view
             return view
@@ -175,12 +213,50 @@ class TimelineApi:
             counts[event.kind] = counts.get(event.kind, 0) + 1
         return TimelinePage(events=events, counts=counts, total=len(all_events))
 
+    def _memory_participants(self, view: AttemptView, selected: str) -> list[str]:
+        if selected:
+            return [selected]
+        root = self.store.run_root(view.run.summary.id) / "participants"
+        if root.is_dir():
+            return sorted(path.name for path in root.iterdir() if path.is_dir())
+        return sorted(view.participants)
+
+    def _memory_records(self, view: AttemptView, participant: str, source: str) -> RecordIndex:
+        """Open a fixed checkpoint, or reuse the selected participant's existing projection."""
+        if not source or source == "capture":
+            return view.participant(participant).records
+        from pm.tools.timeline.evidence import PARTICIPANT_ID, require_identity
+        require_identity(participant, PARTICIPANT_ID, "Participant")
+        require_identity(source, PARTICIPANT_ID, "Checkpoint")
+        root = self.store.run_root(view.run.summary.id)
+        home = (root / "participants" / participant).resolve()
+        checkpoint = home / "ghost.pickle" if source == "ghost.pickle" else home / "runtime" / "snapshots" / source
+        checkpoint = checkpoint.resolve()
+        if not home.is_relative_to(root) or not checkpoint.is_relative_to(home) or checkpoint.suffix != ".pickle":
+            raise EvidenceError("Invalid participant checkpoint.")
+        member = view.participants.get(participant)
+        if source == "ghost.pickle" and member is not None and member.paths.evidence_root == home:
+            return member.records
+        with self._lock:
+            if checkpoint not in self._memory:
+                self._memory.clear()
+                self._memory[checkpoint] = RecordIndex(participant, home, checkpoint)
+            return self._memory[checkpoint]
+
     def _chat(self, query: dict[str, list[str]]) -> list[dict[str, JsonValue]]:
         view = self._view(query)
         participant = _text(query, "participant")
         rows: list[ConversationRow] = []
-        for pid in ([participant] if participant else sorted(view.participants)):
-            rows.extend(view.participant(pid).records.conversation)
+        source = _text(query, "memory")
+        members = self._memory_participants(view, participant) if source and source != "capture" else ([participant] if participant else sorted(view.participants))
+        seen: set[str] = set()
+        for pid in members:
+            for row in self._memory_records(view, pid, source).conversation:
+                if row.delivery_id and row.delivery_id in seen:
+                    continue
+                if row.delivery_id:
+                    seen.add(row.delivery_id)
+                rows.append(row)
         rows.sort(key=lambda row: (row.at, row.wall_at, row.record_id))
         return [row.model_dump(mode="json") for row in rows]
 
@@ -253,7 +329,7 @@ class TimelineApi:
         participant = _text(query, "participant")
         if not participant:
             raise ValueError("A records request needs a participant.")
-        records = view.participant(participant).records
+        records = self._memory_records(view, participant, _text(query, "memory"))
         needle = _text(query, "q")
         role = _text(query, "role")
         rows = records.search_summaries(needle, limit=len(records.cards())) if needle else records.summaries()
@@ -269,8 +345,9 @@ class TimelineApi:
         record_id = _int(query, "id", 0)
         if record_id <= 0:
             raise ValueError("A record request needs a record id.")
-        records = view.participant(participant).records
-        return {"card": records.card(record_id).model_dump(mode="json"), "record": records.raw(record_id)}
+        records = self._memory_records(view, participant, _text(query, "memory"))
+        return {"card": records.card(record_id).model_dump(mode="json"), "record": records.raw(record_id),
+                "branch_version": records.branch_versions.get(record_id)}
 
     def _artifact(self, query: dict[str, list[str]]) -> dict[str, JsonValue]:
         view = self._view(query)
@@ -281,6 +358,12 @@ class TimelineApi:
         if not path:
             raise ValueError("An artifact request needs a path.")
         participant_view = view.participant(participant)
+        if participant_view.paths.process_id is not None:
+            allowed = {artifact.relative for run in participant_view.kernels.all() for artifact in run.artifacts}
+            for call in participant_view.calls.all():
+                allowed.update((call.json_log, call.markdown_log))
+            if path not in allowed:
+                raise EvidenceError('This file is outside the selected process evidence.')
         text, size = self.store.resolve_text(participant_view.paths.evidence_root, path)
         return {"path": path, "size": size, "text": text}
 
@@ -292,6 +375,9 @@ class TimelineApi:
         if not path:
             raise ValueError("An agent request needs a path.")
         root = next(iter(view.participants.values())).paths.attempt_root
+        relative = Path(path)
+        if relative.parent != Path("agents") or relative.suffix != ".json":
+            raise EvidenceError("Select a JSON receipt in the attempt agents folder.")
         text, _ = self.store.resolve_text(root, path)
         return {"path": path, "receipt": json.loads(text)}
 

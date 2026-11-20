@@ -97,6 +97,8 @@ class Simulation:
         runs: list[dict[str, JsonValue]] = []
         for path in sorted((self.runs_root / "runs").glob("*/state.json"), reverse=True):
             state = json.loads(path.read_text(encoding="utf-8"))
+            from pm.host.durable_files import runtime_status
+            state["status"] = runtime_status(path.parent, state["status"])
             runs.append({key: state[key] for key in ("id", "title", "status", "created_at", "step_index", "attempt")})
         return {"homes": self.all_homes(), "runs": runs, "captures": captures(self.runs_root), "config": self.config}
 
@@ -439,6 +441,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     OperatingSystem.install_child_cleanup()
     application = Simulation(args.homes, args.data, args.config)
     server = ThreadingHTTPServer(("0.0.0.0", args.port), handler(application))
+    from simulation.current import log_web_address
+    log_web_address(server.server_port)
     print(f"Simulation: http://127.0.0.1:{server.server_port}/", flush=True)
     try:
         server.serve_forever()

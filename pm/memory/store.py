@@ -64,6 +64,7 @@ class DialogueTurn(TypedDict):
     speaker: str
     text: str
     timestamp: str | None
+    wall_at: str | None
     tick_id: int | None
 
 
@@ -644,7 +645,7 @@ class MemoryStore(RecordIndex):
                 continue
             result.append({"id": key, "speaker": speaker, "text": data["content"],
                            "timestamp": data.get("timestamp_world_begin") or data.get("timestamp_creation"),
-                           "tick_id": data.get("tick_id")})
+                           "wall_at": data.get("timestamp_creation"), "tick_id": data.get("tick_id")})
         return sorted(result, key=lambda row: (row["timestamp"] or "", row["id"]))
 
     async def retrieve_experiences(self, query: str, embeddings: EmbeddingService | None = None, *,

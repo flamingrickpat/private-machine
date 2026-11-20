@@ -152,3 +152,16 @@ li { margin: 2px 0; }
   main { grid-template-columns: 1fr; }
   #sidebar, #detail { position: static; max-height: none; }
 }
+
+.chat-row { max-width: 82%; border-radius: .8rem; }
+.chat-row.companion-bubble { margin-left: auto; }
+.chat-row[hidden] { display: none; }
+
+.profile-viewport { overflow: auto; max-height: 72vh; }
+.profile-records { display: flex; flex-wrap: wrap; gap: .4rem; margin: .5rem 0; }
+.profile-chart { min-width: 100%; padding-right: .5rem; }
+.profile-label { position: sticky; left: 0; }
+.profile-lane { position: relative; height: 1.6rem; border-bottom: 1px solid #80808055; }
+.profile-bar { position: absolute; height: 1.2rem; min-width: 3px; padding: 0; overflow: hidden; white-space: nowrap; background: #34749a; color: white; border: 0; }
+
+.chat-search { display:flex; align-items:center; gap:.5rem; position:sticky; top:0; z-index:1; background:Canvas; padding:.4rem; }

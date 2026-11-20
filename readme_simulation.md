@@ -1,5 +1,7 @@
 # Run a companion simulation on Windows
 
+Open the latest workspace URL in `.runtime/current.md`. The workspace writes its bound port when it starts. Minecraft launchers append the game and MCP addresses for each player. To follow new entries from PowerShell, run `Get-Content .runtime/current.md -Encoding utf8 -Tail 12 -Wait`.
+
 From the PM checkout, choose one PowerShell launcher. Each scenario runs six scenes over three story days. The first two use chat only.
 
 | Script in `simulation\` | Participants and setting |

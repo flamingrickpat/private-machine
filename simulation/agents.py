@@ -90,6 +90,13 @@ class ActorContext(BaseModel):
     guidance: str = ""
 
 
+class ReactionChoice(BaseModel):
+    """A simulated user may leave an incoming message unanswered."""
+
+    reply: bool
+    reason: str = Field(min_length=1)
+
+
 class RejectedDraft(BaseModel):
     """Recent correction feedback; full failures remain in separate receipts."""
 
@@ -358,6 +365,14 @@ class Agents:
         selected.history = list(selection.turns)
         selected.history_priority = selection.priority
         return selected
+
+    def wants_to_reply(self, context: ActorContext) -> bool:
+        choice = self.call(SimulationOperation.Actor,
+            "Decide whether this person would reply now to the latest companion message. "
+            "Respect sleep, availability, requests for space and natural endings. A direct "
+            "question is an opportunity to answer, decline, or ignore it. Use only public evidence.",
+            DraftRequest(context=context), schema=ReactionChoice)
+        return choice.reply
 
     def actor(self, context: ActorContext, future_facts: list[Fact], *,
               profile: ActorProfile, home: Path) -> ActorTurn:

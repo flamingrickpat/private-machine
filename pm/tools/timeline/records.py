@@ -16,6 +16,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, TypeAdapter
 
+from pm.memory.store import MemoryStore
+from pm.introspection.record_packages import capture_cycle
 from pm.introspection.record_format import RecordLink, present_cycle, record_card
 from pm.tools.timeline.evidence import EvidenceError, normalize_time, read_json_object
 
@@ -168,22 +170,29 @@ def _merge_records(target: dict[int, dict[str, JsonValue]], source: dict[int, di
 class RecordIndex:
     """Captured records, public conversation, and cycles for one participant."""
 
-    def __init__(self, participant: str, evidence_root: Path) -> None:
+    def __init__(self, participant: str, evidence_root: Path, checkpoint: Path | None = None) -> None:
         self.participant: str = participant
         self.evidence_root: Path = evidence_root
         self._wrapped: dict[int, dict[str, JsonValue]] = {}
+        self.branch_versions: dict[int, JsonValue] = {}  # pm-lint: allow PM004 -- raw branch variants by knoxel ID
         self._cards: dict[int, RecordCard] = {}
         self.chat_ids: list[int] = []
         self.activity_ids: list[int] = []
         self.conversation: list[ConversationRow] = []
         self._cycles: dict[int, dict[str, JsonValue]] = {}
         self._cycle_order: list[int] = []
-        self._load()
+        if checkpoint is not None:
+            self._load_checkpoint(checkpoint)
+        else:
+            self._load()
 
     def _load(self) -> None:
         chat_path = self.evidence_root / "chat.json"
         activity_path = self.evidence_root / "activity.json"
         raw_activity_path = self.evidence_root / "raw-activity.json"
+        if not chat_path.is_file() and (self.evidence_root / "ghost.pickle").is_file():
+            self._load_checkpoint(self.evidence_root / "ghost.pickle")
+            return
         if chat_path.is_file():
             chat = read_json_object(chat_path)
             _merge_records(self._wrapped, _package_records(chat))
@@ -192,12 +201,39 @@ class RecordIndex:
             activity = read_json_object(activity_path)
             _merge_records(self._wrapped, _package_records(activity))
             self.activity_ids = TypeAdapter(list[int]).validate_python(activity["record_ids"])
+        self._load_cycles()
         if raw_activity_path.is_file():
             raw_activity = read_json_object(raw_activity_path)
-            _merge_records(self._wrapped, _package_records(raw_activity))
+            for key, raw_record in _package_records(raw_activity).items():
+                accepted_record = self._wrapped.get(key)
+                if accepted_record is None:
+                    self._wrapped[key] = raw_record
+                elif raw_record != accepted_record:
+                    self.branch_versions[key] = raw_record
         self._cards = {key: RecordCard.model_validate(record_card(wrapped)) for key, wrapped in self._wrapped.items()}
-        self._load_cycles()
         self.conversation = [self._conversation_row(key) for key in self.chat_ids if key in self._wrapped]
+
+    def _load_checkpoint(self, checkpoint: Path) -> None:
+        """Read accepted memory from a single consistent participant checkpoint."""
+        store = MemoryStore.from_checkpoint(checkpoint)
+        snapshot = store.snapshot(store._visible_history, capture=False)
+        self.activity_ids = sorted(snapshot.revisions)
+        dialogue = store.dialogue_history()
+        self.chat_ids = [row["id"] for row in dialogue]
+        for key in self.activity_ids:
+            payload = snapshot.all_knoxels[key].as_payload(include_embedding=False)
+            self._wrapped[key] = payload
+            self._cards[key] = RecordCard.model_validate(record_card(payload))
+        self.conversation = [self._conversation_row(key) for key in self.chat_ids]
+        for turn, row in zip(dialogue, self.conversation, strict=True):
+            row.speaker = turn["speaker"]
+        for index, state in enumerate(store.states):
+            if state.tick_id in snapshot.gwt_turns:
+                previous = store.states[index - 1] if index else None
+                package = capture_cycle(snapshot, state, previous=previous)
+                package["records"] = []  # Shared record bodies are already indexed by ID.
+                self._cycles[state.tick_id] = TypeAdapter(dict[str, JsonValue]).validate_python(package)
+                self._cycle_order.append(state.tick_id)
 
     def _load_cycles(self) -> None:
         root = self.evidence_root / "cycles"
@@ -210,7 +246,6 @@ class RecordIndex:
             self._cycles[tick] = package
             self._cycle_order.append(tick)
             _merge_records(self._wrapped, _package_records(package))
-        self._cards = {key: RecordCard.model_validate(record_card(wrapped)) for key, wrapped in self._wrapped.items()}
         self._cycle_order.sort()
 
     def _conversation_row(self, key: int) -> ConversationRow:
@@ -275,8 +310,11 @@ class RecordIndex:
         package = self._cycles.get(tick)
         if package is None:
             raise FileNotFoundError(f"Cycle {tick} is not captured for participant {self.participant}.")
-        cards = {key: card.model_dump() for key, card in self._cards.items()}
         captured = CapturedCyclePackage.model_validate(package)
+        package = package.copy()
+        if not package["records"]:
+            package["records"] = [self._wrapped[key] for key in captured.record_ids]
+        cards = {key: self._cards[key].model_dump() for key in _package_records(package) if key in self._cards}
         used = {key: record_summary(self._cards[key]) for key in captured.record_ids if key in self._cards}
         return CycleDetail(
             participant=self.participant,

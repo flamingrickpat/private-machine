@@ -78,6 +78,11 @@ function installWorkspace() {
   ratingCard.append(advanced);
   $("setup").insertBefore(ratingCard, $("plan-card"));
 
+  const search = node("input");
+  search.type = "search"; search.placeholder = "Find a message or speaker"; search.id = "chat-search";
+  const chatTools = node("div", undefined, "toolbar"); chatTools.id = "chat-tools"; chatTools.append(search);
+  $("conversation").before(chatTools);
+  search.addEventListener("input", () => filterConversation());
   const tabs = $("run").querySelector(".tabs");
   for (const [id, label] of [["script", "Script"], ["analysis", "Analysis"], ["debugger", "Memory debugger"]]) {
     const button = node("button", label); button.dataset.tab = id;
@@ -92,7 +97,7 @@ function installWorkspace() {
   const rerun = node("button", "Analyze completed run"); rerun.id = "rerun-analysis";
   const actions = node("div", undefined, "actions"); actions.append(save, rerun); analysisCard.append(actions);
   const results = node("div", undefined, "card"); results.id = "analysis-results"; $("analysis").append(results);
-  const help = node("p", "The debugger reads captured attempts. Full evidence appears after an attempt pauses or finishes.", "muted");
+  const help = node("p", "Open a conversation from memory, or select an attempt to inspect its recorded execution.", "muted");
   const standalone = node("a", "Open debugger in its own tab"); standalone.id = "debugger-link"; standalone.target = "_blank";
   const frame = node("iframe"); frame.id = "debugger-frame"; frame.title = "Memory debugger";
   $("debugger").append(help, standalone, frame);
@@ -226,6 +231,7 @@ function renderSceneEditor(plan) {
 function selectRunTab(id) {
   if (!RUN_TABS.includes(id)) throw new Error(`Unknown run tab: ${id}`);
   activeTab = id;
+  $("chat-tools").hidden = id !== "conversation";
   for (const panel of RUN_TABS) $(panel).hidden = panel !== id;
   for (const tab of document.querySelectorAll("[data-tab]")) tab.classList.toggle("selected", tab.dataset.tab === id);
   if (selectedRun) {

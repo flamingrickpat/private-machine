@@ -16,7 +16,7 @@ The package overview is in ``simulation/__init__.py``.
 from __future__ import annotations
 
 from asyncio import CancelledError
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import hashlib
@@ -31,7 +31,7 @@ from typing import Literal
 from uuid import uuid4
 from contextlib import closing
 
-from pydantic import JsonValue
+from pydantic import BaseModel, JsonValue
 
 from pm.host.durable_files import ProcessLock, atomic_json, runtime_status
 from pm.memory.checkpoint import read_checkpoint
@@ -74,6 +74,14 @@ from simulation.personas import fork_home
 from simulation.plans import ActorPacing, ScenarioPlan, SimulationTiming, facts_for_scene
 from simulation.source import freeze_source
 from simulation.analysis import AnalysisSettings, analyze_run
+
+
+class BetweenSceneReply(BaseModel):
+    target: str
+    speaker: str
+    content: str
+    delivery_id: str
+    output_id: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -446,52 +454,74 @@ class RunEngine:
                 quiet_since = None
             time.sleep(.05)
 
-    def advance(self, target: datetime) -> None:
-        """Move virtual time with wall time until ``target`` is reached.
+    def deliver_between_scene_reply(self, reply: BetweenSceneReply) -> None:
+        process = self.processes[reply.target]
+        delivery = process.post("/control/delivery", {"delivery_id": reply.delivery_id})
+        if not delivery["present"]:
+            process.post("/v1/chat/completions", {"messages": [{"role": "user", "content": reply.content}],
+                         "user": reply.speaker, "delivery_id": reply.delivery_id})
+        self.state["timeline"].append({"kind": "actor", "wall_at": datetime.now(timezone.utc).isoformat(), "timestamp": self.state["clock"],
+            "target": reply.target, "speaker": reply.speaker, "content": reply.content,
+            "delivery_id": reply.delivery_id})
+        self.state["pending_reaction"] = None
+        self.save()
 
-        Virtual time and real time run together, so a simulated hour holds
-        exactly the cognition cycles that this machine and model can finish in
-        an hour. A deadline that comes due while a slow cycle is still running
-        fires late; the clock does not stop and wait for it. Stopping at every
-        deadline would let a scenario claim more cycles per simulated hour than
-        the model can actually sustain, which is the opposite of a realistic
-        test. Routing stays buffered during the barrier.
-        """
+    def advance(self, target: datetime, agents: Agents) -> None:
+        """Collect speech until the scene opens. Persist a reaction before sending it."""
+        pending = self.state.get("pending_reaction")
+        if pending is not None:
+            self.deliver_between_scene_reply(BetweenSceneReply.model_validate(pending))
         states = {key: item.state() for key, item in self.processes.items()}
         base = max(datetime.fromisoformat(item["clock"]) for item in states.values())
         if target <= base:
-            return  # A scheduled event can become due while cognition is busy.
-        # Read the clock without waiting for quiescence: the runtime is normally
-        # busy, and waiting here would hold time still for a whole cycle.
-        self._drive_clock(base, until=target)
-
-    def _drive_clock(self, base: datetime, *, until: datetime | None,
-                     done: Callable[[], bool] | None = None) -> None:
-        """Push virtual time at real speed until ``until`` or ``done``.
-
-        ``until`` is the coordinate this call must reach. ``done`` lets a caller
-        keep time moving past it, so waiting for a reply never freezes the
-        clock. Both may be combined: the window ends at ``until`` or when
-        ``done`` becomes true.
-        """
+            return
         started = time.monotonic()
-        while True:
-            if self.request.is_set():
-                return
-            now = base + timedelta(seconds=(time.monotonic() - started) * self.time_multiplier)
-            if until is not None and now > until:
-                now = until
+        while not self.request.is_set():
+            now = min(target, base + timedelta(seconds=(time.monotonic() - started) * self.time_multiplier))
             for process in self.processes.values():
                 process.post("/control/advance-step", {"to": now.isoformat()})
             self.state["clock"] = now.isoformat()
-            # Record and route any speech that arrives while time runs, so a
-            # reply is not lost behind the clock push.
             self.collect(route=True)
             self.save()
-            if done is not None and done():
+            if now >= target:
                 return
-            if until is not None and now >= until:
-                return
+            for participant in self.state["participants"]:
+                target_id = participant["id"]
+                evidence = [DeliveryEvidence.model_validate(row) for row in self.state["timeline"]
+                            if row.get("target") == target_id or row.get("source") == target_id]
+                if not evidence:
+                    continue
+                latest = evidence[-1]
+                if (latest.kind != "speech" or latest.addressee_entity_id != states[target_id]["user_entity_id"]
+                        or latest.output_id == participant.get("last_reaction_output_id")):
+                    continue
+                if latest.output_id is None:
+                    raise ValueError("Public speech has no output ID.")
+                delivery_id = f"{self.root.name}:reaction:{target_id}:{latest.output_id}"
+                latency = actor_turn_latency(delivery_id, self.actor_pacing)
+                if now < latest.timestamp + timedelta(seconds=latency):
+                    continue
+                profile = ActorProfile.model_validate_json(
+                    (self.root / "actors" / f"{target_id}.json").read_text(encoding="utf-8"))
+                context = ActorContext(identity=identity(profile), at=now,
+                    scene="Between scheduled events, the companion has sent a message.",
+                    intent="React naturally to the latest message in light of the conversation so far.",
+                    current_facts=[fact for fact in self.plan.facts if fact.id in self.state["facts"]],
+                    conversation=[ConversationTurn(speaker=row.speaker, at=row.timestamp.isoformat(),
+                                                  text=row.content) for row in evidence],
+                    guidance=self.plan.director.actor_guidance)
+                if agents.wants_to_reply(context):
+                    draft = agents.actor(context, [fact for fact in self.plan.facts if fact.at and fact.at > now],
+                                         profile=profile, home=Path(participant["home"]))
+                    reply = BetweenSceneReply(target=target_id, speaker=profile.speaker_name, content=draft.content,
+                                              delivery_id=delivery_id, output_id=latest.output_id)
+                    self.state["pending_reaction"] = reply.model_dump(mode="json")
+                    participant["last_reaction_output_id"] = latest.output_id
+                    self.save()
+                    self.deliver_between_scene_reply(reply)
+                else:
+                    participant["last_reaction_output_id"] = latest.output_id
+                    self.save()
             time.sleep(ADVANCE_TICK_SECONDS)
 
     def wait_actor_turn(self, delivery_id: str, source: str) -> None:
@@ -532,7 +562,7 @@ class RunEngine:
     def _stage(self, agents: Agents) -> None:
         """Run one conversational turn and review actual recorded responses."""
         step = self.plan.steps[self.state["step_index"]]
-        self.advance(step.at)
+        self.advance(step.at, agents)
         if self.request.is_set():
             return
         profile = ActorProfile.model_validate_json(

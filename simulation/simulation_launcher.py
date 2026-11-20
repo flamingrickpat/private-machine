@@ -123,6 +123,10 @@ def launch(config: Path, sim_config: Path, run_id: str, preflight: bool, check_s
             if world is not None:
                 print(f"Starting the private Fabric world and Minecraft bodies in {world.work_root}", flush=True)
                 world.start()
+                if not check_services:
+                    from simulation.current import append_current
+                    for body in world.layout.bodies:
+                        append_current(f"{run.root.name} · {body.username} · Minecraft {body.server} · MCP {body.endpoint} · services in {world.work_root}")
                 for body in world.layout.bodies:
                     member = next(member for member in run.template.participants if member.id == body.participant)
                     member.minecraft_mcp_url = body.endpoint
@@ -133,7 +137,10 @@ def launch(config: Path, sim_config: Path, run_id: str, preflight: bool, check_s
             seed = prepare_seed(checkpoint, root / "seed")
             for member in run.template.participants:
                 member.home = str(seed)
+            from simulation.current import append_current
+            append_current(f"{run.root.name} · starting scenario · evidence in {run.root}")
             campaign.launch(resume=False, layout=layout, require_capped_key=False, services=world)
+            append_current(f"{run.root.name} · completed")
         finally:
             if world is not None:
                 world.close()

@@ -68,13 +68,22 @@ function show(section, title, status = "Ready") {
 }
 function message(row) {
   const article = node("article", undefined, "message");
+  const companion = row.kind === "speech" || (row.kind !== "actor" && row.speaker !== "Jesse" && row.source !== "Jesse");
+  article.classList.add(companion ? "companion-bubble" : "partner-bubble");
+  const identity = row.source || row.speaker || "";
+  const hue = Array.from(identity).reduce((hash, ch) => (31 * hash + ch.codePointAt(0)) >>> 0, 0) % 360;
+  if (companion) article.style.setProperty("--bubble-color", `hsl(${hue} 50% 90%)`);
   const head = node("div", undefined, "message-head");
   const name = row.speaker && row.source ? `${row.source}: ${row.speaker}` : row.speaker || row.source || "Participant";
   let timestamp = row.timestamp || "";
   if (/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?$/.test(timestamp)) timestamp += "Z";
-  head.append(node("span", name, "speaker"), node("time", timestamp.replace("T", " ")));
+  head.append(node("span", name, "speaker"), node("time", `Story ${timestamp.replace("T", " ") || "unknown"} | Real ${row.wall_at || "unrecorded"}`));
   article.append(head, node("div", row.text ?? row.content ?? "", "message-body"));
   return article;
+}
+function filterConversation() {
+  const query = $("chat-search").value.toLocaleLowerCase();
+  for (const bubble of $("conversation").children) bubble.hidden = !bubble.textContent.toLocaleLowerCase().includes(query);
 }
 function renderChat(target, rows) {
   const signatures = rows.map(row => JSON.stringify(row));
@@ -92,7 +101,21 @@ function renderChat(target, rows) {
   }
   if (!rows.length) target.append(node("div", "No messages yet.", "empty"));
   renderedConversations.set(target, signatures);
+  if (target.id === "conversation" && $("chat-search")) filterConversation();
 }
+function runStatusLabel(status) {
+  switch (status) {
+    case "running": return "▶ Running";
+    case "starting": return "◷ Starting";
+    case "paused": return "Ⅱ Paused";
+    case "stopped": return "■ Stopped";
+    case "crashed": return "⚠ Crashed";
+    case "failed": return "⚠ Failed";
+    case "completed": return "✓ Completed";
+    default: return status;
+  }
+}
+
 async function refreshCatalog() {
   catalog = await api("/api/catalog");
   $("captures").replaceChildren();
@@ -112,8 +135,9 @@ async function refreshCatalog() {
   $("runs").replaceChildren();
   for (const run of catalog.runs) {
     const button = node("a", run.title, "run-link");
+    button.dataset.runId = run.id;
     button.href = `#run/${encodeURIComponent(run.id)}/conversation`;
-    button.append(node("small", `${run.status} · attempt ${run.attempt}`));
+    button.append(node("small", `${runStatusLabel(run.status)} · attempt ${run.attempt}`));
     $("runs").append(button);
   }
   for (const id of ["primary", "secondary"]) {
@@ -206,9 +230,17 @@ async function updateRun() {
   const value = await api(`/api/runs/${id}`);
   if (id !== selectedRun) return;
   runState = value.state;
+  const statusLabel = runStatusLabel(runState.status);
+  const sidebarStatus = document.querySelector(`[data-run-id="${CSS.escape(id)}"] small`);
+  if (sidebarStatus) sidebarStatus.textContent = `${statusLabel} · attempt ${runState.attempt}`;
+  const active = ["starting", "running"].includes(runState.status);
+  const draining = active && runState.requested_status;
+  for (const button of document.querySelectorAll("[data-command]")) {
+    button.disabled = Boolean(draining) || (button.dataset.command === "start" ? active || runState.status === "completed" : !active || !runState.owns_attempt);
+  }
   const labels = {title: runState.title,
-    status: runState.requested_status ? `${runState.requested_status} requested · draining` : runState.status,
-    "run-progress": `Stage ${Math.min(runState.step_index + 1, value.plan.steps.length)} / ${value.plan.steps.length} · ${runState.clock}`};
+    status: draining ? `${draining} requested · draining` : statusLabel,
+    "run-progress": `${draining ? draining + " requested" : statusLabel} | Stage ${Math.min(runState.step_index + 1, value.plan.steps.length)} / ${value.plan.steps.length} · Story ${runState.clock} | Last saved ${runState.last_saved_at || "unknown"}`};
   for (const [name, text] of Object.entries(labels)) if ($(name).textContent !== text) $(name).textContent = text;
   renderChat($("conversation"), runState.timeline);
   await updateAnalysis(id);

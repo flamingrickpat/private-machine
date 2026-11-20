@@ -291,7 +291,8 @@ class Participant:
                 if result["next_due"]:
                     deadlines.append(datetime.fromisoformat(result["next_due"]))
                 result["next_due"] = min(deadlines).isoformat() if deadlines else None
-                result.update(virtual_ts=result["clock"], cycles=len(self.app.ghost.states),
+                result.update(user_entity_id=self.app.ghost.get_entity_id(self.app.ghost.get_user_name()),
+                    virtual_ts=result["clock"], cycles=len(self.app.ghost.states),
                     waiting=self.app.cognitive_control.waiting(), injects={},
                     mental_state=self.app.ghost.states[-1].mental_state.model_dump(mode="json") if self.app.ghost.states else {},
                     module_errors_total=int(self.app.error is not None))

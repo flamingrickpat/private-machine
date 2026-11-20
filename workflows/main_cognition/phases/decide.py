@@ -53,7 +53,7 @@ from workflows.main_cognition.rendering import render_managed_runs, render_cogni
 from workflows.main_cognition.cycle_work import CycleWork
 from workflows.main_cognition.prompt_config import PhasePrompts
 from workflows.main_cognition.phases.model import complete, phase_prompts
-from workflows.main_cognition.schemas import DecisionAnswer, DecisionCheck, DecisionInhibition, WorkflowOption
+from workflows.main_cognition.schemas import DecisionAnswer, DecisionCheck, DecisionInhibition, InhibitionAssessment, WorkflowOption
 from workflows.main_cognition.story_prefix import StoryPrefix, shard_label
 
 #: The action space when the configuration names no workflows.
@@ -77,6 +77,7 @@ class DecisionInhibitionReceipt(BaseModel):
     stimulus_ids: list[int]
     proposal: DecisionAnswer
     judgment: DecisionInhibition
+    assessment: InhibitionAssessment | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -179,12 +180,39 @@ def inhibit_decision(context: RoleContext, work: CycleWork, proposal: DecisionAn
     messages = [Turn(Role.System, "Judge whether to inhibit a proposed action using attributed current evidence. "
                      "Do not write a new action, a reply, or a story continuation."),
                 Turn(Role.User, instruction)]
-    result = complete(context, messages, DecisionInhibition)
+    assessment = complete(context, messages, InhibitionAssessment)
+    result = DecisionInhibition(allow=assessment.allow, reason=assessment.reason)
+    if assessment.allow and assessment.reminds_partner_about_unanswered_question:
+        evidence = assessment.reminder_evidence
+        questions: dict[int, str] = {}
+        grounds: dict[int, str] = {}
+        for situation in situations:
+            for move in situation.recent_moves:
+                if move.status == "delivered" and move.utterance is not None:
+                    questions[move.utterance.record_id] = move.utterance.text
+            if situation.partner is not None:
+                for source in situation.partner.recent_dialogue:
+                    if source.source == situation.companion_name:
+                        questions[source.record_id] = source.text
+                    elif source.source == situation.partner.name:
+                        grounds[source.record_id] = source.text
+        for record_id in group.stimulus_ids:
+            record = work.records[record_id]
+            if record.feature_type == "WorldEvent":
+                grounds[record_id] = record.content
+        if (evidence is None or evidence.question_record_id not in questions
+                or not evidence.question_quote.strip()
+                or evidence.question_quote not in questions[evidence.question_record_id]
+                or evidence.partner_or_event_record_id not in grounds
+                or not evidence.reason_to_interrupt_quote.strip()
+                or evidence.reason_to_interrupt_quote not in grounds[evidence.partner_or_event_record_id]):
+            result = DecisionInhibition(allow=False, reason="Reminder lacks a verifiable delivered question "
+                                        "or partner/external grounds for interrupting now.")
     assert context.runtime is not None
     group_identity = sha256(group.key.model_dump_json().encode("utf-8")).hexdigest()[:16]
     receipt_name = f"action-inhibition-{group_identity}.json"
     receipt = DecisionInhibitionReceipt(group=group.key, stimulus_ids=list(group.stimulus_ids),
-                                        proposal=proposal, judgment=result)
+                                        proposal=proposal, judgment=result, assessment=assessment)
     receipt_text = receipt.model_dump_json(indent=2)
     context.runtime.environment.write_text(f"scratch/{receipt_name}", receipt_text)
     receipt_path = context.kernel_data / receipt_name

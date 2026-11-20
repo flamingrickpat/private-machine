@@ -20,6 +20,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, TypeAdapter
 
 from pm.paths import REPO_ROOT
+from pm.host.durable_files import runtime_status
 
 #: The simulation controller writes one folder for each run below this root.
 DEFAULT_RUNS_ROOT = REPO_ROOT / ".runtime" / "simulation" / "runs"
@@ -148,6 +149,7 @@ class EvidencePaths:
     run_root: Path
     attempt_root: Path
     evidence_root: Path
+    process_id: int | None = None
 
     @property
     def prompts(self) -> Path:
@@ -191,7 +193,7 @@ def normalize_time(value: JsonValue) -> str:
         return ""
     if moment.tzinfo is None:
         moment = moment.replace(tzinfo=timezone.utc)
-    return moment.astimezone(timezone.utc).isoformat(timespec="seconds")
+    return moment.astimezone(timezone.utc).isoformat()
 
 
 def read_json(path: Path) -> JsonValue:
@@ -218,15 +220,18 @@ def _attempt_dirs(run_root: Path) -> list[int]:
     for path in root.iterdir():
         if path.is_dir() and path.name.isdigit():
             numbers.append(int(path.name))
-    return sorted(numbers)
+    return sorted(numbers, reverse=True)
 
 
 def _evidence_participants(attempt_root: Path) -> list[str]:
     """Return participant ids that have a captured evidence folder."""
     root = attempt_root / "evidence"
-    if not root.is_dir():
-        return []
-    return sorted(path.name for path in root.iterdir() if path.is_dir())
+    archived = {path.name for path in root.iterdir() if path.is_dir()} if root.is_dir() else set()
+    for endpoint in attempt_root.glob('*-endpoint.json'):
+        participant = endpoint.name.removesuffix('-endpoint.json')
+        if (attempt_root.parent.parent / 'participants' / participant).is_dir():
+            archived.add(participant)
+    return sorted(archived)
 
 
 class EvidenceStore:
@@ -285,7 +290,7 @@ class EvidenceStore:
             state = RunState.model_validate(read_json_object(root / "state.json"))
             plan_path = root / "plan.json"
             plan = PlanView.model_validate(read_json_object(plan_path)) if plan_path.is_file() else PlanView()
-            attempts = [self._attempt_summary(run_id, number) for number in _attempt_dirs(root)]
+            attempts = [self._attempt_summary(run_id, number, state) for number in _attempt_dirs(root)]
             summary = self._summary(root, state)
             bundle = RunBundle(summary=summary, state=state, plan=plan, attempts=attempts)
             self._runs[run_id] = bundle
@@ -302,7 +307,7 @@ class EvidenceStore:
             root = self.run_root(run_id) / "attempts" / str(number)
             if not root.is_dir() or number not in _attempt_dirs(self.run_root(run_id)):
                 raise FileNotFoundError(f"Attempt {number} is missing for run {run_id}.")
-            summary = self._attempt_summary(run_id, number)
+            summary = self._attempt_summary(run_id, number, run.state)
             report_path = root / "report.json"
             report = read_json(report_path) if report_path.is_file() else None
             reported: JsonValue = report.get("run", {}) if isinstance(report, dict) else {}
@@ -328,9 +333,16 @@ class EvidenceStore:
         if not attempt_root.is_dir() or not attempt_root.is_relative_to(run_root):
             raise FileNotFoundError(f"Attempt {attempt} is missing for run {run_id}.")
         evidence_root = (attempt_root / "evidence" / safe_participant).resolve()
-        if not evidence_root.is_dir() or not evidence_root.is_relative_to(attempt_root):
-            raise FileNotFoundError(f"Participant {safe_participant} has no evidence in attempt {attempt}.")
-        return EvidencePaths(run_root=run_root, attempt_root=attempt_root, evidence_root=evidence_root)
+        endpoint = attempt_root / f"{safe_participant}-endpoint.json"
+        pid: int | None = None
+        if endpoint.is_file():
+            pid = TypeAdapter(int).validate_python(read_json_object(endpoint)["pid"])
+        if evidence_root.is_dir() and evidence_root.is_relative_to(attempt_root):
+            return EvidencePaths(run_root, attempt_root, evidence_root, pid)
+        home = (run_root / "participants" / safe_participant).resolve()
+        if pid is not None and home.is_dir() and home.is_relative_to(run_root):
+            return EvidencePaths(run_root, attempt_root, home, pid)
+        raise FileNotFoundError(f"Participant {safe_participant} has no evidence in attempt {attempt}.")
 
     def resolve_text(self, root: Path, relative: str, *, limit: int = 2_000_000) -> tuple[str, int]:
         """Read one text artifact inside ``root`` and return its text and size.
@@ -361,7 +373,7 @@ class EvidenceStore:
         return RunSummary(
             id=state.id or root.name,
             title=state.title,
-            status=state.status,
+            status=runtime_status(root, state.status),
             created_at=state.created_at,
             attempt_count=len(numbers),
             latest_attempt=max(numbers, default=0),
@@ -371,16 +383,21 @@ class EvidenceStore:
             reports=list(state.reports),
         )
 
-    def _attempt_summary(self, run_id: str, number: int) -> AttemptSummary:
+    def _attempt_summary(self, run_id: str, number: int, state: RunState) -> AttemptSummary:
         """Build one attempt row from its report and evidence folders."""
         root = self.run_root(run_id) / "attempts" / str(number)
         report_path = root / "report.json"
         report = read_json_object(report_path) if report_path.is_file() else {}
         reported = report.get("run", {})
         failures = reported.get("failures") if isinstance(reported, dict) else None
+        status = ""
+        if isinstance(reported, dict):
+            status = str(reported.get("status", ""))
+        if number == state.attempt:
+            status = runtime_status(root.parent.parent, state.status)
         return AttemptSummary(
             number=number,
-            status=str(reported.get("status", "")) if isinstance(reported, dict) else "",
+            status=status,
             failures=len(failures) if isinstance(failures, list) else 0,
             evidence_participants=_evidence_participants(root),
             has_report=report_path.is_file(),

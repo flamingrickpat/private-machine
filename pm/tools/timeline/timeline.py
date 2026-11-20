@@ -106,7 +106,7 @@ class AttemptView:
         participants: dict[str, ParticipantView] = {}
         for participant in bundle.summary.evidence_participants:
             paths = store.paths(run_id, attempt, participant)
-            calls = index_calls(participant, paths.prompts, paths.evidence_root)
+            calls = index_calls(participant, paths.prompts, paths.evidence_root, paths.process_id)
             participants[participant] = ParticipantView(
                 participant=participant,
                 paths=paths,

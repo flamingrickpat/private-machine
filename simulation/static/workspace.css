@@ -28,3 +28,7 @@ button.quiet { color: var(--muted); }
 .rating-finding { margin-top: 12px; }
 .message:target { background: #e7f1fa; outline: 2px solid var(--accent); }
 @media(max-width:850px) { main { padding: 20px 15px; } }
+
+.conversation .message { width: fit-content; max-width: min(82%, 68rem); margin-block: .65rem; padding: .85rem 1rem; border-radius: .9rem; }
+.conversation .companion-bubble { margin-left: auto; background: var(--bubble-color); color: #152034; }
+.conversation .partner-bubble { margin-right: auto; background: #edf1f6; color: #152034; }

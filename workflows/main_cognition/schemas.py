@@ -863,6 +863,22 @@ class DecisionInhibition(BaseModel):
     reason: str = Field(min_length=1, description="Reason grounded in actual events and delivery history.")
 
 
+class ReminderEvidence(BaseModel):
+    """Public words underlying an attempted reminder about an unanswered question."""
+
+    question_record_id: int | None
+    question_quote: str
+    partner_or_event_record_id: int | None
+    reason_to_interrupt_quote: str
+
+
+class InhibitionAssessment(DecisionInhibition):
+    """A reminder needs inspectable evidence even when the model approves it."""
+
+    reminds_partner_about_unanswered_question: bool
+    reminder_evidence: ReminderEvidence | None
+
+
 class DecisionCheck(BaseModel):
     """The validation context of one decide answer.
 

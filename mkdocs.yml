@@ -55,6 +55,7 @@ nav:
       - Naming rules: concepts/naming.md
   - Subsystems:
       - Simulation and review: subsystems/simulation.md
+      - Companion regression campaign: subsystems/baseline-campaign.md
       - Execution timeline: subsystems/timeline.md
       - Runtime files and recovery: subsystems/runtime-files.md
       - Cognition: subsystems/cognition.md

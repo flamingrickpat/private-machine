@@ -55,12 +55,12 @@ def run_timeline(*, runs_root: Path = DEFAULT_RUNS_ROOT, host: str = constants.T
         return 1
     route = ""
     if run_id:
-        route = f"#/run/{run_id}/{attempt or 1}/overview"
+        route = f"#/run/{run_id}/{attempt or selected.summary.latest_attempt}/overview"
     browser_host = "127.0.0.1" if host == "0.0.0.0" else host
     print(f"Execution timeline: http://{browser_host}:{server.server_port}/{route}", flush=True)
     print(f"  listening on: {host}:{server.server_port}", flush=True)
     print(f"  evidence root: {root}", flush=True)
-    print("  read-only: no checkpoint load, no workflow, no model call. Ctrl-C stops.", flush=True)
+    print("  read-only debugger: loads checkpoints and receipts from disk. Ctrl-C stops.", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

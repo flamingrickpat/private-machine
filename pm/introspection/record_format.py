@@ -131,7 +131,7 @@ def record_card(wrapped: dict) -> dict:
     if data.get("frame_reason"):
         details["frame_reason"] = data["frame_reason"]
     return {"id": data["id"], "tick": data["tick_id"], "kind": kind, "role": role,
-            "text": str(data.get("content", "")), "source": provenance.get("source_ref", ""),
+            "text": str(data.get("content", "")), "source": provenance.get("source_ref") or "",
             "operation": metadata.get("operation", ""), "codelet": data.get("from_codelet") or data.get("codelet_name", ""),
             "selected": data.get("selected"), "status": metadata.get("status", metadata.get("state", "")),
             "fixture": bool(metadata.get("gate_supplied")), "details": details,

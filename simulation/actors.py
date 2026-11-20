@@ -97,6 +97,8 @@ class DeliveryEvidence(BaseModel):
     speaker: str
     timestamp: datetime = Field(description="Delivery instant normalized to timezone-aware UTC.")
     content: str
+    output_id: int | None = None
+    addressee_entity_id: int | None = None
     delivery_id: str | None = None
     target: str | None = None
     source: str | None = None

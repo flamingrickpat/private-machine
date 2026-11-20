@@ -103,7 +103,14 @@ check_template: |
   inventing a partner reaction or a task outcome.
 
   Answer only with this JSON object:
-  {{"allow": true, "reason": "..."}}
+  For a proposed reminder, identify the actual public words that asked that specific question.
+  Check subsequent partner messages for a partial answer, refusal, or change of subject.
+  Quote the partner request or changed external event that warrants interrupting them now.
+  A prior intention, a timer to reconsider, and speculation cannot supply either citation.
+  If either citation is missing, withhold the reminder. Classify reminders even when withheld.
+  {{"reminds_partner_about_unanswered_question": false, "reminder_evidence": null, "allow": true, "reason": "..."}}
+  For reminders, reminder_evidence holds question_record_id, question_quote, partner_or_event_record_id,
+  and reason_to_interrupt_quote. Use exact quotations, null IDs and empty quotes for absent evidence.
 
 # How a stimulus group reads in the story, by group kind.
 part_entity: "{name}"

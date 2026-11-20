@@ -355,3 +355,5 @@ Actor reply delays and unanswered-message waits use simulated seconds, so their 
 Scheduled scene timestamps retain their meaning. A due scene runs late when cognition passes its scheduled time.
 HTTP timeouts, process supervision, and diagnostic durations remain wall-clock measurements.
 The run retains its multiplier in controller state for later inspection.
+
+The [companion regression campaign](baseline-campaign.md) repeats three days of chat and Minecraft scenarios across runtime revisions.

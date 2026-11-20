@@ -168,7 +168,18 @@ class KernelIndex:
     def _load(self) -> None:
         if not self.kernel_root.is_dir():
             return
-        for path in sorted(self.kernel_root.iterdir()):
+        paths = self.kernel_root.iterdir()
+        if self.calls.process_id is not None:
+            invocations = {call.invocation_id for call in self.calls.all() if call.invocation_id}
+            profile_path = self.evidence_root / "runtime" / "profile" / f"spans-{self.calls.process_id}.jsonl"
+            if profile_path.is_file():
+                from pm.host.cognition_profiler import ProfileEvent
+                with profile_path.open("rb") as stream:
+                    for line in stream:
+                        if line.endswith(b"\n"):
+                            invocations.add(ProfileEvent.model_validate_json(line).invocation_id)
+            paths = (self.kernel_root / invocation for invocation in invocations if Path(invocation).name == invocation)
+        for path in sorted(paths):
             if not path.is_dir():
                 continue
             journal = _read_journal(path / "journal.jsonl")

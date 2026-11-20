@@ -65,6 +65,9 @@ class TimelineEvidenceTests(unittest.TestCase):
                                                 "record_ids": [1], "records": [record], "revisions": {}})
             write_json(evidence / "activity.json", {"schema_id": "pm.record-package.v1", "view": "records",
                                                     "record_ids": [1], "records": [record], "revisions": {}})
+            branch_record = {"__type__": "Feature", "data": {**record["data"], "content": "earlier branch"}}
+            write_json(evidence / "raw-activity.json", {"schema_id": "pm.record-package.v1", "view": "records",
+                                                        "record_ids": [1], "records": [branch_record], "revisions": {}})
             write_json(evidence / "cycles" / "1.json", {
                 "schema_id": "pm.record-package.v1", "view": "cycle", "record_ids": [1], "records": [record],
                 "revisions": {}, "gwt": {"tick_id": 1, "timestamp": "2026-10-29T20:00:02",
@@ -97,6 +100,8 @@ class TimelineEvidenceTests(unittest.TestCase):
 
             store = EvidenceStore(root)
             view = AttemptView.load(store, "run1", 1)
+            self.assertEqual(view.participant("primary").records.raw(1), record)
+            self.assertEqual(view.participant("primary").records.branch_versions[1], branch_record)
             calls = index_calls("primary", evidence / "logs" / "prompts", evidence)
             kernels = index_kernels("primary", evidence / "runtime" / "kernel", evidence, calls)
             records = index_records("primary", evidence)
