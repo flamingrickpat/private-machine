@@ -89,6 +89,20 @@ class ProviderErrorEnvelope(BaseModel):
     error: ProviderErrorMessage
 
 
+def http_failure_reason(response: httpx.Response) -> str:
+    """Translate known provider errors without copying private text or account URLs into status."""
+    status = f"HTTP {response.status_code}"
+    try:
+        message = ProviderErrorEnvelope.model_validate_json(response.content).error.message
+    except ValidationError:
+        return status
+    if message == "Reasoning is mandatory for this endpoint and cannot be disabled.":
+        return f"{status}: the endpoint requires reasoning to be enabled"
+    if message.startswith("Key limit exceeded"):
+        return f"{status}: the API key reached its spending limit"
+    return status
+
+
 def completion_error(data: JsonValue | None) -> ProviderCompletionError | None:
     try:
         status = CompletionStatus.model_validate(data)
@@ -206,7 +220,7 @@ class JsonClient:
             data = TypeAdapter[dict[str, JsonValue]](dict[str, JsonValue]).validate_json(response.content)
         except ValueError:
             data = None
-        error = completion_error(data) if response.is_success else ModelError(f"HTTP {response.status_code}")
+        error = completion_error(data) if response.is_success else ModelError(http_failure_reason(response))
         finish_prompt_log(path, response=data, error=error, elapsed=time.monotonic() - started,
                           replayed=replayed is not None)
         logger.info("Model request end route=%s status=%s seconds=%.3f", route, response.status_code,
@@ -290,7 +304,7 @@ class JsonClient:
                     if response.status_code == 429 or response.status_code >= 500:
                         failure = f"Model service returned HTTP {response.status_code}."
                     elif not response.is_success:
-                        raise ModelRequestRejected(f"Model request failed (HTTP {response.status_code}). Check credentials, credit, and request config.")
+                        raise ModelRequestRejected(f"Model request rejected ({http_failure_reason(response)}).")
                     else:
                         try:
                             data = TypeAdapter[dict[str, JsonValue]](dict[str, JsonValue]).validate_json(response.content)

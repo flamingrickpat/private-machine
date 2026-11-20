@@ -45,13 +45,15 @@ from pm.host.application import Application
 from pm.host.diagnostics import configure_logging, close_logging
 from pm.host.durable_files import ProcessLock, atomic_json
 from pm.llm.prompt_log import configure_root
+from simulation.client import ParticipantFailure
 
 
 class Participant:
     """Own one persona process, its clock, and serialized lifecycle controls."""
 
-    def __init__(self, home: Path, config: str, port: int) -> None:
+    def __init__(self, home: Path, config: str, port: int, failure_file: Path) -> None:
         self.home: Path = home.resolve()
+        self.failure_file: Path = failure_file
         self.config: str = config
         # The assembly also attaches ``ghost``, ``user_input``, and
         # ``cognitive_control`` (see ``workflows.companion.build_app``); the
@@ -108,9 +110,15 @@ class Participant:
     def fail(self, error: BaseException) -> None:
         """Retain a failure and stop runtime work. Keep control evidence readable."""
         self.error = error
-        atomic_json(self.home / "runtime" / "participant-failure.json", {"error": repr(error)})
+        self.save_failure(error)
         if self.app is not None:
             self.app.on_error(error)
+
+    def save_failure(self, error: BaseException) -> None:
+        """Retain the cause for both the attempt supervisor and the persona debugger."""
+        receipt = ParticipantFailure(error=repr(error))
+        receipt.save(self.failure_file)
+        receipt.save(self.home / "runtime" / "participant-failure.json")
 
     def observe(self, envelope: Envelope, recipient: str) -> None:
         """Append full bus delivery evidence under the owning persona home.
@@ -378,7 +386,7 @@ class Participant:
                 self.save_clock()
                 if self.app.error is not None:
                     self.error = self.app.error
-                    atomic_json(self.home / "runtime" / "participant-failure.json", {"error": repr(self.error)})
+                    self.save_failure(self.error)
             self.server.stop()
         finally:
             close_logging()
@@ -394,7 +402,7 @@ def main() -> int:
     parser.add_argument("--port", type=int, default=0)
     parser.add_argument("--ready-file", type=Path, required=True)
     args = parser.parse_args()
-    participant = Participant(args.home, args.config, args.port)
+    participant = Participant(args.home, args.config, args.port, args.ready_file.with_suffix(".failure.json"))
     def stop(signum: int, frame: FrameType | None) -> None:
         participant.closed.set()
     OperatingSystem.register_stop_signals(stop)

@@ -36,6 +36,7 @@ from pydantic import BaseModel, SecretStr, ValidationError, JsonValue, TypeAdapt
 
 from pm.llm.prompt_encoding import TurnInput
 from pm.llm.session import ModelSession
+from pm.llm.workflow_sessions import ConfiguredAgentModel
 from pm.llm.generation import GenerationSettings
 from pm.context_render.prompt import require_rendered_prompt, RendererCapture, RendererInput
 from pm.context_render.correction import (
@@ -236,9 +237,15 @@ def repair_agent_result(result: AgentResult, schema: type[T], model: AgentModel,
     from pm.llm.stage_model import LazyStageModel
     # The session hands over a plain secret string; the connection field owns
     # the masking, so wrap it here instead of keeping a bare string around.
-    connection = Connection(base_url=model.base_url, model=model.model, api_key=SecretStr(model.api_key),
-                            context_window=model.context_window)
-    stage = LazyStageModel(connection, ModelActivation(), live_test=model.live_test)
+    if isinstance(model, ConfiguredAgentModel):
+        connection = model.connection
+        activation = model.activation
+    else:
+        # Standalone native callers supply their endpoint directly, without a PM preset.
+        connection = Connection(base_url=model.base_url, model=model.model, api_key=SecretStr(model.api_key),
+                                context_window=model.context_window)
+        activation = ModelActivation()
+    stage = LazyStageModel(connection, activation, live_test=model.live_test)
     session = ModelSession(stage, cancel)
     generation = GenerationSettings(enable_thinking=model.enable_thinking)
     render_settings = session.renderer_settings_for(generation)

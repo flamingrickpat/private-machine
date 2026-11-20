@@ -24,11 +24,21 @@ import time
 from typing import IO
 
 import httpx
-from pydantic import JsonValue
+from pydantic import BaseModel, JsonValue
 from websockets.exceptions import ConnectionClosed
 from websockets.sync.client import connect
 
+from pm.host.durable_files import atomic_json, read_json
 from pm.paths import REPO_ROOT
+
+
+class ParticipantFailure(BaseModel):
+    """Participant error shared by the control server and its attempt supervisor."""
+
+    error: str
+
+    def save(self, path: Path) -> None:
+        atomic_json(path, self.model_dump(mode="json"))
 
 
 class PMProcess:
@@ -44,6 +54,7 @@ class PMProcess:
         self.home: Path = home
         self.config: str = config
         self.endpoint_file: Path = endpoint_file
+        self.failure_file: Path = endpoint_file.with_suffix(".failure.json")
         self.source_root: Path = source_root
         # The one Minecraft body this participant holds for the run, or None.
         self.minecraft_mcp_url: str | None = minecraft_mcp_url
@@ -68,6 +79,7 @@ class PMProcess:
         """
         self.endpoint_file.parent.mkdir(parents=True, exist_ok=True)
         self.endpoint_file.unlink(missing_ok=True)
+        self.failure_file.unlink(missing_ok=True)
         self._log = (self.endpoint_file.parent / f"{self.id}-process.log").open("ab")
         from pm.llm.env_file import env_file_path
         environment = dict(OperatingSystem.environment)
@@ -90,13 +102,27 @@ class PMProcess:
     def check_process(self) -> None:
         """Raise for process or stream failure before another dependent operation."""
         if self.process is not None and self.process.poll() is not None:
+            self.raise_recorded_failure()
             raise RuntimeError(f"Participant {self.id} exited ({self.process.returncode}). Evidence: {self.endpoint_file.parent}")
         if self.reader_error is not None:
+            self.raise_recorded_failure()
             raise RuntimeError(f"Participant {self.id} event stream failed.") from self.reader_error
+
+    def raise_recorded_failure(self) -> None:
+        """Explain a lost control connection with this attempt's participant error."""
+        try:
+            failure = ParticipantFailure.model_validate(read_json(self.failure_file))
+        except FileNotFoundError:
+            return
+        raise RuntimeError(f"Participant {self.id} failed: {failure.error}. Evidence: {self.failure_file}")
 
     def post(self, path: str, body: dict[str, JsonValue]) -> dict[str, JsonValue]:
         """Send one JSON request. HTTP errors remain visible to the run."""
-        response = self.http.post(self.url + path, json=body)
+        try:
+            response = self.http.post(self.url + path, json=body)
+        except httpx.TransportError:
+            self.raise_recorded_failure()
+            raise
         response.raise_for_status()
         return response.json()
 
@@ -108,7 +134,11 @@ class PMProcess:
         continued past it would record evidence the runtime never produced.
         """
         self.check_process()
-        response = self.http.get(self.url + "/control/state")
+        try:
+            response = self.http.get(self.url + "/control/state")
+        except httpx.TransportError:
+            self.raise_recorded_failure()
+            raise
         response.raise_for_status()
         result = response.json()
         if result["status"] == "failed":
@@ -152,6 +182,7 @@ class PMProcess:
                 self.post("/control/shutdown", {})
                 self.process.wait()
             if self.process is not None and self.process.poll() not in {None, 0}:
+                self.raise_recorded_failure()
                 raise RuntimeError(f"Participant {self.id} exited with code {self.process.returncode} during shutdown.")
         finally:
             if self.reader is not None:

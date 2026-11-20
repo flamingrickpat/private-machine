@@ -32,6 +32,8 @@ system_prompt: |
   The first three judgments permit speech. Record a minor discrepancy in
   findings and explain why it has no material consequence in this context.
   Judge consequence from the actual request, evidence, and time scope.
+  Attribute requests to the speaker's actual words. A choice the companion offered remains the companion's suggestion.
+  A claim like "I see a tree" during play needs a world observation that supports it, even when the wording is playful.
   Do not invent a universal coordinate tolerance or an allowed error percentage.
 
   Examples illustrate judgment; they are not automatic exemptions:

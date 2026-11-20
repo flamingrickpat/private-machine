@@ -99,6 +99,8 @@ user_template: |
   - Use minecraft for a sustained standalone leaf with an explicit supported acceptance contract. Its standalone
     terminal verifier currently supports wood_return. An empty acceptance contract cannot establish completion. One
     specialist keeps the body lease for the whole leaf.
+  - If you accept a request to gather something and describe what you see, route the gathering to the body worker.
+    Keep the question with the task so the description can use what the worker actually observes.
   - Use minecraft_project for open-ended work with several dependent outcomes, such as a usable house. Its planner
     creates durable subtasks, and independent world verification releases each prerequisite. Use this generic goal
     workflow for other self-chosen game goals too, even a small mining or exploration goal. The specialist's own

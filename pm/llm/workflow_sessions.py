@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Mapping
 from contextlib import AbstractContextManager, contextmanager
-from dataclasses import replace
+from dataclasses import dataclass, replace
 import json
 from pathlib import Path
 import sys
@@ -27,6 +27,14 @@ from pm_workflows.runtime import AgentModel, WorkflowRuntime, WorkflowTerminated
 from pm.llm.activation import ModelActivation
 from pm.llm.http_client import JsonClient, ModelError, cancellable, EndpointRetry
 from pm.llm.config import Connection, LlmPreset, ModelConfig, resolve_connection
+
+
+@dataclass(frozen=True, kw_only=True)
+class ConfiguredAgentModel(AgentModel):
+    """Keep PM's endpoint settings alongside the native agent's resolved context."""
+
+    connection: Connection
+    activation: ModelActivation
 
 
 def wait_before_retry(cancel: Event, delay_seconds: float = 30) -> None:
@@ -222,8 +230,9 @@ class WorkflowModels:
                                        "startup_script_ran": not reused and connection.startup_script is not None,
                                        "context_window": context, "context_source": source,
                                        "readiness_ms": (time.monotonic() - started) * 1000})
-            yield AgentModel(connection.base_url, connection.model, connection.api_key.get_secret_value(),
-                             context, enable_thinking=False, live_test=False)
+            yield ConfiguredAgentModel(connection.base_url, connection.model, connection.api_key.get_secret_value(),
+                                       context, enable_thinking=connection.require_reasoning, live_test=self.live_test,
+                                       connection=connection, activation=self.owner)
         except (asyncio.CancelledError, WorkflowTerminated):
             self._record(receipt_path, {**event, "event": "cancelled"})
             raise WorkflowTerminated() from None
