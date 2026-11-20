@@ -65,6 +65,8 @@ batch; :mod:`~workflows.main_cognition.expectations` and
 lifecycle; the ``phases`` package holds the cognitive work of each phase.
 """
 from __future__ import annotations
+from contextlib import AbstractContextManager, nullcontext
+from pm.host.cognition_profiler import ProfileEvent, SpanEvidence, SpanKind
 
 from pm.memory.retrieval import RetrievalTrace
 
@@ -1326,20 +1328,33 @@ class MainCogLoop(CognitiveWorkflow):
                     changes.set_lifecycle(source_id, entity_reconsideration_status="accepted", accepted_by=changes.commit_id)
                     changes.set_lifecycle(payload.action_record_id, execution_status="reconsidered")
             control = self.cognitive_control
-            if control is None:
-                receipt = self.ghost.commit(changes)
-            else:
-                receipt = control.commit(changes, work.wait_request, self._control_generation,
-                    envelope_ids={item.id for item in batch},
-                    wake_ids=[KnoxelPayload.model_validate(item.payload).knoxel_id
-                              for item in batch if item.topic == "cognition.wake"],
-                    private_generation=self._control_generation if self._private_only else None,
-                    source_ids=list(self._stimulus_ids))
-            self._active_batch_committed = True
-            self.ghost.save()
-            # Failed attempts must leave the last completed cycle's backup intact.
-            if self.ghost_backups:
-                self.ghost.backup()
+            profiler = self.application.profiler
+            commit_scope: AbstractContextManager[ProfileEvent | None] = nullcontext(None)
+            if profiler is not None:
+                if self.invocation_id is None:
+                    raise RuntimeError("The profiled cognition commit requires an invocation ID.")
+                evidence = SpanEvidence(kind=SpanKind.Commit, commit_id=changes.commit_id,
+                                        control_generation=self._control_generation, private_only=self._private_only,
+                                        knoxel_ids=list(self._stimulus_ids))
+                commit_scope = profiler.operation("Commit cognition and save checkpoint", self.invocation_id, evidence)
+            with commit_scope as commit_span:
+                if control is None:
+                    receipt = self.ghost.commit(changes)
+                else:
+                    receipt = control.commit(changes, work.wait_request, self._control_generation,
+                        envelope_ids={item.id for item in batch},
+                        wake_ids=[KnoxelPayload.model_validate(item.payload).knoxel_id
+                                  for item in batch if item.topic == "cognition.wake"],
+                        private_generation=self._control_generation if self._private_only else None,
+                        source_ids=list(self._stimulus_ids))
+                self._active_batch_committed = True
+                if commit_span is not None:
+                    commit_span.evidence.outputs = list(receipt.added_ids)
+                    commit_span.evidence.tick = receipt.tick_id
+                self.ghost.save()
+                # Failed attempts must leave the last completed cycle's backup intact.
+                if self.ghost_backups:
+                    self.ghost.backup()
             tick = receipt.tick_id
 
             self.bus.put(new_envelope(self.module_id, "data", "gwt.updated", "", {"gwt_tick": tick}))

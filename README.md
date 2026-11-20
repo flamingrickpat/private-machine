@@ -2,6 +2,8 @@
 
 private-machine (pm) is a cognitive runtime for **a persistent character**.
 
+To launch a repeatable chat or Minecraft scenario on Windows, follow the [simulation setup guide](readme_simulation.md).
+
 The current development milestone is [beta: continuous character cognition](docs/continuous-character-milestone.md).
 Beta is under development. Its specification describes the target, not completed capabilities.
 The [implementation plan](dev/work_items/beta.md) separates delivered work from remaining acceptance gates.

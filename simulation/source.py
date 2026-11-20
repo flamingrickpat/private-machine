@@ -41,6 +41,8 @@ def freeze_source(destination: Path, config: Path) -> dict[str, JsonValue]:
         if not raw:
             continue
         relative = Path(raw.decode("utf-8"))
+        if relative.is_relative_to(Path("test_data/baselines")) and relative.suffix == ".zip":
+            continue  # Baseline review archives are never participant source.
         source = REPO_ROOT / relative
         if not source.is_file():
             continue

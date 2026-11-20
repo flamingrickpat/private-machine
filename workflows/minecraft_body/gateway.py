@@ -12,6 +12,7 @@ from typing import Any
 
 from pm_workflows.runtime import WorkflowRuntime
 from pm.runs.role_runtime import PMWorkflowRuntime
+from pm.host.cognition_profiler import SpanEvidence, SpanKind
 from workflows.minecraft.runtime import MinecraftWorkflowRuntime, require_minecraft_runtime
 from pm.runs.managed_boundary import BoundaryReadSettings
 from dataclasses import dataclass
@@ -151,7 +152,20 @@ class BodyGateway:
             raise RuntimeError("Another actor call is still active.")
         try:
             with BODY_LEASES.command(self.endpoint, self.runtime.stop_event):
-                return self._dispatch(name, arguments, close=close)
+                profiler = self.runtime.profiler
+                if profiler is None:
+                    return self._dispatch(name, arguments, close=close)
+                sequence_before = self.sequence
+                evidence = SpanEvidence(kind=SpanKind.Minecraft, parent=self.runtime.phase_span_id,
+                                        instruction_revision=self.revision)
+                with profiler.operation(name, self.owner, evidence) as span:
+                    try:
+                        result = self._dispatch(name, arguments, close=close)
+                        span.evidence.tool_succeeded = result["ok"]
+                        return result
+                    finally:
+                        if self.sequence > sequence_before:
+                            span.evidence.journal_sequence = self.sequence
         finally:
             self._lock.release()
 

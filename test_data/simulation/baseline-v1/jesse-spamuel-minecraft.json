@@ -1,0 +1,139 @@
+{
+  "schema_id": "pm.simulation-template.v1",
+  "title": "Jesse plays Minecraft with Spamuel",
+  "brief": "Jesse plays Minecraft with Spamuel. Three days of synthetic interactions for comparison across runtime revisions.",
+  "start_time": "2026-06-08T07:00:00+00:00",
+  "participants": [
+    {
+      "id": "primary",
+      "home": "~/.pm/private-machine/spamuel-simulation-a",
+      "minecraft_mcp_url": "http://127.0.0.1:6783/mcp"
+    }
+  ],
+  "edges": [],
+  "director": {
+    "duration_days": 3,
+    "scenes_per_day": 2
+  },
+  "plan": {
+    "title": "Jesse plays Minecraft with Spamuel",
+    "brief": "Jesse plays Minecraft with Spamuel. Three days of synthetic interactions for comparison across runtime revisions.",
+    "start_time": "2026-06-08T07:00:00+00:00",
+    "facts": [
+      {
+        "id": "day-1-scene-1",
+        "text": "Invite Spamuel to gather wood for a little shelter",
+        "kind": "event",
+        "at": "2026-06-08T08:00:00+00:00"
+      },
+      {
+        "id": "day-1-scene-2",
+        "text": "Tell him about your day while he works, then ask him to stop and tell you where he stopped.",
+        "kind": "event",
+        "at": "2026-06-08T20:00:00+00:00"
+      },
+      {
+        "id": "day-2-scene-1",
+        "text": "Ask him to select a shelter site and resume work there.",
+        "kind": "event",
+        "at": "2026-06-09T08:00:00+00:00"
+      },
+      {
+        "id": "day-2-scene-2",
+        "text": "Change the job while it is underway: meet back at the first site.",
+        "kind": "event",
+        "at": "2026-06-09T20:00:00+00:00"
+      },
+      {
+        "id": "day-3-scene-1",
+        "text": "Ask him to inspect yesterday's work and recall which parts you discussed.",
+        "kind": "event",
+        "at": "2026-06-10T08:00:00+00:00"
+      },
+      {
+        "id": "day-3-scene-2",
+        "text": "Ask what actually changed in the world and what remains an idea.",
+        "kind": "event",
+        "at": "2026-06-10T20:00:00+00:00"
+      }
+    ],
+    "steps": [
+      {
+        "id": "day-1-scene-1",
+        "at": "2026-06-08T08:00:00+00:00",
+        "instruction": "Invite Spamuel to gather wood for a little shelter. Ask what he sees first.",
+        "actor_intent": "Invite Spamuel to gather wood for a little shelter. Ask what he sees first.",
+        "completion": "Jesse has delivered the invitation, question or correction and allowed the exchange to develop.",
+        "fact_ids": [
+          "day-1-scene-1"
+        ],
+        "target": "primary",
+        "minimum_turns": 2
+      },
+      {
+        "id": "day-1-scene-2",
+        "at": "2026-06-08T20:00:00+00:00",
+        "instruction": "Tell him about your day while he works, then ask him to stop and tell you where he stopped.",
+        "actor_intent": "Tell him about your day while he works, then ask him to stop and tell you where he stopped.",
+        "completion": "Jesse has delivered the invitation, question or correction and allowed the exchange to develop.",
+        "fact_ids": [
+          "day-1-scene-2"
+        ],
+        "target": "primary",
+        "minimum_turns": 2
+      },
+      {
+        "id": "day-2-scene-1",
+        "at": "2026-06-09T08:00:00+00:00",
+        "instruction": "Ask him to select a shelter site and resume work there.",
+        "actor_intent": "Ask him to select a shelter site and resume work there.",
+        "completion": "Jesse has delivered the invitation, question or correction and allowed the exchange to develop.",
+        "fact_ids": [
+          "day-2-scene-1"
+        ],
+        "target": "primary",
+        "minimum_turns": 2
+      },
+      {
+        "id": "day-2-scene-2",
+        "at": "2026-06-09T20:00:00+00:00",
+        "instruction": "Change the job while it is underway: meet back at the first site.",
+        "actor_intent": "Change the job while it is underway: meet back at the first site.",
+        "completion": "Jesse has delivered the invitation, question or correction and allowed the exchange to develop.",
+        "fact_ids": [
+          "day-2-scene-2"
+        ],
+        "target": "primary",
+        "minimum_turns": 2
+      },
+      {
+        "id": "day-3-scene-1",
+        "at": "2026-06-10T08:00:00+00:00",
+        "instruction": "Ask him to inspect yesterday's work and recall which parts you discussed.",
+        "actor_intent": "Ask him to inspect yesterday's work and recall which parts you discussed.",
+        "completion": "Jesse has delivered the invitation, question or correction and allowed the exchange to develop.",
+        "fact_ids": [
+          "day-3-scene-1"
+        ],
+        "target": "primary",
+        "minimum_turns": 2
+      },
+      {
+        "id": "day-3-scene-2",
+        "at": "2026-06-10T20:00:00+00:00",
+        "instruction": "Ask what actually changed in the world and what remains an idea.",
+        "actor_intent": "Ask what actually changed in the world and what remains an idea.",
+        "completion": "Jesse has delivered the invitation, question or correction and allowed the exchange to develop.",
+        "fact_ids": [
+          "day-3-scene-2"
+        ],
+        "target": "primary",
+        "minimum_turns": 2
+      }
+    ],
+    "director": {
+      "duration_days": 3,
+      "scenes_per_day": 2
+    }
+  }
+}

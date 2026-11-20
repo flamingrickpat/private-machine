@@ -15,6 +15,10 @@ from typing import Any
 from pm.llm.workflow_sessions import WorkflowModels
 
 from pm.utils import yaml_util
+from pydantic import JsonValue
+from pm.host.cognition_profiler import SpanEvidence, SpanKind
+from pm.runs.role_runtime import PMWorkflowRuntime
+from pm_workflows.protocol import PhaseConfig
 from pm_workflows.kernel import Kernel
 from pm_workflows.runtime import WorkflowRuntime
 from pm.paths import REPO_ROOT
@@ -59,6 +63,20 @@ class _ProjectionKernel(Kernel):
         """Forward the kernel construction and retain the retry count."""
         self._state_lock_attempts = state_lock_attempts
         super().__init__(*args, **kwargs)
+
+    def _execute_phase(self, phase: PhaseConfig) -> dict[str, JsonValue]:  # pm-lint: allow PM004 -- pm-workflows phase-result interface
+        """Measure the external kernel's phase dispatch on the invocation's concrete runtime."""
+        runtime = self.runtime
+        if not isinstance(runtime, PMWorkflowRuntime) or runtime.profiler is None:
+            return super()._execute_phase(phase)
+        evidence = SpanEvidence(kind=SpanKind.Phase, parent=runtime.workflow_span_id)
+        with runtime.profiler.operation(phase.name, self.run_id, evidence) as span:
+            previous = runtime.phase_span_id
+            runtime.phase_span_id = span.span_id
+            try:
+                return super()._execute_phase(phase)
+            finally:
+                runtime.phase_span_id = previous
 
     def _render_state_md(self, current_phase: str) -> None:
         """Retry only the journal projection. Other permission errors propagate.

@@ -55,3 +55,6 @@ embedding:
 #   wait_seconds: 1800
 
 thought_delay: 60
+
+# Record workflow timing beside this character home.
+profile_cognition: false

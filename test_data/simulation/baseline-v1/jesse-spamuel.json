@@ -1,0 +1,138 @@
+{
+  "schema_id": "pm.simulation-template.v1",
+  "title": "Jesse and Spamuel",
+  "brief": "Jesse and Spamuel. Three days of synthetic interactions for comparison across runtime revisions.",
+  "start_time": "2026-06-08T07:00:00+00:00",
+  "participants": [
+    {
+      "id": "primary",
+      "home": "~/.pm/private-machine/spamuel-simulation-a"
+    }
+  ],
+  "edges": [],
+  "director": {
+    "duration_days": 3,
+    "scenes_per_day": 2
+  },
+  "plan": {
+    "title": "Jesse and Spamuel",
+    "brief": "Jesse and Spamuel. Three days of synthetic interactions for comparison across runtime revisions.",
+    "start_time": "2026-06-08T07:00:00+00:00",
+    "facts": [
+      {
+        "id": "day-1-scene-1",
+        "text": "Tell Spamuel that a hand-written note from a friend made your workday easier",
+        "kind": "event",
+        "at": "2026-06-08T08:00:00+00:00"
+      },
+      {
+        "id": "day-1-scene-2",
+        "text": "Let a tease land awkwardly",
+        "kind": "event",
+        "at": "2026-06-08T20:00:00+00:00"
+      },
+      {
+        "id": "day-2-scene-1",
+        "text": "Correct yesterday's detail: the note was from your sister",
+        "kind": "event",
+        "at": "2026-06-09T08:00:00+00:00"
+      },
+      {
+        "id": "day-2-scene-2",
+        "text": "Ask for quiet company while you finish a drawing",
+        "kind": "event",
+        "at": "2026-06-09T20:00:00+00:00"
+      },
+      {
+        "id": "day-3-scene-1",
+        "text": "Return and ask whether he remembers who wrote the note",
+        "kind": "event",
+        "at": "2026-06-10T08:00:00+00:00"
+      },
+      {
+        "id": "day-3-scene-2",
+        "text": "Share how you felt about the conversation and invite him to choose what to talk about.",
+        "kind": "event",
+        "at": "2026-06-10T20:00:00+00:00"
+      }
+    ],
+    "steps": [
+      {
+        "id": "day-1-scene-1",
+        "at": "2026-06-08T08:00:00+00:00",
+        "instruction": "Tell Spamuel that a hand-written note from a friend made your workday easier. Invite a little teasing.",
+        "actor_intent": "Tell Spamuel that a hand-written note from a friend made your workday easier. Invite a little teasing.",
+        "completion": "Jesse has delivered the invitation, question or correction and allowed the exchange to develop.",
+        "fact_ids": [
+          "day-1-scene-1"
+        ],
+        "target": "primary",
+        "minimum_turns": 2
+      },
+      {
+        "id": "day-1-scene-2",
+        "at": "2026-06-08T20:00:00+00:00",
+        "instruction": "Let a tease land awkwardly. Explain what bothered you and give him room to respond.",
+        "actor_intent": "Let a tease land awkwardly. Explain what bothered you and give him room to respond.",
+        "completion": "Jesse has delivered the invitation, question or correction and allowed the exchange to develop.",
+        "fact_ids": [
+          "day-1-scene-2"
+        ],
+        "target": "primary",
+        "minimum_turns": 2
+      },
+      {
+        "id": "day-2-scene-1",
+        "at": "2026-06-09T08:00:00+00:00",
+        "instruction": "Correct yesterday's detail: the note was from your sister. Talk about something else afterwards.",
+        "actor_intent": "Correct yesterday's detail: the note was from your sister. Talk about something else afterwards.",
+        "completion": "Jesse has delivered the invitation, question or correction and allowed the exchange to develop.",
+        "fact_ids": [
+          "day-2-scene-1"
+        ],
+        "target": "primary",
+        "minimum_turns": 2
+      },
+      {
+        "id": "day-2-scene-2",
+        "at": "2026-06-09T20:00:00+00:00",
+        "instruction": "Ask for quiet company while you finish a drawing. Tell him when you are stepping away.",
+        "actor_intent": "Ask for quiet company while you finish a drawing. Tell him when you are stepping away.",
+        "completion": "Jesse has delivered the invitation, question or correction and allowed the exchange to develop.",
+        "fact_ids": [
+          "day-2-scene-2"
+        ],
+        "target": "primary",
+        "minimum_turns": 2
+      },
+      {
+        "id": "day-3-scene-1",
+        "at": "2026-06-10T08:00:00+00:00",
+        "instruction": "Return and ask whether he remembers who wrote the note. See where the conversation goes.",
+        "actor_intent": "Return and ask whether he remembers who wrote the note. See where the conversation goes.",
+        "completion": "Jesse has delivered the invitation, question or correction and allowed the exchange to develop.",
+        "fact_ids": [
+          "day-3-scene-1"
+        ],
+        "target": "primary",
+        "minimum_turns": 2
+      },
+      {
+        "id": "day-3-scene-2",
+        "at": "2026-06-10T20:00:00+00:00",
+        "instruction": "Share how you felt about the conversation and invite him to choose what to talk about.",
+        "actor_intent": "Share how you felt about the conversation and invite him to choose what to talk about.",
+        "completion": "Jesse has delivered the invitation, question or correction and allowed the exchange to develop.",
+        "fact_ids": [
+          "day-3-scene-2"
+        ],
+        "target": "primary",
+        "minimum_turns": 2
+      }
+    ],
+    "director": {
+      "duration_days": 3,
+      "scenes_per_day": 2
+    }
+  }
+}

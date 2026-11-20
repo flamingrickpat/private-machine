@@ -5,6 +5,8 @@ Termination wakes the mailbox and runs cleanup once.
 """
 from __future__ import annotations
 
+from pm.host.cognition_profiler import CognitionProfiler
+
 from pm.introspection.capabilities import CapabilityOverlay
 
 import threading
@@ -189,6 +191,7 @@ class Application:
     def __init__(self, bus: BusSystem, modules: list[BusModule], *,
                  clock: vclock.SystemClock | None = None) -> None:
         self.bus = bus
+        self.profiler: CognitionProfiler | None = None
         self.capability_overlay: CapabilityOverlay | None = None
         self.modules = modules
         self.clock: vclock.SystemClock = clock if clock is not None else vclock.current_clock()

@@ -12,6 +12,7 @@ import unittest
 
 from pm.records.cycle_state import PersonaConfig
 from pm.memory.store import MemoryStore
+from pm.host.cognition_profiler import CognitionProfiler, ProfileEvent, SpanKind
 from pm.runs.run_receipt import ManagedRunError
 from pm.runs.supervisor import ManagedRunSupervisor
 from pm.runs.workflow_spec import WorkflowSpec
@@ -65,7 +66,7 @@ class ManagedRunTests(unittest.TestCase):
 
     def test_worker_memory_factory_reads_authoritative_owner_through_mcp(self):
         import yaml
-        from pm.memory.agent_tools import MemoryToolConfig, MemoryView
+        from workflows.minecraft.host import ProjectMemoryOwner
         from pm.records.memory_records import new_feature
         from pm.records.enums import FeatureType
 
@@ -77,15 +78,16 @@ class ManagedRunTests(unittest.TestCase):
             "    from fastmcp import Client\n"
             "    from pm.memory.agent_tools import MemoryReadSession\n"
             "    from pm.host.mcp_listeners import serve_services\n"
-            "    config = context.runtime.tools['memory_config']()\n"
+            "    config = context.runtime.memory_context.create()\n"
             "    with MemoryReadSession(config) as memory:\n"
             "        async def read(url):\n"
             "            async with Client(url) as client:\n"
             "                return (await client.call_tool('memory_search', {'query': 'copper lantern'})).data\n"
             "        with serve_services({'memory': memory.server()}) as endpoints:\n"
             "            result = asyncio.run(read(endpoints['memory']['url']))\n"
-            "        with context.runtime.tools['memory_guard'](memory.accessed):\n"
-            "            context.runtime.environment.write_text('outbox/report.yaml', yaml.safe_dump(result))\n"
+            "        with context.runtime.managed_boundary.memory_guard(memory.accessed):\n"
+            "            report = {'search_text': result, 'read_ids': list(memory.accessed)}\n"
+            "            context.runtime.environment.write_text('outbox/report.yaml', yaml.safe_dump(report))\n"
             "    return {'status': 'done', 'summary': 'Read the accepted owner.'}\n", encoding="utf-8")
         manifest = self.root / "memory.workflow.md"
         manifest.write_text("---\n" + yaml.safe_dump({
@@ -95,13 +97,13 @@ class ManagedRunTests(unittest.TestCase):
             "phases": [{"name": "read", "kind": "role", "role": "read", "on_status": {"done": "stop"},
                         "on_invalid": {"action": "stop"}}]}) + "---\n", encoding="utf-8")
         self.supervisor.workflows["memory_probe"] = WorkflowSpec(manifest,
-            memory_config_factory=lambda store, cancel: MemoryToolConfig(store,
-                MemoryView(frozenset({source.id}), frozenset({(-1, "in_world")})), cancel=cancel))
+            memory_config_owner=ProjectMemoryOwner(embeddings=None))
         receipt = self.supervisor.start(action_id="memory-probe", workflow_name="memory_probe",
                                         instructions="Inspect the original record.")
         self.assertTrue(_wait_for(lambda: self.supervisor.get(receipt['run_id'])['state'] == 'completed'))
         report = yaml.safe_load((Path(receipt["artifact_path"]) / "outbox/report.yaml").read_text(encoding="utf-8"))
-        self.assertEqual(report["matches"][0]["record_id"], source.id)
+        self.assertIn("A copper lantern marks home.", report["search_text"])
+        self.assertIn(source.id, report["read_ids"])
         self.assertEqual(set(self.ghost.revisions), {source.id})
 
     def setUp(self):
@@ -138,7 +140,9 @@ class ManagedRunTests(unittest.TestCase):
     def _clock(self) -> float:
         return self.clock_value
 
-    def test_start_status_and_completed_artifacts(self):
+    def test_start_status_and_completed_artifacts(self) -> None:
+        profiler = CognitionProfiler(self.root / "runtime")
+        self.supervisor.profiler = profiler
         receipt = self.supervisor.start(
             action_id="action-0", workflow_name="local_task",
             parent_correlation="corr", instructions="write a note",
@@ -153,6 +157,14 @@ class ManagedRunTests(unittest.TestCase):
         self.assertIn("outbox/report.yaml", status["evidence"])
         report = (Path(status["artifact_path"]) / "outbox" / "report.yaml").read_text(encoding="utf-8")
         self.assertIn("write a note", report)
+        events = [ProfileEvent.model_validate_json(line)
+                  for line in profiler.path.read_bytes().splitlines()]
+        workflow = events[0]
+        self.assertEqual(workflow.invocation_id, receipt["run_id"])
+        self.assertEqual(events[-1].span_id, workflow.span_id)
+        phase_starts = [event for event in events if event.evidence.kind == SpanKind.Phase and event.outcome == "started"]
+        self.assertTrue(phase_starts)
+        self.assertTrue(all(event.evidence.parent == workflow.span_id for event in phase_starts))
         self.assertEqual(
             [event["event"] for event in self.events],
             ["started", "completed"],
@@ -170,11 +182,12 @@ class ManagedRunTests(unittest.TestCase):
         self.assertEqual(len(self.ghost.managed_runs), 1)
 
     def test_real_task_service_loss_keeps_the_supervisor_available(self):
-        from workflows.minecraft_body.mcp_client import build_minecraft_tools
+        from workflows.minecraft_body.mcp_client import MinecraftTransport, MinecraftTransportSettings
         errors = []
         self.supervisor.on_error = errors.append
         def unavailable_tools(run_id, environment):
-            build_minecraft_tools("http://127.0.0.1:1/mcp")["minecraft_call"]("minecraft_observe", {})
+            transport = MinecraftTransport(MinecraftTransportSettings(endpoint="http://127.0.0.1:1/mcp"), None)
+            transport.call("minecraft_observe", {})
         self.supervisor.workflows["unavailable_service"] = WorkflowSpec(
             LOCAL_TASK / "local_task.workflow.md", tools_factory=unavailable_tools)
         receipt = self.supervisor.start(action_id="offline-service", workflow_name="unavailable_service")
@@ -242,6 +255,7 @@ class ManagedRunTests(unittest.TestCase):
         self.assertTrue(_wait_for(artifact.is_file))
         self.supervisor.instructions_at_boundary(run_id)
         checkpoint = self.root / "ghost.pickle"
+        self.ghost.save()
         before = checkpoint.stat().st_mtime_ns
         for _ in range(5):
             self.supervisor.instructions_at_boundary(run_id)
@@ -316,6 +330,7 @@ class ManagedRunTests(unittest.TestCase):
         )
         run_id = receipt["run_id"]
         self.assertTrue(_wait_for(lambda: self.supervisor.status(run_id)["state"] == "completed"))
+        self.ghost.save()
         reopened = MemoryStore.from_checkpoint(self.root / "ghost.pickle", raw=True)
         self.assertEqual(reopened.managed_runs[run_id]["state"], "completed")
         self.assertEqual(reopened.managed_runs[run_id]["action_id"], "action-6")

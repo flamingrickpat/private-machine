@@ -33,7 +33,7 @@ from contextlib import closing
 
 from pydantic import JsonValue
 
-from pm.host.durable_files import ProcessLock, atomic_json
+from pm.host.durable_files import ProcessLock, atomic_json, runtime_status
 from pm.memory.checkpoint import read_checkpoint
 from simulation.agents import ActorContext, Agents, StageContext
 from simulation.actors import ActorProfile, ConversationTurn, DeliveryEvidence, identity, load_profile
@@ -243,7 +243,11 @@ class RunEngine:
         with self._lock:
             if self.thread is None or not self.thread.is_alive():
                 self.state = json.loads(self.state_path.read_text(encoding="utf-8"))
-            return json.loads(json.dumps(self.state))
+            result = json.loads(json.dumps(self.state))
+            result["status"] = runtime_status(self.root, self.state["status"])
+            result["last_saved_at"] = datetime.fromtimestamp(self.state_path.stat().st_mtime, timezone.utc).isoformat()
+            result["owns_attempt"] = self.thread is not None and self.thread.is_alive()
+            return result
 
     def has_body(self) -> bool:
         """Return whether any participant of this run owns a Minecraft body."""
@@ -393,7 +397,7 @@ class RunEngine:
                     if any(row.get("source") == process.id and row.get("output_id") == event["output_id"]
                            for row in self.state["timeline"]):
                         continue
-                    self.state["timeline"].append({**event, "source": process.id, "kind": "speech"})
+                    self.state["timeline"].append({**event, "source": process.id, "kind": "speech", "wall_at": datetime.now(timezone.utc).isoformat()})
                     participant["cursor"] = event["cursor"]
                     for edge in self.state["edges"]:
                         if edge["source"] == process.id:
@@ -560,7 +564,7 @@ class RunEngine:
             process.post("/v1/chat/completions", {"messages": [{"role": "user", "content": pending["content"]}],
                 "user": pending["speaker"], "delivery_id": pending["delivery_id"]})
         if not any(item.get("delivery_id") == pending["delivery_id"] for item in self.state["timeline"]):
-            self.state["timeline"].append({**pending, "kind": "actor", "timestamp": self.state["clock"]})
+            self.state["timeline"].append({**pending, "kind": "actor", "wall_at": datetime.now(timezone.utc).isoformat(), "timestamp": self.state["clock"]})
             self.save()
         self.wait_actor_turn(pending["delivery_id"], step.target)
         delivered = process.post("/control/delivery", {"delivery_id": pending["delivery_id"]})

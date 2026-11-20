@@ -3,6 +3,7 @@
 from tests.support import ManualClock
 
 from pm.host.application import Application
+from pm.host.cognition_profiler import CognitionProfiler, ProfileEvent, SpanKind
 from pathlib import Path
 import json
 from tempfile import TemporaryDirectory
@@ -200,6 +201,31 @@ class WorkflowRunnerTests(unittest.TestCase):
         self.assertEqual(module.published, [{"thread_id": threading.get_ident()}])
         self.assertIs(module.last_result.kernel_summary, module.last_kernel_summary)
         self.assertIsNone(module._thread)
+
+    def test_profile_records_the_actual_kernel_phase_inside_its_workflow(self) -> None:
+        runner = self.runner(
+            "    context.runtime.environment.write_text('outbox/report.yaml', 'answer: hello')\n"
+            "    return {'status': 'done', 'summary': 'complete'}\n"
+        )
+        profiler = CognitionProfiler(self.root)
+        module = self.module(runner)
+        self.assertTrue(module.step())
+        self.assertFalse(profiler.path.exists())
+
+        module = self.module(runner)
+        module.application.profiler = profiler
+        self.assertTrue(module.step())
+        self.assertEqual(module.published, [{"answer": "hello"}])
+        lines = profiler.path.read_text(encoding="utf-8").splitlines()
+        events = [ProfileEvent.model_validate_json(line) for line in lines]
+        self.assertEqual(len(events), 4)
+        workflow, phase, phase_end, workflow_end = events
+        self.assertEqual(phase.evidence.kind, SpanKind.Phase)
+        self.assertEqual(phase.evidence.parent, workflow.span_id)
+        self.assertEqual(phase_end.span_id, phase.span_id)
+        self.assertEqual(workflow_end.span_id, workflow.span_id)
+        self.assertEqual(phase.invocation_id, workflow.invocation_id)
+        self.assertLess(phase.monotonic_ns, phase_end.monotonic_ns)
 
     def test_module_exposes_waiting_result_without_publication(self):
         runner = self.runner("    raise AssertionError('unused')\n", phase={

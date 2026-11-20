@@ -293,6 +293,10 @@ def start_prompt_log(*, connection: LogTarget, payload: dict[str, JsonValue] | N
                   "pid": OperatingSystem.process_id(), "started_at": datetime.now(timezone.utc).isoformat(),
                   "request_count": request_count, "payload": payload}
         from pm import vclock
+        import hashlib
+        if payload is not None:
+            canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")  # pm-lint: allow PM007 -- content address for exact wire payload
+            record["prompt_sha256"] = hashlib.sha256(canonical).hexdigest()
         record["world_time"] = vclock.now_aware().isoformat()
         invocation = _INVOCATION.get()
         if invocation is not None:

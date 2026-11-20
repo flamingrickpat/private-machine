@@ -64,6 +64,25 @@ def atomic_json(path: Path, value: dict[str, JsonValue]) -> None:
         temporary.unlink(missing_ok=True)
 
 
+def runtime_status(run_root: Path, recorded_status: str) -> str:
+    """Project a stale active receipt as crashed when the OS has released the controller lock."""
+    if recorded_status not in {"starting", "running"}:
+        return recorded_status
+    path = run_root / ".run.lock"
+    if not path.exists():
+        return "indeterminate"
+    try:
+        stream = path.open("r+b")
+    except OSError:
+        return "indeterminate"
+    with stream:
+        try:
+            OperatingSystem.lock_file(stream)
+        except (PermissionError, BlockingIOError):
+            return recorded_status
+    return "crashed"
+
+
 class ProcessLock:
     """Hold a byte lock until close or process exit. Never remove the lock file.
 

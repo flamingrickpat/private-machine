@@ -213,6 +213,21 @@ def execute(context: RoleContext, work: CycleWork, frame: CodeletFrame, definiti
     the view; they become allowed ``about_ids`` and the result returns their
     views.
     """
+    runtime = cognition_runtime(context.runtime)
+    if runtime.profiler is None:
+        return evaluate_job(context, work, frame, definition, job)
+    from pm.host.cognition_profiler import SpanEvidence, SpanKind
+    evidence = SpanEvidence(kind=SpanKind.Codelet, parent=runtime.phase_span_id,
+                            knoxel_ids=job.view_ids, wave=job.wave, score=job.score)
+    with runtime.profiler.operation(job.codelet, context.task_id, evidence) as span:
+        result = evaluate_job(context, work, frame, definition, job)
+        span.evidence.retrieved_record_ids = [record.record_id for record in result.records]
+        return result
+
+
+def evaluate_job(context: RoleContext, work: CycleWork, frame: CodeletFrame, definition: CodeletDefinition,
+                 job: CodeletJob) -> JobResult:
+    """Evaluate the selected concern and collect its percept variants for integration."""
     started = time.perf_counter()
     result = JobResult()
     asked = frame.ask(definition, job)

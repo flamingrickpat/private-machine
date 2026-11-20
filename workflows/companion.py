@@ -431,6 +431,9 @@ def build_app(
         from pm.llm.config import load_config
         from pm.memory.embeddings import EmbeddingService
         loaded = load_config(resolved_config)
+        if loaded.profile_cognition:
+            from pm.host.cognition_profiler import CognitionProfiler
+            app.profiler = CognitionProfiler(runtime_root)
         context_embeddings = EmbeddingService(loaded.embedding)
         ghost.initialize_embeddings(context_embeddings)
         if tool_call is None:
@@ -446,6 +449,7 @@ def build_app(
             probe_body(minecraft_endpoint, timeout_seconds=loaded.minecraft.probe_timeout_seconds)
     supervisor = ManagedRunSupervisor(
         ghost,
+        profiler=app.profiler,
         runtime_root=runtime_root,
         workflows=_managed_workflows(stage_model, context_embeddings, ghost, tool_call, minecraft_endpoint,
                                      enable_minecraft=enable_minecraft),

@@ -24,7 +24,8 @@ from pm.llm.stage_model import LazyStageModel
 from pm.llm.session import ModelSession
 from pm.runs.role_runtime import PMWorkflowRuntime
 from pm.runs.managed_boundary import ManagedRunBoundary
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
+from pm.host.cognition_profiler import CognitionProfiler, SpanEvidence
 from typing import Generator
 
 from pm.records.copying import pickle_copy
@@ -118,6 +119,7 @@ class ManagedRunSupervisor:
         worker_tools: Callable[[str], Mapping[str, Callable]] | None = None,
         workflow_models: WorkflowModels | None = None,
         stage_model: LazyStageModel | None = None,
+        profiler: CognitionProfiler | None = None,
     ) -> None:
         self.ghost = ghost
         self.runtime_root = Path(runtime_root)
@@ -132,6 +134,7 @@ class ManagedRunSupervisor:
         self.worker_tools = worker_tools
         self.workflow_models = workflow_models
         self.stage_model = stage_model
+        self.profiler: CognitionProfiler | None = profiler
         self._lock = threading.RLock()
         self._stopping = threading.Event()
         self._updates = threading.Condition(self._lock)
@@ -510,9 +513,12 @@ class ManagedRunSupervisor:
                     question_id=str(payload.get("question_id", "")),
                     resume_phase=str(payload.get("resume_phase", "")),
                 )
-            result = runner.invoke(
-                WorkflowRequest(receipt.run_id, payload), runtime, resume=resume,
-            )
+            runtime.profiler = self.profiler
+            scope = self.profiler.operation(receipt.workflow_name, receipt.run_id, SpanEvidence()) if self.profiler is not None else nullcontext(None)
+            with scope as workflow_span:
+                if workflow_span is not None:
+                    runtime.workflow_span_id = workflow_span.span_id
+                result = runner.invoke(WorkflowRequest(receipt.run_id, payload), runtime, resume=resume)
             current_reads().collecting = False
             self._finish(receipt.run_id, result, environment)
         except BaseException as exc:

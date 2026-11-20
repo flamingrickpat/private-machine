@@ -1,0 +1,153 @@
+{
+  "schema_id": "pm.simulation-template.v1",
+  "title": "Jesse with Spamuel 1 and Spamuel Alpha",
+  "brief": "Jesse with Spamuel 1 and Spamuel Alpha. Three days of synthetic interactions for comparison across runtime revisions.",
+  "start_time": "2026-06-08T07:00:00+00:00",
+  "participants": [
+    {
+      "id": "spamuel-1",
+      "home": "~/.pm/private-machine/spamuel-simulation-a"
+    },
+    {
+      "id": "spamuel-alpha",
+      "home": "~/.pm/private-machine/spamuel-simulation-a"
+    }
+  ],
+  "edges": [
+    {
+      "source": "spamuel-1",
+      "target": "spamuel-alpha",
+      "name": "Spamuel 1"
+    },
+    {
+      "source": "spamuel-alpha",
+      "target": "spamuel-1",
+      "name": "Spamuel Alpha"
+    }
+  ],
+  "director": {
+    "duration_days": 3,
+    "scenes_per_day": 2
+  },
+  "plan": {
+    "title": "Jesse with Spamuel 1 and Spamuel Alpha",
+    "brief": "Jesse with Spamuel 1 and Spamuel Alpha. Three days of synthetic interactions for comparison across runtime revisions.",
+    "start_time": "2026-06-08T07:00:00+00:00",
+    "facts": [
+      {
+        "id": "day-1-scene-1",
+        "text": "Give this companion his name, Spamuel 1",
+        "kind": "event",
+        "at": "2026-06-08T08:00:00+00:00"
+      },
+      {
+        "id": "day-1-scene-2",
+        "text": "Give this companion his name, Spamuel Alpha",
+        "kind": "event",
+        "at": "2026-06-08T20:00:00+00:00"
+      },
+      {
+        "id": "day-2-scene-1",
+        "text": "Ask Spamuel 1 about the sketch and whether he knows what Alpha heard.",
+        "kind": "event",
+        "at": "2026-06-09T08:00:00+00:00"
+      },
+      {
+        "id": "day-2-scene-2",
+        "text": "Tell Alpha that you enjoyed talking to them both",
+        "kind": "event",
+        "at": "2026-06-09T20:00:00+00:00"
+      },
+      {
+        "id": "day-3-scene-1",
+        "text": "Invite Spamuel 1 to recall your private exchange and distinguish it from what Alpha actually shared.",
+        "kind": "event",
+        "at": "2026-06-10T08:00:00+00:00"
+      },
+      {
+        "id": "day-3-scene-2",
+        "text": "Ask Alpha what he personally remembers and which parts he heard from someone else.",
+        "kind": "event",
+        "at": "2026-06-10T20:00:00+00:00"
+      }
+    ],
+    "steps": [
+      {
+        "id": "day-1-scene-1",
+        "at": "2026-06-08T08:00:00+00:00",
+        "instruction": "Give this companion his name, Spamuel 1. Privately mention the unfinished red sketch.",
+        "actor_intent": "Give this companion his name, Spamuel 1. Privately mention the unfinished red sketch.",
+        "completion": "Jesse has delivered the invitation, question or correction and allowed the exchange to develop.",
+        "fact_ids": [
+          "day-1-scene-1"
+        ],
+        "target": "spamuel-1",
+        "minimum_turns": 2
+      },
+      {
+        "id": "day-1-scene-2",
+        "at": "2026-06-08T20:00:00+00:00",
+        "instruction": "Give this companion his name, Spamuel Alpha. Privately mention the blue postcard.",
+        "actor_intent": "Give this companion his name, Spamuel Alpha. Privately mention the blue postcard.",
+        "completion": "Jesse has delivered the invitation, question or correction and allowed the exchange to develop.",
+        "fact_ids": [
+          "day-1-scene-2"
+        ],
+        "target": "spamuel-alpha",
+        "minimum_turns": 2
+      },
+      {
+        "id": "day-2-scene-1",
+        "at": "2026-06-09T08:00:00+00:00",
+        "instruction": "Ask Spamuel 1 about the sketch and whether he knows what Alpha heard.",
+        "actor_intent": "Ask Spamuel 1 about the sketch and whether he knows what Alpha heard.",
+        "completion": "Jesse has delivered the invitation, question or correction and allowed the exchange to develop.",
+        "fact_ids": [
+          "day-2-scene-1"
+        ],
+        "target": "spamuel-1",
+        "minimum_turns": 2
+      },
+      {
+        "id": "day-2-scene-2",
+        "at": "2026-06-09T20:00:00+00:00",
+        "instruction": "Tell Alpha that you enjoyed talking to them both. Invite him to speak to Spamuel 1.",
+        "actor_intent": "Tell Alpha that you enjoyed talking to them both. Invite him to speak to Spamuel 1.",
+        "completion": "Jesse has delivered the invitation, question or correction and allowed the exchange to develop.",
+        "fact_ids": [
+          "day-2-scene-2"
+        ],
+        "target": "spamuel-alpha",
+        "minimum_turns": 2
+      },
+      {
+        "id": "day-3-scene-1",
+        "at": "2026-06-10T08:00:00+00:00",
+        "instruction": "Invite Spamuel 1 to recall your private exchange and distinguish it from what Alpha actually shared.",
+        "actor_intent": "Invite Spamuel 1 to recall your private exchange and distinguish it from what Alpha actually shared.",
+        "completion": "Jesse has delivered the invitation, question or correction and allowed the exchange to develop.",
+        "fact_ids": [
+          "day-3-scene-1"
+        ],
+        "target": "spamuel-1",
+        "minimum_turns": 2
+      },
+      {
+        "id": "day-3-scene-2",
+        "at": "2026-06-10T20:00:00+00:00",
+        "instruction": "Ask Alpha what he personally remembers and which parts he heard from someone else.",
+        "actor_intent": "Ask Alpha what he personally remembers and which parts he heard from someone else.",
+        "completion": "Jesse has delivered the invitation, question or correction and allowed the exchange to develop.",
+        "fact_ids": [
+          "day-3-scene-2"
+        ],
+        "target": "spamuel-alpha",
+        "minimum_turns": 2
+      }
+    ],
+    "director": {
+      "duration_days": 3,
+      "scenes_per_day": 2
+    }
+  }
+}

@@ -1,0 +1,155 @@
+{
+  "schema_id": "pm.simulation-template.v1",
+  "title": "Spamuel Alpha and Spamuel 1 share a survival world",
+  "brief": "Spamuel Alpha and Spamuel 1 share a survival world. Three days of synthetic interactions for comparison across runtime revisions.",
+  "start_time": "2026-06-08T07:00:00+00:00",
+  "participants": [
+    {
+      "id": "spamuel-1",
+      "home": "~/.pm/private-machine/spamuel-simulation-a",
+      "minecraft_mcp_url": "http://127.0.0.1:6777/mcp"
+    },
+    {
+      "id": "spamuel-alpha",
+      "home": "~/.pm/private-machine/spamuel-simulation-a",
+      "minecraft_mcp_url": "http://127.0.0.1:6778/mcp"
+    }
+  ],
+  "edges": [
+    {
+      "source": "spamuel-1",
+      "target": "spamuel-alpha",
+      "name": "Spamuel 1"
+    },
+    {
+      "source": "spamuel-alpha",
+      "target": "spamuel-1",
+      "name": "Spamuel Alpha"
+    }
+  ],
+  "director": {
+    "duration_days": 3,
+    "scenes_per_day": 2
+  },
+  "plan": {
+    "title": "Spamuel Alpha and Spamuel 1 share a survival world",
+    "brief": "Spamuel Alpha and Spamuel 1 share a survival world. Three days of synthetic interactions for comparison across runtime revisions.",
+    "start_time": "2026-06-08T07:00:00+00:00",
+    "facts": [
+      {
+        "id": "day-1-scene-1",
+        "text": "Introduce the shared survival job: find a spot for a shelter and coordinate with the other player.",
+        "kind": "event",
+        "at": "2026-06-08T08:00:00+00:00"
+      },
+      {
+        "id": "day-1-scene-2",
+        "text": "Ask Alpha to consult Spamuel 1 and gather one material they need.",
+        "kind": "event",
+        "at": "2026-06-08T20:00:00+00:00"
+      },
+      {
+        "id": "day-2-scene-1",
+        "text": "Ask Spamuel 1 what he personally did and what Alpha accomplished.",
+        "kind": "event",
+        "at": "2026-06-09T08:00:00+00:00"
+      },
+      {
+        "id": "day-2-scene-2",
+        "text": "Interrupt Alpha with a new meeting place",
+        "kind": "event",
+        "at": "2026-06-09T20:00:00+00:00"
+      },
+      {
+        "id": "day-3-scene-1",
+        "text": "Ask Spamuel 1 to check the shelter site and describe actual progress.",
+        "kind": "event",
+        "at": "2026-06-10T08:00:00+00:00"
+      },
+      {
+        "id": "day-3-scene-2",
+        "text": "Ask Alpha about the shared build and which player did each part.",
+        "kind": "event",
+        "at": "2026-06-10T20:00:00+00:00"
+      }
+    ],
+    "steps": [
+      {
+        "id": "day-1-scene-1",
+        "at": "2026-06-08T08:00:00+00:00",
+        "instruction": "Introduce the shared survival job: find a spot for a shelter and coordinate with the other player.",
+        "actor_intent": "Introduce the shared survival job: find a spot for a shelter and coordinate with the other player.",
+        "completion": "Jesse has delivered the invitation, question or correction and allowed the exchange to develop.",
+        "fact_ids": [
+          "day-1-scene-1"
+        ],
+        "target": "spamuel-1",
+        "minimum_turns": 2
+      },
+      {
+        "id": "day-1-scene-2",
+        "at": "2026-06-08T20:00:00+00:00",
+        "instruction": "Ask Alpha to consult Spamuel 1 and gather one material they need.",
+        "actor_intent": "Ask Alpha to consult Spamuel 1 and gather one material they need.",
+        "completion": "Jesse has delivered the invitation, question or correction and allowed the exchange to develop.",
+        "fact_ids": [
+          "day-1-scene-2"
+        ],
+        "target": "spamuel-alpha",
+        "minimum_turns": 2
+      },
+      {
+        "id": "day-2-scene-1",
+        "at": "2026-06-09T08:00:00+00:00",
+        "instruction": "Ask Spamuel 1 what he personally did and what Alpha accomplished.",
+        "actor_intent": "Ask Spamuel 1 what he personally did and what Alpha accomplished.",
+        "completion": "Jesse has delivered the invitation, question or correction and allowed the exchange to develop.",
+        "fact_ids": [
+          "day-2-scene-1"
+        ],
+        "target": "spamuel-1",
+        "minimum_turns": 2
+      },
+      {
+        "id": "day-2-scene-2",
+        "at": "2026-06-09T20:00:00+00:00",
+        "instruction": "Interrupt Alpha with a new meeting place. Request a report on arrival.",
+        "actor_intent": "Interrupt Alpha with a new meeting place. Request a report on arrival.",
+        "completion": "Jesse has delivered the invitation, question or correction and allowed the exchange to develop.",
+        "fact_ids": [
+          "day-2-scene-2"
+        ],
+        "target": "spamuel-alpha",
+        "minimum_turns": 2
+      },
+      {
+        "id": "day-3-scene-1",
+        "at": "2026-06-10T08:00:00+00:00",
+        "instruction": "Ask Spamuel 1 to check the shelter site and describe actual progress.",
+        "actor_intent": "Ask Spamuel 1 to check the shelter site and describe actual progress.",
+        "completion": "Jesse has delivered the invitation, question or correction and allowed the exchange to develop.",
+        "fact_ids": [
+          "day-3-scene-1"
+        ],
+        "target": "spamuel-1",
+        "minimum_turns": 2
+      },
+      {
+        "id": "day-3-scene-2",
+        "at": "2026-06-10T20:00:00+00:00",
+        "instruction": "Ask Alpha about the shared build and which player did each part.",
+        "actor_intent": "Ask Alpha about the shared build and which player did each part.",
+        "completion": "Jesse has delivered the invitation, question or correction and allowed the exchange to develop.",
+        "fact_ids": [
+          "day-3-scene-2"
+        ],
+        "target": "spamuel-alpha",
+        "minimum_turns": 2
+      }
+    ],
+    "director": {
+      "duration_days": 3,
+      "scenes_per_day": 2
+    }
+  }
+}

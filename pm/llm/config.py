@@ -168,6 +168,7 @@ class ModelConfig(BaseModel):
     minecraft: MinecraftConfig | None = None
     ghost_backups: bool = Field(default=False, strict=True,
         description="Write an extra ghost copy after each accepted cognition cycle. The current checkpoint is always saved.")
+    profile_cognition: bool = Field(default=False, strict=True, description="Write workflow spans beside the runtime for the cognition debugger.")
     renderer_capture: RendererCaptureOptions = Field(default_factory=RendererCaptureOptions)
     thought_delay: float = Field(default=0.0, ge=0, allow_inf_nan=False,
         description="Wall-clock seconds to wait between accepted private graph operations; zero disables the delay.")

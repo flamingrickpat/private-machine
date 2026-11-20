@@ -342,9 +342,23 @@ class WorkflowModule(BusModule):
         """Run one kernel invocation and route exactly its terminal outcome."""
         proposal_batch = self.batch_provider() if self.batch_provider else None
         servers = self.mcp_services.services(environment) if self.mcp_services is not None else {}
-        with serve_services(servers) as descriptors:
-            runtime = self.create_runtime(environment, proposal_batch, descriptors or None)
-            result = self._runner().invoke(request, runtime, resume=resume)
+        profiler = self.application.profiler
+        span = profiler.begin_workflow(self.module_id, request.run_id, batch) if profiler is not None else None
+        try:
+            with serve_services(servers) as descriptors:
+                runtime = self.create_runtime(environment, proposal_batch, descriptors or None)
+                runtime.profiler = profiler
+                runtime.workflow_span_id = span.span_id if span is not None else ""
+                result = self._runner().invoke(request, runtime, resume=resume)
+        except BaseException as error:
+            if profiler is not None and span is not None:
+                try:
+                    profiler.finish_workflow(span, type(error).__name__)
+                except OSError as trace_error:
+                    error.add_note(f"Could not finalize profile span {span.span_id}: {trace_error}")
+            raise
+        if profiler is not None and span is not None:
+            profiler.finish_workflow(span, result.status.value)
         self.last_result = result
         self.last_kernel_summary = result.kernel_summary
         self.last_proposal_batch = proposal_batch

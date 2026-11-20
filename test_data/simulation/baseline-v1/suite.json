@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "reserve_gib": 16,
+  "participant_gib": 8,
+  "budget_usd": 100,
+  "scenarios": [
+    "jesse-spamuel",
+    "jesse-two-spamuels",
+    "two-spamuels-minecraft",
+    "jesse-spamuel-minecraft"
+  ]
+}
