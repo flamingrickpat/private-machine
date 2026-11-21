@@ -22,6 +22,7 @@ from pm.records.enums import FeatureType, InterlocusType, SourceKind
 from workflows.entity_context.projection import EntityContextChanged, expect_entity_context, validate_entity_context
 from workflows.main_cognition.experience import utterance_metadata
 from workflows.public_speech.publication_control import PublicationControl
+from workflows.public_speech.speech_text import reject_classifier_report
 from workflows.public_speech.dependencies import InteractionContextChanged, validate_dependencies
 
 if TYPE_CHECKING:
@@ -99,6 +100,7 @@ def commit_public_reply(ghost: MemoryStore, text: str, correlation: str, *, comm
                     unresolved = True
             if not unresolved:
                 return None
+        reject_classifier_report(text)
         batch = ghost.begin_batch(commit_id, cancel=cancel)
         inputs = set(context.revisions) if context is not None else set()
         if context is not None:

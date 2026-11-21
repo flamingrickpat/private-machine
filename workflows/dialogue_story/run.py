@@ -135,7 +135,7 @@ def command_accept(args: argparse.Namespace) -> int:
     print(f"accepted: {report.accepted}")
     print(f"candidate: {report.candidate!r}")
     if commit is not None:
-        print(f"committed knoxel {commit['knoxel_id']} under checkpoint {run_root / 'ghost.pickle'}")
+        print(f"committed knoxel {commit.knoxel_id} under checkpoint {run_root / 'ghost.pickle'}")
     if not report.accepted:
         return 2
     return 0

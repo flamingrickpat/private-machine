@@ -34,7 +34,9 @@ from workflows.dialogue_assistant.rendering import (AssistantPrompts, AssistantR
 from pm.utils import yaml_util
 import httpx
 from workflows.public_speech.public_context import DialogueTurn, memory_sections, task_lines
-from workflows.public_speech.speech_text import SpeechOutputError, strip_narrator_setup
+from workflows.public_speech.speech_text import (
+    CLASSIFIER_OUTPUT_ERROR, SpeechOutputError, strip_classifier_report, strip_narrator_setup,
+)
 from workflows.public_speech.speech_review import (
     SpeechReview, block_reason, is_blocked, load_prompts as load_review_prompts, review_speech,
     select_spoken_text,
@@ -259,12 +261,12 @@ def validate_public_speech(text: str) -> None:
 def final_public_speech(text: str, request: AssistantRequest) -> str:
     """Return one candidate utterance after the public-speech guards.
 
-    Raw tool protocol never becomes speech. Narrator framing is removed. An
-    empty candidate raises ``SpeechOutputError``, so the host keeps the
+    Strip classifier headers and narrator framing before checking for tool
+    protocol. An empty candidate raises ``SpeechOutputError``, so the host keeps the
     exchange pending instead of publishing an invented line.
     """
-    validate_public_speech(text)
-    speech = strip_narrator_setup(text, request.partner_name)
+    speech = strip_classifier_report(strip_narrator_setup(text, request.partner_name))
+    validate_public_speech(speech)
     if not speech:
         raise SpeechOutputError("The Assistant completion returned no public speech after its final text attempt.")
     return speech
@@ -407,11 +409,13 @@ def run(context: RoleContext) -> AssistantRoleResult:
         final_text = message.content.strip()
         if final_text:
             break
-    if not final_text:
-        # The tool budget is done and the model returned no text. Force one
-        # final, tool-free completion so the run always produces a result.
-        payload = capture_assistant_continuation(completion, AssistantContinuationInput(tuple(messages), (), request.images, prompts.get("generation", GenerationSettings()))).turns
-        raw = asyncio.run(completion.complete_tools_async(payload, tools=(), settings=prompts.get("generation", GenerationSettings())))
+    classifier_only = bool(final_text) and not strip_classifier_report(strip_narrator_setup(final_text, request.partner_name))
+    if not final_text or classifier_only:
+        # Tool results are already in the transcript. Repair only the spoken response.
+        problem = prompts["rejected_reply_recovery"].format(reason=CLASSIFIER_OUTPUT_ERROR) if classifier_only else ""
+        repair = AssistantContinuationInput(tuple(messages), (), request.images, generation, problem=problem)
+        payload = capture_assistant_continuation(completion, repair).turns
+        raw = asyncio.run(completion.complete_tools_async(payload, tools=(), settings=generation))
         message = parse_completion(raw)
         final_text = message.content.strip()
 

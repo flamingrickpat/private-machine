@@ -1,9 +1,38 @@
-"""Keep detached narrative setup outside a generated public utterance."""
+"""Separate generated speech from narrator setup and provider output."""
 import re
+
+
+CLASSIFIER_OUTPUT_ERROR = "The model returned a classification report without public speech."
 
 
 class SpeechOutputError(ValueError):
     """Model output has no usable public speech after bounded recovery."""
+
+
+def strip_classifier_report(text: str) -> str:
+    """Read speech following a leading DeepSeek report in the assistant content.
+
+    An envelope alone supplies no speech. A verdict or a line break can
+    separate it from a spoken continuation. Keep inline examples intact.
+    """
+    envelope = re.match(r"\s*<ds_safety>.*?</ds_safety>", text, flags=re.IGNORECASE | re.DOTALL)
+    if envelope is None:
+        return text
+    remainder = text[envelope.end():]
+    if not remainder.strip():
+        return ""
+    verdict = re.match(r"\s*(?:safe|unsafe)\b[ \t]*(?:[.!?。！？]+|\r?\n|\Z)", remainder, flags=re.IGNORECASE)
+    if verdict is not None:
+        return remainder[verdict.end():].strip()
+    if remainder.lstrip(" \t").startswith(("\r", "\n")):
+        return remainder.strip()
+    return text
+
+
+def reject_classifier_report(text: str) -> None:
+    """Reject a provider report before it can become a public dialogue record."""
+    if strip_classifier_report(text) != text:
+        raise SpeechOutputError("A classification report is still present in the public reply.")
 
 
 def strip_narrator_setup(text: str, user_name: str) -> str:

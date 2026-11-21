@@ -15,7 +15,6 @@ import threading
 from dataclasses import dataclass
 from uuid import uuid4
 from pathlib import Path
-from typing import Any
 from pydantic import BaseModel, JsonValue
 
 from pm.constants import Sampler
@@ -36,6 +35,7 @@ from pm.context_render.turns import Role, Turn
 from threading import Event
 from pm.runs.workflow_runner import WorkflowRequest, WorkflowResult, WorkflowRunner, WorkflowStatus
 from workflows.dialogue_story.schemas import StoryQualityScore, StoryReport, StoryRequest, StorySituation, EvaluationPrompts
+from workflows.public_speech.speech_text import reject_classifier_report
 from pm.memory.bash_view import MemoryBashEnvironment
 
 WORKFLOW_DIR = Path(__file__).resolve().parent
@@ -96,13 +96,21 @@ def generate_story(
     return result, report
 
 
+class StoryCommitReceipt(BaseModel):
+    """Identify the accepted standalone Story utterance in its saved checkpoint."""
+
+    commit_id: str
+    knoxel_id: int
+
+
 def commit_accepted_dialogue(ghost: MemoryStore, candidate: str, companion_name: str,
-                            commit_id: str) -> dict[str, Any]:
+                            commit_id: str) -> StoryCommitReceipt:
     """Commit one accepted reply as public dialogue memory.
 
     Called only for an accepted candidate, after generation. Trials never call
     this, so independent trials start from the same initial state.
     """
+    reject_classifier_report(candidate)
     batch = ghost.begin_batch(commit_id, new_tick=True)
     feature = batch.create(Feature(
         content=candidate,
@@ -113,7 +121,7 @@ def commit_accepted_dialogue(ghost: MemoryStore, candidate: str, companion_name:
         metadata={"memory_kind": "utterance", "factual_promotion": False},
     ))
     receipt = ghost.commit(batch)
-    return {"commit_id": receipt.commit_id, "knoxel_id": feature.id}
+    return StoryCommitReceipt(commit_id=receipt.commit_id, knoxel_id=feature.id)
 
 
 # --------------------------------------------------------------- evaluation

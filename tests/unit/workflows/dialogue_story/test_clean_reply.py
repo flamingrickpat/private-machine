@@ -71,6 +71,38 @@ class CleanReplyBubblesTest(unittest.TestCase):
 
 
 class TurnBoundaryTest(unittest.TestCase):
+    def test_user_line_is_not_a_reply_to_another_companion(self) -> None:
+        raw = '\nJesse says: "you know what, i\'m not even going to fight you on the dish."'
+        self.assertEqual(clean_reply(raw, "Spamuel", "Spamuel Alpha", other_speakers=("Jesse",)), "")
+
+    def test_transcript_heading_then_foreign_turn_has_no_speech(self) -> None:
+        raw = '# Continuing the Story\n\nJesse says: "ok dish handled, sink can brood."\nSpamuel: "Too late."'
+        self.assertEqual(clean_reply(raw, "Spamuel", "Spamuel Alpha", other_speakers=("Jesse",)), "")
+
+    def test_omission_before_foreign_turn_is_not_a_spoken_reply(self) -> None:
+        for omission in ("[...]", "[…]"):
+            with self.subTest(omission=omission):
+                foreign = f'{omission}\n\nJesse says: "The other player is asleep."'
+                self.assertEqual(clean_reply(foreign, "Spamuel", "Spamuel Alpha", other_speakers=("Jesse",)), "")
+                own = f'Spamuel says: "{omission}"\nJesse says: "Hello?"'
+                self.assertEqual(clean_reply(own, "Spamuel", "Jesse"), omission)
+                self.assertEqual(clean_reply(omission, "Spamuel", "Jesse"), omission)
+
+    def test_angle_wrapped_partner_turn_is_not_companion_speech(self) -> None:
+        foreign = '<Spamuel Alpha says: "one dish, by the way. i’m counting.">'
+        self.assertEqual(clean_reply(foreign, "Spamuel", "Spamuel Alpha"), "")
+        speech = f'I copied this line exactly: {foreign}'
+        self.assertEqual(clean_reply(speech, "Spamuel", "Spamuel Alpha"), speech)
+
+    def test_third_transcript_speaker_ends_the_companions_turn(self) -> None:
+        raw = 'Spamuel says: "First."\nSpamuel says: "Second."\n  tess (north): "Third."\nSpamuel: "Late."'
+        speakers = ("Spamuel", "Jesse", "Tess (North)")
+        self.assertEqual(clean_reply(raw, "Spamuel", "Spamuel Alpha", other_speakers=speakers), "First.\nSecond.")
+
+    def test_quoted_user_marker_in_peer_reply_is_spoken_text(self) -> None:
+        speech = 'You wrote “Jesse says: one dish.”\n> Jesse says: one dish.\nI kept the note.'
+        self.assertEqual(clean_reply(speech, "Spamuel", "Spamuel Alpha", other_speakers=("Jesse",)), speech)
+
     def test_inline_partner_colon_does_not_truncate_the_utterance(self):
         # An inline mention of the partner is quoted speech, not a turn start.
         raw = 'Sunny says: I told Rick: no. I meant it. That is all.'

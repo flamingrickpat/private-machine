@@ -25,7 +25,7 @@ in user turns cannot leak into it. There is no assistant prefill.
 
 The review (``speech_review.yaml``):
 
-- Empty output permits one recovery with the full original context.
+- Empty output or a classifier report without speech permits one recovery with the original context.
 - Each valid companion line receives one review.
 - A false task result receives correction feedback until a reply passes.
 - After ten follow-ups, generation starts again from the original context.
@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+from collections.abc import Collection
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, TypedDict
@@ -61,6 +62,7 @@ from pm.host.durable_files import atomic_json
 
 from pm.utils import yaml_util
 from pm.memory.retrieval import utc_time
+from pm.records.enums import FeatureType
 from workflows.public_speech.public_context import (
     ability_lines, memory_sections, plain_memory_text, task_lines, time_lines,
 )
@@ -71,7 +73,9 @@ from workflows.public_speech.story_rendering import (
 )
 from workflows.dialogue_story.history_rendering import history_review_context
 from workflows.minecraft_body.capabilities import CapabilitySnapshot
-from workflows.public_speech.speech_text import SpeechOutputError, strip_narrator_setup
+from workflows.public_speech.speech_text import (
+    CLASSIFIER_OUTPUT_ERROR, SpeechOutputError, strip_classifier_report, strip_narrator_setup,
+)
 from workflows.public_speech.speech_review import (
     block_reason, finding_summary, is_blocked, load_prompts as load_review_prompts, review_speech,
     select_spoken_text, ReviewPrompts,
@@ -392,21 +396,18 @@ def story_artifact_lines(request: StoryRequest, prompts: StoryPrompts) -> list[A
 
 def _line_start(text: str, marker: str) -> int | None:
     """Return the index where marker opens a line, or None. An inline match is not a turn boundary."""
-    index = text.find(marker)
-    while index != -1:
-        if index == 0 or text[index - 1] == "\n":
-            return index
-        index = text.find(marker, index + 1)
-    return None
+    match = re.search(rf"^[ \t]*{re.escape(marker)}", text, flags=re.MULTILINE | re.IGNORECASE)
+    return match.start() if match else None
 
 
-def clean_reply(raw: str, companion_name: str, partner_name: str, *, prefill: str = "") -> str:
+def clean_reply(raw: str, companion_name: str, partner_name: str, *, prefill: str = "",
+                other_speakers: Collection[str] = ()) -> str:
     """Keep only the companion's continuation.
 
     ``prefill`` is the exact transcript sent in the final assistant turn.
     Remove its full echo before speaker and day-marker checks.
-    Then cut the text at the first marker of any other
-    speaker or the start of a non-public state line. This prevents a
+    The partner, the home user and named speakers from the supplied history
+    can be different people. Cut at their first turn or a non-public state line. This prevents a
     model-invented next user turn from becoming stored dialogue.
 
     A marker only ends the reply when it opens a line, so no punctuation and no
@@ -416,7 +417,8 @@ def clean_reply(raw: str, companion_name: str, partner_name: str, *, prefill: st
     reply = (raw or "").lstrip()
     if prefill and reply.startswith(prefill):
         reply = reply[len(prefill):]
-    reply = reply.strip()
+    # A provider report can quote either speaker. Check before parsing its lines as turns.
+    reply = strip_classifier_report(reply.strip())
     leading_marker = False
     for prefix in (f"{companion_name} says:", f"{companion_name}:"):
         if reply.lower().startswith(prefix.lower()):
@@ -435,8 +437,7 @@ def clean_reply(raw: str, companion_name: str, partner_name: str, *, prefill: st
     # later reopens the companion line. Each marker counts only at a line start:
     # the companion quoting someone inside its own sentence is speech, and
     # cutting there would deliver half an utterance.
-    other_markers = [
-        f"{partner_name} says:", f"{partner_name}:",
+    nonpublic_markers = [
         "StateUpdate:", "Narrative:", "Fact:",
         # The transcript shows earlier private thoughts. A continuation that
         # starts a new thought line is not speech.
@@ -444,12 +445,26 @@ def clean_reply(raw: str, companion_name: str, partner_name: str, *, prefill: st
         # A new day marker is narration, not speech.
         "*(",
     ]
-    cut = len(reply)
-    for marker in other_markers:
+    foreign_cut = len(reply)
+    for name in {partner_name, *other_speakers}:
+        if name and name.casefold() != companion_name.casefold():
+            # A complete turn can also be enclosed in angle brackets by the writer.
+            label = rf"{re.escape(name)}(?: says| thinks)?:"
+            boundary = re.search(rf"^[ \t]*(?:{label}|<{label}[^\n]*>[ \t]*\r?$)",
+                                 reply, flags=re.MULTILINE | re.IGNORECASE)
+            if boundary is not None:
+                foreign_cut = min(foreign_cut, boundary.start())
+    cut = foreign_cut
+    for marker in nonpublic_markers:
         index = _line_start(reply, marker)
         if index is not None:
             cut = min(cut, index)
-    reply = reply[:cut].strip()
+    if cut < len(reply):
+        reply = reply[:cut].strip()
+        # A heading or a transcript omission before somebody else's turn is not a spoken bubble.
+        if cut == foreign_cut and not leading_marker and not prefill:
+            if reply in {"[...]", "[…]"} or re.fullmatch(r"#{1,6}[ \t]+Continuing the Story", reply, re.IGNORECASE):
+                return ""
 
     # Keep every own bubble up to that boundary, in order. Keeping only the text
     # after the last own marker delivered the fourth line of a multi-line
@@ -475,7 +490,8 @@ def clean_reply(raw: str, companion_name: str, partner_name: str, *, prefill: st
         if bubble:
             cleaned.append(bubble)
     reply = "\n".join(cleaned)
-    return strip_narrator_setup(reply, partner_name)
+    speech = strip_narrator_setup(reply, partner_name)
+    return strip_classifier_report(speech)
 
 
 def review_context(request: StoryRequest) -> PublicContext:
@@ -569,7 +585,16 @@ def generate_reviewed(request: StoryRequest, prompts: StoryPrompts, generate: Mo
                 raw = asyncio.run(generate.complete_async(messages, settings=prompts.get("generation", GenerationSettings())))
             except EmptyCompletionError as failure:
                 raw, error = "", str(failure)
-            candidate = clean_reply(raw, request.companion_name, request.partner_name, prefill=prefill)
+            other_speakers = {context.user_name}
+            other_speakers.update(turn.speaker for turn in request.prior_dialogue)
+            if rendered.temporal_history is not None:
+                other_speakers.update(item.source for item in rendered.temporal_history.items
+                                      if item.kind == "feature" and item.feature_type == FeatureType.Dialogue)
+            candidate = clean_reply(raw, request.companion_name, request.partner_name, prefill=prefill,
+                                    other_speakers=other_speakers)
+            classifier_only = not candidate and bool(raw.strip()) and not strip_classifier_report(raw)
+            if classifier_only:
+                error = CLASSIFIER_OUTPUT_ERROR
             attempt = StoryAttempt(raw_completion=raw, candidate=candidate,
                 message_roles=[message.role.value for message in messages],
                 context_selection=selection,
@@ -583,7 +608,8 @@ def generate_reviewed(request: StoryRequest, prompts: StoryPrompts, generate: Mo
                 # Keep the full context and request only new speech after empty output.
                 problem = prompts["empty_completion_recovery"].format(
                     companion_name=request.companion_name, partner_name=request.partner_name)
-                rejected_answer = raw
+                # The raw provider report stays in the receipt, outside the character's conversation.
+                rejected_answer = "" if classifier_only else raw
         else:
             raise SpeechOutputError("The Story completion returned no new speech after two generation attempts.")
         review_messages = None
