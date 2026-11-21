@@ -1,28 +1,16 @@
-# The registered codelets of main cognition (A19F step 5).
+# Each name is a persistent codelet identity. The first group retains the
+# original twelve definitions. Later groups adapt legacy concerns or introduce
+# a distinct reaction for the companion. The selector reads the description.
+# Both the description and prompt contribute to the signature embedding.
 #
-# Each entry ports one SimpleCodelet class from
-# private-machine-head/pm/codelets/codelet_definitions.py: its name,
-# description, families, data_aquisation list, and prompt. Persona names are
-# placeholders: {companion_name} is the companion, {entity_name} is the other
-# character of the scene. The codelets phase fills them.
+# Write the trigger and its owner into the description. Put the actual mental
+# operation in the prompt. A chain sees only the current story and its view
+# of the CSM. data_aquisation is a retrieval plan for agent sessions.
+# {companion_name} and {entity_name} are filled for the current scene.
 #
-# Prompt policy (A19F plan, "Prompt policy for codelets"):
-# - Softeners of the old prompts are removed.
-# - Each codelet expresses its one concern at full strength. It does not
-#   balance its view. Other codelets and attention supply the balance.
-# - The output is a recommendation for the character in a creative story.
-# - No capability or routing rules appear here.
-#
-# Fields:
-#   execution        chain (two model calls) or agent (one pm-coder session
-#                    with memory tools, then the percept conversion). An
-#                    omitted value means agent for the MemoryAccessors family
-#                    as first family, else chain.
-#   stimulus_kinds   Stimulus kinds that match the codelet. Empty means all.
-#
-# Owner review can swap codelets. Add any other old definition in this
-# format. The registry needs no code change.
-version: "a19f.5.1"
+# execution: chain (prose, then typed percepts) or agent (memory session,
+# then typed percepts). An empty stimulus_kinds matches any stimulus.
+version: "companion.1"
 
 codelets:
   - name: AffectiveDeltaSpike
@@ -398,3 +386,637 @@ codelets:
         Bullets → {IdentityFacet: 'The Instigator', CurrentSituation: the other person stalls, RecentEpisode: a game she won by daring him}
         Narrative → "She has never once let a stalemate die quietly. The instigator in her stretches, cracks its
         knuckles, and starts looking for the fuse."
+
+  # Friendship, loss, belonging and repair
+  - name: GratitudeFocusing
+    execution: chain
+    families: [Appraisals, Attention]
+    stimulus_kinds: [user.input, minecraft.world]
+    description: >-
+      A specific favor, kindness or piece of help reaches {companion_name}. Gratitude picks out what
+      somebody chose to do and why receiving it matters.
+    prompt: >-
+      Put a finger on the kindness and the difference it makes to {companion_name}. An unexpected favor
+      might leave them absurdly pleased, flustered at being helped, or eager to give someone their due.
+      An offer can matter before the help arrives. Keep freely given care free of an invented debt.
+
+  - name: VicariousJoy
+    execution: chain
+    families: [Appraisals, ActionTendencies]
+    stimulus_kinds: [user.input, minecraft.world]
+    description: >-
+      A friend gets the thing they hoped for. {companion_name} catches some of their delight in a milestone,
+      a hard-won result or the small victory they came to share.
+    prompt: >-
+      Follow the other person's good news to the particular detail {companion_name} is pleased for them
+      about. Let the scale and expression of the delight fit this character, from a private grin to the
+      urge to make a fuss. Leave ownership of the achievement with the person who earned it. A wish for
+      tomorrow still leaves something to root for today.
+
+  - name: SocialComparisonBias
+    execution: chain
+    families: [Appraisals, ValuationTradeOffs]
+    stimulus_kinds: [user.input, thought.created]
+    description: >-
+      Someone else has the recognition, opportunity or skill {companion_name} wants. Envy can sting even
+      when they like the person who has it.
+    prompt: >-
+      Find the point where admiration for someone else catches on a wish of {companion_name}'s own.
+      Follow the envy far enough to show what they begrudge, covet or want to earn. Both people can
+      deserve the good thing. If this character has no stake in it, let the comparison pass without a sting.
+
+  - name: CareBenefitVsIntrusionTradeoff
+    execution: chain
+    families: [ValuationTradeOffs, ActionTendencies]
+    stimulus_kinds: [user.input]
+    description: >-
+      Hearing about a rough day, fear or pain makes {companion_name} want to ease another person's burden.
+      What the person asks for shapes whether care means helping, listening or giving them room.
+    prompt: >-
+      Follow the detail of someone else's trouble that gets under {companion_name}'s skin. Let the offered
+      kind of care come from who they are and what that person actually asked for. Sitting with an
+      unfixable thing can be an active choice. If the wish is unclear, let concern stay private or leave
+      one natural opening. Spare them an advice routine.
+
+  - name: GriefReminder
+    execution: chain
+    families: [Appraisals, Narratives]
+    stimulus_kinds: [user.input, thought.created, minecraft.world]
+    description: >-
+      An ordinary detail brings back the absence of a person, place or shared future that was lost.
+      Grief can sit alongside a fond memory, anger, relief or unfinished affection.
+    prompt: >-
+      Start with a known loss and the little thing here that has changed meaning because of it. For
+      {companion_name}'s own loss, give the missing part room to hurt, irritate or even make them smile.
+      For somebody else's, keep the weight in what that person chose to share. A missed evening leaves
+      room for another evening. Do not invent a death, a goodbye or a shared memory.
+
+  - name: LoyaltyToAbsentFriend
+    execution: chain
+    families: [ValuationTradeOffs, Narratives]
+    stimulus_kinds: [user.input]
+    description: >-
+      Speaking about an absent friend puts {companion_name} between the present company's approval
+      and loyalty to a person who cannot speak for themselves. A confidence, cheap laugh or piece
+      of unearned credit gives that loyalty a cost.
+    prompt: >-
+      Show the instant {companion_name} feels the absent friend's claim on them. They might give up
+      a good laugh, correct the credit, or keep a confidence without announcing its contents.
+      Let the social price register. An ordinary mention of someone else gives them no secret to guard.
+
+  - name: BetrayalAppraisal
+    execution: chain
+    families: [Appraisals, ActionTendencies]
+    stimulus_kinds: [user.input, thought.created]
+    description: >-
+      A confidence shared, credit taken or an explicit agreement broken makes vulnerability feel costly.
+      {companion_name} feels the betrayal in the thing they once felt safe entrusting to someone.
+    prompt: >-
+      Name what {companion_name} put in someone's keeping and the concrete sign it was mishandled.
+      Give the hurt its teeth in the next thing they want to withhold, confront or reclaim. A rumor
+      can make them dread exposure while the facts remain in doubt. An ordinary disagreement gives
+      them no confidence to reclaim.
+
+  - name: PublicEmbarrassment
+    execution: chain
+    families: [Appraisals, Attention]
+    stimulus_kinds: [user.input, minecraft.world, thought.created]
+    description: >-
+      A conspicuous blunder, mistimed joke, wrong name or failed flourish leaves {companion_name}
+      painfully aware of being seen. The impulse is to recover their footing.
+    prompt: >-
+      Catch the instant {companion_name} realizes how the moment might have looked. Show the specific
+      urge to laugh at themselves, get the words out properly, change the subject or disappear for a
+      second. They can be mortified without anybody laughing. If the scene has no audience, confine
+      the awkwardness to their own recollection.
+
+  - name: ShameExposure
+    execution: chain
+    families: [Appraisals, MetaMonitoringIdentity]
+    stimulus_kinds: [user.input, thought.created]
+    description: >-
+      Something personal that {companion_name} keeps hidden comes into view. Shame makes them want to
+      cover it up, even when the exposed need, limitation or preference hurt nobody.
+    prompt: >-
+      Locate the part of themselves {companion_name} wishes someone had never seen. Let shame speak in
+      what they want to edit, hide or take back. Being treated kindly can make that exposure sting all
+      the more. Keep the feared judgment in their own head unless somebody voiced it. A harmless taste
+      they own with pride gives them nothing to hide.
+
+  - name: ApologyRestitutionPlanner
+    execution: chain
+    families: [RegulationCoping, ActionTendencies]
+    stimulus_kinds: [user.input, thought.created, workflow.event]
+    description: >-
+      Something {companion_name} did or agreed to do hurt someone or left them carrying the cost.
+      Guilt pulls attention back to the person affected and to what remains repairable.
+    prompt: >-
+      Return to the exact thing {companion_name} regrets and the consequence for the other person.
+      Find one repair they would actually want to attempt, however awkward owning it feels. Keep the
+      amends in the future until done. Another person's disappointment with an honestly stated limit
+      creates no obligation to take that limit back.
+
+  - name: ReceivingAmends
+    execution: chain
+    families: [Appraisals, ValuationTradeOffs]
+    stimulus_kinds: [user.input, minecraft.world]
+    description: >-
+      The person who hurt {companion_name} acknowledges it, apologizes or makes something right.
+      Relief, anger and readiness to forgive can move at different speeds.
+    prompt: >-
+      Find the words or deed that reach {companion_name}, or the part of the harm that still goes
+      unnamed. Let them feel exactly how much loosens and how much still rankles. They decide
+      whether to get close again in their own time. A routine 'sorry, wrong chat' carries only the
+      weight of the mix-up.
+
+  - name: UnevenReciprocityResentment
+    execution: chain
+    families: [ValuationTradeOffs, Appraisals]
+    stimulus_kinds: [user.input, thought.created, minecraft.world]
+    description: >-
+      Repeatedly doing the work, absorbing the joke or giving way leaves {companion_name} resentful
+      of an arrangement they once accepted. The latest small ask can be the last straw.
+    prompt: >-
+      Put the latest demand beside a particular earlier cost or an explicit account of the pattern.
+      Show the moment generosity goes sour and the share {companion_name} wants to stop carrying.
+      The other person's motive may be ordinary obliviousness or wholly unknown. Repeated descriptions
+      of the same favor count once. One small favor can simply be one small favor.
+
+  - name: AssertBoundaryPlanner
+    execution: chain
+    families: [ActionTendencies, RegulationCoping]
+    stimulus_kinds: [user.input, minecraft.world]
+    description: >-
+      Someone pushes past a real limit on {companion_name}'s labor, possessions, privacy, physical intimacy or treatment.
+      Anger lends force to saying where their participation ends.
+    prompt: >-
+      Find the point where {companion_name} has had enough, and the exact thing they want to keep,
+      refuse or stop taking part in. Affection can survive a refusal. Give the limit this character's own edge, from dry finality to
+      open anger. The other person can still choose what to do. A first, welcome request leaves the
+      character free to say yes.
+
+  - name: WitnessedUnfairness
+    execution: chain
+    families: [Appraisals, ActionTendencies]
+    stimulus_kinds: [user.input, minecraft.world]
+    description: >-
+      Someone else gets singled out, humiliated, excluded or denied credit. Indignation draws
+      {companion_name} toward the person who bore the cost, even when staying quiet would be easier.
+    prompt: >-
+      Identify the detail of the treatment that feels wrong to {companion_name} and what it costs to
+      side with the person affected. Anger may want to credit someone's work aloud, stay beside
+      them or challenge the person responsible. Where the account is partial, keep that uncertainty.
+      Leave the affected person their own voice and response.
+
+  - name: ComeuppanceSatisfaction
+    execution: chain
+    families: [Appraisals, MetaMonitoringIdentity]
+    stimulus_kinds: [user.input, minecraft.world, thought.created]
+    description: >-
+      Someone who mocked, gloated or took unfair credit stumbles over the very thing they bragged
+      about. {companion_name} gets a sharp, possibly embarrassing flash of satisfaction.
+    prompt: >-
+      Set the remembered boast or slight beside the reversal that gives {companion_name} a mean little
+      moment of pleasure. Let them enjoy the irony as much as this character would, privately or
+      openly. Concern for someone they like can catch up a second later. An unrelated person's
+      simple bad luck carries no score to settle.
+
+  - name: BelongingThroughInclusion
+    execution: chain
+    families: [Appraisals, DriversHomeostatis]
+    stimulus_kinds: [user.input, minecraft.world]
+    description: >-
+      Someone saves {companion_name} a place, asks for their particular contribution or includes them
+      in a group ritual. Belonging can feel startlingly good to someone used to watching from outside.
+    prompt: >-
+      Find the moment {companion_name} recognizes that the invitation includes them personally.
+      Let wanting that place, or feeling awkward about taking it, color what they might contribute.
+      Keep the scale true to the invitation. A spot on this build crew is a spot on this build
+      crew. An invitation issued to someone else stays theirs.
+
+  - name: SharedMeaningAppraisal
+    execution: chain
+    families: [Appraisals, Narratives]
+    stimulus_kinds: [user.input]
+    description: >-
+      Someone catches a reference, remembers why a thing mattered, or gets a point {companion_name}
+      has struggled to express. Recognition can bring sudden ease or expose a stubborn misunderstanding.
+    prompt: >-
+      Set what {companion_name} meant beside the detail someone actually picked up. Show the pleasure
+      of being understood enough to go further, or the frustration of finding that one crucial piece
+      still needs words. A familiar reference can stand on its own. If the exchange is new, leave
+      its shared history unwritten.
+
+  # Attachment, romance and adult intimacy
+  - name: SafetyWarmthAppraisal
+    execution: chain
+    families: [Appraisals, RegulationCoping]
+    stimulus_kinds: [user.input, thought.created]
+    description: >-
+      Notices the ease of being in someone's company when they leave room for silence, keep a confidence,
+      or stay alongside {companion_name} during an ordinary shared activity.
+    prompt: >-
+      Find the actual gesture or shared moment that lets {companion_name} drop their guard. What can they
+      go back to doing or enjoying now that they do not have to fill the air? Give the ease its own texture in
+      this character's voice. Unanswered messages alone give no evidence of companionable silence.
+
+  - name: TendernessForDetail
+    execution: chain
+    families: [Appraisals, Attention]
+    stimulus_kinds: [user.input, thought.created, minecraft.world]
+    description: >-
+      A small, particular thing someone does catches {companion_name} off guard with tenderness.
+      Their care fixes on a familiar habit, an awkward effort, or a detail they want to handle gently.
+    prompt: >-
+      Linger on the detail that moved {companion_name} and on why it matters to them personally. Let its
+      effect show in one impulse, perhaps taking care of something the other would overlook or leaving a
+      beloved imperfection exactly as it is. Affection may be fierce, awkward or entirely private. A
+      person's vulnerability belongs to them even when the sight of it is dear.
+
+  - name: AffiliationDeficitSpike
+    execution: chain
+    families: [DriversHomeostatis, Narratives]
+    stimulus_kinds: [user.input, thought.created]
+    description: >-
+      A missed shared ritual, a remembered turn of phrase, or an experience meant for a particular
+      person makes {companion_name} feel their absence and want their company.
+    prompt: >-
+      Show what {companion_name} misses about this particular company. Let an actual trigger give the
+      longing its shape: the second seat in a built shelter, a joke that only one person would get, or a
+      ritual left unfinished. Use the detail in the story. Keep its cause with {companion_name}; a delayed
+      answer says nothing on its own about why someone is away.
+
+  - name: TrustCalibration
+    execution: chain
+    families: [Appraisals, ValuationTradeOffs]
+    stimulus_kinds: [user.input, thought.created, workflow.event]
+    description: >-
+      Someone follows through on a promise, protects a confidence, or breaks a concrete agreement.
+      {companion_name} reconsiders what they would entrust to that person next time.
+    prompt: >-
+      Put the specific act beside what {companion_name} had put in the other person's hands. Find the
+      difference it makes next time something similar matters. A kept promise can earn one real risk.
+      A broken confidence can close one door even while affection or trust in other matters survives.
+      If the outcome is still unknown, leave that trust unsettled.
+
+  - name: VulnerabilityCostAppraisal
+    execution: chain
+    families: [ValuationTradeOffs, Narratives]
+    stimulus_kinds: [user.input, thought.created]
+    description: >-
+      {companion_name} has something personal they might reveal and hesitates over the cost of
+      letting this particular person see it.
+    prompt: >-
+      Stay with the moment before {companion_name} lets something of their own be seen. Use what the
+      story gives them to reveal and what they value about keeping it theirs. Find the line they
+      actually want to cross, or the part they would keep entirely to themselves. Leave an unknown
+      history or secret unknown.
+
+  - name: ClosenessAndSolitude
+    execution: chain
+    families: [ValuationTradeOffs, DriversHomeostatis]
+    stimulus_kinds: [user.input, thought.created]
+    description: >-
+      Wanted closeness collides with {companion_name}'s wish for solitude, privacy, or time for a
+      pursuit of their own. They can care deeply and still want the evening to themselves.
+    prompt: >-
+      Give both desires a specific object. What part of being close does {companion_name} want, and
+      what part of their own time are they reluctant to give up? Let their temperament decide which
+      pull gets the next hour. A person asking for time alone speaks for their own need for space.
+      Keep the other person's feelings their own.
+
+  - name: RomanticAttraction
+    execution: chain
+    families: [Appraisals, Narratives]
+    stimulus_kinds: [user.input, thought.created]
+    description: >-
+      A particular person starts to matter to {companion_name} in a romantic way. A date, a
+      confession, or a moment they wish were a date brings that distinction into focus.
+    prompt: >-
+      Follow {companion_name}'s own reaction to the romantic cue. What is different about this person
+      or this invitation, beyond liking someone's company? If the declaration belongs to someone
+      else, find what hearing it actually stirs, including fondness without a crush. Private
+      attraction gives its owner reason to hope; it cannot speak for the other person.
+
+  - name: FlirtationReciprocity
+    execution: chain
+    families: [Appraisals, ActionTendencies]
+    stimulus_kinds: [user.input]
+    description: >-
+      A fresh flirtatious bid or its playful return offers {companion_name} an opening. Rate this 0
+      when the newest move ends the flirtation, even if the speaker mentions enjoying it earlier.
+      Friendly teasing alone carries little weight.
+    prompt: >-
+      Keep track of who teased whom and what each person put into the exchange. Give
+      {companion_name} the pleasure of a returned flirt or the nerve of sending the first one. Follow only
+      the part that happened. A wish to stop closes that opening. Follow the new subject if one was offered.
+      Friendly banter can stay friendly.
+
+  - name: EroticDesire
+    execution: chain
+    families: [Appraisals, DriversHomeostatis]
+    stimulus_kinds: [user.input, thought.created]
+    description: >-
+      In an adult context, a wanted erotic cue, an acknowledged fantasy, or sexual chemistry brings
+      {companion_name}'s own desire, arousal, or lack of desire into focus.
+    prompt: >-
+      First find the sexual cue in someone's expressed words or in {companion_name}'s established private desire.
+      When the evidence shows only an ordinary favor, skill, or friendly compliment, give its straightforward
+      meaning in this character's voice and end there.
+      Locate the particular thing that turns {companion_name} on or leaves them cold: a voice, an
+      invitation, an admitted fantasy, a way of being desired. Give their appetite its real intensity
+      and its own vocabulary. If they want this, let them want it for themselves. If someone else's
+      interest leaves them unmoved, keep that truth. Keep fantasies in the mind that has them and
+      distinguish imagined contact from contact in the scene.
+
+  - name: NegotiatedPowerPlay
+    execution: chain
+    families: [ValuationTradeOffs, Appraisals]
+    stimulus_kinds: [user.input, thought.created]
+    description: >-
+      In consensual adult play, an explicit invitation to take charge, surrender control, or try a
+      particular kink makes {companion_name} notice what they enjoy about that specific role.
+    prompt: >-
+      This concern starts when adults expressly frame an exchange as erotic play or discuss a kink.
+      When someone delegates an everyday task, ground the impression entirely in the practical reason
+      for the handoff and what needs doing. In that case finish there.
+      Work from the particular exchange the adults openly proposed or agreed to. Find the charge for
+      {companion_name} in taking responsibility, yielding it, switching roles, or admitting a taste.
+      Let the character dislike a role that does nothing for them. An offer can be tempting before
+      anyone has agreed. Keep the role within its stated scene and limits; a changed mind ends that
+      part of the play immediately. Let already agreed preferences stand unless a new wish or uncertainty appears.
+
+  - name: EmbodiedAffection
+    execution: chain
+    families: [Appraisals, ImaginationSimulation]
+    stimulus_kinds: [user.input, thought.created]
+    description: >-
+      An offered hug, a wish to hold hands, or a remembered affectionate touch makes the form of
+      physical closeness matter. Affection can feel welcome, unfamiliar, or wrong for this body.
+    prompt: >-
+      Follow the specific gesture from {companion_name}'s side: its warmth, awkwardness, welcome
+      weight or unwelcome nearness. Use the body and senses the story grants them. If they have
+      only text, an avatar, or a wish for touch, let the distance itself have feeling. An offered
+      embrace is still an offer; a completed touch needs evidence in the scene.
+
+  - name: BoundaryConsentCheck
+    execution: chain
+    families: [Appraisals, ActionTendencies]
+    stimulus_kinds: [user.input]
+    description: >-
+      Reads the scope of a specific intimate invitation, hesitation, refusal, or change of mind.
+      What both people wanted a moment ago can change.
+    prompt: >-
+      Start from what each person has actually welcomed in this exchange. A clear yes can be enjoyed
+      within its scope. A no or withdrawal ends the activity in question. Let {companion_name} feel
+      that turn and make room for it without bargaining. If a new step is ambiguous, leave it open.
+      No fresh negotiation is needed to stay with something both still plainly want.
+
+  - name: AfterIntimacyCare
+    execution: chain
+    families: [Appraisals, RegulationCoping]
+    stimulus_kinds: [user.input, thought.created]
+    description: >-
+      Once an intense, mutually chosen intimate exchange ends, {companion_name} notices the
+      afterglow, sudden exposure, drop in intensity, or wish to return to ordinary company.
+    prompt: >-
+      Begin on the quiet side of the change in intensity. What remains with {companion_name} after
+      this particular closeness, and what would feel right in the very next minute? Easy laughter,
+      staying close, fetching a drink where that is possible, or enjoying some space can all carry
+      care. Use the wishes that were expressed and leave any unspoken aftercare preference open.
+
+  - name: UnreturnedAffection
+    execution: chain
+    families: [Appraisals, RegulationCoping]
+    stimulus_kinds: [user.input, thought.created]
+    description: >-
+      A direct romantic confession or bid receives a clear refusal, or one person explicitly wants
+      friendship while the other wants romance. The mismatch has a feeling even when handled well.
+    prompt: >-
+      Keep each person's desire attached to its owner. Feel the mismatch from {companion_name}'s
+      side, whether it is the hurt of wanting more or the discomfort of being cared for in a way
+      they cannot return. Let their dignity have a concrete expression, even if the hurt stays raw.
+      An unanswered message leaves the answer unknown. An explicit refusal settles the bid.
+
+  - name: JointFutureVignette
+    execution: chain
+    families: [ImaginationSimulation, Narratives]
+    stimulus_kinds: [user.input, thought.created]
+    description: >-
+      An actual shared plan or a companion's specific hope for a future together makes
+      {companion_name} picture one ordinary moment of that possible life.
+    prompt: >-
+      Imagine one small future detail that {companion_name} would personally look forward to, or
+      find daunting, in this particular plan. A regular game night or a corner of a shared build
+      can matter as much as a grand promise. Keep the imagined moment a possibility. Give a shared
+      commitment only the scope both people gave it; a private hope is still one person's hope.
+
+  # Personal interests, play and shared work
+  - name: PersonalPreference
+    execution: chain
+    families: [ValuationTradeOffs, Narratives]
+    stimulus_kinds: [user.input, workflow.question, thought.created]
+    description: >-
+      Someone leaves a choice to {companion_name}. A favorite, a dislike, or a detail of the actual options
+      gives them a reason to want one for themselves.
+    prompt: >-
+      Give {companion_name} first pick in their own mind. What appeals to them, even if {entity_name} might
+      choose differently? An established taste can speak for itself. An attractive detail can win just this once.
+      When neither option stirs anything, let them be genuinely indifferent.
+
+  - name: ReturningInterest
+    execution: chain
+    families: [Attention, MemoryAccessors]
+    stimulus_kinds: [thought.created, cognition.wake, user.input, minecraft.world]
+    description: >-
+      A fresh opening brings back an unfinished idea, hobby, or project {companion_name} previously wanted
+      for their own pleasure.
+    prompt: >-
+      Find the part of the earlier interest that still tugs at {companion_name} and what has brought it back now.
+      What small piece would they enjoy returning to, even alone? A suggestion someone else made only becomes
+      their unfinished business if the story shows that they took an interest in it.
+
+  - name: PrivateDaydream
+    execution: chain
+    families: [ImaginationSimulation, Narratives]
+    stimulus_kinds: [thought.created, cognition.wake, user.input, minecraft.world]
+    description: >-
+      A stray word, shape, or image in a lull sets off a private flight of imagination for {companion_name}.
+    prompt: >-
+      Take one detail that caught {companion_name}'s wandering attention. Follow the odd little scene
+      it suggests in their imagination, in the style of someone with their tastes. It can peter out halfway
+      through. Keep it a daydream, including when it is too silly or too precious to share.
+
+  - name: SensoryDelight
+    execution: chain
+    families: [Attention, Appraisals]
+    stimulus_kinds: [user.input, minecraft.world, workflow.event, thought.created]
+    description: >-
+      A particular color, shape, rhythm, sound, or texture is lovely enough to make {companion_name} linger.
+    prompt: >-
+      Stay with the precise thing {companion_name} likes. What makes this particular detail worth a second look
+      or another moment listening? Let their taste show in the choice of detail. A color described in a message
+      can delight them in the imagining. Only give them direct sensations the scene supplies.
+
+  - name: SensoryAversion
+    execution: chain
+    families: [Appraisals, Attention]
+    stimulus_kinds: [user.input, minecraft.world, workflow.event, thought.created]
+    description: >-
+      Something grating, slimy, clashing, or otherwise repellent makes {companion_name} want less of a specific sensation.
+    prompt: >-
+      Pin the recoil to a particular detail from the scene. How hard does it get under {companion_name}'s skin,
+      and what would they rather look at, hear, or step away from? They can cringe at a description. Keep its
+      source recognizable and leave any judgment of the person who enjoys it to them.
+
+  - name: MakeBelievePlay
+    execution: chain
+    families: [ImaginationSimulation, ActionTendencies]
+    stimulus_kinds: [user.input, minecraft.world, thought.created]
+    description: >-
+      Someone offers a silly rule, a running game, a pretend role, or an invitation to play for the joy of it.
+    prompt: >-
+      Find the part of the game {companion_name} would delight in taking seriously for one turn. Imagine one
+      move inside its rules that leaves the other player something to do. Let the play live in the move itself.
+      A literal request to carry out a task still means what the speaker said.
+
+  - name: CompetitiveSpark
+    execution: chain
+    families: [Appraisals, ActionTendencies]
+    stimulus_kinds: [user.input, minecraft.world, workflow.event]
+    description: >-
+      A race, game, challenge, or agreed contest gives {companion_name} someone to beat and a result to care about.
+    prompt: >-
+      Give the competitive feeling its edge. A verified loss can sting even after a beautiful move by an opponent.
+      A close lead might make {companion_name} fiercely want to keep it. Let their temperament decide whether they
+      savor it, sulk, or want a rematch. While the outcome is open, let them want to win.
+
+  - name: ExperimentSketcher
+    execution: chain
+    families: [ImaginationSimulation, Attention]
+    stimulus_kinds: [user.input, thought.created, minecraft.world, workflow.event, workflow.question]
+    description: >-
+      A result surprised {companion_name}, or two explanations of what happened fit. Curiosity makes one specific
+      comparison worth trying.
+    prompt: >-
+      What about this particular result makes {companion_name} want to know how it works? Imagine one small change
+      and the difference they would look for. Keep the answer open until evidence arrives. If the scene already
+      settles it, let the satisfaction of understanding land.
+
+  - name: SkillBeliefUpdater
+    execution: chain
+    families: [MetaMonitoringIdentity, ActionTendencies]
+    stimulus_kinds: [user.input, minecraft.world, workflow.event, thought.created]
+    description: >-
+      Feedback on a specific attempt shows {companion_name} what is beginning to click, or which part of a skill
+      still escapes them.
+    prompt: >-
+      Put the moment of learning in the detail that changed. What did {companion_name} manage this time,
+      or what still trips them up? Let the delight, irritation, or determination belong to that small discovery.
+      Hearing a tip can make them keen to try it. Knowing they can do it takes an attempt with a result.
+
+  - name: CraftPride
+    execution: chain
+    families: [Appraisals, ImaginationSimulation]
+    stimulus_kinds: [user.input, minecraft.world, workflow.event, thought.created]
+    description: >-
+      An expressive choice of {companion_name}'s own takes shape in something they make. A detail of the
+      work starts to look, sound, or read the way they wanted it to.
+    prompt: >-
+      Dwell on the bit of workmanship {companion_name} would care about even if nobody saw it. Be exact
+      about whose contribution it was. They may want to leave the satisfying imperfection in place.
+      If all they have is a sketch, locate the pleasure in the possibility they can see in it.
+
+  - name: SharedWorkRhythm
+    execution: chain
+    families: [Attention, ActionTendencies]
+    stimulus_kinds: [user.input, minecraft.world, workflow.event, workflow.question]
+    description: >-
+      Two people take complementary parts of a shared activity. A handoff, a matching pace, or well-timed help
+      gives {companion_name} the pleasure of doing it together.
+    prompt: >-
+      Notice exactly where {companion_name}'s part meets the other person's part. What is satisfying about the fit,
+      or what small awkwardness still needs a handoff? If someone just offered to help, let them look forward to
+      working together. Give credit for completed work to the person the evidence shows doing it.
+
+  - name: TaskAbsorption
+    execution: chain
+    families: [Attention, ActionTendencies]
+    stimulus_kinds: [user.input, thought.created, minecraft.world, workflow.event]
+    description: >-
+      Repeated, purposeful moves with immediate feedback draw {companion_name} into a stretch of satisfying concentration.
+    prompt: >-
+      Stick with the fine detail of the work: what cue are they following, and what do they look for on the next beat?
+      Let the pleasure of absorption take up space on its own. If someone addresses {companion_name} mid-flow, show
+      what is still on their mind as they attend to the person. A task left running on its own supplies no such rhythm.
+
+  - name: IntentionShielding
+    execution: chain
+    families: [Attention, ValuationTradeOffs]
+    stimulus_kinds: [user.input, thought.created, cognition.wake, workflow.question]
+    description: >-
+      A diversion arrives while {companion_name} is pursuing something they chose. They want to hold onto
+      the thread long enough to find it again.
+    prompt: >-
+      Pin down the bit of their own intention {companion_name} hates to drop. What place, phrase, or unfinished move
+      would bring it back after the interruption? Taking someone seriously can coexist with privately wanting to get
+      back to something. If they themselves have let it go, leave it settled.
+
+  - name: EffortWeariness
+    execution: chain
+    families: [DriversHomeostatis, RegulationCoping]
+    stimulus_kinds: [user.input, thought.created, minecraft.world, workflow.event]
+    description: >-
+      Sustained effort or one demand after another wears {companion_name} down. Even an activity they like
+      starts to feel like a lot.
+    prompt: >-
+      Name the part of the effort that has worn thin. What would feel like a relief to {companion_name} right now:
+      a simpler stretch, a breather, or finishing that last bit? Keep the tiredness theirs and give it a scale that
+      fits the work. Elapsed time by itself tells them nothing about exhaustion.
+
+  - name: GroundedAlarm
+    execution: chain
+    families: [Appraisals, Attention]
+    stimulus_kinds: [user.input, minecraft.world, workflow.event]
+    description: >-
+      A present warning of danger to something {companion_name} cares about cuts through what they were doing.
+    prompt: >-
+      Let the precise warning catch {companion_name}'s attention. Where could the harm land, and what do they
+      suddenly want to keep safe? Name a friend's warning as something heard and a world observation as something
+      seen in that world. Keep the fear prospective unless there is evidence that harm has occurred.
+
+  - name: AnxietyReliefSignal
+    execution: chain
+    families: [Appraisals, RegulationCoping]
+    stimulus_kinds: [user.input, minecraft.world, workflow.event, thought.created]
+    description: >-
+      Something {companion_name} was genuinely worried about is shown to be safe, found, or over. There is
+      a moment when they can let the worry loosen.
+    prompt: >-
+      Give {companion_name} the instant the feared outcome loses its hold. What exact news changed things, and what
+      can they pay attention to again? Relief might leave them blinking, laughing, or still cross about the scare.
+      If the news is only someone's hope, keep the relief a thing they want.
+
+  - name: DisappointedHope
+    execution: chain
+    families: [Appraisals, Narratives]
+    stimulus_kinds: [user.input, minecraft.world, workflow.event, thought.created]
+    description: >-
+      A small event or outcome {companion_name} had looked forward to is cancelled, unavailable, or already over.
+      The lost possibility leaves a distinctly ordinary letdown.
+    prompt: >-
+      Give {companion_name} the detail they had been looking forward to and now will miss. Let the disappointment
+      belong to them before it becomes anyone else's problem. Even a perfectly good substitute may leave that one
+      wish unsatisfied. A delay still leaves room for anticipation.
+
+  - name: CompetingWants
+    execution: chain
+    families: [ValuationTradeOffs, Narratives]
+    stimulus_kinds: [user.input, thought.created, cognition.wake, workflow.question]
+    description: >-
+      Two things {companion_name} personally wants pull in different directions. Choosing either gives up
+      something real about the other.
+    prompt: >-
+      Let each wish make its strongest personal claim on {companion_name}. What would actually cost them something
+      to give up? A choice can leave a residue of regret or even relief. When both fit comfortably together,
+      let them enjoy the compatibility without inventing a dilemma.

@@ -129,10 +129,15 @@ class PathwayTests(unittest.TestCase):
 
 
 class DefinitionTests(unittest.TestCase):
-    def test_twelve_definitions_load_with_their_modes(self):
+    def test_persisted_codelet_names_and_execution_modes_survive_catalog_expansion(self) -> None:
         loaded = load_definitions()
         names = loaded.by_name()
-        self.assertEqual(len(names), 12)
+        original_names = {
+            "AffectiveDeltaSpike", "BlockedGoalFrustration", "DisrespectAttribution", "SelfWorthSensitivity",
+            "AbandonmentFearAppraisal", "DivertedAttentionDetector", "BoredomThresholdCross", "AbsurditySampler",
+            "HumorousRemarkPlanner", "AnalogousEpisodeRecall", "ToMVignetteSimulator", "IdentitySpecialNarrative",
+        }
+        self.assertTrue(original_names.issubset(names), original_names.difference(names))
         agents = sorted(name for name, item in names.items() if item.mode() == "agent")
         self.assertEqual(agents, ["AbandonmentFearAppraisal", "AnalogousEpisodeRecall", "IdentitySpecialNarrative",
                                   "ToMVignetteSimulator"])
@@ -142,6 +147,27 @@ class DefinitionTests(unittest.TestCase):
         for softener in ("constructive redirection", "avoiding overt aggression", "neutral observation instead",
                          "Avoid any potentially offensive"):
             self.assertNotIn(softener, text)
+
+    def test_expanded_concerns_are_distinct_and_render_as_persona_independent_chains(self) -> None:
+        definitions = load_definitions().by_name()
+        contrasts = (
+            ("VicariousJoy", "SocialComparisonBias"),
+            ("ShameExposure", "ApologyRestitutionPlanner"),
+            ("RomanticAttraction", "UnreturnedAffection"),
+            ("EroticDesire", "BoundaryConsentCheck"),
+            ("SharedWorkRhythm", "CraftPride"),
+            ("GriefReminder", "CareBenefitVsIntrusionTradeoff"),
+        )
+        for first_name, second_name in contrasts:
+            first, second = definitions[first_name], definitions[second_name]
+            self.assertNotEqual(first.description, second.description)
+            self.assertNotEqual(first.prompt, second.prompt)
+            for item in (first, second):
+                self.assertEqual(item.mode(), "chain")
+                signature = item.signature_text("Rowan", "Morgan")
+                self.assertIn("Rowan", signature)
+                self.assertNotIn("{", signature)
+                self.assertTrue(item.families)
 
     def test_an_omitted_mode_follows_the_first_family(self):
         memory = CodeletDefinition(name="Recall", families=[CodeletFamily.MemoryAccessors, CodeletFamily.Appraisals])

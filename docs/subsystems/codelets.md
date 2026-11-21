@@ -8,9 +8,8 @@ A codelet reads the story and its own view of the current situational model (CSM
 It writes a recommendation for the character and converts it into typed percepts.
 The percepts enter the CSM. They do not change the mental state until attention puts them into a workspace shard.
 
-A19F step 5 replaced the A15 catalogue scheduler and the A16 repertoire.
-The registry now holds twelve codelets of the old generation as data.
-Each codelet keeps a persistent activation between cycles.
+The registry includes concerns such as grief, sexual desire, craftsmanship, envy, and relief.
+Each codelet keeps its own activation between cycles.
 An LLM selector, pathways, a cooldown, and base-level activation change that activation.
 Codelets run in waves, and a later wave sees the CSM after the earlier waves.
 
@@ -72,9 +71,12 @@ An unknown field or a duplicate name stops the cycle.
 
 Texts use the placeholders `{companion_name}` and `{entity_name}`.
 No persona name appears in the file.
-Owner review can swap codelets: add any old definition in the same format.
+To add a concern, describe the event that brings it up and whose feeling is at stake.
+Put that distinction in the description. The selector sees the descriptions of its candidates.
+Put the operation itself in the prompt. A chain receives its instructions, the story, and its selected CSM records.
+Only an agent uses the separate retrieval plan.
 
-### The twelve codelets
+### The original codelets
 
 | Codelet | Role | Mode |
 | --- | --- | --- |
@@ -91,17 +93,32 @@ Owner review can swap codelets: add any old definition in the same format.
 | `ToMVignetteSimulator` | What the other character wants or hides | agent |
 | `IdentitySpecialNarrative` | The self narrative facet that fits now | agent |
 
+### What the other concerns add
+
+| Situation | What can come to mind |
+| --- | --- |
+| A friend gets a hard-won opportunity | `VicariousJoy` attends to what the friend won. `SocialComparisonBias` notices whether the companion wanted it too. Both feelings can fit. |
+| Someone mentions a dead sibling | `GriefReminder` looks for the loss behind that detail. `CareBenefitVsIntrusionTradeoff` attends to the kind of company the speaker asked for. |
+| The companion hurt someone or exposed an insecurity | `ApologyRestitutionPlanner` looks for a repair to the harm. `ShameExposure` follows the wish to hide what someone saw. |
+| Someone invites the companion closer | `RomanticAttraction`, `UnreturnedAffection`, and `ClosenessAndSolitude` can produce different private responses to the same invitation. |
+| Two adults express sexual interest | `EroticDesire` follows the companion's own appetite. `NegotiatedPowerPlay` addresses chosen roles. `BoundaryConsentCheck` attends to what each person welcomes now. |
+| A trusted person shares a quiet evening | `SafetyWarmthAppraisal` notices what becomes easier in their company. `TendernessForDetail` can pick out something dear without prompting a declaration. |
+| Two players build together | `SharedWorkRhythm` notices a handoff. `CraftPride` needs a contribution the companion made. `SkillBeliefUpdater` looks for feedback on an actual attempt. |
+
+The character card, history, and present exchange supply the personal details.
+A codelet can suggest an impulse that stays private. Its recommendation cannot establish a relationship, grant consent, or confirm a game action.
+Stable names let a returning persona retain the activation and cooldown of familiar concerns.
+The registry creates a new entry when cognition first scores a new name.
+
 ### Prompt policy
 
-The prompts follow the plan section "Prompt policy for codelets":
+Each mechanism gets one point of view. When the story supplies its cue, the prompt asks for the character's private reaction at full strength.
+Pleasure at a rival's setback can be petty. Grief can arrive with relief. Attention decides which impressions carry into the workspace.
 
-- The softeners of the old prompts are removed, for example "if it feels disruptive, generate a neutral observation instead".
-- Each codelet expresses its concern at full strength. It does not balance its view. Other codelets and attention supply the balance.
-- The output is a recommendation for the character in a creative story, never advice to an assistant.
-- Codelet prompts hold no capability or routing rules.
-
-`ToMVignetteSimulator` kept its name, but its old purpose was an idealized vignette of respected boundaries.
-That purpose was a softener, so the definition now simulates what the other character wants or hides.
+A codelet can run on a poor match. For example, a partner might ask the companion to take the lead at a soundcheck.
+A shared closing instruction lets the codelet return a plain observation when the cue is absent.
+The conversion prompt asks for one percept with zero salience and valence in that case.
+The cycle still records the run. Its name alone supplies no evidence that the character felt anything.
 
 ## Registry state and activation
 
@@ -134,7 +151,7 @@ The port fixes three old defects: the old score used the cosine distance, the ol
 [`collect`][workflows.main_cognition.phases.codelets.collect] runs these steps:
 
 1. Score every codelet.
-2. The selector call rates the top `CODELET_SELECTOR_CANDIDATES` codelets from 0 to 1 for this moment of the story. Each rating adds `CODELET_SELECTOR_WEIGHT * rating` to the stored activation. ALPHA RUN ONLY (temporary, fix properly later): a rating moves at most `ALPHA_MAX_RATING_STEP` (1/3) from the previous rating of the same codelet ([`workflows.main_cognition.codelet_registry.add_rating`][]). So one tease cannot spike `BoredomThresholdCross`, but repetition over some cycles still raises it. The old code iterated the ratings without `.items()`. This port reads every rating.
+2. One selector call rates up to 62 candidates. This includes every concern in the shipped catalog. Each rating adds `CODELET_SELECTOR_WEIGHT * rating` to stored activation. Between two ratings of the same codelet, the applied value can move by at most one third. [`add_rating`][workflows.main_cognition.codelet_registry.add_rating]
    The selector first writes the patterns of the recent story (`CodeletRatings.patterns`), then rates how clearly the trigger of each codelet is present, not how well it fits the mood.
    The prompt also lists the earlier lines of the same speaker that echo the newest line, with their count ([`echoes`][workflows.main_cognition.phases.codelets.echoes]). A line echoes when its embedding cosine with the stimulus is at least `CODELET_ECHO_SIMILARITY`.
    In the A19F step 5 replay, the selector rated `BoredomThresholdCross` 0.1 although Jesse deferred the choice for the fourth time. A repetition across many turns was invisible to a model that read the newest line first.
@@ -174,7 +191,7 @@ A `chain` codelet makes two calls, as the old `AgentSimpleCodelet` did:
 
 ### Agent
 
-An `agent` codelet runs one pm-coder session through the `codelet_agent` tool ([`build_codelet_agent`][workflows.main_cognition.codelet_agent.build_codelet_agent]).
+An `agent` codelet opens a pm-coder session through [`CodeletAgent.execute`][workflows.main_cognition.codelet_agent.CodeletAgent.execute].
 The session works as follows:
 
 - A `MemoryReadSession` over the frozen grant of the run serves the memory tools through an MCP server bound to `0.0.0.0`.
@@ -245,10 +262,23 @@ The commit replaces it with the real tick in the CSM, the registry, and the work
 
 ## Inspect a real cycle
 
-1. Open the prompt logs (`PM_PROMPT_LOG_DIR`). The selector call ends with "act as a selector". Call 1 ends with the codelet instruction. Call 2 ends with the percept types.
+1. In the prompt logs (`PM_PROMPT_LOG_DIR`), search for “act as a selector” to find the candidate names and ratings. For a chain, the next two kinds of calls produce the prose recommendation and convert it into typed percepts.
 2. Agent sessions keep their transcripts under `llm-logs/agents/<run>-<codelet>_<attempt>/`.
 3. In the checkpoint, read the last cycle state: `csm.items` with endorsers and `codelets.codelets` with the runtime state.
 4. Read the `CodeletPercept` records of the tick and the `trace` of the turn record.
+
+For a repeatable comparison, run one scene against two catalogs with the same synthetic Spamuel seed or checkpoint.
+This command uses the configured chat and embedding endpoints.
+
+```powershell
+.venv/Scripts/python.exe -m tests.live.codelet_scene --config config.yaml --scene grief
+```
+
+Use `--catalog` for a candidate file and `--source` for an existing synthetic checkpoint.
+Each invocation writes its own checkpoint and `scene.json` under `.runtime/codelet-expansion/scenes/`.
+The receipt records the public reply and the main turn as each appears. The turn includes selector ratings, fired names, and percept text.
+A missing reply or turn stays empty if the run reaches its 30-minute deadline.
+Compare the two times. A public reply committed before the main turn cannot show an effect from that turn's newly committed percepts.
 
 ## Failure modes
 
@@ -263,6 +293,6 @@ The commit replaces it with the real tick in the CSM, the registry, and the work
 ## Limits
 
 - The family readouts of the state match are an engineering choice of A19F step 5. Tune them with replays.
-- The pathway boost is additive. Few old pathway chains link two of the twelve codelets. See [codelet pathways](codelet-pathways.md).
+- Exact names in the catalog determine which pathway successors are reachable. See [codelet pathways](codelet-pathways.md).
 - Agent sessions of one run take turns, so a wave with two agent codelets is slower than a wave of chains.
 - Token counts are estimates.

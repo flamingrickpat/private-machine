@@ -21,13 +21,14 @@ Earlier evidence: [A16 verification](../work_items/verification/a16-codelets.md)
 A chain alternates codelet names and [`CodeletActivation`][workflows.main_cognition.codelet_pathways.CodeletActivation] steps.
 The old file referenced codelet classes. The copy names each codelet as a string, because the registry holds codelets as data.
 
-Most named codelets are not registered.
-Of the twelve registered codelets, these chains link two directly:
+The active links depend on the names in the loaded catalog. Examples in the shipped catalog include:
 
 - `BlockedGoalFrustration` boosts `DisrespectAttribution` (wrath).
 - `AnalogousEpisodeRecall` boosts `ToMVignetteSimulator` (empathy).
+- `AffiliationDeficitSpike` boosts `VulnerabilityCostAppraisal`. Missing someone can bring up what it would cost to tell them.
 
-Other links skip unregistered codelets and are therefore weak, for example `SelfWorthSensitivity` to `IdentitySpecialNarrative` across seven skipped codelets.
+Other links cross unregistered names. `TrustCalibration` can reach `GratitudeFocusing` across one skipped codelet.
+The boost lets gratitude compete after trust has come to mind. The current scene still needs a reason for gratitude.
 
 ## Rules
 

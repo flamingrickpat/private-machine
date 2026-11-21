@@ -23,16 +23,36 @@ job_template: |
   Instructions:
   {instructions}
 
-  Express this mechanism's concern at full strength. Do not soften it, do not balance it against other concerns,
-  and do not worry that it is too harsh, too petty, or too strange. Other mechanisms of the mind supply the balance.
-  Write a recommendation for the character {companion_name} in this story: what {companion_name} feels, thinks,
-  and wants to do or say next, from this one concern. Write prose only, in the third person, 2 to 4 sentences.
+  Find the cue for this particular concern in the supplied story. Who did, felt, owned or offered what?
+  Being assigned this mechanism supplies no evidence that its cue occurred.
+
+  If the cue is absent, let the concern stay quiet. Return one short third-person sentence restating a literal
+  fact in the current scene. Preserve the speaker, action and tense. Add no detail, feeling, interpretation or
+  course of action. Stop there.
+
+  If the cue is present, imagine {companion_name}'s present private reaction at full strength. Other mechanisms
+  supply the balance. A thought can be petty, tender, ugly or strange. Make it vivid with the supplied detail,
+  a metaphor or an impulse. The present reaction and a possible next move are yours to invent. The past and
+  the outside world belong to the story already given. Use a memory or someone's habitual gesture only when that
+  particular episode or habit appears in the supplied material. Keep a report as something heard, a possibility
+  as something imagined, and a wish as something still undone. Write two to four sentences of third-person prose.
 
 conversion_template: |
   Very nice. I want to keep track of all possible story paths, so please put the result of your analysis into JSON.
   I defined a few possible percept types for easy categorization. Fill as many of them as fit, at least one.
   Write the text fields as story prose about {companion_name}.
   {schema}
+
+  Convert only what the preceding recommendation actually says. The earlier scene identifies sources.
+  It supplies no additional feeling, decision or plan to fill out the JSON.
+
+  A single sentence that simply restates a fact is this mechanism's quiet result. Use exactly one of the offered
+  types. Give that percept salience 0 and valence 0, with both appraisal maps empty. Put the literal fact in
+  its text and leave other fields empty wherever the schema permits. If a required feeling or decision field has
+  no value in the recommendation, say "none expressed". A mechanism's name is never evidence of its feeling.
+
+  For an active recommendation keep its people, intensity, tense and uncertainty. Use the percepts and ratings
+  its actual content warrants. A wish remains a wish and an idea remains a possibility.
 
   Also fill:
   - "target": the part of the story that your result concerns. Use exactly one name from this list: {targets}.
@@ -51,15 +71,15 @@ selector_template: |
   I have a list of mental mechanisms that can shape what {companion_name} feels and does next in this story. The
   list is long, so act as a selector.
 
-  First read the recent story for patterns, not only the newest line: a request, dodge, question, or move that
-  comes back again (count how often it came back in the recent turns), a slight, a loss of attention, a sudden turn
-  of feeling, an absurd collision, a stuck goal. Write these patterns in "patterns", in two to four sentences.
+  In "patterns", name what the people in the scene actually did or said and what changed in the newest turn.
+  A repeated event needs distinct occurrences. A trait or motive needs evidence of its own. An ordinary moment
+  can stand alone. One or two sentences usually suffice.
 
-  Then rate each mechanism from 0 to 1: how clearly the thing that this mechanism reacts to is in the story right
-  now, in the patterns or in the newest line. Rate the trigger, not the mood. A mechanism whose trigger is present
-  rates high even when it clashes with {companion_name}'s current feeling: a mind holds friction, and other
-  mechanisms supply the balance. 1 means its trigger is plainly there and it must speak now. 0 means its trigger is
-  absent.
+  Pick out the few mechanisms whose cues you can point to in this scene. Score those directly, then fill
+  every remaining name with 0 in one pass. Equal ratings are fine. A plain practical exchange can have
+  very few matches. Give a plainly present cue its full weight, even if it conflicts with {companion_name}'s
+  mood. Keep each feeling with its owner. A clear stop closes the earlier invitation. Ordinary companionship
+  can stay platonic. Desire is a strong match when the character or the exchange gives it a real cue.
 
   {echoes}
   Mechanisms:
