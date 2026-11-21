@@ -107,10 +107,13 @@ class AssistantDialogue(PublicDialogue):
         intent = str(action.content) if action is not None else action_request.content
         current_lines, planned, public = self.prepare_reply(action_request)
         current = "\n".join(item.text for item in current_lines)
-        tools = reply_tools(terminal_receipt=bool(action_request.task_receipt))
+        task_receipt = action_request.task_receipt
+        # Receipt replies render the accepted evidence. Re-reading a run can
+        # return its entire event history and does not prove any further work.
+        tools = [] if action_request.action_origin == "task_reply" else reply_tools(terminal_receipt=task_receipt is not None)
         names = PromptNames(self.ghost.get_companion_name(), public.partner_name)
         request = AssistantRequest(
-            task_result_supplied=bool(action_request.task_receipt),
+            task_result_supplied=task_receipt is not None,
             companion_name=self.ghost.get_companion_name(),
             partner_name=public.partner_name,
             character_card=self.ghost.get_simple_character_story_block(),

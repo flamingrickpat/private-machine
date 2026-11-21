@@ -19,6 +19,7 @@ from pm.runs.supervisor import ManagedRunSupervisor
 from pm.runs.workflow_runner import PROJECT_ROOT
 from pm.runs.workflow_spec import WorkflowSpec
 from workflows.dialogue_assistant.host import AssistantDialogue
+from workflows.dialogue_assistant.schemas import AssistantRequest
 from workflows.main_cognition.cycle_work import CycleRequest
 from workflows.main_cognition.phases.intake import group_stimuli
 from workflows.main_cognition.phases.route import body_lease
@@ -101,6 +102,9 @@ class ManagedRoutingTests(unittest.TestCase):
                 metadata={"exchange_correlation": "new-exchange", "exchange_status": "pending"}))  # pm-lint: allow PM005 -- serialized dialogue record metadata
             ghost.commit(followup)
             self.assertEqual(assistant.late_partner_lines(terminal.dispatch_payload), [])
+            reply_input = AssistantRequest.model_validate(assistant.prepare_input([envelope]))
+            self.assertTrue(reply_input.task_result_supplied)
+            self.assertFalse(reply_input.tools)
             terminal_id = commit_public_reply(ghost, "Worker stopped.", "exchange",
                 commit_id="test-terminal", action_id=replies[1].id, action_origin="task_reply")
             self.assertIsNotNone(terminal_id)

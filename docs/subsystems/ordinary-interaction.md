@@ -53,8 +53,8 @@ This path works before the first accepted main cycle. Main cognition can apprais
 SelfManagement sends the committed request to the supervisor.
 The supervisor uses the action ID to admit the run once and checks whether another run owns the resource.
 A start receipt can trigger a short acknowledgment in the companion's voice.
-Speech generation and review use the receipt and accepted context without a new memory search.
 A separate terminal receipt supplies evidence for the result.
+Both replies use the receipt and accepted context. They need no new retrieval or tool calls.
 
 The assessment links the request knoxel to the action knoxel. Both the start and terminal receipts use this action as their cause.
 The debugger can follow that link from conversation to workflow and back to each public reply.
