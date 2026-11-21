@@ -98,7 +98,7 @@ class ManagedRoutingTests(unittest.TestCase):
             followup = ghost.begin_batch("test-followup", embed=False)
             followup.create(Feature(content="What else is on your mind?", feature_type=FeatureType.Dialogue,
                 override_source="Jesse", provenance=Provenance(source_kind=SourceKind.User, source_ref="Jesse"),
-                metadata={"exchange_correlation": "new-exchange", "exchange_status": "pending"}))
+                metadata={"exchange_correlation": "new-exchange", "exchange_status": "pending"}))  # pm-lint: allow PM005 -- serialized dialogue record metadata
             ghost.commit(followup)
             self.assertEqual(assistant.late_partner_lines(terminal.dispatch_payload), [])
             terminal_id = commit_public_reply(ghost, "Worker stopped.", "exchange",

@@ -97,7 +97,7 @@ class EarlyTriageBoundaryTests(unittest.TestCase):
         self.addCleanup(directory.cleanup)
         root = Path(directory.name)
         supervisor = ManagedRunSupervisor(self.store, runtime_root=root / "runtime", task_root=root / "tasks",
-            workflows={"local_task": WorkflowSpec(
+            workflows={"local_task": WorkflowSpec(  # pm-lint: allow PM005 -- actual workflow specs indexed by registered name
                 PROJECT_ROOT / "workflows/local_task/local_task.workflow.md",
                 routine_start=True, direct_request="Start the local control worker.")}, clock=time.time)
         self.control.workflow_catalogue = WorkflowCatalogue(supervisor, None)
@@ -124,7 +124,7 @@ class EarlyTriageBoundaryTests(unittest.TestCase):
         source = self.submit("Start the local worker.")
         self.submit("Wait. Leave the worker off.")
         accepted = self.assess(source, "Moderate", task=WorkflowTaskRequest(workflow_name="local_task"))
-        self.assertEqual(accepted.routine_task_action_ids, {})
+        self.assertFalse(accepted.routine_task_action_ids)
         self.assertFalse(any(isinstance(record, ActionSchemaRecord) for record in self.store.all_knoxels.values()))
 
     def accept_cycle(self, source_ids: list[int]) -> int:
