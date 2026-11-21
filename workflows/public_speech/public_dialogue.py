@@ -230,7 +230,7 @@ class PublicDialogue(CognitiveWorkflow):
         the user or another agent count, as in :meth:`partner_stimuli`. A
         recovery or task reply has no cycle, so it has no late lines.
         """
-        if request.recovery_outcome or not request.shards:
+        if request.recovery_outcome or request.action_origin == "task_reply" or not request.shards:
             return []
         frontier = self.cycle_frontier(request)
         partner = request.partner_name or self.ghost.get_user_name()
@@ -257,9 +257,15 @@ class PublicDialogue(CognitiveWorkflow):
 
         A newer partner line does not make the reply stale. The reply
         re-anchors to that line instead (``late_partner_lines``).
+
+        A terminal task receipt adds evidence after an acknowledgment. Its
+        action has its own durable public-reply identity.
         """
         from workflows.public_speech.publication import exchange_record
         if request.recovery_outcome:
+            return ""
+        if (request.action_origin == "task_reply" and request.task_receipt is not None
+                and not request.task_receipt.admission_only):
             return ""
         exchange = exchange_record(self.ghost, envelope.correlation_id) if envelope.correlation_id else None
         if exchange is None:

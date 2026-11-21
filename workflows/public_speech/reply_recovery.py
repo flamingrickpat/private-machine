@@ -2,9 +2,9 @@
 
 A managed task outlives the cycle that started it, so its public answer
 cannot come from that cycle. This module rebuilds the missing request from
-durable evidence: the accepted user exchange, the selected reply action, and
-the terminal run receipt. It never invents speech and never asks for a reply
-that the cycle did not already choose.
+durable evidence: the accepted user exchange, the selected action, and the
+admission or terminal run receipt. The action identifies whether its worker
+owes a public reply.
 
 Inputs are bus envelopes (``workflow.event``, ``workflow.question``,
 ``action.receipt``, ``public.resume``) and the supervisor's receipts. Outputs

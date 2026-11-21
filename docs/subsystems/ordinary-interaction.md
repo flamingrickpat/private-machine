@@ -16,6 +16,7 @@ Related: [situational guidance](situational-guidance.md), [public dialogue](publ
 | Producer | Consumer | Information |
 | --- | --- | --- |
 | Early triage | Cognitive control and selection | Attributed input, significance, and critical epoch |
+| Early triage | SelfManagement | Committed task dispatch with the original request and its constraints |
 | Accepted main state | Ordinary selection | Intentions, feeling, workspace, and prior experience |
 | Current records | Situation projection | Partner evidence, new input, capabilities, and previous moves |
 | Ordinary selection | Public speech | Durable local decision and selected action |
@@ -26,7 +27,7 @@ Related: [situational guidance](situational-guidance.md), [public dialogue](publ
 Its request combines accepted main guidance with current partner input and the shared situation projection.
 The kernel reuses decision and routing without running appraisal, retrieval, attention, or goal revision for that local choice.
 Prior experience remains labeled as prior context; an unexecuted phase supplies no fabricated result.
-Before any accepted main guidance exists, initial input uses the full main path.
+Before any accepted main guidance exists, the full main path handles ordinary conversation.
 
 The route sees the available action space.
 A reply uses the existing speech owner.
@@ -38,11 +39,25 @@ Other consequential proposals still go through full reconsideration.
 Quiet selection creates no permanent silence rule or replacement intention.
 Partner availability remains an inference from evidence, without a conversational permission agent.
 
-SelfManagement uses the accepted action to obtain a durable run receipt from the supervisor.
-The receipt can trigger a short public acknowledgment while the workflow runs.
-A later terminal receipt supplies the outcome for a separate reply.
 Ordinary interaction can read the requesting partner's existing runs and direct a status, update, or stop request to that run.
 Managed-run events contribute to the named workflow's shard. Detailed worker evidence stays with the run.
+
+## Explicit background task requests
+
+When Jesse asks Spamuel to gather three logs and return to a landmark, the worker needs those requirements even if Spamuel jokes about them.
+Early triage can identify a concrete request for a workflow that accepts the speaker's original text.
+The model identifies the workflow and copies explicit constraints from the message.
+Cognitive control checks the current input and Critical barrier, then commits the dispatch with the triage assessment.
+This path works before the first accepted main cycle. Main cognition can appraise the exchange while the worker runs.
+
+SelfManagement sends the committed request to the supervisor.
+The supervisor uses the action ID to admit the run once and checks whether another run owns the resource.
+A start receipt can trigger a short acknowledgment in the companion's voice.
+Speech generation and review use the receipt and accepted context without a new memory search.
+A separate terminal receipt supplies evidence for the result.
+
+The assessment links the request knoxel to the action knoxel. Both the start and terminal receipts use this action as their cause.
+The debugger can follow that link from conversation to workflow and back to each public reply.
 
 ## Concurrent execution
 
@@ -112,6 +127,8 @@ Model and human quality ratings remain separate from these engineering records.
 
 - [`Interaction`][workflows.interaction.host.Interaction] owns ordinary selection and replay.
 - [`select_interaction`][workflows.interaction.steps.select_interaction] reuses the character decision and route.
+- [`stage_workflow_requests`][workflows.input_triage.workflow_requests.stage_workflow_requests] commits an explicit request with its original exchange.
+- [`ReplyRecovery`][workflows.public_speech.reply_recovery.ReplyRecovery] turns run receipts into requests for public speech.
 - [`WorkDependencies`][workflows.public_speech.dependencies.WorkDependencies] carries the observed frontier.
 - [`SourceDependency`][pm.memory.dependencies.SourceDependency] defines source meaning and current-authority requirements.
 - [`InferenceAdmission`][pm.llm.concurrency.InferenceAdmission] owns per-call scheduling.

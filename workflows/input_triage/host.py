@@ -24,6 +24,12 @@ call. Provider/model-format failures retain diagnostics and retry with visible
 status and cancellation. Internal errors propagate. Restart derives pending
 work from durable input and assessment records; no model result is fabricated.
 
+When a workflow opts in, the classification call can also identify a direct
+partner request. Cognitive control stages its action beside the assessment.
+The host then publishes the committed dispatch to SelfManagement. The
+supervisor owns worker admission and later receipts. Main cognition still
+appraises the source but leaves action selection to the accepted dispatch.
+
 This first boundary covers ``user.input``, including attributed peer input.
 Other stimulus kinds retain their existing full-cycle triage.
 """

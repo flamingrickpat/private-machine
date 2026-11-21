@@ -9,6 +9,7 @@ from tempfile import TemporaryDirectory
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import new_envelope
 from pm.host.application import Application
+from pm.memory.bash_view import MemoryBashTarget
 from pm.memory.store import MemoryStore
 from pm.records.base import Provenance
 from pm.records.cycle_state import PersonaConfig
@@ -17,10 +18,12 @@ from pm.records.memory_records import ActionSchemaRecord, Feature
 from pm.runs.supervisor import ManagedRunSupervisor
 from pm.runs.workflow_runner import PROJECT_ROOT
 from pm.runs.workflow_spec import WorkflowSpec
+from workflows.dialogue_assistant.host import AssistantDialogue
 from workflows.main_cognition.cycle_work import CycleRequest
 from workflows.main_cognition.phases.intake import group_stimuli
 from workflows.main_cognition.phases.route import body_lease
-from workflows.main_cognition.schemas import ActionArguments, ActionDispatch, Stimulus, WorkflowOption
+from workflows.main_cognition.schemas import ActionArguments, ActionDispatch, PendingDispatch, Stimulus, WorkflowOption
+from workflows.public_speech.publication import commit_public_reply
 from workflows.public_speech.reply_recovery import ReplyRecovery
 
 
@@ -78,3 +81,28 @@ class ManagedRoutingTests(unittest.TestCase):
             self.assertEqual([record.metadata["task_run_id"] for record in replies], [run_id, run_id])
             self.assertTrue(replies[0].metadata["action_id"].startswith("task-admission:"))
             self.assertTrue(replies[1].metadata["action_id"].startswith("task-reply:"))
+            admission = PendingDispatch.model_validate(replies[0].metadata)
+            terminal = PendingDispatch.model_validate(replies[1].metadata)
+            assert admission.dispatch_payload.task_receipt is not None
+            self.assertTrue(admission.dispatch_payload.task_receipt.admission_only)
+            acknowledgment_id = commit_public_reply(ghost, "Worker accepted.", "exchange",
+                commit_id="test-acknowledgment", action_id=replies[0].id, action_origin="task_reply")
+            self.assertIsNotNone(acknowledgment_id)
+            assistant = AssistantDialogue("assistant", Application(BusSystem(), []), None,
+                working_target=MemoryBashTarget(ghost, "read"),
+                workflow=PROJECT_ROOT / "workflows/dialogue_assistant/dialogue_assistant.workflow.md",
+                runtime_root=root / "runtime", ghost=ghost, tools_factory=None)
+            envelope = new_envelope("reply_recovery", "data", "action.request", "exchange",
+                                    terminal.dispatch_payload.payload(), target="dialogue_assistant")
+            self.assertEqual(assistant.stale_reply_reason(envelope, terminal.dispatch_payload), "")
+            followup = ghost.begin_batch("test-followup", embed=False)
+            followup.create(Feature(content="What else is on your mind?", feature_type=FeatureType.Dialogue,
+                override_source="Jesse", provenance=Provenance(source_kind=SourceKind.User, source_ref="Jesse"),
+                metadata={"exchange_correlation": "new-exchange", "exchange_status": "pending"}))
+            ghost.commit(followup)
+            self.assertEqual(assistant.late_partner_lines(terminal.dispatch_payload), [])
+            terminal_id = commit_public_reply(ghost, "Worker stopped.", "exchange",
+                commit_id="test-terminal", action_id=replies[1].id, action_origin="task_reply")
+            self.assertIsNotNone(terminal_id)
+            self.assertIsNone(commit_public_reply(ghost, "Worker stopped.", "exchange",
+                commit_id="test-terminal-replay", action_id=replies[1].id, action_origin="task_reply"))

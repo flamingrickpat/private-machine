@@ -1,4 +1,7 @@
-"""Stage an explicit partner task using the original exchange as its authority."""
+"""Stage an explicit partner task using the original exchange as its authority.
+
+See :mod:`workflows.input_triage.host` for classification and dispatch ordering.
+"""
 from __future__ import annotations
 
 from pm.memory.snapshot import Snapshot
