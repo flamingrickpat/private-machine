@@ -1,7 +1,5 @@
 {
   "version": 1,
-  "reserve_gib": 16,
-  "participant_gib": 8,
   "budget_usd": 100,
   "scenarios": [
     "jesse-spamuel",

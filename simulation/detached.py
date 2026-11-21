@@ -84,7 +84,6 @@ def run_campaign(campaign_id: str) -> None:
             raise FileExistsError(f"Campaign already has evidence: {campaign_id}.")
         key = wait_for_key(campaign_id, root / "openrouter-key.yaml")
         config = campaign_settings(source, root, key)
-        suite.check_capacity(sum(len(run.template.participants) for run in suite.runs))
         if not OperatingSystem.install_child_cleanup():
             raise RuntimeError("Windows could not attach the campaign to a cleanup job.")
         workers: dict[str, subprocess.Popen[bytes]] = {}

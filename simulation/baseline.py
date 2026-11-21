@@ -21,7 +21,6 @@ from pydantic import BaseModel
 from pm.host.durable_files import ProcessLock, runtime_status
 from pm.llm.config import load_config
 from pm.paths import REPO_ROOT
-from pm.utils.windows_commit import CommitHeadroom
 from simulation.engine import RunEngine
 from simulation.personas import DEFAULT_RUNS
 from simulation.templates import SimulationTemplate, create_run
@@ -36,8 +35,6 @@ class Scenario(StrEnum):
 
 class SuiteManifest(BaseModel):
     version: Literal[1]
-    reserve_gib: int
-    participant_gib: int
     budget_usd: Literal[100]
     scenarios: list[Scenario]
 
@@ -150,10 +147,6 @@ class BaselineCampaign:
         for probe in probes:
             probe.check_motion()
 
-    def check_capacity(self, participants_to_start: int) -> None:
-        required = self.manifest.reserve_gib + self.manifest.participant_gib * participants_to_start
-        CommitHeadroom.measure().require(required)
-
     def check_budget(self) -> None:
         """Verify a single non-resetting OpenRouter limit across all configured inference routes."""
         config = load_config(self.config)
@@ -180,14 +173,12 @@ class BaselineCampaign:
         progress = CampaignProgress.model_validate(engine.view())
         if progress.has_exchange() or progress.status == "completed":
             return
-        self.check_capacity(len(engine.state["participants"]))
         engine.start()
         thread = engine.thread
         if thread is None:
             raise RuntimeError(f"No controller thread for {engine.root}")
         try:
             while thread.is_alive():
-                self.check_capacity(0)
                 progress = CampaignProgress.model_validate(engine.view())
                 if progress.has_exchange():
                     if progress.status == "running":
@@ -225,7 +216,6 @@ class BaselineCampaign:
                 pending.append(run)
             if not pending:
                 return
-            self.check_capacity(sum(len(run.template.participants) for run in pending))
             if require_capped_key:
                 self.check_budget()
             self.check_bodies(pending, layout)
@@ -243,13 +233,11 @@ class BaselineCampaign:
                 for engine in engines:
                     self.measure_first_exchange(engine)
             ready = [engine for engine in engines if engine.view()["status"] != "completed"]
-            self.check_capacity(sum(len(engine.state["participants"]) for engine in ready))
             for engine in ready:
                 engine.start()
             while any(engine.thread is not None and engine.thread.is_alive() for engine in engines):
                 if services is not None:
                     services.check_processes()
-                self.check_capacity(0)
                 time.sleep(2)
             for engine in engines:
                 if engine.thread is None:
@@ -311,7 +299,6 @@ def main() -> None:
             campaign.check_inputs()
         case "preflight":
             campaign.check_inputs()
-            campaign.check_capacity(sum(len(run.template.participants) for run in campaign.runs))
             campaign.check_bodies(campaign.runs)
             campaign.check_budget()
         case "status":

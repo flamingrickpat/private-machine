@@ -29,8 +29,9 @@ class Installation(Settings):
     require_capped_openrouter_key: bool = True
     time_multiplier: float | None = Field(default=None, gt=0, allow_inf_nan=False,
         description="Story seconds per wall second. Omit to use the scenario's pacing.")
-    reserve_gib: int | None = Field(default=None, ge=0, description="Minimum commit headroom during this run.")
-    participant_gib: int | None = Field(default=None, gt=0, description="Additional startup headroom per participant.")
+    # Older generated installation files can still supply these retired settings.
+    reserve_gib: int | None = Field(default=None, exclude=True)
+    participant_gib: int | None = Field(default=None, exclude=True)
 
 
 def model_settings(source: Path, destination: Path) -> None:
@@ -86,10 +87,6 @@ def launch(config: Path, sim_config: Path, run_id: str, preflight: bool, check_s
     if sim_config.resolve() != (suite / f"{scenario}.json").resolve():
         raise SetupError(f"Select one of the four versioned scenario files in {suite}.")
     campaign = BaselineCampaign(run_id, config, scenario)
-    if installation.reserve_gib is not None:
-        campaign.manifest.reserve_gib = installation.reserve_gib
-    if installation.participant_gib is not None:
-        campaign.manifest.participant_gib = installation.participant_gib
     run = campaign.runs[0]
     if installation.time_multiplier is not None:
         run.template.time_multiplier = installation.time_multiplier
@@ -119,15 +116,11 @@ def launch(config: Path, sim_config: Path, run_id: str, preflight: bool, check_s
         if preflight:
             print("Local preflight passed. Start without -Preflight to launch. Paid endpoints were not contacted.")
             return
-        if check_services and world is not None:
-            campaign.check_capacity(0)
-        if not check_services:
-            campaign.check_capacity(len(run.template.participants))
-            if installation.require_capped_openrouter_key:
-                try:
-                    campaign.check_budget()
-                except ValueError as error:
-                    raise SetupError(f"{error} Check the key in {source} and require_capped_openrouter_key in {config}.") from error
+        if not check_services and installation.require_capped_openrouter_key:
+            try:
+                campaign.check_budget()
+            except ValueError as error:
+                raise SetupError(f"{error} Check the key in {source} and require_capped_openrouter_key in {config}.") from error
         if (world is not None or not check_services) and not OperatingSystem.install_child_cleanup():
             raise SetupError("Windows could not attach the child processes to a cleanup job. Run the launcher in PowerShell.")
         try:

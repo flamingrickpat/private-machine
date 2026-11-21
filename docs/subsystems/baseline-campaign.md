@@ -49,7 +49,7 @@ Preflight identifies all selected bodies, checks that each is spawned on its ass
 .\simulation\baseline.ps1 resume candidate01 -Config .runtime\campaign.yaml
 ```
 
-Use `-Scenario jesse-spamuel`, `jesse-two-spamuels`, `two-spamuels-minecraft`, or `jesse-spamuel-minecraft` to select one run. The full suite opens each run individually, drains its initial exchange, then starts the parallel segment. Before launch, the controller checks Windows commit headroom. The suite reserves 16 GiB plus 8 GiB per starting participant. During execution it requests a pause if free commit falls below 16 GiB. Resume requires the same configuration and worlds. A stale Minecraft world cannot safely accompany a restored character checkpoint. Keep the failure receipt and start a new campaign if the world and characters have diverged.
+Use `-Scenario jesse-spamuel`, `jesse-two-spamuels`, `two-spamuels-minecraft`, or `jesse-spamuel-minecraft` to select one run. The full suite opens each run individually, drains its initial exchange, then starts the parallel segment. Resume requires the same configuration and worlds. A stale Minecraft world cannot safely accompany a restored character checkpoint. Keep the failure receipt and start a new campaign if the world and characters have diverged.
 
 ## Inspect and export
 
