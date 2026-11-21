@@ -261,6 +261,7 @@ class RecordMetadataView(BaseModel):
 
     memory_kind: str = ""
     exchange_status: str = ""
+    recovery_outcome: str = ""
 
 
 class WorkflowTaskRequest(BaseModel):

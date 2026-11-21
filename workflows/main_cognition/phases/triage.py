@@ -16,9 +16,10 @@ Other shown workspace records and retrieved evidence compete by
 :class:`TriageContextTier` through the shared selector in
 :mod:`pm.context_render.budget`: accepted entity context first, then the
 latest dialogue, the strongest narratives, the latest thoughts, other
-workspace records, and retrieved evidence last. A prompt that already fits
-keeps the exact bytes of the unbounded prompt. Early input triage
-(:mod:`workflows.input_triage.steps`) uses the same fitting.
+workspace records, and retrieved evidence last. If the base prompt exceeds
+its budget, a compact prompt keeps the original new stimuli and the phase
+instructions. Early input triage (:mod:`workflows.input_triage.steps`) uses
+the same fitting.
 """
 from __future__ import annotations
 
@@ -32,8 +33,10 @@ from typing import Literal
 from pm_workflows.python_role import RoleContext
 
 from pm.constants import CODELET_BUDGET_DEFAULT, CODELET_BUDGET_MAX
-from pm.context_render.budget import ContextBudget, ContextGroup, PromptSelection
-from pm.context_render.turns import Content, Turn, format_content
+from pm.context_render.budget import ContextBudget, ContextGroup, PromptSelection, RequiredContextTooLarge
+from pm.context_render.images import ImageCatalog, resolve_media
+from pm.context_render.story import fill_story_names
+from pm.context_render.turns import Content, Role, Turn, format_content
 from pm.llm.role_model import role_model
 from pm.context_render.prompt import RenderSettings, RendererInput, RendererCapture, require_rendered_prompt
 from pm.records.workspace import WorkspaceShard
@@ -43,7 +46,7 @@ from workflows.main_cognition.prompt_config import PhasePrompts
 from workflows.main_cognition.phases.intake import group_key, group_stimuli
 from workflows.main_cognition.phases.model import complete, grounding_turn, phase_prompts
 from workflows.main_cognition.schemas import TriageCheck, TRIAGE_CATEGORIES, TriageResult
-from workflows.main_cognition.story_prefix import StoryPrefix, shown_shards
+from workflows.main_cognition.story_prefix import StoryPrefix, shard_label, shown_shards, story_entities
 
 #: Triage categories from the least to the most important.
 CATEGORIES = TRIAGE_CATEGORIES
@@ -113,11 +116,11 @@ class TriagePrompt:
                 f"estimated {self.selection.estimated_tokens} of {self.input_ceiling} input tokens")
 
 
-def render_stimuli(work: CycleWork, prefix: StoryPrefix) -> str:
+def render_stimuli(work: CycleWork) -> str:
     """Render each stimulus with its id, source, kind, text, and the story part of its group."""
     lines: list[str] = []
     for stimulus in work.request.stimuli:
-        part = prefix.label(group_key(stimulus, work.request))
+        part = shard_label(group_key(stimulus, work.request), work.request)
         lines.append(f"- id={stimulus.knoxel_id} source={stimulus.source} "
                      f"kind={stimulus.kind} text={stimulus.text!r} part={part}")
     return "\n".join(lines) or "(none)"
@@ -125,14 +128,20 @@ def render_stimuli(work: CycleWork, prefix: StoryPrefix) -> str:
 
 def build_messages(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix) -> list[Turn]:
     """Return the shared story prefix and then the triage instruction as the last turn."""
-    request = work.request
-    user = format_content(prefix.fill(prompts.user_template), TriageTemplateValues(
-        state_summary=work.state_summary or "(no feeling recorded yet)",
-        active_goals="; ".join(request.active_goals) or "(nothing in particular)",
-        stimuli=render_stimuli(work, prefix),
+    user = triage_instruction(work, prefix.fill(prompts.user_template), include_background=True)
+    return prefix.ask(user)
+
+
+def triage_instruction(work: CycleWork, template: str, *, include_background: bool) -> str:
+    """Render the same classification rules for the full and compact prompts."""
+    feelings = work.state_summary if include_background else ""
+    goals = "; ".join(work.request.active_goals) if include_background else ""
+    return format_content(template, TriageTemplateValues(
+        state_summary=feelings or "(no feeling recorded yet)",
+        active_goals=goals or "(nothing in particular)",
+        stimuli=render_stimuli(work),
         budget_max=str(CODELET_BUDGET_MAX),
-        budget_default=str(CODELET_BUDGET_DEFAULT)))
-    return prefix.ask(user.text)
+        budget_default=str(CODELET_BUDGET_DEFAULT))).text
 
 
 def rate_groups(work: CycleWork) -> None:
@@ -288,8 +297,9 @@ def fit_messages(context: RoleContext, work: CycleWork, *, appended: Sequence[Tu
 
     The prompt is the story prefix, the private grounding turn, the triage
     instruction, and then ``appended`` (early triage adds its entity
-    extraction turn). Required content that does not fit raises
-    ``RequiredContextTooLarge``; nothing is clipped. The selection receipt is
+    extraction turn). If necessary, the compact prompt keeps the exact new
+    stimuli and classification rules. If it still exceeds the ceiling, raise
+    ``RequiredContextTooLarge``. The selection receipt is
     written to ``scratch/triage-context-selection.json``.
     """
     assert context.runtime is not None, "Triage requires an active workflow runtime."
@@ -357,12 +367,29 @@ def fit_prompt(work: CycleWork, budget: ContextBudget, *, prompts: PhasePrompts,
     chosen = [group for group in selectable.groups if group.required]
     optional = sorted(RankedTriageGroup(-group.salience, group.name, group)
                       for group in selectable.groups if not group.required)
-    turns = assemble_triage(work, selectable, chosen, prompts, story_prompts, settings, appended)
-    require_rendered_prompt("triage", tuple(turns), settings)
+    try:
+        turns = assemble_triage(work, selectable, chosen, prompts, story_prompts, settings, appended)
+        require_rendered_prompt("triage", tuple(turns), settings)
+    except RequiredContextTooLarge:
+        companion = work.request.companion_name
+        partners = story_entities(work)
+        system = fill_story_names(story_prompts.system_prompt, companion, partners).strip()
+        template = fill_story_names(prompts.user_template, companion, partners)
+        instruction = triage_instruction(work, template, include_background=False)
+        compact = resolve_media((Turn(Role.System, system), Turn(Role.User, instruction), *appended),
+                                ImageCatalog(work.request.images))
+        fitted = require_rendered_prompt("compact triage", compact, settings)
+        selection = PromptSelection(fitted.turns, ("current stimuli",), ("story and workspace context",),
+                                    fitted.estimated_tokens, (), ())
+        return TriagePrompt(turns=list(compact), selection=selection, input_ceiling=budget.input_ceiling)
     omitted: list[str] = []
     for ranked in optional:
         trial = [*chosen, ranked.group]
-        trial_turns = assemble_triage(work, selectable, trial, prompts, story_prompts, settings, appended)
+        try:
+            trial_turns = assemble_triage(work, selectable, trial, prompts, story_prompts, settings, appended)
+        except RequiredContextTooLarge:
+            omitted.append(ranked.name)
+            continue
         if budget.estimate(trial_turns) <= budget.input_ceiling:
             chosen = trial
             turns = trial_turns

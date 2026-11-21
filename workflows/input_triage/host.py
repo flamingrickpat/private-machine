@@ -21,8 +21,10 @@ than cooperative cancellation, prevents an obsolete draft from becoming speech.
 The module runs independently from the main module. Both retain foreground
 admission, so a main cycle waiting for classification cannot block its model
 call. Provider/model-format failures retain diagnostics and retry with visible
-status and cancellation. Internal errors propagate. Restart derives pending
-work from durable input and assessment records; no model result is fabricated.
+status and cancellation. A prompt that still exceeds its budget splits the
+batch. An indivisible oversized source retains its text and receives a
+terminal budget rejection. Restart derives pending work from durable input
+and assessment records. Internal errors propagate.
 
 When a workflow opts in, the classification call can also identify a direct
 partner request. Cognitive control stages its action beside the assessment.
@@ -37,6 +39,7 @@ from __future__ import annotations
 
 import json
 import traceback
+from collections import deque
 from typing import TYPE_CHECKING
 
 from pydantic import JsonValue
@@ -45,6 +48,7 @@ from pm import vclock
 from pm.bus.envelopes import Envelope, new_envelope
 from pm.constants import CSM_RECENT_DIALOGUE_TURNS, CYCLE_RETRY_DELAY_SECONDS, CYCLE_RETRY_MAX_DELAY_SECONDS, WORKSPACE_TAIL_TOKENS
 from pm.context_render.story import record_view
+from pm.context_render.budget import RequiredContextTooLarge
 from pm.llm.http_client import ModelError
 from pm.llm.structured import ModelFormatError
 from pm.memory.bash_view import MemoryBashEnvironment
@@ -89,28 +93,52 @@ class InputTriage(CognitiveWorkflow):
         super().deliver(envelope)
 
     def handle_batch(self, batch: list[Envelope]) -> None:
-        """Retry external/model-format failures while preserving input identity."""
-        remaining = [item for item in batch
-                     if not self.cognitive_control.has_assessment(InputSourcePayload.model_validate(item.payload).knoxel_id)]
-        if not remaining:
-            return
+        """Retry transient failures and isolate input that exceeds a compact prompt."""
+        remaining: list[Envelope] = []
+        for envelope in batch:
+            source_id = InputSourcePayload.model_validate(envelope.payload).knoxel_id
+            if not (self.cognitive_control.has_assessment(source_id)
+                    or self.cognitive_control.triage_budget_rejected(source_id)):
+                remaining.append(envelope)
+        pending = deque([remaining]) if remaining else deque()
+        while pending and not self.stop_event.is_set():
+            current = pending.popleft()
+            try:
+                self.classify_batch(current)
+            except RequiredContextTooLarge as error:
+                self.record_rejection(current, error, retry_delay_seconds=None)
+                if len(current) == 1:
+                    self.cognitive_control.reject_triage_budget(current[0])
+                else:
+                    middle = len(current) // 2
+                    pending.appendleft(current[middle:])
+                    pending.appendleft(current[:middle])
+
+    def classify_batch(self, batch: list[Envelope]) -> None:
+        """Classify one batch, retrying only failures that can change on retry."""
         delay = CYCLE_RETRY_DELAY_SECONDS
         while not self.stop_event.is_set():
             try:
                 with inference_role(InferenceRole.Triage):
-                    super().handle_batch(remaining)
+                    super().handle_batch(batch)
                 return
             except (ModelError, ModelFormatError, GhostConflict) as error:
-                diagnostic = {"error_type": type(error).__name__, "reason": str(error),
-                              "traceback": traceback.format_exc()}
-                path = self.runtime_root / "kernel" / str(self.invocation_id) / "triage-rejected.json"
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text(json.dumps(diagnostic, indent=2), encoding="utf-8")
-                self.bus.put(new_envelope(self.module_id, "telemetry", "triage.rejected", "",
-                    {"reason": str(error), "artifact_path": str(path), "retry_delay_seconds": delay}))
+                self.record_rejection(batch, error, retry_delay_seconds=delay)
                 if self.stop_event.wait(delay):
                     return
                 delay = min(delay * 2, CYCLE_RETRY_MAX_DELAY_SECONDS)
+
+    def record_rejection(self, batch: list[Envelope], error: Exception, *, retry_delay_seconds: float | None) -> None:
+        """Keep the original exception and traceback with the invocation."""
+        source_ids = [InputSourcePayload.model_validate(envelope.payload).knoxel_id for envelope in batch]
+        diagnostic = {"error_type": type(error).__name__, "reason": str(error),
+                      "traceback": traceback.format_exc(), "source_ids": source_ids}
+        path = self.runtime_root / "kernel" / str(self.invocation_id) / "triage-rejected.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(diagnostic, indent=2), encoding="utf-8")
+        self.bus.put(new_envelope(self.module_id, "telemetry", "triage.rejected", batch[-1].correlation_id,
+            {"reason": str(error), "artifact_path": str(path), "source_ids": source_ids,
+             "retry_delay_seconds": retry_delay_seconds}))
 
     def prepare_input(self, batch: list[Envelope]) -> dict[str, JsonValue]:
         """Freeze identity, accepted guidance, and only the relevant dialogue."""

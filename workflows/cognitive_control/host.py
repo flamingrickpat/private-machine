@@ -25,10 +25,10 @@ from pm.records.memory_records import Feature, new_feature
 from pm.records.lineage import RecordLineage
 from workflows.cognitive_control.schemas import ControlConfig, WaitRequest
 from workflows.public_speech.publication_control import PublicationControl, ReplySuperseded, validate_unmanaged_selection, validate_unmanaged_action
-from workflows.input_triage.schemas import EarlyTriageAssessment
+from workflows.input_triage.schemas import EarlyTriageAssessment, InputSourcePayload
 from workflows.input_triage.workflow_requests import stage_workflow_requests
 from workflows.main_cognition.catalogue import WorkflowCatalogue
-from workflows.main_cognition.schemas import ActionRequest, TriageResult
+from workflows.main_cognition.schemas import ActionRequest, RecordMetadataView, TriageResult
 from workflows.entity_context.owner import EntityContextOwner
 from workflows.entity_context.schemas import EntityUpdateResult
 
@@ -123,13 +123,31 @@ class CognitiveControl(BusModule):
             return
         with self.ghost.lock:
             self.ghost.snapshot({source_id}).get(source_id)
-            if source_id not in self._assessments:
+            if source_id not in self._assessments and not self.triage_budget_rejected(source_id):
                 self._pending_triage.add(source_id)
 
     def has_assessment(self, source_id: int) -> bool:
         """Return whether this source already has an accepted early assessment."""
         with self.ghost.lock:
             return source_id in self._assessments
+
+    def triage_budget_rejected(self, source_id: int) -> bool:
+        """Read the durable disposition of an input that could not be classified."""
+        with self.ghost.lock:
+            source = self.ghost.snapshot({source_id}, capture=False).get(source_id)
+            return RecordMetadataView.model_validate(source.metadata).recovery_outcome == "triage_context_too_large"
+
+    def reject_triage_budget(self, envelope: Envelope) -> None:
+        """Close an oversized input without an assessment or a fabricated reply."""
+        source_id = InputSourcePayload.model_validate(envelope.payload).knoxel_id
+        with self.ghost.lock:
+            batch = self.ghost.begin_batch("triage-budget-" + new_id(), embed=False)
+            batch.set_lifecycle(source_id, exchange_status="resolved", recovery_outcome="triage_context_too_large")
+            batch.depend_on({source_id}, authority=source_id, manifest={"kind": "triage_budget_rejection"})
+            self.ghost.commit(batch)
+            self._pending_triage.discard(source_id)
+            self._pending_inputs.discard(envelope.id)
+            self._classification_changed.notify_all()
 
     def accept_triage(self, assessment: EarlyTriageAssessment) -> EarlyTriageAssessment:
         """Commit classification before releasing its unknown-input barrier."""
@@ -230,7 +248,9 @@ class CognitiveControl(BusModule):
         """Wait for early classification without holding a store or model slot."""
         while not cancel.is_set():
             with self.ghost.lock:
-                if not self.input_triage_enabled or all(key in self._assessments for key in source_ids):
+                if not self.input_triage_enabled or all(
+                    key in self._assessments or self.triage_budget_rejected(key) for key in source_ids
+                ):
                     return True
             cancel.wait(0.05)
         return False
@@ -367,6 +387,10 @@ class CognitiveControl(BusModule):
         with self.ghost.lock:
             if envelope.id in self._seen_inputs:
                 return
+            if envelope.topic == "user.input":
+                source_id = InputSourcePayload.model_validate(envelope.payload).knoxel_id
+                if self.triage_budget_rejected(source_id):
+                    return
             self._seen_inputs.add(envelope.id)
             self._pending_inputs.add(envelope.id)
             record = self._record()
@@ -397,6 +421,10 @@ class CognitiveControl(BusModule):
                 return [], self.generation
             accepted = []
             for envelope in envelopes:
+                if envelope.topic == "user.input":
+                    source_id = InputSourcePayload.model_validate(envelope.payload).knoxel_id
+                    if self.triage_budget_rejected(source_id):
+                        continue
                 record = self.ghost.get_knoxel_by_id(envelope.payload.get("knoxel_id", -1))
                 if envelope.topic == "cognition.wake":
                     if record is None or record.metadata.get("wake_status") != "pending":

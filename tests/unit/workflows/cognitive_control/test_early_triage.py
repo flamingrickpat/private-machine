@@ -127,6 +127,27 @@ class EarlyTriageBoundaryTests(unittest.TestCase):
         self.assertFalse(accepted.routine_task_action_ids)
         self.assertFalse(any(isinstance(record, ActionSchemaRecord) for record in self.store.all_knoxels.values()))
 
+    def test_budget_rejection_releases_the_fence_and_keeps_the_input(self) -> None:
+        text = "Original oversized request."
+        source = self.submit(text)
+        envelope = new_envelope("user_input", "data", "user.input", "", {"knoxel_id": source})
+        self.control.observe(envelope)
+        self.assertTrue(self.control.reconsideration_required())
+
+        self.control.reject_triage_budget(envelope)
+
+        retained = self.store.snapshot({source}).get(source)
+        self.assertEqual(retained.content, text)
+        self.assertEqual(retained.metadata["exchange_status"], "resolved")
+        self.assertNotIn("public_reply_id", retained.metadata)
+        for control in (self.control, self.controller(self.store)):
+            control.register_input(source)
+            self.assertTrue(control.triage_budget_rejected(source))
+            self.assertFalse(control.reconsideration_required())
+            self.assertFalse(control.has_assessment(source))
+            admitted, _generation = control.admit([envelope])
+            self.assertEqual(admitted, [])
+
     def accept_cycle(self, source_ids: list[int]) -> int:
         """Accept a real state/write batch without claiming an LLM calculation."""
         batch = self.store.begin_batch(f"boundary-cycle-{len(self.store.states)}", new_tick=True, embed=False)

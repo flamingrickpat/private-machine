@@ -10,6 +10,7 @@ from pathlib import Path
 from pydantic import BaseModel, ValidationError
 
 from pm.utils import yaml_util
+from pm.context_render.budget import RequiredContextTooLarge
 from pm.context_render.turns import Role, Turn
 from pm.llm.structured import ModelFormatError
 from workflows.input_triage.schemas import EarlyTriageAssessment, InputTriageAnswer, InputTriageRequest
@@ -41,10 +42,18 @@ def run(context: RoleContext) -> dict[str, str]:
     if request.direct_workflows:
         options = "\n".join(f"- {option.name}: {option.description}" for option in request.direct_workflows)
         appended.append(Turn(Role.User, prompts.workflow_requests + "\nAvailable workflows\n" + options))
-    if request.entity_extraction_input is not None:
-        extraction = render_extraction_context(request.entity_extraction_input) + "\n\n" + prompts.extraction
-        appended.append(Turn(Role.User, extraction))
-    prompt = triage.fit_messages(context, work, appended=appended)
+    extraction_input = request.entity_extraction_input
+    if extraction_input is not None:
+        extraction = render_extraction_context(extraction_input) + "\n\n" + prompts.extraction
+        try:
+            prompt = triage.fit_messages(context, work, appended=[*appended, Turn(Role.User, extraction)])
+        except RequiredContextTooLarge as error:
+            # Entity maintenance can wait. Keep the input and direct workflow instructions.
+            extraction_input = None
+            prompt = triage.fit_messages(context, work, appended=appended)
+            environment.write_text("scratch/triage-extraction-omitted.txt", str(error))
+    else:
+        prompt = triage.fit_messages(context, work, appended=appended)
     work.receipt("triage-context", prompt.summary())
     validation = TriageCheck(
         stimulus_ids=tuple(item.knoxel_id for item in request.cycle.stimuli),
@@ -52,13 +61,13 @@ def run(context: RoleContext) -> dict[str, str]:
         workflow_task_names=frozenset(option.name for option in request.direct_workflows),
         original_inputs={item.knoxel_id: item.text for item in request.cycle.stimuli},  # pm-lint: allow PM005 -- original utterances indexed by source knoxel ID
     )
-    if request.entity_extraction_input is None:
+    if extraction_input is None:
         result = complete(context, prompt.turns, TriageResult, validation_context=validation)
     else:
         answer = complete(context, prompt.turns, InputTriageAnswer, validation_context=validation)
         result = TriageResult(items=answer.items, codelet_budget=answer.codelet_budget)
         try:
-            entity_proposals = hydrate_entity_extraction(request.entity_extraction_input, answer.entity_extraction,
+            entity_proposals = hydrate_entity_extraction(extraction_input, answer.entity_extraction,
                                                          producer="immediate")
         except ValidationError as error:
             raise ModelFormatError(f"Entity extraction has an invalid semantic contract: {error}") from error
