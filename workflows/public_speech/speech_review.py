@@ -26,7 +26,7 @@ from pathlib import Path
 from dataclasses import dataclass, field
 from pm.context_render.prompt import RenderSettings, RenderedPrompt, EvidenceDecision, require_rendered_prompt, RendererCapture, RendererInput
 from pm.records.media import RecordImage
-from pm.context_render.budget import TokenEstimator
+from pm.context_render.budget import RequiredContextTooLarge, TokenEstimator
 from pm.context_render.images import ImageCatalog, resolve_media
 from collections.abc import Sequence
 from typing import Literal, TypedDict
@@ -140,12 +140,7 @@ def build_review_messages(candidate: str, context: PublicContext, prompts: Revie
     else:
         presentation_text = f"{context.companion_name} chose to speak candidly."
     lines = [f'- [{turn.timestamp or "time unavailable"}; source {turn.knoxel_id}] {turn.speaker} said: "{turn.text}"'
-             for turn in conversation]
-    if not lines and context.situational_guidance is not None:
-        partner = context.situational_guidance.partner
-        if partner is not None:
-            lines = [f'- [{source.occurred_at_utc.isoformat()}; record {source.record_id}] '
-                     f'{source.source} said: "{source.text}"' for source in partner.recent_dialogue]
+             for turn in review_dialogue(context, conversation)]
     user = prompts["user_template"].format(
         character=context.character.strip() or "(no character card)",
         feelings=context.feelings.strip() or "(calm, nothing strong)",
@@ -163,6 +158,18 @@ def build_review_messages(candidate: str, context: PublicContext, prompts: Revie
         grounding += "\n" + render_situational_guidance(context.situational_guidance)
     user = grounding + "\n\n" + user
     return [Turn(Role.System, prompts["system_prompt"].format(companion_name=names["companion_name"], partner_name=names["partner_name"]).strip()), Turn(Role.User, user.strip())]
+
+
+def review_dialogue(context: PublicContext, conversation: Sequence[DialogueTurn]) -> tuple[DialogueTurn, ...]:
+    """Retain attributed dialogue even when the review omits the larger situation projection."""
+    if conversation:
+        return tuple(conversation)
+    guidance = context.situational_guidance
+    if guidance is None or guidance.partner is None:
+        return ()
+    return tuple(DialogueTurn(speaker=source.source, text=source.text, knoxel_id=source.record_id,
+                              timestamp=source.occurred_at_utc.isoformat())
+                 for source in guidance.partner.recent_dialogue if source.text)
 
 
 class ReviewPayload(BaseModel):
@@ -238,6 +245,13 @@ class SpeechReviewRenderInput:
     images: tuple[RecordImage, ...] = ()
 
 
+def render_review_turns(input: SpeechReviewRenderInput, context: PublicContext, conversation: tuple[DialogueTurn, ...],
+                        feedback: tuple[Turn, ...], images: ImageCatalog) -> tuple[Turn, ...]:
+    messages = build_review_messages(input.candidate, context, input.prompts,
+                                     conversation=conversation, receipts=input.receipts)
+    return (*resolve_media(tuple(messages), images), *feedback)
+
+
 def render_speech_review(input: SpeechReviewRenderInput, settings: RenderSettings) -> RenderedPrompt:
     from pm.memory.retrieval import distinctive_terms
     feedback_turns: tuple[Turn, ...] = ()
@@ -246,14 +260,39 @@ def render_speech_review(input: SpeechReviewRenderInput, settings: RenderSetting
         feedback_turns = (Turn(Role.User, feedback.text),)
         settings = settings.without_correction_reserve()
     estimator = TokenEstimator(estimate_factor=settings.estimate_factor)
-    selected_context = input.context.model_copy(deep=True)
+    selected_context = input.context.model_copy()
     selected_context.evidence = []
     selected_context.memories = []
-    conversation = input.conversation[-4:]
+    dialogue = review_dialogue(input.context, input.conversation)
+    partner_name = input.context.partner_name or input.context.user_name
+    latest_partner = next((turn for turn in reversed(dialogue) if turn.speaker == partner_name), None)
+    conversation = dialogue[-4:]
+    if latest_partner is not None and latest_partner not in conversation:
+        conversation = (latest_partner, *conversation[-3:])
     images = ImageCatalog(input.images)
-    original = resolve_media(tuple(build_review_messages(input.candidate, selected_context, input.prompts,
-              conversation=conversation, receipts=list(input.receipts))), images)
-    turns = (*original, *feedback_turns)
+    turns = render_review_turns(input, selected_context, conversation, feedback_turns, images)
+    groups = ["draft and task evidence", "recent dialogue", "character context", "selected action"]
+    if selected_context.situational_guidance is not None:
+        # The situation projection includes its own dialogue and recent moves.
+        # Keep the attributed transcript when that broader context will not fit.
+        if estimator.estimate(turns) > settings.input_ceiling:
+            selected_context.situational_guidance = None
+            turns = render_review_turns(input, selected_context, conversation, feedback_turns, images)
+        else:
+            groups.append("situational guidance")
+    if estimator.estimate(turns) > settings.input_ceiling:
+        conversation = (latest_partner,) if latest_partner is not None else conversation[-1:]
+        selected_context.character = ""
+        selected_context.feelings = ""
+        selected_context.ontology = []
+        selected_context.capabilities = selected_context.capabilities.model_copy(
+            update={"configured": (), "unavailable": (), "notes": ()})
+        groups = ["draft and task evidence", "latest dialogue", "selected action"]
+        turns = render_review_turns(input, selected_context, conversation, feedback_turns, images)
+    if estimator.estimate(turns) > settings.input_ceiling:
+        selected_context.selected_action = ""
+        groups.remove("selected action")
+        turns = render_review_turns(input, selected_context, conversation, feedback_turns, images)
     require_rendered_prompt("speech review", turns, settings)
     terms = set(distinctive_terms(input.candidate))
     ranked: list[RankedReviewEvidence] = []
@@ -272,17 +311,15 @@ def render_speech_review(input: SpeechReviewRenderInput, settings: RenderSetting
             decisions.append(EvidenceDecision(record_id, score, False, "duplicate evidence"))
             continue
         seen.add(text)
-        trial_context = selected_context.model_copy(deep=True)
+        trial_context = selected_context.model_copy()
         trial_context.evidence = [*selected, item]
-        original = resolve_media(tuple(build_review_messages(input.candidate, trial_context, input.prompts,
-                    conversation=conversation, receipts=list(input.receipts))), images)
-        trial_turns = (*original, *feedback_turns)
+        trial_turns = render_review_turns(input, trial_context, conversation, feedback_turns, images)
         included = estimator.estimate(trial_turns) <= settings.input_ceiling
         decisions.append(EvidenceDecision(record_id, score, included, "draft relevance" if included else "budget"))
         if included:
             selected.append(item)
             turns = trial_turns
-    return require_rendered_prompt("speech review", turns, settings, tuple(decisions))
+    return require_rendered_prompt("speech review", turns, settings, tuple(decisions), selected_groups=tuple(groups))
 
 
 async def review_speech(complete: ModelSession, candidate: str, context: PublicContext, *,
@@ -291,7 +328,7 @@ async def review_speech(complete: ModelSession, candidate: str, context: PublicC
                         prompts: ReviewPrompts | None = None, attempts: int = 2,
                         prepared_messages: Sequence[Turn] | None = None,
                         images: tuple[RecordImage, ...] = ()) -> SpeechReview:
-    from pm.llm.structured import JsonOutputError
+    from pm.llm.structured import JsonOutputError, ModelFormatError
     from pydantic import ValidationError
     selected_prompts = prompts if prompts is not None else load_prompts()
     problem = ""
@@ -299,10 +336,13 @@ async def review_speech(complete: ModelSession, candidate: str, context: PublicC
     while True:
         input = SpeechReviewRenderInput(candidate, context, selected_prompts, tuple(conversation),
                                        tuple(receipts), problem, rejected_answer, images)
-        with RendererCapture(complete.capture_settings("speech_review"), RendererInput("speech_review", input, complete.settings)) as capture:
-            rendered = render_speech_review(input, complete.settings)
-            capture.save_output(rendered)
-        raw = await complete.complete_async(rendered.turns, settings=GenerationSettings(temperature=REVIEW_TEMPERATURE, enable_thinking=False))
+        try:
+            with RendererCapture(complete.capture_settings("speech_review"), RendererInput("speech_review", input, complete.settings)) as capture:
+                rendered = render_speech_review(input, complete.settings)
+                capture.save_output(rendered)
+            raw = await complete.complete_async(rendered.turns, settings=GenerationSettings(temperature=REVIEW_TEMPERATURE, enable_thinking=False))
+        except RequiredContextTooLarge as error:
+            raise ModelFormatError(f"Speech review could not fit its required evidence. {error}") from error
         try:
             result = parse_review(raw)
             select_spoken_text(candidate, result)

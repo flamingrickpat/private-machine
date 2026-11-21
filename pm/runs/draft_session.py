@@ -16,7 +16,7 @@ from dataclasses import dataclass
 import json
 from pathlib import Path
 import time
-from typing import Generic, Mapping, TypeVar, Protocol
+from typing import TYPE_CHECKING, Generic, Mapping, TypeVar, Protocol
 
 from fastmcp import FastMCP
 from pm_workflows.runtime import WorkflowRuntime, AgentModel
@@ -26,6 +26,10 @@ from pm.host.mcp_listeners import serve_services
 from pm.llm.prompt_log import log_directory
 from pm.memory.agent_tools import MemoryReadSession
 from pm.memory.snapshot import GhostConflict
+
+if TYPE_CHECKING:
+    from pm_coder import SessionStore, Settings
+    from pydantic_ai import Agent
 
 T = TypeVar("T")
 
@@ -84,7 +88,8 @@ def run_draft_session(
 
     The workflow owns tools, draft state, validation, and its eventual commit.
     Rejection adds feedback to the same conversation. It does not reset tools
-    or replay edits. Native inference retains its normal retry and compaction.
+    or replay edits. The native agent reconnects its MCP sessions and retains
+    its transcript and tool receipts across transient transport failures.
 
     Optional ``memory`` supplies a stable workflow grant on another listener.
     The caller owns that read session and closes it after this call. Inspected
@@ -119,8 +124,8 @@ def run_draft_session(
 async def _run(runtime: WorkflowRuntime, connection: AgentModel, target: AgentTarget, run_id: str, prompt: str,
                validator: DraftValidator[T], config: Path, artifact_dir: Path,
                timeout_seconds: float, enable_write: bool) -> DraftSessionResult[T]:
-    """Keep the entered agent and its MCP connections through repair turns."""
-    from pm_coder import build_agent, build_settings, discover_workspace, SessionStore, run_turn
+    """Watch cancellation and the deadline even while MCP is reconnecting."""
+    from pm_coder import SessionStore, build_agent, build_settings, discover_workspace
 
     settings = build_settings(cwd=target.cwd, base_url=connection.base_url,
         api_key=connection.api_key, model=connection.model, context_window=connection.context_window,
@@ -131,24 +136,32 @@ async def _run(runtime: WorkflowRuntime, connection: AgentModel, target: AgentTa
     session.context_window = settings.context_window
     agent = build_agent(settings, discovery, session, bash_machine=target.bash_machine,
                         bash_machine_user=target.user, with_subagent_tool=False, capture_stream=True)
-    deadline, attempts = time.monotonic() + timeout_seconds, 0
-    async with agent:
-        while True:
+    deadline = time.monotonic() + timeout_seconds
+    task = asyncio.create_task(_draft_turns(runtime, agent, settings, session, prompt, validator, artifact_dir))
+    try:
+        while not task.done():
             runtime.check_cancelled()
             if time.monotonic() >= deadline:
                 raise TimeoutError("The native draft session exceeded its observation deadline.")
-            task = asyncio.create_task(run_turn(agent, settings, session, prompt))
-            try:
-                while not task.done():
-                    runtime.check_cancelled()
-                    if time.monotonic() >= deadline:
-                        raise TimeoutError("The native draft session exceeded its observation deadline.")
-                    await asyncio.wait({task}, timeout=0.05)
-                turn = task.result()
-            finally:
-                if not task.done():
-                    task.cancel()
-                await asyncio.gather(task, return_exceptions=True)
+            await asyncio.wait({task}, timeout=0.05)
+        return task.result()
+    finally:
+        if not task.done():
+            task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+
+async def _draft_turns(runtime: WorkflowRuntime, agent: Agent[None, str], settings: Settings,
+                       session: SessionStore, prompt: str, validator: DraftValidator[T],
+                       artifact_dir: Path) -> DraftSessionResult[T]:
+    """Keep one native transcript through reconnects and workflow repair turns."""
+    from pm_coder import connected_agent, run_turn
+
+    attempts = 0
+    async with connected_agent(agent, session):
+        while True:
+            runtime.check_cancelled()
+            turn = await run_turn(agent, settings, session, prompt)
             runtime.check_cancelled()
             decision = validator.validate(turn.response)
             runtime.check_cancelled()

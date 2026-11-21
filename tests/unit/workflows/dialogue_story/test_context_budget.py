@@ -5,7 +5,8 @@ import unittest
 from datetime import UTC, datetime, timedelta
 
 from pm.memory.temporal_context import TemporalHistoryInput, TemporalHistoryItem
-from pm.records.enums import FeatureType
+from pm.records.base import RecordScope
+from pm.records.enums import EntityClass, FeatureType
 
 from pm.context_render.budget import RequiredContextTooLarge, TokenEstimator
 from pm.context_render.prompt import RenderSettings
@@ -13,8 +14,11 @@ from pm.context_render.turns import Role, Turn
 from workflows.dialogue_story.context import select_story_prompt
 from workflows.dialogue_story.schemas import StoryRequest
 from workflows.dialogue_story.steps import build_story_messages, load_prompts
-from workflows.public_speech.public_context import DialogueTurn, EvidenceItem, PublicContext
-from workflows.public_speech.speech_review import SpeechReviewRenderInput, render_speech_review, load_prompts as load_review_prompts
+from workflows.public_speech.public_context import DialogueTurn, EvidenceItem, PublicContext, ToolEvidence
+from workflows.public_speech.situational_guidance import EntitySituationEvidence, SituationSource, SituationalGuidance
+from workflows.public_speech.speech_review import (
+    SpeechReviewRenderInput, build_review_messages, load_prompts as load_review_prompts, render_speech_review,
+)
 
 
 class StoryContextBudgetTests(unittest.TestCase):
@@ -93,6 +97,36 @@ class StoryContextBudgetTests(unittest.TestCase):
         self.assertIn(required.text, fitted.raw_text)
         self.assertNotIn(optional.text, fitted.raw_text)
         self.assertLessEqual(fitted.estimated_tokens, settings.input_ceiling)
+
+    def test_review_fits_an_oversize_situation_without_losing_task_evidence(self) -> None:
+        moment = datetime(2026, 6, 8, 8, 0)
+        request = "Tell me how many oak logs you found."
+        context = PublicContext(companion_name="Spamuel", user_name="Jesse", partner_name="Jesse",
+                                selected_action="Spamuel chose to report the result.")
+        source = SituationSource(record_id=17, revision=1, occurred_at_utc=moment, source="Jesse",
+                                 kind="dialogue", text=request, scope=RecordScope())
+        context.situational_guidance = SituationalGuidance(
+            as_of_utc=moment, companion_name="Spamuel", partner=EntitySituationEvidence(
+                entity_id=2, revision=1, name="Jesse", entity_class=EntityClass.Human,
+                recent_dialogue=[source], context=[source.model_copy(update={
+                    "text": "Oversized advisory partner context. " * 4500,
+                })]))
+        draft = "There are eight oak logs in my inventory."
+        receipt = ToolEvidence(name="inventory", executed=True, result_text="oak_log: 8", source="Minecraft")
+        prompts = load_review_prompts()
+        settings = RenderSettings(context_window=32000, input_fraction=0.85, reserved_output_tokens=8192)
+        full_prompt = build_review_messages(draft, context, prompts, receipts=(receipt,))
+        self.assertGreater(TokenEstimator().estimate(full_prompt), settings.input_ceiling)
+
+        fitted = render_speech_review(SpeechReviewRenderInput(draft, context, prompts, receipts=(receipt,)), settings)
+
+        self.assertLessEqual(fitted.estimated_tokens, settings.input_ceiling)
+        self.assertIn(draft, fitted.raw_text)
+        self.assertIn(f'Jesse said: "{request}"', fitted.raw_text)
+        self.assertIn("inventory succeeded: oak_log: 8", fitted.raw_text)
+        self.assertIn(context.selected_action, fitted.raw_text)
+        self.assertNotIn("Oversized advisory partner context", fitted.raw_text)
+        self.assertIsNotNone(context.situational_guidance)
 
     def test_required_older_dialogue_and_missing_record(self) -> None:
         request = self.request([])

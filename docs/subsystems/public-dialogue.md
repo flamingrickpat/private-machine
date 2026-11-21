@@ -198,6 +198,9 @@ HTTP transport retries keep their existing client policy.
 Story permits one [empty-output recovery](story-speech.md#completion-echoes) with the original context.
 Review syntax, findings, and speech-span errors enter the existing context-bounded JSON repair loop.
 The draft stays unchanged during review repair.
+When a review exceeds its budget, the renderer can omit the wider situation and character context.
+The full draft, the latest partner message, and the task and tool receipts are required.
+If those cannot fit, the exchange stays pending and the runtime records the failure.
 The standalone Story adapter binds context measurement to the same active client as generation.
 Its reviews can therefore repair invalid JSON or speech spans without a missing-measurement error.
 Assistant stores completed tool receipts before requesting more model output.
@@ -207,7 +210,7 @@ An empty Assistant result cannot cause those tools to run again.
 
 - [`ProviderCompletionError`][pm.llm.http_client.ProviderCompletionError]: the provider failed or filtered generation. Partial text never reaches publication.
 - [`SpeechOutputError`][workflows.public_speech.speech_text.SpeechOutputError]: the speech workflow exhausted its usable-output attempts.
-- [`ModelFormatError`][pm.llm.structured.ModelFormatError]: JSON repair exhausted the available input context.
+- [`ModelFormatError`][pm.llm.structured.ModelFormatError]: the model response could not be repaired within the input budget, or the speech review's required evidence exceeded that budget.
 
 The host writes `<runtime>/<module>/<invocation>/speech-failure.json` before it publishes a `generation_failed` action receipt.
 This file retains the request and scratch evidence, including Story attempts or completed Assistant tool receipts.

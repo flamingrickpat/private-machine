@@ -35,7 +35,10 @@ File mutation tools stay disabled unless the caller explicitly enables them.
 MCP tools retain the permissions that their workflow implementation grants.
 
 One entered agent and its MCP connections remain open through repair turns.
-Native transport retries and automatic history compaction remain active.
+Transient MCP HTTP failures reconnect within the same session.
+Completed tool receipts stay in the conversation.
+If a tool's outcome is unknown, the agent must check the actual state before repeating a write.
+Automatic history compaction remains active.
 After `run_turn` completes, the runtime calls the workflow validator with the final assistant text.
 The validator returns [`pm.runs.draft_session.DraftValidation`][] containing acceptance, a value, or repair feedback.
 Acceptance returns [`pm.runs.draft_session.DraftSessionResult`][] to the caller.
@@ -86,9 +89,9 @@ This boundary avoids replay of accumulated planning chatter and obsolete memory 
 Unaccepted edits from an interrupted group are not automatically restored.
 Preserve the rejected draft files when diagnosing such an interruption.
 
-The runtime checks cancellation before inference, while awaiting the turn, and around validation.
-Its observation deadline defaults to 7,200 seconds and spans all repair turns in one invocation.
-Cancellation or deadline expiry cancels the turn and awaits cleanup before closing listeners.
+The runtime checks cancellation while connecting, awaiting inference, and validating a draft.
+Its observation deadline defaults to 7,200 seconds and covers connection retries and repair turns.
+Cancellation or deadline expiry stops the session and awaits cleanup before closing listeners.
 Synchronous tools and validators must check cancellation beside their own effects.
 The shared runner does not make an arbitrary synchronous operation cancellable.
 
@@ -104,6 +107,7 @@ Planner decision artifacts remain below the project's `decisions/NNNN-planner/` 
 Read `input.json`, `draft.json`, `output.json`, and `session.json` together.
 `native/draft-turns.jsonl` records each completed turn, acceptance, feedback, elapsed seconds, and native token statistics.
 Its `session_ref` links to native agent logs under the configured prompt-log directory's `agents/` folder.
+`agent-connection.jsonl` in that session records retries and transport errors during cleanup.
 Failed or cancelled turns may leave no completed-turn row; inspect the native logs and workflow receipt as well.
 Keep these artifacts under ignored runtime paths.
 
