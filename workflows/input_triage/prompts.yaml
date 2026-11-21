@@ -1,3 +1,15 @@
+workflow_requests: |
+  On each triage item, set workflow_task only if that input itself explicitly asks the companion
+  to start a concrete task that one of the workflows below can perform. Indirect phrasing
+  such as "could you gather three logs?" can still be a direct request to do the work.
+  A capability question, current-state question, quoted request, joke, hypothetical,
+  request to change or check an existing run, or Critical input has workflow_task: null.
+  Use the current speaker's words. Do not take an earlier request, private thought, or persona
+  idea as permission. Do not add, relax, or infer requirements. Use the workflow's exact name.
+  In workflow_task.constraints, copy exact quotes from that input for explicit quantities,
+  items, locations, return conditions, and other task boundaries. Use [] if there are none.
+  The worker receives the whole original message, including any requirements you do not quote.
+
 extraction: |
   In this same answer, also supply entity_extraction: {"claims": []}.
   Propose at most four useful entity claims across the new inputs. An empty list is valid.

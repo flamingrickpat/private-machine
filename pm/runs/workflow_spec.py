@@ -87,4 +87,6 @@ class WorkflowSpec:
     singleton_key: str = ""
     #: Allow main cognition to accept an explicit partner request during ordinary interaction.
     routine_start: bool = False
+    #: Describe the tasks this routine workflow can start from original partner text alone.
+    direct_request: str = ""
 

@@ -25,7 +25,7 @@ from pm.records.global_workspace import ShardChange
 from pm.context_render.story import RecordView
 from pm.records.workspace import ShardKey, WorkspaceShard
 from workflows.cognitive_control.schemas import FocusProposal, FocusState, WaitRequest
-from workflows.public_speech.public_context import Presentation
+from workflows.public_speech.public_context import ActionOrigin, Presentation
 from workflows.public_speech.dependencies import WorkDependencies
 from workflows.entity_context.schemas import EntityContextView, EntityClaimLayer
 
@@ -71,6 +71,7 @@ class ActionArguments(BaseModel):
     workflow_name: str = ""
     instructions: str = ""
     instruction: str = ""
+    constraints: list[str] = Field(default_factory=list[str])
     minecraft_read: Literal["", "inventory", "state"] = ""
     timeout_seconds: float | None = Field(default=None, strict=True)
 
@@ -201,7 +202,7 @@ class ActionRequest(BaseModel):
     regulation: str = ""
     task_receipt: TaskReceipt | None = None
     recovery_outcome: str = ""
-    action_origin: Literal["main", "interaction", "task_reply"] = "main"
+    action_origin: ActionOrigin = "main"
     interaction_selection_id: str = ""
     interaction_dependencies: WorkDependencies | None = None
     entity_contexts: list[EntityContextView] = Field(default_factory=list[EntityContextView])
@@ -262,6 +263,15 @@ class RecordMetadataView(BaseModel):
     exchange_status: str = ""
 
 
+class WorkflowTaskRequest(BaseModel):
+    """Explicit work requested by the speaker of this triaged input."""
+
+    model_config = ConfigDict(extra="forbid")
+    workflow_name: str
+    constraints: list[str] = Field(default_factory=list[str], max_length=12,
+        description="Verbatim clauses naming quantities, items, locations, return targets, or other requirements.")
+
+
 class TriageItem(BaseModel):
     knoxel_id: int = 0
     category: str = ""
@@ -270,6 +280,7 @@ class TriageItem(BaseModel):
     relevance: float = 0.0
     reasoning: str = ""
     evidence_ids: list[int] = Field(default_factory=list[int])
+    workflow_task: WorkflowTaskRequest | None = None
 
 
 #: Triage categories from the least to the most important.
@@ -279,6 +290,8 @@ TRIAGE_CATEGORIES = ("Insignificant", "Moderate", "Significant", "Critical")
 class TriageCheck(BaseModel):
     stimulus_ids: tuple[int, ...]
     shown_evidence_ids: frozenset[int]
+    workflow_task_names: frozenset[str] = frozenset()
+    original_inputs: dict[int, str] = Field(default_factory=dict[int, str])  # pm-lint: allow PM004 -- original utterances indexed by source knoxel ID
 
 
 class TriageResult(BaseModel):
@@ -309,6 +322,15 @@ class TriageResult(BaseModel):
                 unknown_sources = sorted(set(item.evidence_ids) - info.context.shown_evidence_ids)
                 if unknown_sources:
                     raise ValueError(f"Evidence IDs {unknown_sources} were not shown. Cite actual source IDs or use an empty evidence_ids list.")
+                task = item.workflow_task
+                if task is None:
+                    continue
+                if item.category == "Critical" or task.workflow_name not in info.context.workflow_task_names:
+                    raise ValueError("Set workflow_task to null for Critical inputs or unavailable workflows.")
+                original = info.context.original_inputs[item.knoxel_id]
+                for clause in task.constraints:
+                    if not clause.strip() or clause not in original:
+                        raise ValueError(f"Workflow task constraint {clause!r} must quote the current input exactly.")
         return self
 
 

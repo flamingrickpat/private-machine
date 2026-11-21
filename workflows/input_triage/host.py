@@ -52,9 +52,10 @@ from pm.records.workspace import SELF_SHARD, ShardKey
 from pm.runs.workflow_module import CognitiveWorkflow
 from workflows.input_triage.schemas import EarlyTriageAssessment, InputSourcePayload, InputTriageRequest, TriageEvidence
 from workflows.main_cognition.cycle_commits import active_intentions
+from workflows.main_cognition.catalogue import WorkflowCatalogue
 from workflows.main_cognition.cycle_work import CycleRequest
 from workflows.main_cognition.host import dialogue_partner
-from workflows.main_cognition.schemas import ShardStream, Stimulus
+from workflows.main_cognition.schemas import PendingDispatch, ShardStream, Stimulus
 from pm.memory.dependencies import source_fingerprint
 from workflows.public_speech.situational_guidance import build_situational_guidance
 from workflows.entity_context.owner import EntityContextOwner
@@ -73,6 +74,7 @@ class InputTriage(CognitiveWorkflow):
 
     cognitive_control: CognitiveControl
     entity_context_owner: EntityContextOwner | None = None
+    workflow_catalogue: WorkflowCatalogue | None = None
 
     def deliver(self, envelope: Envelope) -> None:
         """Register replayed input before queueing its classification."""
@@ -111,6 +113,8 @@ class InputTriage(CognitiveWorkflow):
         view = self.last_environment.ghost_view
         assert view is not None, "Early triage requires a frozen memory snapshot."
         request = build_input_request(self.ghost, view, batch, run_id=self.invocation_id or "")
+        if self.workflow_catalogue is not None:
+            request.direct_workflows = self.workflow_catalogue.direct_request_options()
         if self.entity_context_owner is not None:
             observer_id = request.cycle.self_entity_id
             if observer_id is None:
@@ -126,6 +130,16 @@ class InputTriage(CognitiveWorkflow):
         """Accept the durable assessment before waking cognition and speech."""
         assessment = EarlyTriageAssessment.model_validate(report)
         accepted = self.cognitive_control.accept_triage(assessment)
+        for envelope in batch:
+            source_id = InputSourcePayload.model_validate(envelope.payload).knoxel_id
+            action_id = accepted.routine_task_action_ids.get(source_id)
+            if action_id is None:
+                continue
+            action = self.ghost.snapshot({action_id}).get(action_id)
+            pending = PendingDispatch.model_validate(action.metadata)
+            self.bus.put(new_envelope(self.module_id, "data", "action.request",
+                pending.dispatch_correlation, pending.dispatch_payload.payload(),
+                target=pending.dispatch_target, causation_id=envelope.id))
         self.bus.put(new_envelope(self.module_id, "telemetry", "triage.accepted", "",
             {"source_ids": [source_id for source_id in accepted.source_ids],
              "reconsideration_epoch": accepted.reconsideration_epoch,

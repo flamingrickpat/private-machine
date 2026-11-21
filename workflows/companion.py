@@ -157,6 +157,8 @@ def _managed_workflows(
             namespace="minecraft_project",
             resumable=True,
             singleton=True, singleton_key="minecraft_body", routine_start=True,
+            direct_request=("Perform a concrete multi-step task in the live Minecraft world, "
+                            "such as gathering, exploring, or building, with independent verification."),
             request_context_owner=MinecraftContextOwner(),
             runtime_owner=build_minecraft_module_tools(stage_model, mcp_url=minecraft_endpoint),
             memory_config_owner=ProjectMemoryOwner(embeddings) if stage_model is not None else None,
@@ -547,6 +549,7 @@ def build_app(
             "cognitive_control", app, 1.0, ghost=ghost,
             config=ControlConfig.model_validate(cognitive_control_config or {}),
         )
+        control.workflow_catalogue = WorkflowCatalogue(supervisor, None)
         from workflows.entity_context.owner import EntityContextOwner
 
         entity_context_owner = EntityContextOwner(ghost)
@@ -585,6 +588,7 @@ def build_app(
             runtime_root=runtime_root, ghost=ghost, stage_model=stage_model,
         )
         input_triage.cognitive_control = control
+        input_triage.workflow_catalogue = control.workflow_catalogue
         input_triage.entity_context_owner = entity_context_owner
         modules.insert(1, input_triage)
         app.input_triage = input_triage

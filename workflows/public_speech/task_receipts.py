@@ -63,6 +63,7 @@ class TaskReceipt(BaseModel):
     summary: str = ""
     answer: str = ""
     task_verified: bool = False
+    admission_only: bool = Field(default=False, description="Acknowledge that the worker accepted the request.")
     evidence: tuple[str, ...] = ()
     report: TaskReportEvidence | ToolCallReport | None = None
     file_checks: tuple[FileCheck, ...] = ()
@@ -93,6 +94,9 @@ def read_optional_task_receipt(value: object) -> TaskReceipt | None:
 
 def render_task_receipt(receipt: TaskReceipt) -> str:
     identity = f" (run {receipt.run_id})" if receipt.run_id else ""
+    if receipt.admission_only:
+        return (f"Task {receipt.workflow_name}{identity}: worker state {receipt.state}. "
+                "This receipt confirms admission only. Original instructions: " + receipt.instructions)
     verified = "verified" if receipt.task_verified else "not verified"
     lines = [f"Task {receipt.workflow_name}{identity}: worker state {receipt.state}; requested effect {verified}."]
     if receipt.instructions:

@@ -12,7 +12,7 @@ from pm.records.base import RecordScope
 from workflows.entity_context.schemas import EntityContextKey, EntityContextProposal, EntityContextView, EntityExtractionDraft, EntityUpdateResult
 
 from workflows.main_cognition.cycle_work import CycleRequest
-from workflows.main_cognition.schemas import TriageResult
+from workflows.main_cognition.schemas import TriageResult, WorkflowOption
 
 
 class InputSourcePayload(BaseModel):
@@ -71,6 +71,7 @@ class InputTriageRequest(BaseModel):
     source_fingerprints: dict[int, str]
     guidance_tick: int | None
     evidence: TriageEvidence
+    direct_workflows: list[WorkflowOption] = Field(default_factory=list[WorkflowOption])
     entity_extraction_input: EntityExtractionInput | None = None
 
 
@@ -88,5 +89,7 @@ class EarlyTriageAssessment(BaseModel):
     result: TriageResult
     evidence: TriageEvidence
     reconsideration_epoch: int = Field(default=0, ge=0)
+    routine_task_action_ids: dict[int, int] = Field(default_factory=dict[int, int],  # pm-lint: allow PM004 -- action IDs indexed by source knoxel ID
+        description="Input knoxel to the durable action committed for its explicit workflow request.")
     entity_proposals: list[EntityContextProposal] | None = None
     entity_outcomes: list[EntityUpdateResult] | None = None

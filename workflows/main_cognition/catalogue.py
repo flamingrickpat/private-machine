@@ -11,6 +11,12 @@ class WorkflowCatalogue:
     supervisor: ManagedRunSupervisor
     tool_catalogue: ToolCatalogue | None
 
+    def direct_request_options(self) -> list[WorkflowOption]:
+        """List registered workflows that accept the original partner request as input."""
+        return [WorkflowOption(name=name, description=spec.direct_request, routine_start=True)
+                for name, spec in sorted(self.supervisor.workflows.items())
+                if spec.routine_start and spec.direct_request]
+
     def options(self) -> list[WorkflowOption]:
         options: list[WorkflowOption] = [
             WorkflowOption(name='dialogue_story', description='Generate one in-character Story reply.'),

@@ -233,10 +233,10 @@ def decide(context: RoleContext, work: CycleWork, prompts: PhasePrompts, prefix:
 
 def run(context: RoleContext, work: CycleWork) -> CycleWork:
     prompts = phase_prompts("decide")
-    interaction_sources = set(work.request.interaction_source_ids)
+    reserved_sources = work.request.reserved_selection_sources()
     groups: list[StimulusGroup] = []
     for group in work.state.stimulus_groups:
-        remaining_ids = [source_id for source_id in group.stimulus_ids if source_id not in interaction_sources]
+        remaining_ids = [source_id for source_id in group.stimulus_ids if source_id not in reserved_sources]
         if not group.insignificant and remaining_ids:
             remaining_group = group.model_copy()
             remaining_group.stimulus_ids = remaining_ids

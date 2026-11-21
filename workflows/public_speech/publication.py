@@ -26,7 +26,7 @@ from workflows.public_speech.dependencies import InteractionContextChanged, vali
 
 if TYPE_CHECKING:
     from pm.memory.store import MemoryStore
-    from workflows.public_speech.public_context import PublicContext
+    from workflows.public_speech.public_context import ActionOrigin, PublicContext
 
 
 class _ExchangeLifecycle(BaseModel):
@@ -60,7 +60,7 @@ def commit_public_reply(ghost: MemoryStore, text: str, correlation: str, *, comm
                         addressee_entity_id: int | None = None,
                         cognitive_control: PublicationControl | None = None,
                         action_guidance_tick: int | None = None,
-                        action_origin: Literal["main", "interaction", "task_reply"] = "main",
+                        action_origin: ActionOrigin = "main",
                         cancel: Event | None = None) -> int | None:
     """Commit speech and exchange resolution together, or reject stale input.
 

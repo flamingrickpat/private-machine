@@ -47,6 +47,9 @@ if TYPE_CHECKING:
     from workflows.public_speech.context_planning import PlannedContext
 
 
+ActionOrigin = Literal["main", "interaction", "input_triage", "task_reply"]
+
+
 class DialogueTurn(BaseModel):
     """One spoken line of public dialogue history."""
 
@@ -195,7 +198,7 @@ class PublicContext(BaseModel):
     state_tick: int | None = None
     situational_guidance: SituationalGuidance | None = None
     reconsideration_epoch: int | None = None
-    action_origin: Literal["main", "interaction", "task_reply"] = "main"
+    action_origin: ActionOrigin = "main"
     interaction_selection_id: str = ""
     interaction_dependencies: WorkDependencies | None = None
     entity_contexts: list[EntityContextView] = Field(default_factory=list[EntityContextView],

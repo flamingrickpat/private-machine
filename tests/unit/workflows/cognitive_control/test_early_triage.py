@@ -26,14 +26,18 @@ from pm.records.cycle_records import StimulusGroup
 from pm.records.cycle_state import CycleState, PersonaConfig
 from pm.records.global_workspace import GwtTurnRecord
 from pm.records.enums import EntityClass, FeatureType, InterlocusType
-from pm.records.memory_records import Entity, Feature
+from pm.records.memory_records import ActionSchemaRecord, Entity, Feature
+from pm.runs.supervisor import ManagedRunSupervisor
+from pm.runs.workflow_runner import PROJECT_ROOT
+from pm.runs.workflow_spec import WorkflowSpec
 from workflows.cognitive_control.host import CognitiveControl
 from workflows.cognitive_control.schemas import ControlConfig
 from workflows.inner_thought.graph_host import PrivateCommitOwner, PrivateInquiryOwner
 from workflows.inner_thought.nominations import capture_inquiry_grant, read_nomination_batch
 from workflows.inner_thought.schemas import NominationBatch
 from workflows.input_triage.schemas import EarlyTriageAssessment, TriageEvidence
-from workflows.main_cognition.schemas import ActionRequest, TriageItem, TriageResult
+from workflows.main_cognition.catalogue import WorkflowCatalogue
+from workflows.main_cognition.schemas import ActionRequest, PendingDispatch, TriageItem, TriageResult, WorkflowTaskRequest
 from workflows.dialogue_story.host import StoryDialogue
 from workflows.public_speech.public_context import PublicContext, source_fingerprint
 from workflows.public_speech.publication import commit_public_reply
@@ -75,7 +79,7 @@ class EarlyTriageBoundaryTests(unittest.TestCase):
         return next(item.id for item in self.store.all_features
                     if item.metadata.get("exchange_correlation") == correlation)
 
-    def assess(self, source_id: int, category: str) -> EarlyTriageAssessment:
+    def assess(self, source_id: int, category: str, *, task: WorkflowTaskRequest | None = None) -> EarlyTriageAssessment:
         """Supply an explicitly named classification at the control boundary."""
         view = self.store.recovery_snapshot(capture=False)
         fingerprints = {source_id: source_fingerprint(view.get(source_id))}
@@ -84,8 +88,44 @@ class EarlyTriageBoundaryTests(unittest.TestCase):
             evidence=TriageEvidence(record_fingerprints=fingerprints, commit_ids=sorted(view.commit_ids),
                                     current_head_ids=[source_id]),
             result=TriageResult(items=[TriageItem(knoxel_id=source_id, category=category,
-                                                 reasoning="Explicit scheduling-boundary input.")]))
+                                                 reasoning="Explicit scheduling-boundary input.", workflow_task=task)]))
         )
+
+    def register_local_workflow(self) -> None:
+        """Register a real local worker without starting one in the commit test."""
+        directory = TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        root = Path(directory.name)
+        supervisor = ManagedRunSupervisor(self.store, runtime_root=root / "runtime", task_root=root / "tasks",
+            workflows={"local_task": WorkflowSpec(
+                PROJECT_ROOT / "workflows/local_task/local_task.workflow.md",
+                routine_start=True, direct_request="Start the local control worker.")}, clock=time.time)
+        self.control.workflow_catalogue = WorkflowCatalogue(supervisor, None)
+
+    def test_cold_task_commits_original_input_and_restores_dispatch_ownership(self) -> None:
+        self.register_local_workflow()
+        text = "Start the local worker and keep it running until I ask you to stop."
+        source = self.submit(text)
+        task = WorkflowTaskRequest(workflow_name="local_task", constraints=["until I ask you to stop"])
+        accepted = self.assess(source, "Significant", task=task)
+        action_id = accepted.routine_task_action_ids[source]
+        action = self.store.snapshot({action_id}).get(action_id)
+        self.assertIsInstance(action, ActionSchemaRecord)
+        pending = PendingDispatch.model_validate(action.metadata)
+        self.assertFalse(self.store.states)
+        self.assertEqual(pending.dispatch_target, "local_task")
+        self.assertEqual(pending.dispatch_payload.arguments.instructions, text)
+        self.assertEqual(pending.dispatch_payload.arguments.constraints, task.constraints)
+        self.assertEqual(pending.dispatch_payload.stimuli[0].knoxel_id, source)
+        self.assertEqual(self.controller(self.store).routine_task_sources([source]), {source})
+
+    def test_unclassified_followup_prevents_older_task_dispatch(self) -> None:
+        self.register_local_workflow()
+        source = self.submit("Start the local worker.")
+        self.submit("Wait. Leave the worker off.")
+        accepted = self.assess(source, "Moderate", task=WorkflowTaskRequest(workflow_name="local_task"))
+        self.assertEqual(accepted.routine_task_action_ids, {})
+        self.assertFalse(any(isinstance(record, ActionSchemaRecord) for record in self.store.all_knoxels.values()))
 
     def accept_cycle(self, source_ids: list[int]) -> int:
         """Accept a real state/write batch without claiming an LLM calculation."""

@@ -36,7 +36,7 @@ from pm.utils import yaml_util
 
 from pm.bus.envelopes import Envelope, new_id
 from pm.records.base import RecordBase
-from pm.records.memory_records import ActionSchemaRecord
+from pm.records.memory_records import ActionSchemaRecord, Feature
 from pm.records.enums import ActionType
 from workflows.public_speech.publication import exchange_record, publish_reply
 from pm.host.application import BusModule
@@ -65,8 +65,8 @@ def user_reply_request(ghost: MemoryStore, *, knoxel_id: int, action_id: str,
                        workspace: str = "") -> ActionRequest:
     """Return the typed request of a task reply to the user, outside a cycle.
 
-    The reply answers the user exchange ``exchange``. It carries the self
-    shard and the user's shard of the newest cycle state, so the reply reads
+    The reply answers the speaker of ``exchange``. It carries the self
+    shard and the speaker's shard of the newest cycle state, so the reply reads
     the same conscious content as a reply that a cycle chose. The caller
     holds no store lock.
     """
@@ -75,17 +75,19 @@ def user_reply_request(ghost: MemoryStore, *, knoxel_id: int, action_id: str,
     from workflows.main_cognition.schemas import ActionRequest, Stimulus
     with ghost.lock:
         workspace_state = ghost.states[-1].workspace if ghost.states else GlobalWorkspace()
-        user_entity_id = ghost.get_entity_id(ghost.get_user_name())
-        user_name = ghost.get_user_name()
-    partner = partner_key(SELF_SHARD, user_entity_id)
+        if not isinstance(exchange, Feature):
+            raise TypeError(f"Task reply requires a dialogue source, got {exchange.id}.")
+        partner_name = exchange.source or ghost.get_user_name()
+        partner_entity_id = exchange.entity_id or ghost.get_entity_id(partner_name)
+    partner = partner_key(SELF_SHARD, partner_entity_id)
     return ActionRequest(
         knoxel_id=knoxel_id, action_id=action_id, workflow_name="dialogue_assistant",
-        partner_entity_id=user_entity_id, partner_name=user_name,
+        partner_entity_id=partner_entity_id, partner_name=partner_name,
         stimuli=[Stimulus(knoxel_id=exchange.id, text=str(exchange.content), source="user_input",
-                          entity_id=user_entity_id, correlation_id=str(exchange.metadata["exchange_correlation"]))],
+                          entity_id=partner_entity_id, correlation_id=str(exchange.metadata["exchange_correlation"]))],
         action_origin="task_reply",
         shards=request_shards(workspace_state, SELF_SHARD, partner,
-                              {key: user_name if key.kind == "entity" else "self" for key in (SELF_SHARD, partner) if key is not None}),
+                              {key: partner_name if key.kind == "entity" else "self" for key in (SELF_SHARD, partner) if key is not None}),
         task_receipt=task_receipt, workspace=workspace)
 
 
@@ -246,6 +248,7 @@ class ReplyRecovery(BusModule):
             raise ValueError(f"Task reply lost its selected action: {source_id}")
         evidence = TaskReceipt.model_validate(receipt)
         if admission:
+            evidence.admission_only = True
             identity = f"task-admission:{evidence.run_id}:{source.id}"
             instruction = "Briefly acknowledge the accepted background task in your own voice."
             workspace = ("This receipt confirms admission. Describe its actual state in one brief acknowledgment. "

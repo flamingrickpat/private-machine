@@ -108,7 +108,8 @@ class PublicDialogue(CognitiveWorkflow):
         # Refresh the durable private ontology before the snapshot. The review
         # reads the terms and bindings from the frozen public context.
         from workflows.public_speech.ontology import observe_ontology
-        observe_ontology(self.ghost, authority_id=request.knoxel_id)
+        if request.task_receipt is None or not request.task_receipt.admission_only:
+            observe_ontology(self.ghost, authority_id=request.knoxel_id)
         capabilities = self.capability_owner.snapshot() if self.capability_owner is not None else None
         with self.ghost.lock:
             self._public_context = build_public_context(self.ghost, request, capabilities=capabilities,
@@ -135,6 +136,8 @@ class PublicDialogue(CognitiveWorkflow):
         with self.ghost.lock:
             view = self.ghost.snapshot()
         shard = shard_context(view, request, self.ghost.get_companion_name(), late_ids=list(late_ids))
+        if request.task_receipt is not None and request.task_receipt.admission_only:
+            return shard
         # Build the focus from the workspace, stimuli, and goals.
         from workflows.public_speech.context_planning import FocusInput, plan_reply_context
         stimulus_texts = [s.text for s in request.stimuli if s.text]

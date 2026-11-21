@@ -758,12 +758,18 @@ class MainCogLoop(CognitiveWorkflow):
             previous = pickle_copy(previous)
             reserve_entity_context(previous.workspace, records, situational_guidance, tick=previous.tick_id)
         interaction_sources: list[int] = []
+        task_sources: set[int] = set()
         accepted_main = any(turn.slot_id == "main" for turn in memory_view.gwt_turns.values())
+        if control is not None and self.interaction_enabled:
+            user_sources = [stimulus.knoxel_id for stimulus in stimuli if stimulus.source == "user_input"]
+            task_sources = control.routine_task_sources(user_sources)
         if control is not None and accepted_main and self.interaction_enabled:
             ordinary_groups: dict[ShardKey, list[int]] = {}
             main_groups: set[ShardKey] = set()
             grouping = CycleRequest(user_entity_id=user_entity_id)
             for stimulus in stimuli:
+                if stimulus.knoxel_id in task_sources:
+                    continue
                 key = group_key(stimulus, grouping)
                 assessment = control.triage_result([stimulus.knoxel_id]) if stimulus.source == "user_input" else None
                 if assessment is not None and assessment.items[0].category != "Critical":
@@ -789,6 +795,7 @@ class MainCogLoop(CognitiveWorkflow):
         request = CycleRequest(
             images=tuple(captured_images[key] for key in sorted(captured_images)),
             interaction_source_ids=interaction_sources,
+            workflow_request_source_ids=sorted(task_sources),
             run_id=self.invocation_id or "",
             correlation_id=correlation,
             companion_name=self.ghost.get_companion_name(),
@@ -1184,6 +1191,7 @@ class MainCogLoop(CognitiveWorkflow):
             FeatureType.StateUpdate, source=self.ghost.get_companion_name(), source_kind=SourceKind.Self,
             changes=changes, metadata={"operation": "action_selection",
                                        "interaction_source_ids": list(request.interaction_source_ids),
+                                       "workflow_request_source_ids": list(request.workflow_request_source_ids),
                                        "decisions": [item.model_dump(mode="json") for item in work.state.decisions],
                                        "routes": [item.model_dump(mode="json") for item in work.routes],
                                        "reflection_versions": reflection_versions},
@@ -1210,10 +1218,11 @@ class MainCogLoop(CognitiveWorkflow):
         rejected = []
         queued = []
         duplicates = []
+        reserved_sources = request.reserved_selection_sources()
         for dispatch in work.dispatches:
-            if set(dispatch.stimulus_ids).intersection(request.interaction_source_ids):
+            if reserved_sources.intersection(dispatch.stimulus_ids):
                 rejected.append(dispatch.model_copy(update={"status": "rejected",
-                    "rejection_reason": "Ordinary local selection belongs to the interaction workflow."}))
+                    "rejection_reason": "Another workflow owns selection for this input."}))
                 continue
             if dispatch.status == "queued":
                 queued.append(dispatch)

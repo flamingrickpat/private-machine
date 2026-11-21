@@ -26,6 +26,8 @@ from pm.records.lineage import RecordLineage
 from workflows.cognitive_control.schemas import ControlConfig, WaitRequest
 from workflows.public_speech.publication_control import PublicationControl, ReplySuperseded, validate_unmanaged_selection, validate_unmanaged_action
 from workflows.input_triage.schemas import EarlyTriageAssessment
+from workflows.input_triage.workflow_requests import stage_workflow_requests
+from workflows.main_cognition.catalogue import WorkflowCatalogue
 from workflows.main_cognition.schemas import ActionRequest, TriageResult
 from workflows.entity_context.owner import EntityContextOwner
 from workflows.entity_context.schemas import EntityUpdateResult
@@ -77,6 +79,7 @@ class CognitiveControl(BusModule):
         self.cancel_public_drafts: Callable[[int], None] = lambda epoch: None
         self.validate_selection: Callable[[str], None] = validate_unmanaged_selection
         self.entity_context_owner: EntityContextOwner | None = None
+        self.workflow_catalogue: WorkflowCatalogue | None = None
         self.refresh_selection: Callable[[str], None] = validate_unmanaged_selection
         self.refresh_action: Callable[[ActionRequest], None] = validate_unmanaged_action
 
@@ -170,7 +173,13 @@ class CognitiveControl(BusModule):
                     if outcome.disposition == "deferred":
                         raise GhostConflict(f"Immediate entity update requires fresh extraction: {outcome.reason}.")
                     entity_outcomes.append(outcome)
-            accepted = assessment.model_copy(update={"reconsideration_epoch": epoch, "entity_outcomes": entity_outcomes})
+            task_actions: dict[int, int] = {}  # pm-lint: allow PM004 -- action IDs indexed by source knoxel ID
+            if (self.workflow_catalogue is not None and not critical and not self._critical_sources
+                    and not self._pending_triage.difference(source_ids)):
+                task_actions = stage_workflow_requests(
+                    self.ghost, evidence_view, batch, assessment, self.workflow_catalogue)
+            accepted = assessment.model_copy(update={"reconsideration_epoch": epoch, "entity_outcomes": entity_outcomes,
+                                                     "routine_task_action_ids": task_actions})
             batch.create(Feature(
                 content="; ".join(f"{item.category}: {item.reasoning}" for item in assessment.result.items),
                 feature_type=FeatureType.StateUpdate, interlocus=InterlocusType.PrivateInternal,
@@ -235,6 +244,12 @@ class CognitiveControl(BusModule):
             items = [next(item for item in assessment.result.items if item.knoxel_id == key)
                      for key, assessment in zip(source_ids, assessments, strict=True)]
             return TriageResult(items=items, codelet_budget=max(item.result.codelet_budget for item in assessments))
+
+    def routine_task_sources(self, source_ids: Sequence[int]) -> set[int]:
+        """Identify input already owned by a durable worker dispatch."""
+        with self.ghost.lock:
+            return {key for key in source_ids if key in self._assessments
+                    and key in self._assessments[key].routine_task_action_ids}
 
     def reconsideration_required(self) -> bool:
         """Return whether unknown or Critical input currently holds ordinary work."""

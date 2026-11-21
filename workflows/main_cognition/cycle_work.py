@@ -159,6 +159,12 @@ class CycleRequest(BaseModel):
     post_reply_seconds: float = 0.0
     #: Ordinary sources whose local action belongs to the interaction workflow.
     interaction_source_ids: list[int] = Field(default_factory=list[int])
+    #: Explicit partner requests whose task dispatch was committed by early triage.
+    workflow_request_source_ids: list[int] = Field(default_factory=list[int])
+
+    def reserved_selection_sources(self) -> set[int]:
+        """Return sources main cognition can appraise without selecting another action."""
+        return set(self.interaction_source_ids).union(self.workflow_request_source_ids)
 
 
 class CycleWork(BaseModel):

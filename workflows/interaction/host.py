@@ -115,6 +115,8 @@ class Interaction(CognitiveWorkflow):
         """Exclude classified Critical inputs and sources already selected by an owner."""
         with self.ghost.lock:
             view = self.ghost.recovery_snapshot(capture=False)
+            task_sources = self.cognitive_control.routine_task_sources(
+                [InputSourcePayload.model_validate(item.payload).knoxel_id for item in batch])
             receipts = interaction_receipts(view)
             owned = interaction_owned_sources(view)
             claimed = {source_id for state in self.ghost.read_cycles()
@@ -123,6 +125,8 @@ class Interaction(CognitiveWorkflow):
             result: list[Envelope] = []
             for envelope in batch:
                 source_id = InputSourcePayload.model_validate(envelope.payload).knoxel_id
+                if source_id in task_sources:
+                    continue
                 if view.get(source_id).metadata.get("exchange_status") == "resolved":
                     continue
                 if source_id in receipts:
@@ -158,7 +162,9 @@ class Interaction(CognitiveWorkflow):
         unique: dict[int, Envelope] = {}
         for envelope in batch:
             unique[InputSourcePayload.model_validate(envelope.payload).knoxel_id] = envelope
-        batch = list(unique.values())
+        batch = self.remaining_inputs(list(unique.values()))
+        if not batch:
+            return
         while not self.stop_event.is_set():
             with self.ghost.lock:
                 view = self.ghost.recovery_snapshot(capture=False)
