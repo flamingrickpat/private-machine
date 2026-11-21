@@ -191,9 +191,8 @@ The LLM boundary distinguishes unusable external output from faults in the appli
 [`EmptyCompletionError`][pm.llm.http_client.EmptyCompletionError] means that the provider returned no usable text or tool call.
 Whitespace-only content also counts as empty.
 A completion with tool calls remains valid even when it has no text.
-The shared text client retries declared empty output once.
-The tool-completion client permits two empty-output retries without repeating any tool execution.
-Other model errors do not enter these empty-output retries.
+The shared completion client retries empty, truncated, and other recoverable generations until it gets usable output or receives cancellation.
+It retries only the completion. Any tool effects from earlier turns remain in the transcript.
 HTTP transport retries keep their existing client policy.
 
 Story permits one [empty-output recovery](story-speech.md#completion-echoes) with the original context.
@@ -206,7 +205,6 @@ An empty Assistant result cannot cause those tools to run again.
 
 [`PublicDialogue.defer_reply`][workflows.public_speech.public_dialogue.PublicDialogue.defer_reply] handles only declared model-output exhaustion:
 
-- `EmptyCompletionError`: the empty-completion retries ended without usable output.
 - [`ProviderCompletionError`][pm.llm.http_client.ProviderCompletionError]: the provider failed or filtered generation. Partial text never reaches publication.
 - [`SpeechOutputError`][workflows.public_speech.speech_text.SpeechOutputError]: the speech workflow exhausted its usable-output attempts.
 - [`ModelFormatError`][pm.llm.structured.ModelFormatError]: JSON repair exhausted the available input context.

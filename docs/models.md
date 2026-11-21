@@ -193,15 +193,16 @@ The A18B evaluator and Jesse actor use the normal production wait policy.
 A separate test deadline can stop a run as incomplete evidence; it does not establish a negative model judgment.
 Retries repeat inference, so a lost response can cause duplicate provider work or charges.
 They do not repeat tool execution or regenerate a valid low-scoring review.
-Permanent HTTP errors and invalid responses fail with credential-free messages.
-A provider can also return HTTP 200 with `finish_reason=error`, `content_filter`, or an embedded completion error.
-[`pm.llm.http_client.ProviderCompletionError`][] rejects that partial content before a stage parser or public reply can use it.
-Provider-filtered output is not a quota wait and is not retried to obtain another answer.
+Permanent HTTP errors fail with credential-free messages.
+The shared completion client resamples truncated, empty, malformed, or failed generations.
+Each retry keeps the same prompt and output allowance. The delay starts at five seconds and increases to five minutes.
+The retry ends when the provider returns a usable completion or the caller cancels.
+The client surfaces a provider filter as [`pm.llm.http_client.ProviderCompletionError`][].
 An ordinary completed refusal remains a valid model response.
 The shared HTTP path uses [HTTPX timeout controls](https://www.python-httpx.org/advanced/timeouts/).
 
 A reasoning backend emits hidden reasoning tokens before the visible answer.
-The application sends no `max_tokens` cap, so the backend can finish its reasoning and its answer.
+The provider can count these tokens against the output allowance.
 Direct inner-thought calls disable thinking, including reflection.
 The shared [reasoning allowances](subsystems/inference-settings.md) remain available for other explicit callers.
 A cap sized for the visible answer alone can stop a JSON stage mid-object and report a stage output error.

@@ -522,10 +522,12 @@ class ManagedRunSupervisor:
             current_reads().collecting = False
             self._finish(receipt.run_id, result, environment)
         except BaseException as exc:
+            from pm.llm.http_client import ModelRequestRejected, ProviderCompletionError
             from pm.memory.snapshot import GhostCancelled
             cancelled = cancel.is_set() and isinstance(exc, (GhostCancelled, asyncio.CancelledError, FutureCancelledError))
             from pm.runs.errors import TaskServiceError
-            outcome = "failed" if isinstance(exc, (TaskServiceError, BodyBusy)) else "interrupted"
+            service_failed = isinstance(exc, (TaskServiceError, BodyBusy, ModelRequestRejected, ProviderCompletionError))
+            outcome = "failed" if service_failed else "interrupted"
             recording_failed = False
             try:
                 current = self.get(receipt.run_id)
@@ -536,7 +538,7 @@ class ManagedRunSupervisor:
                     )
                     # The control receipt retains diagnostics. A logic defect
                     # must reach the operator without becoming a world event.
-                    if cancelled or isinstance(exc, (TaskServiceError, BodyBusy)):
+                    if cancelled or service_failed:
                         self._emit(receipt.run_id, outcome, fields=RunEventFields(error=str(exc), detail=str(exc), reason="resource_busy" if isinstance(exc, BodyBusy) else "worker_error"))
                 else:
                     # Publication can fail after a terminal receipt commits.
@@ -548,7 +550,7 @@ class ManagedRunSupervisor:
             # Service loss or resource contention ends only this task. Keep the
             # fence intact and let cognition choose the next action. Logic faults
             # still reach the application's error handler.
-            if recording_failed or (not cancelled and not isinstance(exc, (TaskServiceError, BodyBusy))):
+            if recording_failed or (not cancelled and not service_failed):
                 if self.on_error is None:
                     raise
                 self.on_error(exc)

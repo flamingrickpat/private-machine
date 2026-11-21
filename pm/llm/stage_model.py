@@ -11,19 +11,22 @@ by default) so a degenerate sample cannot run to the provider's whole output
 ceiling. Workflows can budget hidden reasoning separately, and an explicit
 ``max_tokens`` from the caller still wins. The application shares admission
 slots across module threads. Cancellation releases a slot after the request finishes
-cleanup. An empty response is retried at most once. An endpoint that is down
-pauses activation and requests until it returns; it never ends the session.
+cleanup. Unusable completions that can recover by resampling retry until
+cancellation. An endpoint that is down pauses activation and requests until
+it returns.
 """
 from __future__ import annotations
 
 import asyncio
+import logging
 from threading import Event, Lock
 from collections.abc import Sequence
 from pm.llm.contracts import ContextMeasurement
 from pm.llm.generation import GenerationSettings
 
 from pm.llm.activation import ChatClient, ChatResult, ModelActivation
-from pm.llm.http_client import EmptyCompletionError
+from pm.constants import CYCLE_RETRY_DELAY_SECONDS, CYCLE_RETRY_MAX_DELAY_SECONDS
+from pm.llm.http_client import RetryableCompletionError, cancellable
 from pm.llm.config import Connection
 from pm.llm.completion import Completion
 from pm.context_render.prompt import RendererCaptureOptions
@@ -37,23 +40,23 @@ async def complete_chat_with_retry(
     settings: GenerationSettings,
     cancel: Event | None = None,
 ) -> ChatResult:
-    """One completion with a bounded empty-content retry, as the provider returned it.
+    """Resample unusable output with the same prompt, schema, and output allowance.
 
-    An empty completion is stochastic, so one fresh sample is worth asking
-    for. A second empty answer fails loudly: the prompt or the generation
-    configuration needs a human look, and no fallback text replaces it. The
-    result keeps the provider usage block for a caller that retains receipts.
+    The provider retains a separate prompt receipt for each sample. The delay
+    holds no inference slot. Only a complete result reaches the caller.
     """
-    last: EmptyCompletionError | None = None
-    for attempt in range(2):
+    attempt = 1
+    delay_seconds = CYCLE_RETRY_DELAY_SECONDS
+    logger = logging.getLogger(__name__)
+    while True:
         try:
             return await client.complete(messages, settings=settings, cancel=cancel)
-        except EmptyCompletionError as error:
-            if attempt == 1:
-                raise
-            last = error
-            continue
-    raise last if last is not None else EmptyCompletionError("The model returned no content.")
+        except RetryableCompletionError as error:
+            logger.warning("Model completion retry attempt=%s delay_seconds=%g error_type=%s reason=%s",
+                           attempt, delay_seconds, type(error).__name__, error)
+            await cancellable(asyncio.sleep(delay_seconds), cancel)
+            attempt += 1
+            delay_seconds = min(delay_seconds * 2, CYCLE_RETRY_MAX_DELAY_SECONDS)
 
 
 async def complete_with_retry(

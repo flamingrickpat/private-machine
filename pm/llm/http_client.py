@@ -64,12 +64,24 @@ class ModelRequestRejected(RuntimeError):
     pass
 
 
-class EmptyCompletionError(ModelError):
+class RetryableCompletionError(ModelError):
+    """A new sample can recover from this unusable completion."""
+
+
+class EmptyCompletionError(RetryableCompletionError):
     """The provider returned neither usable text nor a tool call."""
 
 
+class TruncatedCompletionError(RetryableCompletionError):
+    """The provider reached the requested output limit before finishing."""
+
+
 class ProviderCompletionError(ModelError):
-    """The provider failed or filtered generation. Partial text is not a result."""
+    """The provider ended generation. Partial text is not a result."""
+
+
+class ProviderGenerationError(ProviderCompletionError, RetryableCompletionError):
+    """The provider reported an error during generation."""
 
 
 class CompletionChoiceStatus(BaseModel):
@@ -103,14 +115,18 @@ def http_failure_reason(response: httpx.Response) -> str:
     return status
 
 
-def completion_error(data: JsonValue | None) -> ProviderCompletionError | None:
+def completion_error(data: JsonValue | None) -> ProviderCompletionError | RetryableCompletionError | None:
     try:
         status = CompletionStatus.model_validate(data)
     except ValidationError:
         return None
     for choice in status.choices:
-        if choice.error is not None or choice.finish_reason in {"error", "content_filter"}:
-            return ProviderCompletionError("The model provider failed or filtered generation. No partial completion was accepted.")
+        if choice.finish_reason == "content_filter":
+            return ProviderCompletionError("The model provider filtered generation. No partial completion was accepted.")
+        if choice.finish_reason == "length":
+            return TruncatedCompletionError("The completion reached the output limit (finish_reason=length).")
+        if choice.error is not None or choice.finish_reason == "error":
+            return ProviderGenerationError("The model provider failed during generation. No partial completion was accepted.")
     return None
 
 
@@ -308,8 +324,10 @@ class JsonClient:
                     else:
                         try:
                             data = TypeAdapter[dict[str, JsonValue]](dict[str, JsonValue]).validate_json(response.content)
-                        except ValueError:
-                            raise ModelError("The model service returned invalid JSON.") from None
+                        except ValueError as error:
+                            if chat:
+                                raise RetryableCompletionError("The model service returned invalid completion JSON.") from error
+                            raise ModelError("The model service returned invalid JSON.") from error
                         if "error" in data:
                             raise ModelError("The model service returned an invalid result or an API error.")
                         provider_error = completion_error(data)

@@ -24,7 +24,7 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, JsonValue, TypeAdapter
 
-from pm.llm.http_client import EmptyCompletionError, JsonClient, ModelError, cancellable, EndpointRetry
+from pm.llm.http_client import EmptyCompletionError, JsonClient, ModelError, RetryableCompletionError, cancellable, EndpointRetry
 from pm.llm.config import Connection
 from pm.llm.multimodal import encode_messages
 from pm.llm.prompt_encoding import TurnInput
@@ -348,13 +348,10 @@ class ChatClient:
             response = await self.client.request("POST", "chat/completions", payload=payload, cancel=cancel)
         try:
             result = ChatResult.model_validate(response)
-        except ValidationError:
-            raise ModelError("The model service returned an invalid chat completion.") from None
+        except ValidationError as error:
+            raise RetryableCompletionError("The model service returned an invalid chat completion.") from error
         if result.model != self.connection.model:
             raise ModelError("The completion model does not match the activated model alias.")
-        if result.choices[0].finish_reason in {"length", "content_filter"}:
-            raise ModelError("The model completion ended before a usable response: "
-                             f"finish_reason={result.choices[0].finish_reason}; usage={response.get('usage', {})}.")
         message = result.choices[0].message
         if not (message.content or "").strip() and not message.tool_calls:
             raise EmptyCompletionError("The model returned no content or tool call. Inspect its generation config.")
