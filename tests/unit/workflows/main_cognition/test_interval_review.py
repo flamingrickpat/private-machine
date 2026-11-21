@@ -23,7 +23,7 @@ from workflows.interaction.schemas import InteractionDecision, InteractionOutcom
 from workflows.main_cognition.cycle_commits import apply_goal_changes
 from workflows.main_cognition.expectations import SOURCE_REF
 from workflows.main_cognition.interval_review import build_interval_review, render_interval_review
-from workflows.main_cognition.schemas import GoalChange
+from workflows.main_cognition.schemas import ActionRequest, GoalChange
 from workflows.public_speech.dependencies import WorkDependencies
 from workflows.public_speech.situational_guidance import GuidanceDisposition
 
@@ -111,6 +111,21 @@ class IntervalReviewTests(unittest.TestCase):
         self.assertEqual(self.latest_main_frontier(self.store), first.through_record_id)
         second = build_interval_review(self.store.snapshot(capture=False), after_record_id=first.through_record_id)
         self.assertEqual(second.moves, [])
+
+    def test_review_preserves_the_origin_of_a_direct_workflow_dispatch(self) -> None:
+        start = self.frontier()
+        request = ActionRequest(action_id="task-request", workflow_name="minecraft_project",
+                                content="Gather wood.", action_origin="input_triage")
+        batch = self.store.begin_batch("direct-task", embed=False)
+        action = batch.create(ActionSchemaRecord(content=request.content, action_type=ActionType.ToolCallAndReply,
+            metadata={"action_id": request.action_id, "dispatch_status": "pending",  # pm-lint: allow PM005 -- serialized action record metadata
+                      "dispatch_payload": request.payload()}))
+        self.store.commit(batch)
+        review = build_interval_review(self.store.snapshot(capture=False), after_record_id=start)
+        [move] = review.moves
+        self.assertEqual(move.move.action.record_id, action.id)
+        self.assertEqual(move.origin, request.action_origin)
+        self.assertIn("in response to a direct task request", render_interval_review(review, companion_name="Spamuel"))
 
     def test_a_cycle_that_is_not_accepted_leaves_the_frontier_unchanged(self) -> None:
         start = self.frontier()

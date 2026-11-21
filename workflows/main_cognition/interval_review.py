@@ -39,6 +39,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from pm.memory.snapshot import Snapshot
 from pm.records.cognitive_records import ExpectationRecord, Intention
 from pm.records.memory_records import ActionSchemaRecord, Feature
+from workflows.public_speech.public_context import ActionOrigin
 from workflows.public_speech.situational_guidance import GuidanceDisposition, RecentMove, recent_move
 
 
@@ -60,9 +61,9 @@ class IntervalMove(BaseModel):
     """One action committed since the last accepted review."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
-    origin: Literal["main", "interaction", "task_reply"] = Field(
+    origin: ActionOrigin = Field(
         description="main: chosen by main cognition. interaction: chosen by the ordinary fast path. "
-                    "task_reply: the answer to a finished task.")
+                    "input_triage: dispatched from an explicit partner request. task_reply: speech based on a task receipt.")
     move: RecentMove = Field(description="The action, its utterance, and its delivery status at review time.")
     governing: list[GoverningIntention] = Field(description="The intention versions that held when it was chosen.")
     expectation_ids: list[int] = Field(description="Current records of the expectations this action opened.")
@@ -107,7 +108,7 @@ class _OriginPayload(BaseModel):
     """The origin field of an action's stored dispatch request."""
 
     model_config = ConfigDict(extra="ignore")
-    action_origin: Literal["main", "interaction", "task_reply"]
+    action_origin: ActionOrigin
 
 
 class _ReviewedActionMetadata(BaseModel):
@@ -199,7 +200,7 @@ def _governing(view: Snapshot, action: ActionSchemaRecord, heads: dict[int, Inte
     return governing
 
 
-def _origin(action: ActionSchemaRecord) -> Literal["main", "interaction", "task_reply"]:
+def _origin(action: ActionSchemaRecord) -> ActionOrigin:
     """Name who chose an action from its stored dispatch request."""
     metadata = _ReviewedActionMetadata.model_validate(action.metadata)
     if metadata.task_run_id is not None or metadata.action_id.startswith("task-rejection:"):
@@ -256,9 +257,10 @@ def build_interval_review(view: Snapshot, *, after_record_id: int | None) -> Int
                           moves=moves, suspensions=suspensions, inhibitions=inhibitions)
 
 
-_ORIGIN_WORDS: dict[str, str] = {
+_ORIGIN_WORDS: dict[ActionOrigin, str] = {  # pm-lint: allow PM004 -- display text by action origin
     "main": "after thinking it over",
     "interaction": "in the flow of the conversation",
+    "input_triage": "in response to a direct task request",
     "task_reply": "to answer a finished task",
 }
 _STATUS_WORDS: dict[str, str] = {
