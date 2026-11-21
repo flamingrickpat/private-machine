@@ -23,7 +23,7 @@ from pm.llm.stage_model import LazyStageModel
 from pm.runs.role_runtime import PMWorkflowRuntime
 from workflows.minecraft_body.mcp_client import DEFAULT_MCP_URL, MinecraftTransport, MinecraftTransportSettings
 from workflows.minecraft.runtime import MinecraftBodyLease, MinecraftWorkflowRuntime
-from pm.memory.agent_tools import MemoryToolConfig, MemoryView, MemoryRefreshScope
+from pm.memory.agent_tools import MemoryToolConfig, MemoryRefreshScope, accepted_in_world_view
 
 if TYPE_CHECKING:
     from pm.memory.embeddings import EmbeddingService
@@ -64,9 +64,7 @@ class ProjectMemoryOwner:
 
 def project_memory_config(store: MemoryStore, cancel: Event,
                          embeddings: EmbeddingService | None = None) -> MemoryToolConfig:
-    with store.lock:
-        view = MemoryView(record_ids=frozenset(store.revisions), scopes=frozenset({(-1, "in_world")}),
-            frontier=(store.current_tick_id, 2**63 - 1))
+    view = accepted_in_world_view(store)
     return MemoryToolConfig(store, view, semantic=True, lexical=True, graph=True,
         embeddings=embeddings, cancel=cancel, refresh_scope=MemoryRefreshScope.AcceptedInWorld)
 

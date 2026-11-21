@@ -5,6 +5,7 @@ from pathlib import Path
 from collections.abc import Sequence
 
 from pm.memory.store import MemoryStore
+from pm.memory.agent_tools import accepted_in_world_view
 from pm.memory.snapshot import GhostConflict
 from pm.records.cycle_state import PersonaConfig
 from pm.records.cycle_state import CycleState
@@ -62,6 +63,18 @@ class CausalRecoveryTests(unittest.TestCase):
         self.assertIsNone(clean.get_knoxel_by_id(latest.id))
         self.assertIsNotNone(clean.get_knoxel_by_id(reply.id))
         self.assertEqual(clean.get_knoxel_by_id(action.id).metadata["execution_status"], "completed")
+
+    def test_project_memory_grant_excludes_unaccepted_input_after_reopen(self) -> None:
+        accepted = self.admit()
+        provisional = self.ghost.store_knoxel(self.feature("unfinished input"))
+        self.ghost.save()
+
+        reopened = MemoryStore.from_checkpoint(self.path)
+        self.assertIn(provisional.id, reopened.revisions)
+        grant = accepted_in_world_view(reopened)
+        self.assertIn(accepted.id, grant.record_ids)
+        self.assertNotIn(provisional.id, grant.record_ids)
+        reopened.snapshot(grant.record_ids)
 
     def test_reply_that_read_unaccepted_input_is_excluded_and_action_stays_pending(self):
         action = self.admit()

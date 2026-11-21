@@ -134,6 +134,14 @@ class MemoryToolConfig:
             raise ValueError("Enable at least one memory tool group.")
 
 
+def accepted_in_world_view(store: MemoryStore) -> MemoryView:
+    """Grant only records visible to the current causal owner."""
+    with store.lock:
+        visible = store.snapshot(capture=False)
+        return MemoryView(record_ids=frozenset(visible.revisions),
+            scopes=frozenset({(-1, "in_world")}), frontier=(store.current_tick_id, 2**63 - 1))
+
+
 def _snapshot(config: MemoryToolConfig, grant: MemoryView) -> Snapshot:
     """Remove hidden references before any metadata, search, or graph read."""
     original = config.store.snapshot(grant.record_ids)
@@ -372,8 +380,7 @@ class MemoryReadSession:
             if self.config.refresh_scope is not MemoryRefreshScope.AcceptedInWorld:
                 raise ValueError("This workflow does not permit memory refresh.")
             with self.config.store.lock:
-                grant = MemoryView(record_ids=frozenset(self.config.store.revisions),
-                    scopes=frozenset({(-1, "in_world")}), frontier=(self.config.store.current_tick_id, 2**63 - 1))
+                grant = accepted_in_world_view(self.config.store)
                 self._install(grant)
             self.accessed.clear()
             return self.view()
