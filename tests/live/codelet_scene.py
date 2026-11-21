@@ -180,6 +180,8 @@ def run_scene(scene: str, config: Path, source: Path, catalog: Path) -> Path:
             app.shutdown()
             app.join()
             app.raise_if_error()
+            # Speech can commit after the last main-cycle checkpoint.
+            store.save()
 
 
 def main() -> None:
