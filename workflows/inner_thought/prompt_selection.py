@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 
 from pm.context_render.budget import TokenEstimator
 from pm.context_render.correction import render_regeneration_feedback
+from pm.context_render.images import ImageCatalog, resolve_media
 from pm.context_render.prompt import EvidenceDecision, RenderedPrompt, RenderSettings, require_rendered_prompt
 from pm.context_render.records import RecordEvidence, render_record
 from pm.context_render.turns import Role, Turn
@@ -54,7 +55,8 @@ def select_private_evidence(input: PrivatePromptInput, settings: RenderSettings)
         feedback = render_regeneration_feedback(input.operation, input.correction, settings)
         selected.append(feedback.text)
         settings = settings.without_correction_reserve()
-    turns = (Turn(Role.System, input.system), Turn(Role.User, "\n\n".join(selected)))
+    images = ImageCatalog()
+    turns = resolve_media((Turn(Role.System, input.system), Turn(Role.User, "\n\n".join(selected))), images)
     require_rendered_prompt(input.operation, turns, settings, tuple(decisions))
     estimator = TokenEstimator(estimate_factor=settings.estimate_factor)
     ranked: list[RankedPrivateEvidence] = []
@@ -66,7 +68,7 @@ def select_private_evidence(input: PrivatePromptInput, settings: RenderSettings)
         if (block.title, block.text) in seen:
             continue
         text = f"{block.title}:\n{block.text}"
-        trial = (turns[0], Turn(Role.User, "\n\n".join([*selected, text])))
+        trial = resolve_media((turns[0], Turn(Role.User, "\n\n".join([*selected, text]))), images)
         admitted = estimator.estimate(trial) <= settings.input_ceiling
         if admitted:
             selected.append(text)

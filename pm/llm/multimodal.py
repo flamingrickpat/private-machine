@@ -193,11 +193,11 @@ def resolve_turns(messages: Sequence[TurnInput], catalog: ImageCatalog = ImageCa
                 elif turn.role is Role.User:
                     parts.append(_media(image))
                 else:
-                    parts.append(Text(part.text[tag.start:tag.end]))
+                    parts.append(Text(image.alt_label()))
                 cursor = tag.end
             parts.append(Text(part.text[cursor:]))
         for image in moved.get(turn_index, []):
-            parts.append(Text(f"\n{image.tag} (shown later in this conversation):\n"))
+            parts.append(Text(f"\n{image.alt_label()} (shown later in this conversation):\n"))
             parts.append(_media(image))
         merged = Content((), notes=turn.content.notes)
         for part in parts:
