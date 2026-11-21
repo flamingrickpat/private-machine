@@ -4,7 +4,8 @@
 its current partner lines, shard state, and retrieved memory into ``StoryRequest``.
 The runtime supplies the conservative input ceiling. ``context.py`` fits complete
 generation and review prompts; ``steps.py`` runs those model calls and records
-their selections. Required context overflow and unexpected errors propagate.
+their selections. If the current exchange cannot fit, the public host records
+the failure and leaves it pending. Unexpected errors propagate.
 
 The tool factory binds the application's model and cancellation event on the
 module thread. The shared ``PublicDialogue`` base owns source guards, durable

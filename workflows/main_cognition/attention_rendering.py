@@ -91,7 +91,12 @@ def render_attention(input: AttentionRenderInput, settings: RenderSettings) -> A
     estimator = TokenEstimator(estimate_factor=settings.estimate_factor)
     selected = AttentionSelection()
     frame = attention_frame(input, selected)
-    baseline = require_rendered_prompt("attention instructions", cognition_story_turns(frame, frozenset(required_story)), settings)
+    turns = cognition_story_turns(frame, frozenset(required_story))
+    relax_pins = bool(required_story) and estimator.estimate(turns) > settings.input_ceiling
+    if relax_pins:
+        required_story.clear()
+        turns = cognition_story_turns(frame, frozenset())
+    baseline = require_rendered_prompt("attention instructions", turns, settings)
     candidate_ceiling = baseline.estimated_tokens + (settings.input_ceiling - baseline.estimated_tokens) * 3 // 4
     ranked = sorted(RankedAttentionStructure(-item.priority, index, item)
                     for index, item in enumerate(input.structures))
@@ -132,6 +137,9 @@ def render_attention(input: AttentionRenderInput, settings: RenderSettings) -> A
             "attention supporting source" if included else "attention evidence allocation"))
     frame = attention_frame(input, selected)
     rendered = render_cognition_story(frame, settings)
+    groups = rendered.selected_groups
+    if relax_pins and not groups:
+        groups = ("workspace evidence pins relaxed",)
     prompt = require_rendered_prompt("attention rating", rendered.turns, settings, (*rendered.evidence, *decisions),
-        selected_groups=tuple(structure.label for structure in selected.structures))
+        selected_groups=(*groups, *(structure.label for structure in selected.structures)))
     return AttentionPrompt(prompt, selected)

@@ -192,13 +192,14 @@ def _offer(offers: dict[int, TriageOffer], record_id: int,
 
 
 def _shard_offers(work: CycleWork, shard: WorkspaceShard, required_ids: set[int],
-                  offers: dict[int, TriageOffer]) -> None:
+                  offers: dict[int, TriageOffer], *, pin_dialogue: bool) -> None:
     """Rank the tail and the items of one shown shard for the triage prompt."""
     # ``tail_ids`` is oldest first, so a later position is a newer line.
     tail_ids = list(dict.fromkeys(shard.tail_ids))
     if shard.key.kind == "entity":
         tail_tier = TriageContextTier.LatestDialogue
-        required_ids.update(tail_ids[-TRIAGE_REQUIRED_DIALOGUE_LINES:])
+        if pin_dialogue:
+            required_ids.update(tail_ids[-TRIAGE_REQUIRED_DIALOGUE_LINES:])
     else:
         tail_tier = TriageContextTier.LatestThought
     for position, record_id in enumerate(tail_ids):
@@ -218,7 +219,7 @@ def _shard_offers(work: CycleWork, shard: WorkspaceShard, required_ids: set[int]
         _offer(offers, item.record_id, tier, _tier_salience(tier, position, len(items_by_activation)))
 
 
-def triage_context(work: CycleWork) -> TriageContext:
+def triage_context(work: CycleWork, *, pin_dialogue: bool = True) -> TriageContext:
     """Return the required records and the ranked optional groups of one triage prompt.
 
     The new events are always part of the prompt and need no group. The
@@ -228,7 +229,7 @@ def triage_context(work: CycleWork) -> TriageContext:
     required_ids: set[int] = set()
     offers: dict[int, TriageOffer] = {}
     for shard in shown_shards(work):
-        _shard_offers(work, shard, required_ids, offers)
+        _shard_offers(work, shard, required_ids, offers, pin_dialogue=pin_dialogue)
 
     candidates: dict[str, TriageCandidate] = {}
     groups = [ContextGroup(name="required triage context", content=Content(""), salience=0, required=True,
@@ -361,28 +362,37 @@ def assemble_triage(work: CycleWork, selectable: TriageContext, chosen: Sequence
 
 def fit_prompt(work: CycleWork, budget: ContextBudget, *, prompts: PhasePrompts, story_prompts: PhasePrompts,
                appended: Sequence[Turn] = ()) -> TriagePrompt:
-    selectable = triage_context(work)
     settings = RenderSettings(context_window=budget.context_window, input_fraction=budget.input_fraction,
                               reserved_output_tokens=1, correction_tokens=0, estimate_factor=budget.estimate_factor)
+    for pin_dialogue in (True, False):
+        try:
+            return fit_triage_evidence(work, budget, settings, prompts, story_prompts, appended,
+                                       pin_dialogue=pin_dialogue)
+        except RequiredContextTooLarge:
+            continue
+    companion = work.request.companion_name
+    partners = story_entities(work)
+    system = fill_story_names(story_prompts.system_prompt, companion, partners).strip()
+    template = fill_story_names(prompts.user_template, companion, partners)
+    instruction = triage_instruction(work, template, include_background=False)
+    compact = resolve_media((Turn(Role.System, system), Turn(Role.User, instruction), *appended),
+                            ImageCatalog(work.request.images))
+    fitted = require_rendered_prompt("compact triage", compact, settings)
+    selection = PromptSelection(fitted.turns, ("current stimuli",), ("story and workspace context",),
+                                fitted.estimated_tokens, (), ())
+    return TriagePrompt(turns=list(compact), selection=selection, input_ceiling=budget.input_ceiling)
+
+
+def fit_triage_evidence(work: CycleWork, budget: ContextBudget, settings: RenderSettings,
+                        prompts: PhasePrompts, story_prompts: PhasePrompts, appended: Sequence[Turn], *,
+                        pin_dialogue: bool) -> TriagePrompt:
+    selectable = triage_context(work, pin_dialogue=pin_dialogue)
     chosen = [group for group in selectable.groups if group.required]
     optional = sorted(RankedTriageGroup(-group.salience, group.name, group)
                       for group in selectable.groups if not group.required)
-    try:
-        turns = assemble_triage(work, selectable, chosen, prompts, story_prompts, settings, appended)
-        require_rendered_prompt("triage", tuple(turns), settings)
-    except RequiredContextTooLarge:
-        companion = work.request.companion_name
-        partners = story_entities(work)
-        system = fill_story_names(story_prompts.system_prompt, companion, partners).strip()
-        template = fill_story_names(prompts.user_template, companion, partners)
-        instruction = triage_instruction(work, template, include_background=False)
-        compact = resolve_media((Turn(Role.System, system), Turn(Role.User, instruction), *appended),
-                                ImageCatalog(work.request.images))
-        fitted = require_rendered_prompt("compact triage", compact, settings)
-        selection = PromptSelection(fitted.turns, ("current stimuli",), ("story and workspace context",),
-                                    fitted.estimated_tokens, (), ())
-        return TriagePrompt(turns=list(compact), selection=selection, input_ceiling=budget.input_ceiling)
-    omitted: list[str] = []
+    turns = assemble_triage(work, selectable, chosen, prompts, story_prompts, settings, appended)
+    require_rendered_prompt("triage", tuple(turns), settings)
+    omitted: list[str] = [] if pin_dialogue else ["triage dialogue pins relaxed"]
     for ranked in optional:
         trial = [*chosen, ranked.group]
         try:

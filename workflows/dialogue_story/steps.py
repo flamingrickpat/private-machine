@@ -559,7 +559,8 @@ def generate_reviewed(request: StoryRequest, prompts: StoryPrompts, generate: Mo
                 capture.save_output(rendered)
             messages = list(rendered.turns)
             selection = SelectionReceipt(
-                included=tuple(f"memory:{item.record_id}" for item in rendered.evidence if item.included),
+                included=tuple(dict.fromkeys((*rendered.selected_groups,
+                    *(f"memory:{item.record_id}" for item in rendered.evidence if item.included)))),
                 omitted=tuple(f"memory:{item.record_id}" for item in rendered.evidence if not item.included),
                 estimated_tokens=rendered.estimated_tokens,
                 source_ids=tuple(sorted({item.record_id for item in rendered.evidence if item.included})), episode_ids=())

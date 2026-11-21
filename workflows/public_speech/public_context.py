@@ -79,12 +79,13 @@ class Presentation(BaseModel):
 @dataclass(order=True, frozen=True, slots=True)
 class RankedPublicEvidence:
     negative_score: float
-    record_id: int
+    tie_break: int
     evidence: EvidenceItem = field(compare=False)
 
 
-def rank_public_evidence(evidence: Sequence[EvidenceItem]) -> tuple[EvidenceItem, ...]:
-    ranked = [RankedPublicEvidence(-item.score, item.knoxel_id, item) for item in evidence]
+def rank_public_evidence(evidence: Sequence[EvidenceItem], *, prefer_recent: bool = False) -> tuple[EvidenceItem, ...]:
+    ranked = [RankedPublicEvidence(-item.score, -item.knoxel_id if prefer_recent else item.knoxel_id, item)
+              for item in evidence]
     ranked.sort()
     return tuple(item.evidence for item in ranked)
 

@@ -51,14 +51,25 @@ def select_private_evidence(input: PrivatePromptInput, settings: RenderSettings)
                 decisions.append(EvidenceDecision(key, block.priority, True, "required operation evidence"))
         else:
             optional.append(block)
+    feedback_text = ""
     if input.correction:
         feedback = render_regeneration_feedback(input.operation, input.correction, settings)
-        selected.append(feedback.text)
+        feedback_text = feedback.text
+        selected.append(feedback_text)
         settings = settings.without_correction_reserve()
     images = ImageCatalog()
-    turns = resolve_media((Turn(Role.System, input.system), Turn(Role.User, "\n\n".join(selected))), images)
-    require_rendered_prompt(input.operation, turns, settings, tuple(decisions))
     estimator = TokenEstimator(estimate_factor=settings.estimate_factor)
+    turns = resolve_media((Turn(Role.System, input.system), Turn(Role.User, "\n\n".join(selected))), images)
+    if estimator.estimate(turns) > settings.input_ceiling and selected_groups:
+        selected = [input.required_context]
+        if feedback_text:
+            selected.append(feedback_text)
+        optional = list(input.evidence)
+        selected_groups = ["private evidence pins relaxed"]
+        decisions.clear()
+        seen.clear()
+        turns = resolve_media((Turn(Role.System, input.system), Turn(Role.User, "\n\n".join(selected))), images)
+    require_rendered_prompt(input.operation, turns, settings, tuple(decisions))
     ranked: list[RankedPrivateEvidence] = []
     for index, block in enumerate(optional):
         ranked.append(RankedPrivateEvidence(-block.priority, index, block))

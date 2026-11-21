@@ -68,18 +68,35 @@ def render_assistant_prompt(input: AssistantRenderInput, settings: RenderSetting
     selected.public_context = selected_context
     selected.memories = []
     turns = resolve_media(tuple(completion_turns(build_messages(selected, prompts))), images)
+    groups: list[str] = []
+    relax_pins = estimator.estimate(turns) > settings.input_ceiling
+    if relax_pins:
+        # Old call/result pairs leave the prompt together. The current tool
+        # continuation has a separate renderer and keeps its protocol intact.
+        required_dialogue = []
+        selected.prior_dialogue = []
+        groups.append("assistant dialogue pins relaxed")
+        turns = resolve_media(tuple(completion_turns(build_messages(selected, prompts))), images)
+        if estimator.estimate(turns) > settings.input_ceiling:
+            selected.character_card = ""
+            selected.workspace = ""
+            selected.feelings = ""
+            if selected_context is not None:
+                selected_context.shard_story = ""
+            turns = resolve_media(tuple(completion_turns(build_messages(selected, prompts))), images)
     require_rendered_prompt("assistant dialogue", turns, settings)
     evidence: list[EvidenceItem] = []
     decisions: list[EvidenceDecision] = []
     seen: set[str] = set()
     if context is not None:
-        for item in rank_public_evidence(context.evidence):
+        for item in rank_public_evidence(context.evidence, prefer_recent=relax_pins):
             text = " ".join(item.text.casefold().split())
             if text in seen:
                 decisions.append(EvidenceDecision(item.knoxel_id, item.score, False, "duplicate"))
                 continue
             seen.add(text)
-            trial_context = context.model_copy(deep=True)
+            assert selected.public_context is not None
+            trial_context = selected.public_context.model_copy(deep=True)
             trial_context.evidence = [*evidence, item]
             trial_context.memories = []
             trial = selected.model_copy(deep=True)
@@ -95,7 +112,10 @@ def render_assistant_prompt(input: AssistantRenderInput, settings: RenderSetting
     represented_terms: set[str] = set()
     for message in required_dialogue:
         represented_terms.update(focus_terms.intersection(distinctive_terms(message.content)))
-    for message in reversed(request.prior_dialogue):
+    prior_dialogue = request.prior_dialogue
+    if relax_pins:
+        prior_dialogue = [message for message in prior_dialogue if not message.tool_calls and message.role != Role.Tool]
+    for message in reversed(prior_dialogue):
         if message in required_dialogue:
             continue
         shared_terms = focus_terms.intersection(distinctive_terms(message.content))
@@ -108,7 +128,6 @@ def render_assistant_prompt(input: AssistantRenderInput, settings: RenderSetting
         if estimator.estimate(trial_turns) <= settings.input_ceiling:
             selected, turns = trial, trial_turns
             represented_terms.update(new_terms)
-    groups: list[str] = []
     if context is None:
         for memory in rank_memory_texts(request.memories, request.current_user_message):
             trial = selected.model_copy(deep=True)

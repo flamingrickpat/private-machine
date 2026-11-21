@@ -58,9 +58,15 @@ def render_experience(input: ExperienceRenderInput, settings: RenderSettings) ->
         optional.update(shard.tail_ids)
     required.difference_update(story.new_ids)
     selected = ExperienceSelection(frozenset(), frozenset(required))
-    baseline = require_rendered_prompt("subjective experience", experience_turns(input, selected), settings)
-    entered_ceiling = baseline.estimated_tokens + (settings.input_ceiling - baseline.estimated_tokens) * 2 // 3
     estimator = TokenEstimator(estimate_factor=settings.estimate_factor)
+    turns = experience_turns(input, selected)
+    relax_pins = bool(required) and estimator.estimate(turns) > settings.input_ceiling
+    if relax_pins:
+        required.clear()
+        selected = ExperienceSelection(frozenset(), frozenset())
+        turns = experience_turns(input, selected)
+    baseline = require_rendered_prompt("subjective experience", turns, settings)
+    entered_ceiling = baseline.estimated_tokens + (settings.input_ceiling - baseline.estimated_tokens) * 2 // 3
     decisions = [EvidenceDecision(record_id, input.priorities[record_id], True, "mandatory current experience")
                  for record_id in sorted(required | set(story.new_ids))]
     seen = {input.records[record_id].content.strip() for record_id in required | set(story.new_ids)}
@@ -98,5 +104,6 @@ def render_experience(input: ExperienceRenderInput, settings: RenderSettings) ->
             seen.add(record.content.strip())
         decisions.append(EvidenceDecision(record_id, -rank.negative_priority, included,
             "current experience relevance" if included else "experience context allocation"))
+    groups = ("workspace evidence pins relaxed",) if relax_pins else ()
     return require_rendered_prompt("subjective experience", experience_turns(input, selected), settings,
-        tuple(decisions), selected_groups=tuple(str(record_id) for record_id in sorted(selected.entered_ids)))
+        tuple(decisions), selected_groups=(*groups, *(str(record_id) for record_id in sorted(selected.entered_ids))))

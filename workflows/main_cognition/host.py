@@ -102,6 +102,7 @@ from pm.constants import (
     WORKSPACE_TAIL_CANDIDATES,
 )
 from pm.llm.stage_model import LazyStageModel
+from pm.context_render.budget import RequiredContextTooLarge
 from pm.host.mcp_listeners import McpServerDescriptor
 from workflows.main_cognition.retrieval_query import QueryRewrite, QueryRewriter
 from pm.llm.concurrency import InferenceRole, inference_role
@@ -478,7 +479,7 @@ class MainCogLoop(CognitiveWorkflow):
                     return
                 super().handle_batch(batch)
                 return
-            except (ModelFormatError, ModelError) as error:
+            except (ModelFormatError, ModelError, RequiredContextTooLarge) as error:
                 diagnostic = {"invocation_id": self.invocation_id, "error_type": type(error).__name__,
                               "reason": str(error), "traceback": traceback.format_exc()}
                 path = self.runtime_root / "kernel" / self.invocation_id / "model-output-rejection.json"
@@ -487,6 +488,8 @@ class MainCogLoop(CognitiveWorkflow):
                 self.bus.put(new_envelope(self.module_id, "telemetry", "cycle.rejected",
                     batch[0].correlation_id if batch else "",
                     {key: value for key, value in diagnostic.items() if key != "traceback"}))
+                if isinstance(error, RequiredContextTooLarge):
+                    return
                 # No report reached publication. Retain the original input and
                 # its event records while the next invocation reads fresh state.
                 # A failed parallel call sets run_stop to join its siblings.

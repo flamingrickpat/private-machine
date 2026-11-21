@@ -14,6 +14,7 @@ from workflows.minecraft_body.capabilities import CapabilitySnapshotOwner
 from typing import TYPE_CHECKING
 
 from pm.host.durable_files import atomic_json
+from pm.context_render.budget import RequiredContextTooLarge
 from pm.llm.http_client import ModelError
 from pm.llm.structured import ModelFormatError
 from pm.llm.concurrency import InferenceRole, inference_role
@@ -335,7 +336,7 @@ class PublicDialogue(CognitiveWorkflow):
                 self.supersede_reply(envelope, str(error))
                 if self.cognitive_control is not None:
                     self.cognitive_control.refresh_action(request)
-            except (ModelError, SpeechOutputError, ModelFormatError) as error:
+            except (ModelError, SpeechOutputError, ModelFormatError, RequiredContextTooLarge) as error:
                 self.defer_reply(envelope, error)
             finally:
                 with self.ghost.lock:
@@ -348,13 +349,15 @@ class PublicDialogue(CognitiveWorkflow):
              "rejection_reason": reason, "recovery_outcome": "not_published",
              "invocation_id": self.invocation_id}, causation_id=envelope.id))
 
-    def defer_reply(self, envelope: Envelope, error: ModelError | SpeechOutputError | ModelFormatError) -> None:
+    def defer_reply(self, envelope: Envelope,
+                    error: ModelError | SpeechOutputError | ModelFormatError | RequiredContextTooLarge) -> None:
         """Retain exhausted model-output evidence and keep the exchange pending.
 
         Only declared model-output errors reach this method: any ``ModelError``
         the client raises after its transport retries (empty, filtered, failed,
         or cut-off completion, HTTP error), a rejected speech draft, and an
-        exhausted format repair. A failed completion used to crash the module
+        exhausted format repair, or an input that exceeds its prompt budget.
+        A failed completion used to crash the module
         unless it was empty or provider-filtered (B07 Pass 0 finding A4). Snapshot, tool,
         filesystem, cancellation, and programming errors keep their boundaries.
         No reply commits, and no tool action repeats. A later action or restart

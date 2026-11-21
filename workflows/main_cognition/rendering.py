@@ -18,7 +18,7 @@ from workflows.public_speech.situational_guidance import SituationSource, Situat
 @dataclass(frozen=True, slots=True, order=True)
 class SituationEvidence:
     negative_priority: float
-    record_id: int
+    tie_break: int
     text: str = field(compare=False)
 
 
@@ -31,6 +31,7 @@ def render_cognition_guidance(situations: list[SituationalGuidance], settings: R
     required = ["Partner statements are attributed evidence. Interpretations remain uncertain. "
                 "Silence does not establish a new state. Delivered speech remains delivered."]
     optional: list[SituationEvidence] = []
+    pinned: list[SituationEvidence] = []
     shown_ids: set[int] = set()
     for situation in situations:
         required.append(f"World time: {situation.as_of_utc.isoformat(timespec='minutes')} UTC.")
@@ -39,7 +40,9 @@ def render_cognition_guidance(situations: list[SituationalGuidance], settings: R
             required.append(f"Partner: {partner.name}; entity {partner.entity_id}; {partner.entity_class.value}.")
             for source in partner.recent_dialogue[-2:]:
                 if source.record_id not in shown_ids:
-                    required.append(situation_source_text(source))
+                    text = situation_source_text(source)
+                    required.append(text)
+                    pinned.append(SituationEvidence(-6, -source.record_id, text))
                     shown_ids.add(source.record_id)
             for source in partner.context:
                 optional.append(SituationEvidence(-2, source.record_id, situation_source_text(source)))
@@ -55,17 +58,25 @@ def render_cognition_guidance(situations: list[SituationalGuidance], settings: R
                     source_id = claim.evidence[0].source.record_id
                     optional.append(SituationEvidence(-priority - claim.confidence, source_id, text))
         for move in situation.recent_moves[-2:]:
-            required.append(f"Recent purpose ({move.status}): {situation_source_text(move.action)}")
+            text = f"Recent purpose ({move.status}): {situation_source_text(move.action)}"
+            required.append(text)
+            pinned.append(SituationEvidence(-5, -move.action.record_id, text))
             shown_ids.add(move.action.record_id)
             if move.utterance is not None and move.utterance.record_id not in shown_ids:
-                required.append("Actual speech: " + situation_source_text(move.utterance))
+                text = "Actual speech: " + situation_source_text(move.utterance)
+                required.append(text)
+                pinned.append(SituationEvidence(-6, -move.utterance.record_id, text))
                 shown_ids.add(move.utterance.record_id)
         for source in situation.intentions:
             optional.append(SituationEvidence(-4, source.record_id, "Accepted intention: " + situation_source_text(source)))
     estimator = TokenEstimator(estimate_factor=settings.estimate_factor)
     budget = settings.input_ceiling // 5
     selected = list(required)
-    selected_texts = set(required)
+    if estimator.estimate((Turn(Role.User, "\n".join(selected)),)) > budget:
+        pinned_texts = {row.text for row in pinned}
+        selected = [text for text in required if text not in pinned_texts]
+        optional.extend(pinned)
+    selected_texts = set(selected)
     for row in sorted(optional):
         if row.text in selected_texts:
             continue
@@ -213,8 +224,14 @@ def render_cognition_story(input: CognitionStoryInput, settings: RenderSettings)
             priority[record_id] = max(priority.get(record_id, 0), weight)
     required.difference_update(input.new_ids)
     selected = frozenset(required)
-    require_rendered_prompt(input.operation, cognition_story_turns(input, selected), settings)
     estimator = TokenEstimator(estimate_factor=settings.estimate_factor)
+    limits = cognition_story_turns(input, selected)
+    relax_pins = bool(required) and estimator.estimate(limits) > settings.input_ceiling
+    if relax_pins:
+        required.clear()
+        selected = frozenset()
+        limits = cognition_story_turns(input, selected)
+    require_rendered_prompt(input.operation, limits, settings)
     ranked = sorted(RankedStoryRecord(-score, record_id, score) for record_id, score in priority.items())
     decisions = [EvidenceDecision(record_id, priority.get(record_id, 0), True, "latest partner dialogue")
                  for record_id in sorted(required)]
@@ -235,4 +252,6 @@ def render_cognition_story(input: CognitionStoryInput, settings: RenderSettings)
             seen_texts.add(text)
         decisions.append(EvidenceDecision(record_id, ranked_record.priority, included,
                                           "workspace salience" if included else "workspace budget"))
-    return require_rendered_prompt(input.operation, cognition_story_turns(input, selected), settings, tuple(decisions))
+    groups = ("workspace evidence pins relaxed",) if relax_pins else ()
+    return require_rendered_prompt(input.operation, cognition_story_turns(input, selected), settings, tuple(decisions),
+                                   selected_groups=groups)

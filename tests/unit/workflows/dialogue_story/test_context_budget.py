@@ -19,6 +19,7 @@ from workflows.public_speech.situational_guidance import EntitySituationEvidence
 from workflows.public_speech.speech_review import (
     SpeechReviewRenderInput, build_review_messages, load_prompts as load_review_prompts, render_speech_review,
 )
+from workflows.public_speech.task_receipts import TaskReceipt
 
 
 class StoryContextBudgetTests(unittest.TestCase):
@@ -59,6 +60,31 @@ class StoryContextBudgetTests(unittest.TestCase):
         request.input_budget_tokens = 10
         with self.assertRaises(RequiredContextTooLarge):
             select_story_prompt(request, load_prompts())
+
+    def test_oversized_pins_compete_with_other_evidence_without_losing_current_facts(self) -> None:
+        long_history = EvidenceItem(knoxel_id=1, text="Long unrelated history. " * 7000, lane="facts", score=0.1)
+        source = EvidenceItem(knoxel_id=2, text="Jesse reported the cat is called Juniper.", lane="facts", score=0.2)
+        related = EvidenceItem(knoxel_id=3, text="The cat's name is Juniper.", source_ids=[2], lane="facts", score=1.0)
+        request = self.request([long_history, source, related])
+        request.current_user_message = "I found Juniper in the garden and I am keeping her."
+        request.input_budget_tokens = 22784
+        request.required_evidence_ids = (1, 3)
+        request.prior_dialogue.append(DialogueTurn(speaker="Jesse", text="Juniper likes hiding.", knoxel_id=21))
+        assert request.public_context is not None
+        request.public_context.task_receipt = TaskReceipt(workflow_name="minecraft", state="completed",
+            summary="Inventory was checked and contained eight oak logs.", task_verified=True)
+
+        fitted = select_story_prompt(request, load_prompts())
+
+        text = "\n".join(turn.content.text for turn in fitted.selection.turns)
+        self.assertIn("story evidence pins relaxed", fitted.selection.included)
+        self.assertIn(request.current_user_message, text)
+        self.assertIn("Juniper likes hiding.", text)
+        self.assertIn("eight oak logs", text)
+        self.assertNotIn("Long unrelated history.", text)
+        self.assertTrue({2, 3, 20, 21}.issubset(fitted.selection.source_ids))
+        self.assertLessEqual(fitted.selection.estimated_tokens, request.input_budget_tokens)
+        self.assertEqual(request.required_evidence_ids, (1, 3))
 
     def test_repair_feedback_is_required_and_can_displace_optional_memory(self) -> None:
         optional = EvidenceItem(knoxel_id=2, text="Optional memory. " * 30, lane="facts", score=0.9)

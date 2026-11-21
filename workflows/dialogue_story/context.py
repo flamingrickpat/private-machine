@@ -8,7 +8,8 @@ voice and are never published.
 
 ``select_story_prompt`` also serves ordinary runtime replies. It preserves the
 required Story layout while the shared selector admits optional retrieval by
-score. The returned context tells the reviewer exactly which evidence survived.
+score. When pinned history overflows, the same ranking considers it optional.
+The returned context identifies the evidence that survived.
 Runtime ownership is described in [the Story host overview][workflows.dialogue_story.host].
 """
 from __future__ import annotations
@@ -34,7 +35,7 @@ from pm.context_render.turns import Turn
 from pm.context_render.prompt import RenderSettings, RenderedPrompt, EvidenceDecision, TemporalHistoryMeasurement, require_rendered_prompt
 
 from workflows.dialogue_story.steps import story_artifact_lines
-from workflows.dialogue_story.schemas import StoryPrompts, StoryRequest, StorySituation
+from workflows.dialogue_story.schemas import StoryGuidance, StoryPrompts, StoryRequest, StorySituation
 
 if TYPE_CHECKING:
     from pm.memory.store import MemoryStore
@@ -138,16 +139,45 @@ def select_story_prompt(
         selected_dialogue = list(selected.prior_dialogue)
     turns = history_turns(selected, prompts, repair_turns)
     mandatory_tokens = estimator.estimate(turns)
-    if mandatory_tokens > request.input_budget_tokens:
-        raise RequiredContextTooLarge(f"Story mandatory input uses {mandatory_tokens} estimated tokens; ceiling {request.input_budget_tokens}.")
+    included: list[str] = []
+    omitted: list[str] = []
+    relax_pins = mandatory_tokens > request.input_budget_tokens
+    if relax_pins:
+        available_ids = {item.knoxel_id for item in selected_evidence}
+        available_ids.update(turn.knoxel_id for turn in selected.prior_dialogue if turn.knoxel_id is not None)
+        if selected.current_user_message and selected.current_message_id is not None:
+            available_ids.add(selected.current_message_id)
+        missing = required_ids - available_ids
+        if missing:
+            raise ValueError(f"Story prompt is missing required record IDs {sorted(missing)}.")
+        # Start from the current exchange. The same dialogue and evidence
+        # loops consider all earlier records, including the former pins.
+        required_ids.clear()
+        if request.current_user_message and request.current_message_id is not None:
+            required_ids.add(request.current_message_id)
+        selected = request.model_copy()
+        selected_dialogue = []
+        selected_evidence = [item for item in evidence if item.knoxel_id in required_ids]
+        selected.prior_dialogue = selected_dialogue
+        selected.memories = []
+        if context is not None:
+            selected.public_context = context.model_copy()
+            selected.public_context.evidence = selected_evidence
+            selected.public_context.memories = []
+        included.append("story evidence pins relaxed")
+        selected = without_story_background(selected)
+        turns = history_turns(selected, prompts, repair_turns)
+        mandatory_tokens = estimator.estimate(turns)
+        if mandatory_tokens > request.input_budget_tokens:
+            raise RequiredContextTooLarge(
+                f"Story current input and instructions use {mandatory_tokens} estimated tokens; "
+                f"ceiling {request.input_budget_tokens}.")
     history: TemporalCoverageSelection | None = None
     history_measurement: TemporalHistoryMeasurement | None = None
     remaining = request.input_budget_tokens - mandatory_tokens
     dialogue_budget = int(remaining * 0.45)
     accepted_tokens = mandatory_tokens
     dialogue_cost = 0
-    omitted: list[str] = []
-    included: list[str] = []
     focus_terms = set(distinctive_terms(request.current_user_message))
     represented_terms: set[str] = set()
     for turn in selected_dialogue:
@@ -166,7 +196,7 @@ def select_story_prompt(
         trial_turns = history_turns(trial, prompts, repair_turns)
         trial_tokens = estimator.estimate(trial_turns)
         cost = trial_tokens - accepted_tokens
-        if dialogue_cost + cost > dialogue_budget:
+        if dialogue_cost + cost > dialogue_budget or trial_tokens > request.input_budget_tokens:
             omitted.append(f"dialogue:{turn.knoxel_id}")
             continue
         selected_dialogue = trial_dialogue
@@ -178,7 +208,7 @@ def select_story_prompt(
     lane_used = {lane: 0 for lane in shares}
     seen_texts = {" ".join(turn.text.casefold().split()) for turn in selected_dialogue}
     seen_texts.add(" ".join(request.current_user_message.casefold().split()))
-    for item in rank_public_evidence(evidence):
+    for item in rank_public_evidence(evidence, prefer_recent=relax_pins):
         if any(row.knoxel_id == item.knoxel_id for row in selected_evidence):
             continue
         lane = item.lane if item.lane in shares else "inner"
@@ -222,6 +252,29 @@ def select_story_prompt(
                 included.append(f"plain-memory:{memory.position}")
             else:
                 omitted.append(f"plain-memory:{memory.position}")
+    if relax_pins:
+        trial = selected.model_copy()
+        trial.character_card_story = request.character_card_story
+        trial_turns = history_turns(trial, prompts, repair_turns)
+        if estimator.estimate(trial_turns) <= request.input_budget_tokens:
+            selected, turns = trial, trial_turns
+        else:
+            omitted.append("Story character card")
+        trial = selected.model_copy()
+        trial.guidance = request.guidance
+        trial.workspace = request.workspace
+        trial.feelings = request.feelings
+        trial.goals = request.goals
+        if trial.public_context is not None and context is not None:
+            trial.public_context = trial.public_context.model_copy()
+            trial.public_context.shard_story = context.shard_story
+            trial.public_context.situational_guidance = context.situational_guidance
+            trial.public_context.ontology = context.ontology
+        trial_turns = history_turns(trial, prompts, repair_turns)
+        if estimator.estimate(trial_turns) <= request.input_budget_tokens:
+            selected, turns = trial, trial_turns
+        else:
+            omitted.append("expanded Story guidance")
     if selected.public_context is not None and selected.public_context.temporal_history is not None:
         lifetime = select_story_history(selected, prompts, repair_turns, estimator)
         history = lifetime.coverage
@@ -245,6 +298,27 @@ def select_story_prompt(
     selection = PromptSelection(tuple(turns), tuple(included), tuple(omitted), estimator.estimate(turns),
                                 tuple(sorted(source_ids)), ())
     return StoryPrompt(selected, selection, history, history_measurement)
+
+
+def without_story_background(request: StoryRequest) -> StoryRequest:
+    """Remove expanded background while keeping the current move and task facts."""
+    selected = request.model_copy()
+    selected.character_card_story = ""
+    selected.workspace = ""
+    selected.feelings = ""
+    selected.goals = []
+    guidance = request.guidance
+    if guidance is not None:
+        selected.guidance = StoryGuidance(tick_id=guidance.tick_id,
+            through_record_id=guidance.through_record_id, observed_at_utc=guidance.observed_at_utc,
+            shard_story="", workspace="", feelings="", regulation=guidance.regulation, goals=(),
+            selected_action=guidance.selected_action, sources=guidance.sources)
+    if request.public_context is not None:
+        selected.public_context = request.public_context.model_copy()
+        selected.public_context.shard_story = ""
+        selected.public_context.situational_guidance = None
+        selected.public_context.ontology = []
+    return selected
 
 
 async def plan_story_request(

@@ -40,6 +40,7 @@ from time import monotonic
 
 from pm import vclock
 from pm.llm.stage_model import LazyStageModel
+from pm.context_render.budget import RequiredContextTooLarge
 
 from pm.records.copying import pickle_copy
 from pm.records.base import RecordBase
@@ -386,7 +387,7 @@ class PrivateThoughtLoop(CognitiveWorkflow):
         try:
             with background_inference():
                 super().handle_batch(batch)
-        except (ModelProposalError, ModelFormatError, ModelError) as error:
+        except (ModelProposalError, ModelFormatError, ModelError, RequiredContextTooLarge) as error:
             diagnostic = {
                 "invocation_id": self.invocation_id,
                 "error_type": type(error).__name__,
