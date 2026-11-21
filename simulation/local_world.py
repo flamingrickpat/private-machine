@@ -20,6 +20,7 @@ import yaml
 from pm.paths import REPO_ROOT
 from pm.utils.operating_system import OperatingSystem
 from simulation.baseline_minecraft import WorldSetup
+from workflows.minecraft_body.lease import BODY_LEASES, BodyEpochFloor
 
 
 EXAMPLES = REPO_ROOT / "simulation/setup"
@@ -274,6 +275,9 @@ class LocalWorld:
                     del environment[key]
             body.server = f"127.0.0.1:{game.port}"
             body.endpoint = f"http://127.0.0.1:{mcp.port}/mcp"
+            fence = home / "body-epoch.json"
+            if fence.is_file():
+                BODY_LEASES.preserve_epoch(body.endpoint, BodyEpochFloor.model_validate_json(fence.read_bytes()))
             for reservation in (mcp, http, viewer):
                 reservation.listener.close()
             self.spawn([str(self.checkout / settings_body.python), str(self.checkout / "main.py"), str(env_path)],

@@ -1,7 +1,7 @@
 """Fence each body with an operating-system lease and a durable epoch."""
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, NonNegativeInt
 
 from pm.utils.operating_system import OperatingSystem
 from contextlib import contextmanager
@@ -27,6 +27,12 @@ class BodyLeaseEvidence(BodyEpoch):
     pid: int
     active: bool
     acquired_at: float
+
+
+class BodyEpochFloor(BaseModel):
+    """Last epoch already issued by the body at a previous address."""
+
+    epoch: NonNegativeInt
 
 
 class StaleEpoch(PermissionError):
@@ -64,6 +70,16 @@ class BodyLeases:
         digest = hashlib.sha256(body_key(endpoint).encode()).hexdigest()
         return self.root / (digest + suffix)
 
+    def preserve_epoch(self, endpoint: str, prior_epoch: BodyEpochFloor) -> None:
+        """Carry a saved body's epoch forward before assigning its new endpoint."""
+        lock = ProcessLock(self.path(endpoint, ".owner.lock")).acquire()
+        try:
+            path = self.path(endpoint, ".epoch-floor.json")
+            previous = BodyEpochFloor.model_validate(read_json(path)).epoch if path.exists() else 0
+            atomic_json(path, BodyEpochFloor(epoch=max(previous, prior_epoch.epoch)).model_dump())
+        finally:
+            lock.close()
+
     @contextmanager
     def command(self, endpoint: str, cancel: object | None = None) -> Iterator[None]:
         """Serialize local reads and actions. Cancellation stops a queued call."""
@@ -81,8 +97,10 @@ class BodyLeases:
         path = self.path(endpoint, ".json")
         try:
             previous = read_json(path) if path.exists() else {}
+            floor_path = self.path(endpoint, ".epoch-floor.json")
+            floor = BodyEpochFloor.model_validate(read_json(floor_path)).epoch if floor_path.exists() else 0
             token = BodyLeaseEvidence(
-                endpoint=key, owner=owner, epoch=previous.get("epoch", 0) + 1,
+                endpoint=key, owner=owner, epoch=max(previous.get("epoch", 0), floor) + 1,
                 session=uuid.uuid4().hex, pid=OperatingSystem.process_id(), active=True, acquired_at=time.time(),
             )
             atomic_json(path, token.model_dump())
