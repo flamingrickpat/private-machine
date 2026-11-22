@@ -225,7 +225,8 @@ class GameplayEvidence:
             if row["time"] < self.observed_at:
                 return
             self.observed_at = row["time"]
-            self.service_wait = None
+            if self.service_wait is None or row["time"] > self.service_wait["observed_at"]:
+                self.service_wait = None
             session, deaths = data.get("body_session"), data.get("death_count")
             life = ({"body_session": session, "death_count": deaths}
                     if isinstance(session, str) and session and isinstance(deaths, int)

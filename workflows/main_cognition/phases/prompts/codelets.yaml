@@ -1,9 +1,9 @@
 # Prompts of the codelets phase (A19F step 5).
 #
 # Every codelet call of one cycle starts with the shared story prefix of
-# story.yaml (system prompt, story, acknowledgement). The phase renders it
-# once per cycle, so the bytes are equal and the provider can reuse the
-# cached prefix. The codelet's view of the CSM and its instruction come last.
+# story.yaml (system prompt, story, acknowledgement). The phase selects the
+# story records once per cycle. Each call resolves images across the story
+# and the codelet's CSM view. The codelet instruction comes last.
 #
 # Frame: an expert story writer who simulates the mind of a character. Port
 # of AgentSimpleCodelet and AgentSelectCodelets from private-machine-head.
@@ -75,8 +75,8 @@ selector_template: |
   A repeated event needs distinct occurrences. A trait or motive needs evidence of its own. An ordinary moment
   can stand alone. One or two sentences usually suffice.
 
-  Pick out the few mechanisms whose cues you can point to in this scene. Score those directly, then fill
-  every remaining name with 0 in one pass. Equal ratings are fine. A plain practical exchange can have
+  Pick out the few mechanisms whose cues you can point to in this scene. Score only those matches. Omit all
+  zero ratings. Equal ratings are fine. A plain practical exchange can have
   very few matches. Give a plainly present cue its full weight, even if it conflicts with {companion_name}'s
   mood. Keep each feeling with its owner. A clear stop closes the earlier invitation. Ordinary companionship
   can stay platonic. Desire is a strong match when the character or the exchange gives it a real cue.
@@ -85,8 +85,8 @@ selector_template: |
   Mechanisms:
   {candidates}
 
-  Answer with only this JSON object and nothing else, with one entry for each mechanism name:
-  {{"patterns": "...", "ratings": {{"<mechanism name>": 0.0}}}}
+  Answer with only this JSON object and nothing else, listing only positive matches (an empty ratings object is valid):
+  {{"patterns": "...", "ratings": {{"<matching mechanism name>": 0.8}}}}
 
 # Added to the selector prompt when earlier lines of the same speaker come close to the newest line.
 # Python finds these lines by embedding similarity (phases/codelets.py, echoes).

@@ -520,7 +520,7 @@ class ManagedRunSupervisor:
                     runtime.workflow_span_id = workflow_span.span_id
                 result = runner.invoke(WorkflowRequest(receipt.run_id, payload), runtime, resume=resume)
             current_reads().collecting = False
-            self._finish(receipt.run_id, result, environment)
+            self._finish(receipt.run_id, result, environment, receipt.revision)
         except BaseException as exc:
             from pm.llm.http_client import ModelRequestRejected, ProviderCompletionError
             from pm.memory.snapshot import GhostCancelled
@@ -558,9 +558,11 @@ class ManagedRunSupervisor:
             self._notify_terminal(receipt.run_id)
         finally:
             with self._lock:
-                lock = self._worker_locks.pop(receipt.run_id, None)
-            if lock is not None:
-                lock.close()
+                # An answer can hand the worker fence to the next thread before this one exits.
+                if self._threads[receipt.run_id] is threading.current_thread():
+                    lock = self._worker_locks.pop(receipt.run_id, None)
+                    if lock is not None:
+                        lock.close()
 
     # ----------------------------------------------------------- terminal
 
@@ -622,7 +624,7 @@ class ManagedRunSupervisor:
                 payload.update(dispatch_context.model_dump(mode="json", by_alias=True))
         return payload
 
-    def _finish(self, run_id: str, result: WorkflowResult, environment: WorkingEnvironment) -> None:
+    def _finish(self, run_id: str, result: WorkflowResult, environment: WorkingEnvironment, started_revision: int) -> None:
         """Record the terminal outcome of one kernel invocation.
 
         A cancelled, waiting, completed, and failed result each commit their own
@@ -650,6 +652,9 @@ class ManagedRunSupervisor:
                     }
                 self._transition(run_id, state="waiting_for_input", latest_event=f"waiting for answer: {result.question}", changes=RunTransitionChanges(question_id=str(result.question_id or ""), resume_phase=str(result.resume_phase or ""), parked_state=TypeAdapter[dict[str, JsonValue]](dict[str, JsonValue]).validate_python(saved)))
                 self._emit(run_id, "waiting_for_input", fields=RunEventFields(question_id=result.question_id, question=result.question))
+                parked = ManagedRunReceipt.from_dict(self.get(run_id))
+                if spec.resumable and parked.revision > max(parked.applied_revision, started_revision):
+                    self._resume_with_answer(parked, parked.question_id, parked.instructions)
                 return
             if result.status is WorkflowStatus.Completed:
                 # The report summary travels with the terminal event, so a
@@ -758,6 +763,8 @@ class ManagedRunSupervisor:
             current.updated_at = self.clock()
             if request_id:
                 current.request_ids.append(request_id)
+            if current.state == "waiting_for_input" and self.workflows[current.workflow_name].resumable:
+                return self._resume_with_answer(current, current.question_id, instructions)
             receipt = self._persist(current)
             self._updates.notify_all()
             self._emit(run_id, "updated", fields=RunEventFields(revision=current.revision))
@@ -875,33 +882,37 @@ class ManagedRunSupervisor:
         """Deliver a correlated answer and resume the suspended run."""
         with self._lock:
             current = ManagedRunReceipt.from_dict(self.get(run_id))
-            with self._lock:
-                pending = self._pending.get(run_id)
-            if current.state != "waiting_for_input" or pending is None:
-                raise ManagedRunError(f"Run {run_id!r} is not waiting for input.")
-            if question_id and question_id != current.question_id:
-                raise ManagedRunError(
-                    f"Question {question_id!r} does not match {current.question_id!r}."
-                )
-            if not answer.strip():
-                raise ManagedRunError("An answer needs nonempty text.")
-            current.answer = answer
-            current.state = "running"
-            current.latest_event = "answer received; resuming"
-            current.updated_at = self.clock()
-            receipt = self._persist(current)
-            payload = {
-                **dict(current.arguments),
-                "run_id": run_id,
-                "instruction": current.instructions,
-                "artifact_path": current.artifact_path,
-                "answer": answer,
-                "question_id": current.question_id,
-                "resume_phase": pending["resume_phase"],
-            }
-            self._launch(current, resume=True, payload=payload)
-            self._emit(run_id, "answered", fields=RunEventFields(question_id=current.question_id))
-            return receipt
+            return self._resume_with_answer(current, question_id, answer)
+
+    def _resume_with_answer(self, current: ManagedRunReceipt, question_id: str, answer: str) -> dict:
+        """Commit the answer and any new instruction together while holding the supervisor lock."""
+        run_id = current.run_id
+        pending = self._pending.get(run_id)
+        if current.state != "waiting_for_input" or pending is None:
+            raise ManagedRunError(f"Run {run_id!r} is not waiting for input.")
+        if question_id and question_id != current.question_id:
+            raise ManagedRunError(
+                f"Question {question_id!r} does not match {current.question_id!r}."
+            )
+        if not answer.strip():
+            raise ManagedRunError("An answer needs nonempty text.")
+        current.answer = answer
+        current.state = "running"
+        current.latest_event = "answer received; resuming"
+        current.updated_at = self.clock()
+        receipt = self._persist(current)
+        payload = {
+            **dict(current.arguments),
+            "run_id": run_id,
+            "instruction": current.instructions,
+            "artifact_path": current.artifact_path,
+            "answer": answer,
+            "question_id": current.question_id,
+            "resume_phase": pending["resume_phase"],
+        }
+        self._launch(current, resume=True, payload=payload)
+        self._emit(run_id, "answered", fields=RunEventFields(question_id=current.question_id))
+        return receipt
 
     def terminate(self, run_id: str, *, request_id: str = "") -> dict:
         """Cancel through the owned signal and retain a stable request ID.

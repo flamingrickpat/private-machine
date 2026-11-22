@@ -7,8 +7,8 @@ Port of the codelet part of ``GhostCodelets.cognitive_cycle`` in
    (:class:`~workflows.main_cognition.story_prefix.StoryPrefix`): the
    story-simulator system prompt, the story (character card, the self shard
    and the group shards with their tails, the feeling, and the new stimuli),
-   and an acknowledgement. Every model call of this phase starts with these
-   exact bytes, so the provider can reuse the cache.
+   and an acknowledgement. Calls share the selected story records. The
+   renderer applies the image limit across the story and each codelet's view.
 2. Score every registered codelet
    (:func:`~workflows.main_cognition.codelet_registry.activation_score`).
 3. The selector call rates the top candidates. Each rating adds to the
@@ -137,19 +137,17 @@ def tokens(messages: Sequence[TurnInput]) -> int:
 class CodeletFrame:
     """The prompt frame of one cycle: names, shared prefix, and targets.
 
-    The frame uses the shared story prefix of the cycle. Every call of the
-    phase starts with :attr:`prefix`, so the bytes stay equal across calls.
+    Each call uses the same selected story records. The renderer resolves
+    image references across those records and the codelet's own view.
     ``targets`` maps each shard label that the conversion call may name to
     its shard key: ``self`` and one label for each stimulus group.
     """
 
-    def __init__(self, work: CycleWork, prompts: PhasePrompts, context: RoleContext) -> None:
-        story = StoryPrefix(work, settings=role_model(context.runtime).render_settings(),
-            capture_settings=role_model(context.runtime).capture_settings("main-cognition"))
+    def __init__(self, story: StoryPrefix, prompts: PhasePrompts) -> None:
         self.prompts = prompts
         self.companion = story.companion
         self.entity = story.entity
-        self.prefix = story.turns
+        self.story: StoryPrefix = story
         #: The prefix as plain text, for agent sessions.
         self.story_text = story.story_text
         self.targets: dict[str, ShardKey] = story.targets
@@ -172,7 +170,7 @@ class CodeletFrame:
 
     def ask(self, definition: CodeletDefinition, job: CodeletJob) -> list[Turn]:
         """Return the turns of call 1: the prefix, then the view and the instruction."""
-        return [*self.prefix, Turn(Role.User, f"{self.view_text(job.view)}\n\n{self.job_text(definition)}")]
+        return self.story.ask_with_shared_evidence(f"{self.view_text(job.view)}\n\n{self.job_text(definition)}")
 
     def conversion_text(self, types: list[CodeletPerceptType]) -> str:
         """Return the instruction of call 2."""
@@ -303,7 +301,7 @@ def select(context: RoleContext, work: CycleWork, frame: CodeletFrame, candidate
         candidates=listing,
         echoes=echo)).text.strip()
 
-    return complete(context, [*frame.prefix, Turn(Role.User, text)], CheckedCodeletRatings,
+    return complete(context, frame.story.ask_with_shared_evidence(text), CheckedCodeletRatings,
                     validation_context=CodeletRatingCheck(names=frozenset(names)))
 
 
@@ -383,7 +381,10 @@ def collect(context: RoleContext, work: CycleWork, prompts: PhasePrompts) -> Cod
     loaded = load_definitions(request.codelet_definitions or None)
     definitions = loaded.by_name()
     registered = set(definitions)
-    frame = CodeletFrame(work, prompts, context)
+    session = role_model(context.runtime)
+    story = StoryPrefix(work, settings=session.render_settings(),
+                        capture_settings=session.capture_settings("main-cognition"))
+    frame = CodeletFrame(story, prompts)
     embedder = Embedder(context, work.records)
     rng = random.Random(f"{request.run_id}:codelets")
     tick = provisional_tick(work)
@@ -408,7 +409,9 @@ def collect(context: RoleContext, work: CycleWork, prompts: PhasePrompts) -> Cod
     candidates = [definitions[item.codelet] for item in codelets.scores[:CODELET_SELECTOR_CANDIDATES]]
     codelets.echo_ids = echoes(work, embedder)
     answer = select(context, work, frame, candidates, codelets.echo_ids)
-    codelets.ratings, codelets.patterns = answer.ratings, answer.patterns
+    codelets.patterns = answer.patterns
+    for candidate in candidates:
+        codelets.ratings[candidate.name] = answer.ratings.get(candidate.name, 0.0)
     codelets.cost.llm_calls += 1
     for name, rating in codelets.ratings.items():
         add_rating(registry.runtime(name), rating)

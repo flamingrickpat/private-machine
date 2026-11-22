@@ -10,16 +10,16 @@ Every story-framed call starts with the same three turns (plan section
    each in world-time order. Then the feeling in words and the new stimuli.
 3. The acknowledgement of the story.
 
-The instruction of the call comes last. The prefix reads only the cycle
-state, so all calls that read the same workspace get the same bytes and the
-provider can reuse its cache. The triage, appraise, retrieve, codelets,
+The instruction of the call comes last. Calls can reuse the provider's
+cached prefix when their evidence and image attachments match.
+The triage, appraise, retrieve, codelets,
 structures, and attention phases read the workspace before attention changes
 it. The experience, goals, decide, and route phases build the prefix again
 and read the updated shards. The experience phase adds the subjective
 experience to the self tail, so the later phases read it too.
 
-The prompt texts are in ``phases/prompts/story.yaml``. The prefix holds no
-record ids and no embeddings.
+The prompt texts are in ``phases/prompts/story.yaml``. The renderer retains
+the selected workspace record IDs so codelet views can reuse that evidence.
 """
 from __future__ import annotations
 
@@ -152,7 +152,7 @@ class StoryPrefix:
         the group's stimuli as new events, and the group's entity as the
         other character. The self tail leaves out the experiences of this
         cycle that belong to the other groups (``ExperienceResult.hidden_for``).
-        Without ``group``, every call of the cycle gets the same bytes.
+        Without ``group``, the story includes all current stimulus groups.
         """
         request = work.request
         self.prompts = prompts or phase_prompts("story")
@@ -190,7 +190,12 @@ class StoryPrefix:
         self.settings = settings
         self.capture_settings = capture_settings
         prefix_input = replace(self.render_input, optional_ceiling=settings.input_ceiling * 2 // 3)
+        if situations:
+            guidance = render_cognition_guidance(situations, settings)
+            prefix_input = replace(prefix_input, guidance=guidance, situations=())
+        self.shared_input: CognitionStoryInput = prefix_input
         rendered = render_cognition_story(prefix_input, settings)
+        self.prefix_record_ids: frozenset[int] = frozenset(item.record_id for item in rendered.evidence if item.included)
         self.turns = list(rendered.turns)
         self.story_text = rendered.raw_text
         self.targets: dict[str, ShardKey] = {"self": SELF_SHARD}
@@ -202,13 +207,17 @@ class StoryPrefix:
         """Replace the name placeholders ``{companion_name}`` and ``{entity_name}``."""
         return fill(text, self.companion, self.entity)
 
+    def ask_with_shared_evidence(self, instruction: str) -> list[Turn]:
+        """Keep the selected prefix records and resolve images across the prefix and instruction together."""
+        input = replace(self.shared_input, instruction=instruction)
+        return list(cognition_story_turns(input, self.prefix_record_ids))
+
     def ask(self, instruction: str) -> list[Turn]:
         """Return the prefix and then ``instruction`` as the last user turn."""
-        input = replace(self.render_input, instruction=instruction.strip(), optional_ceiling=self.settings.input_ceiling - 1500)
         if not self.select_context:
-            if input.situations:
-                input = replace(input, guidance=render_cognition_guidance(list(input.situations), self.settings), situations=())
+            input = replace(self.shared_input, instruction=instruction.strip())
             return list(cognition_story_turns(input, frozenset(input.records) - input.new_ids))
+        input = replace(self.render_input, instruction=instruction.strip(), optional_ceiling=self.settings.input_ceiling - 1500)
         settings = self.settings
         if self.capture_settings is None:
             return list(render_cognition_story(input, settings).turns)

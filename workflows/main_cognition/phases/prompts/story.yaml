@@ -2,9 +2,9 @@
 #
 # workflows/main_cognition/story_prefix.py renders these texts. Every call
 # starts with the same three turns: the system prompt, the story
-# (story_template), and the acknowledgement (story_ack). The bytes are equal
-# for every call that reads the same workspace, so the provider can reuse
-# the cached prefix. The instruction of the call comes last.
+# (story_template), and the acknowledgement (story_ack). Calls with the same
+# rendered records and image attachments can reuse the cached prefix.
+# The instruction of the call comes last.
 #
 # The story holds the character card, then the self shard, then the shard of
 # each current stimulus group. Each shard shows its items and then its tail

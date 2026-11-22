@@ -1,441 +1,104 @@
 # private-machine
 
-private-machine (pm) is a cognitive runtime for **a persistent character**.
+<!-- Introduction to be written by the maintainer. -->
 
-To launch a repeatable chat or Minecraft scenario on Windows, follow the [simulation setup guide](readme_simulation.md).
+## How it works
 
-The current development milestone is [beta: continuous character cognition](docs/continuous-character-milestone.md).
-Beta is under development. Its specification describes the target, not completed capabilities.
-The [implementation plan](dev/work_items/beta.md) separates delivered work from remaining acceptance gates.
+Each persona runs in its own process and saves its state in a character home. Start with a character card and personality settings. You can add past dialogue or let the character build a history from the first session. The home keeps what happened, how the character interpreted it, and what it decided to do. [Character homes](docs/subsystems/character-import.md)
 
-Each instance runs one persona. Each persona must run in its own process or container, with its own character home.
+The design models parts of human cognition in software. It borrows attention and action selection from LIDA, and the distinction between acting and reflecting from MIDCA. PM uses language models for judgments and language. The runtime decides which records those calls can see, which decisions to accept, and which actions to execute. [LIDA](https://ccrg.cs.memphis.edu/tutorial/mindAccordingToLIDA/Brief-Account.pdf) and [MIDCA](https://ojs.aaai.org/index.php/AAAI/article/view/9886)
 
-A character in pm is not a system prompt and a chat log. It is inspectable internal state: a persistent mental-state
-vector, episodic memory with emotional consequences, needs and goals the character can defer or refuse, parallel
-single-concern appraisers, and an attention mechanism that decides what occupies its workspace this cycle. Every
-spoken reply is downstream of that state.
+### Why use a cognitive loop?
 
-The design goal is **auditability**. Behaviour is determined by records you can open, diff, and tune, rather than by
-prompt text you hope the model still attends to. A character is therefore debuggable like a program, and it can stay
-consistent over weeks of interaction instead of over one context window. Both the [review desk](dev/review/README.md)
-and the [memory inspector](#inspect-a-memory-without-the-character) read this state without running a cycle.
+Tell a language model to "pretend you're Socrates" and it can produce a convincing scene. Add the earlier chat and it may remember that you asked it to stop turning every answer into a debate. The next completion has to infer which parts of that history still matter, whether it agreed to change, and how to put that agreement into practice.
 
-Nothing in the runtime is specific to any one use. Build a companion you talk to daily, a non-player character that
-remembers you 200 hours later, a character with a body that plays Minecraft, or a persona behind a game's dialogue
-line. Character creation and [character-card import](docs/subsystems/character-import.md) are built in, including an
-existing chatlog as starting history. The persona, model selection, and prompt templates are yours; the runtime is
-neutral about what the character is for.
+PM gives those things a place to persist. An earlier promise can become an intention. A correction can revise a belief while the original exchange remains available. A new observation can change what the character does next. The advantage is that these changes can be carried forward and inspected. How well they work still depends on the models, prompts, and tests.
 
-Two design decisions are load-bearing and worth knowing before you read further:
+### From an event to an action
 
-- **Replies are not regenerated.** A character said what it said. It can notice the effect and revise its beliefs, but
-  a turn is never rolled back. State advances monotonically.
-- **Cognition is separated from presentation.** Thinking happens in cycles that run whether or not anyone is
-  speaking. The character keeps thinking between your messages.
+Imagine a Socrates persona that promised to keep asking questions during a game of Minecraft. Then you write, "We need shelter before dark. Help me find wood, and hold the questions for now." This example shows how the pieces fit together.
 
-## How one cycle works
+1. **Intake and triage decide what needs attention.** PM records who said what and groups related events. A message from you, a game observation, and a private thought each have a source. Triage helps decide whether ordinary interaction can proceed or whether the character needs to reconsider its current direction. The latest chat line is one event in a world that keeps changing.
+2. **Appraisal asks what the event means to this character.** The cycle checks open expectations against new evidence and updates recorded emotional and relationship state. A sudden change of plan can create surprise or urgency. The personality stays recognizable while the situation changes how it responds. [Cognitive pipeline](docs/subsystems/cognition.md)
+3. **Retrieval and codelets bring relevant material into consideration.** Memory can supply the earlier promise to ask questions. One codelet might surface the shift in tone. Another might offer an analogy. These findings have sources and can disagree. The character can bring useful history into the exchange without giving every process the entire chat. [Experienced memory](docs/subsystems/experienced-memory.md) and [codelets](docs/subsystems/codelets.md)
+4. **Attention builds a small picture of the current situation.** The cycle groups related findings and selects what fits in the global workspace. It keeps sections for the self, other people, and workflows. The request for shelter and the earlier promise can both matter. The full workspace also supports a record of how the situation seems to the character, which later phases can use. [Workspace](docs/subsystems/workspace.md)
+5. **Goals and action selection turn that picture into a choice.** Socrates can defer the questions, keep the broader intention to help, and choose to look for wood. Routing selects a workflow that can act on that choice. A goal can remain active across several turns. The cycle can also record what it expects the action to achieve, so a later failure gives it something specific to revisit. [Decisions, routing, and expectations](docs/subsystems/decisions-and-routing.md)
+6. **Commit, act, and check the result.** The runtime saves accepted state before releasing the action. A Minecraft worker can report what it observed, what it tried, and what remains blocked. A speech workflow uses the evidence to reply in character. Those results become new inputs to the loop. A promise to look for wood, a search that found none, and a stack in inventory are different records. [Public speech](docs/subsystems/public-publication.md)
 
-A cycle takes pending stimuli and produces at most one action per stimulus group.
+The example could still produce a bad reply. With a role prompt alone, the main evidence to inspect is the prompt and the line it produced. Here you can check whether PM retrieved the promise, dropped the urgent request during attention, chose the wrong workflow, or received a failed run receipt. You can also see where the extra work costs time.
 
-1. **Appraisal.** [Appraisals](workflows/main_cognition/affect.py) read the stimuli against current state and move the
-   [mental-state vector](pm/records/mental_state.py).
-2. **Codelets.** The registered [codelets](workflows/main_cognition/codelets.yaml) that match the stimulus run in
-   parallel. Each holds one concern at full strength and offers its own recommendation. None of them balances itself.
-3. **Workspace.** Those recommendations, plus retrieved episodes, current worries, and the
-   [situational model](docs/concepts/architecture.md), land as shards in the [global workspace](workflows/main_cognition/phases/attention.py).
-4. **Attention.** Shards compete. Selection stops at a capacity limit, so what the character is aware of right now is
-   a chosen subset, not everything relevant. Conflicts can survive selection.
-5. **Goals and decision.** [Goals](workflows/main_cognition/phases/goals.py) are formed, reprioritized, deferred, or
-   refused against needs, then one action per stimulus group is selected.
-6. **Speech.** [Public speech](workflows/public_speech/) renders the action using the character's
-   [private ontology](workflows/public_speech/ontology.py), so its words for feelings and relationships track its
-   actual recorded state instead of drifting.
+### Between messages
 
-Between messages, the [inner-thought loop](workflows/inner_thought/) runs the same workspace with no new stimulus, and
-[focus management](workflows/focus_management/) can recall an episode and propose a new subject of its own accord.
+A private thought loop can revisit a memory, compare explanations, or propose a new focus. It can run between conversations and give later decisions something to consider. Ordinary conversation can use the latest accepted guidance while deeper cognition is still working. Critical input can require a new decision before the companion speaks. [Private thought](docs/subsystems/private-loop.md) and [ordinary interaction](docs/subsystems/ordinary-interaction.md)
 
-## Features
+### When the character has a body
 
-Everything below is state with a record type behind it, not a prompt section.
+A question about current health calls for a single live read. Gathering wood for a shelter is a longer task. The body has to observe the area, find a source, and act in the game. Cognition can hand that goal to a named Minecraft workflow, and the worker can receive updates or cancellation while it runs. An admission receipt can prompt an acknowledgment. A later reply can report the result from the worker's evidence. The same handoff can serve future workflows in other domains. [Minecraft](docs/workflows/minecraft.md) and [task replies](docs/subsystems/public-publication.md#managed-task-replies)
 
-- **Emotions:** Joy, jealousy, boredom, tenderness, and trust live in a persistent [mental-state vector](pm/records/mental_state.py).
-  [Appraisals](workflows/main_cognition/affect.py) change that state, and those changes shape attention and expression.
+## Current status
 
-- **Mental processes:** Small processes called [codelets](workflows/main_cognition/codelets.yaml) recall old episodes, notice disrespect, imagine another person's perspective, or find something funny.
-  Each offers its own take on the situation.
+PM is in alpha. Character homes, dialogue, background thought, and managed Minecraft workflows are in place. The repeatable simulations use synthetic characters such as Jesse and Spamuel to test how those pieces work together.
 
-- **Attention:** A worry, a memory, and something you just said can compete for attention in the [global workspace](workflows/main_cognition/phases/attention.py).
-  What wins helps shape the next decision.
+A recent Minecraft run admitted a task and recorded an acknowledgment action. The worker crashed at startup before Spamuel spoke. After the fix and restart, Spamuel replied that he had yet to look around. Timely acknowledgment and successful co-play still need end-to-end verification.
 
-- **Inner thoughts:** A separate [private thought loop](workflows/inner_thought/) gives the character time to think without a new message.
-  It can also [recall past events and propose a new focus](workflows/focus_management/).
-
-- **Memory:** The character can [recall experiences](pm/memory/retrieval.py) and their emotional consequences.
-  [Memory consolidation](pm/memory/reconsolidation/) builds episodes and broader narratives from the original events.
-
-- **Personality, needs, goals:** Stable traits sit alongside changing needs for connection, autonomy, and creative expression.
-  The character can [form, reprioritize, defer, or refuse goals](workflows/main_cognition/phases/goals.py).
-
-- **Expectations:** It [records what it expects](workflows/main_cognition/expectations.py) to happen after an action.
-  Later events can fulfill those expectations or surprise it, with consequences for its emotional state.
-
-- **Metacognition:** The character can [inspect parts of its own code and records](pm/introspection/) to revise its beliefs about itself.
-  Experimental [reflection](workflows/reflection/) tests changes to attention and subjective beliefs against later choices.
-
-- **Consistent Vocabulary** A [private ontology](workflows/public_speech/ontology.py) connects words for emotions, relationships, and mental actions to recorded state.
-  Those links give the character consistent terms for its own experience.
-
-- **Body in Minecraft:** The optional [Minecraft body](workflows/minecraft_body/) lets the character move, gather, mine, and build.
-  Larger [projects](workflows/minecraft_project/) keep plans and progress across many actions.
-
-- **Tools:** Through [MCP tools](workflows/tool_call/), the character can carry out tasks, remember the outcome, and tell you about it in its own voice.
-
-- **Inspection:** The [review desk](dev/review/README.md) shows conversations alongside private thoughts, appraisals, codelet output, and the memories behind later decisions.
-  The [memory inspector](#inspect-a-memory-without-the-character) shows the stored records, the workspace shards of each cycle, and the text each record adds to a prompt.
-
-You choose the [character](docs/subsystems/character-import.md) and the [models](docs/models.md).
-With local model servers, the character's memory and conversation stay on your machine.
-
-## Requirements
-
-**As of the current revision.** The runtime is a client of two OpenAI-compatible endpoints and hosts nothing itself.
-
-| Need | Minimum |
-| --- | --- |
-| Chat endpoint | OpenAI-compatible `/v1`, at least 98k context |
-| Chat model | Qwen 3.6 35B3A. Qwen 3.8 27B and Next work better |
-| Embedding endpoint | OpenAI-compatible, at least 2048 input tokens. EmbeddingGemma 300M is fine |
-| Python | 3.12, with [uv](https://docs.astral.sh/uv/) and Git |
-| Windows only | Git Bash on `PATH` for tool workflows |
-| Optional: Minecraft body | Java 1.19.4 server, Node.js 20+, RCON access, and a running [`pm-minecraft`](https://github.com/flamingrickpat/pm-minecraft) MCP service |
-| Optional: other tools | Their own running MCP servers |
-
-You also need patience. See [Status and performance](#status-and-performance).
-
-## Status and performance
-
-This is **alpha**. Be accurate about what that costs you:
-
-- **It is slow, and the reason is architectural, not a bug.** Twelve registered codelets run per cycle. Eight execute
-  as two-call chains, four as tool-using [pm-coder](https://github.com/flamingrickpat/pm-coder) sessions with memory
-  access, and the codelet phase sits on top of the appraisal, attention, goal, decision, and speech phases. Context
-  assembly fills up to `context_input_fraction` of the window (0.8 by default), so per-cycle token volume, not model
-  price, is the dominant cost. On two 35B-A3B instances delivering about 400 tok/s combined, a single character is at
-  the edge of usable.
-- **Per-cycle token cost is currently unmeasured.** The [inspector](#inspect-a-memory-without-the-character) reports
-  the prompt cost of every shard and flags content several shards pay for twice. Making that number the headline of a
-  cycle is a prerequisite for the performance work below, not a side effect of it.
-- **Model output still needs repair sometimes.** Character quality depends heavily on your model and prompts.
-- **Long-run consistency is an open research problem.** Weeks of interaction can expose irrelevant memories,
-  self-contradiction, and decisions based on information the character never received. Latency is an engineering task.
-
-The tradeoff is deliberate. Quality of the internal model came before throughput, and the throughput work is now
-constrained by measurements rather than by taste.
+Speed depends on the amount of work behind a reply. The full cycle can call the model for appraisal, codelets, action selection, and speech. These calls can compete for the same endpoint. The simulation profiler records what ran, how long it took, and which prompts and records it used. The immediate performance work is to measure the delay from a message to speech or action, then cut avoidable calls and repeated prompt material. [Simulation guide](readme_simulation.md)
 
 ## Roadmap
 
-Roughly in the order it is planned. Items below the line are not implemented.
+1. **Run the regression scenarios.** Capture a baseline for chat, multi-character interaction, and Minecraft. Measure reply delay, task admission, game actions, and recovery after interruption.
+2. **Make workflow handoffs reliable.** Verify prompt acknowledgment, useful progress reports, and cancellation while the companion stays available to talk. Use the same lifecycle for future workflows.
+3. **Try it with a persistent persona.** Check conversation, romance, and co-play in real use. Verify that an existing character home can carry forward.
+4. **Build sleep around memory maintenance.** Extend the existing consolidation workflow to summarize dialogue and private thoughts, extract durable facts, and reduce duplication in active memory.
+5. **Expand codelets and mental state.** Give weakly connected needs and cognition axes observable effects. Add observation-based updates where a mechanism still needs an owner.
 
-- **Knobs for the cognitive simulation.** The codelet registry already takes `execution`, `families`, and
-  `stimulus_kinds` per codelet, and `cognitive_control` bounds deliberate waits. Planned: per-role model assignment
-  (small models for narrow appraisers, a strong one for attention and speech), magnitude gating so a codelet only
-  wakes when the relevant state variable actually crossed a threshold, and a step cap on agent-mode codelets.
-- **Prefix caching.** The persona, trait, and stable-memory prefix is nearly identical across a character's calls.
-  Cached input is several times cheaper, and this is expected to be the largest single cost lever available.
-- **Async tier split.** Separate a reflex path that answers quickly with no memory writes, a conversational path that
-  produces the spoken reply, an asynchronous cognition path for the full codelet swarm, and an offline consolidation
-  pass. Only the reflex path needs to meet a latency budget. This is what makes real-time response affordable.
-- **Thin codelet contexts.** Give each codelet a distinct few-k-token slice of relevant records instead of a filled
-  workspace.
-
----
-
-- **OpenAI-compatible server endpoint.** pm currently *consumes* such endpoints. The plan is also to *serve* one, so
-  an existing mod or client that already points at a chat-completions URL can swap pm in and get long-horizon memory
-  and persona state for free.
-
-  This is harder than it looks, and the difficulty is the API contract rather than the plumbing. `messages` alone is
-  not enough for a persistent character: the runtime needs **who is speaking** (a stable entity id, or every
-  interlocutor collapses into one relationship), **world and scene state**, and **time passing** with no message. The
-  host's own system prompt will also fight the character's persona, so the endpoint needs an explicit precedence mode
-  rather than a concatenation. Design notes land under `docs/subsystems/` as they are settled.
-
-- **Belief gating in retrieval.** A character must be unable to recall what it was not present for. Requires an
-  explicit per-entity model of what others know, applied as a retrieval filter. Without this, everything downstream
-  reads as fake to anyone paying attention.
-
-- **A long-horizon interaction benchmark.** This builds on an existing base rather than starting from nothing:
-  [A18B cognitive believability evaluation](docs/subsystems/cognitive-evaluation.md) runs complete conversations over
-  a versioned 16-scenario repertoire, freezes its cases, criteria, and thresholds per run, and calibrates its
-  reviewers against planted defects. Scenario authoring is in
-  [cognitive-evaluation-authoring](docs/subsystems/cognitive-evaluation-authoring.md).
-
-  What A18B does not do is time. The planned benchmark adds multi-month simulated interaction and reports **drift
-  curves rather than a single score**. It also measures confabulated memories, contradictions,
-  and correct *refusal* to know something the character was not present for.
-  Scoring recall alone rewards retrieval and ignores invented pasts, which is the failure that actually
-  breaks a long-running character. Cost and token volume per interaction go on the same chart. Competing open
-  projects run at pinned versions with their defaults documented, and transcripts plus judge prompts ship with the
-  results so any number can be checked. Until those numbers exist, statements about how pm compares to other projects
-  are opinion, and this README will not make them.
-
-## Related projects
-
-[Project AIRI](https://github.com/moeru-ai/airi) and the Neuro-sama-shaped projects listed in
-[awesome-ai-vtubers](https://github.com/proj-airi/awesome-ai-vtubers) optimize presentation: Live2D and VRM avatars,
-voice and ASR latency, and game integration. AIRI is far more widely deployed than this project and already does
-realtime voice chat, Minecraft, and Factorio. pm has none of that and does not compete with it.
-
-pm works on the other axis: persistent state, and whether a character is still itself after a hundred hours.
-
-The two are complementary, and the axis they differ on is one worth measuring rather than asserting. That is what the
-benchmark above is for.
+The [beta specification](docs/continuous-character-milestone.md) and [implementation plan](dev/work_items/beta.md) cover the longer-term work.
 
 ## Start locally
 
-Requirements: Python 3.12, [uv](https://docs.astral.sh/uv/), Git, and OpenAI-compatible chat and embedding servers.
-On Windows, tool workflows also need Git Bash on `PATH`.
+You need Python 3.12, Git, and [uv](https://docs.astral.sh/uv/). On Windows, tool workflows also need Git Bash on `PATH`. PM connects to OpenAI-compatible chat and embedding endpoints. Configure their model names and embedding settings before starting a character. [Model configuration](docs/models.md)
 
 ```powershell
 uv sync --locked
+Copy-Item config.example.yaml config.yaml
 ```
 
-The [example configuration](config.example.yaml) uses chat on port **8080** and embeddings on **8081**.
-Set the model aliases and embedding dimensions to match your servers.
-Select your configuration explicitly with `--config`.
-Your character data, prompt logs, and model cache stay on your machine when both endpoints are local.
-
-Choose [Sunny or Rowan](docs/workflows/example-characters.md).
-Both include a card, personality values, and an optional synthetic chatlog.
-For a new Sunny with empty history:
+Edit your local `config.yaml`, then create Sunny with an empty history and start the web chat.
 
 ```powershell
 uv run --locked python -m pm.app.character_cli init --home .runtime/characters/sunny --companion-name Sunny --user-name Alex --card examples/characters/sunny/card.md --personality examples/characters/sunny/personality.json
-uv run --locked python main.py --home .runtime/characters/sunny --config config.example.yaml
+uv run --locked python main.py --home .runtime/characters/sunny --config config.yaml
 ```
 
-Open the web address printed by the launcher.
-The character home holds its accepted memory in `ghost.pickle` and saves later changes there.
-An older home that holds only `ghost.json` still loads.
+Open the URL printed by the launcher. Start with the same `--home` next time to keep the character's saved state. Use your own card and optional chat history to create a different persona. [Character import](docs/subsystems/character-import.md) and [example characters](docs/workflows/example-characters.md)
 
-## Bring your own character
+### Run a simulation
 
-Supply a character card to the same `init` command.
-You can also supply personality values and an optional chatlog with `name,message,timestamp` columns.
-The [character import guide](docs/subsystems/character-import.md) explains the format and commands.
-An empty history works without an import.
+The Windows launchers cover one companion in chat, two companions in chat, two companions in Minecraft, and Jesse with Spamuel in Minecraft. The Minecraft scenarios use a private Fabric world and a local `pm-minecraft` service. The launcher selects the ports and creates the player directories. [Simulation setup](readme_simulation.md)
 
-Spamuel is the synthetic development persona. Bare startup still selects it; use `--home` for your own character.
-
-## Inspect a memory without the character
-
-The memory inspector serves one character checkpoint in a browser. It reads one `ghost.pickle` and starts no
-session. It runs no cycle, calls no model, and saves nothing. Use it to look at stored records and the workspace
-shards of each cycle. It also shows the text that each record adds to a prompt.
+Once `config_simulation.yaml` is set up, check the installation and launch a run from the repository root.
 
 ```powershell
-uv run --locked python main.py --home .runtime/characters/sunny --config config.example.yaml --inspector
+.\simulation\simulation_1_jesse_spamuel.ps1 -Preflight
+.\simulation\simulation_1_jesse_spamuel.ps1 -RunId baseline01
 ```
 
-`--config` has no effect in this mode, because the inspector needs no model server.
-Open the address that the launcher prints, for example `http://127.0.0.1:8771`.
-The launcher prints the record and cycle counts, then waits. Press `Ctrl-C` to stop.
-To read one checkpoint file instead of a whole home, pass `--checkpoint path\to\ghost.pickle`.
-If the port is busy, pass `--inspector-port` with a free port.
+### Inspect a character or run
 
-The pages build on each other. Every id in a table opens the page of that id:
-
-- **Cycles** lists each accepted cycle with the prompt cost it recorded. One click opens that cycle.
-- **A cycle** shows its shards, its situational model, its new stimuli, and its repeated content.
-- **A shard** shows the rendered block, the token cost of every line, and the token counts the cycle stored.
-- **The story prefix** shows the whole text that the cycle put in front of the model.
-- **Records** and **Types** list every stored record. Each one links to its story line, its relations, and the cycles that held it.
-- **Clusters** shows the episodic hierarchy: member events, child clusters, and parents.
-- **Prompts** shows the templates that these pages render with.
-
-The inspector uses the same code that builds the story lines and the shard blocks of a real cycle. The text in
-the browser is the text the model receives. It reports the cost of the labels and headers around those lines, and
-it marks content that several shards pay for twice. A checkpoint from an older revision can miss a record or a
-field. The pages mark those gaps. They do not hide them. The inspector loads no embeddings, so it shows no
-similarity results.
-
-## Connect a character to Minecraft
-
-Keep your existing Minecraft server running.
-The character uses a separate `pm-minecraft` MCP service for its Minecraft body.
-The current MCP requires Minecraft Java 1.19.4, Node.js 20 or newer, and RCON access to the same server.
-These examples use Sunny's existing character home and an installed MCP checkout at `C:/source/pm/pm-minecraft`.
-Replace the paths, player name, and ports for your character and server.
-If the MCP service already runs for this character, continue at step 3.
-
-You can download it here: https://github.com/flamingrickpat/pm-minecraft
-
-If you're interested in real survival gameplay, add this babymode-mod for easier combat: https://github.com/flamingrickpat/pm-agentic-babymode
-
-1. In the MCP checkout, copy your working server configuration once:
-
-   ```powershell
-   Set-Location C:\source\pm\pm-minecraft
-   Copy-Item .env_real .env.sunny
-   ```
-
-   Edit these entries in `.env.sunny`:
-
-   ```dotenv
-   MINECRAFT_HOST=127.0.0.1
-   MINECRAFT_PORT=12345
-   MINECRAFT_VERSION=1.19.4
-   MINECRAFT_PLAYER=Sunny
-   MINECRAFT_RCON_HOST=127.0.0.1
-   MINECRAFT_RCON_PORT=25575
-   MINECRAFT_RCON_PASSWORD=your-server-rcon-password
-   MCMCP_AGENT_HOME=C:/source/pm/private-machine/.runtime/characters/sunny/minecraft
-   MCP_HOST=127.0.0.1
-   MCP_PORT=6767
-   MCMCP_BODY_PORT=6768
-   MCMCP_VIEWER_PORT=6769
-   ```
-
-   Keep the working `NODE_EXE`, `MCMCP_BODY_ENTRYPOINT`, and `BROWSER_EXECUTABLE_PATH` entries from the copied configuration.
-   `MINECRAFT_PLAYER` names the Minecraft body. `MCMCP_AGENT_HOME` holds its files separately from pm's character memory.
-
-2. In that terminal, start only the MCP service:
-
-   ```powershell
-   .venv/Scripts/python.exe main.py .env.sunny
-   ```
-
-   Keep this terminal open. The MCP creates missing character directories on its first start.
-
-3. In a second PowerShell terminal, add the Minecraft body to your model configuration and start pm:
-
-   ```yaml
-   minecraft:
-     mcp_url: http://127.0.0.1:6767/mcp
-     request_timeout_seconds: 660
-     probe_timeout_seconds: 5
-   ```
-
-   Put the `minecraft` section in the file that you give with `--config`.
-   `mcp_url` uses the MCP HTTP port, not the game port.
-   pm asks the endpoint once at startup and exits when nothing answers.
-   Without the section, the character has no body: no world poll, no live inventory read, and no Minecraft route.
-   `MINECRAFT_MCP_URL` remains a test override and is not needed for normal operation.
-   The `PM_MINECRAFT_HOST` and `PM_MINECRAFT_PORT` variables supply the game address for connection checks.
-   Repeat these environment assignments in each new terminal before you start pm.
-
-4. Open the web address printed by pm.
-   Ask the character: "What is in your Minecraft inventory?" or "Where are you in Minecraft?"
-   These requests use a live read. A successful read confirms more than an open server port.
-   Then ask for a Minecraft goal through the same chat.
-
-Stopping pm leaves the MCP service and Minecraft server running.
-Read the [Minecraft workflow guide](docs/workflows/minecraft.md) for managed runs and cancellation.
-
-## Long-run test
-
-A simulated user texts the companion for N virtual hours.
-It finds the problems that only show after hours of running: memory growth, messages sent at night, and the same line again and again.
-Nothing judges quality. The checks are mechanical and the thresholds are parameters.
+Use the simulation debugger to read the conversation, see workflows on a wall-time timeline, and open the recorded model inputs, outputs, and linked knoxels. The chat view can hide the conversation inherited from the seed checkpoint. The standalone memory inspector reads a saved character home without starting a session or calling a model.
 
 ```powershell
-uv run --locked python -m tests.live.long_run --hours 24 --card tests/live/style_cards/example.txt --out .runtime/longrun/try1
-uv run --locked python -m tests.live.long_run --stub --hours 1
-$env:PM_LONGRUN_LIVE = "1"; uv run --locked python -m unittest tests.live.test_long_run -v
+uv run --locked python main.py --home .runtime/characters/sunny --inspector
 ```
 
-How it works:
+[Operator console](docs/workflows/console.md) and [engineering manual](docs/index.md)
 
-- The sim user is one model call per message. A plain-text style card sets its voice (`tests/live/style_cards/example.txt` is an invented example; copy it and write your own).
-- The model comes from the same config the other live tests use: `PM_MODEL_CONFIG`, else `config.local.yaml`, else `config.example.yaml`.
-- Time is a manual clock. Every tick (default 60 virtual seconds) advances it, steps every bus module, and lets the user write if awake. The companion's own loop (inner thought, tasks) ticks on that clock between turns. The user is awake 07:00 to 23:00 and writes every 20 to 120 virtual minutes.
-- `--stub` uses dummy cognition and a scripted user: no model, for a quick wiring check.
-- Output: `transcript.jsonl` (`ts`, `who`, `text`; companion lines also carry `asleep`) and `report.json`. Exit code 1 if a check fails.
+## Research
 
-Checks:
+- **Attention and learning.** The LIDA cognitive cycle and its account of how affect can influence attention and learning. [The Mind According to LIDA](https://ccrg.cs.memphis.edu/tutorial/mindAccordingToLIDA/Brief-Account.pdf) · [The Timing of the Cognitive Cycle](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0014803) · [Learning in LIDA](https://doi.org/10.1016/j.cogsys.2020.11.001)
+- **Intentions and reflection.** Long-term commitments, separate levels for acting and reflecting, and traces that let an agent revisit earlier decisions. [Modeling Long-Term Intentions and Narratives](https://doi.org/10.1142/S2705078521500107) · [MIDCA](https://ojs.aaai.org/index.php/AAAI/article/view/9886) · [How Metacognitive Architectures Remember Their Own Thoughts](https://arxiv.org/abs/2503.13467) · [Generative Agents](https://arxiv.org/abs/2304.03442)
+- **Internal state and inspection.** Representing and reporting internal state, and retaining evidence about what an agent did. [On the Practical Nature of Artificial Qualia](https://www.conscious-robots.com/papers/arrabales-a-paper-aiib10.pdf) · [Towards an Ontology for Robot Introspection and Metacognition](https://doi.org/10.3233/FAIA231137)
 
-| Check | What it counts | Default | Parameter |
-| --- | --- | --- | --- |
-| Overnight | Companion messages emitted while the user is asleep (23:00 to 07:00) | 0 | `--max-overnight`, `--sleep-from`, `--wake-at` |
-| Memory | Process RSS growth in MB per virtual hour (least-squares slope over hourly samples, first hour skipped as warm-up) | 20 | `--max-rss-mb-per-hour`, `--warmup-hours` |
-| Repeats | Companion lines equal, after lowercasing and dropping punctuation, to one of the previous 50 lines, or at least 90% similar (difflib). Reported as a fraction of all lines, only asserted from 8 lines up | 10% | `--max-repeat-fraction` |
-
-Limits to know:
-
-- Only the module clock is virtual. Anything in the code that reads wall-clock time (`time.time()`, `datetime.now()`) still sees real time.
-- RSS is the whole test process, so the sim user's client counts too. Install `psutil` for a current-RSS reading; without it Linux uses `/proc` and other systems fall back to peak RSS, which never falls.
-- One run is one seed (`--seed`). Short runs with a fast model are only a smoke test; the memory slope needs several hours of virtual time to mean anything.
-
-## Eventful month end-to-end run
-
-`test_data/simulation/eventful-month.json` is a 90-scene, 30-day scenario with an
-exact committed plan: three scenes a day for a month of an adult user's life with
-her companion. The companion's feelings and choices are never scripted. Use this
-run to find out whether the whole architecture holds up over a long stretch,
-rather than over one exchange.
-
-Prerequisites: the repository, and your model settings. `config.yaml` is
-git-ignored, so copy `config.example.yaml` to `config.yaml` and add your key, or
-put the key in `.env`.
-
-The run also needs a seed home. The actor's voice is derived from the seed's
-public dialogue, so an empty character home is refused with `No public Jesse
-utterances exist to ground this simulation actor`. Build the seed once from the
-canon that ships with the repository:
-
-```bash
-uv run --locked python - <<'EOF'
-from pathlib import Path
-from pm.memory.store import MemoryStore
-home = Path.home() / ".pm/private-machine/spamuel-simulation-a"
-home.mkdir(parents=True, exist_ok=True)
-MemoryStore.from_yaml("test_data/personas/spamuel/canon.yaml", checkpoint=home / "ghost.pickle").save()
-EOF
-```
-
-That writes `~/.pm/private-machine/spamuel-simulation-a/ghost.pickle` (about
-35 MB) holding 912 public dialogue turns, so the scenario opens the morning after
-the canon's last line. The template already names that home in
-`participants[0].home`, so nothing needs editing.
-
-Create and run it:
-
-```bash
-uv run --locked python -m simulation.templates create test_data/simulation/eventful-month.json   --run-id eventful-month   --config config.yaml   --start
-```
-
-`--start` runs the scenario in the foreground until it ends. On a headless
-machine run it under `tmux` or `screen`. To watch it instead, drop `--start` and
-use the dashboard:
-
-```bash
-uv run --locked python -m simulation --config config.yaml --openrouter-only --port 8100
-```
-
-What to expect:
-
-- **Virtual time defaults to real time.** Set `time_multiplier` in the template,
-  use the setup page, or pass `--time-multiplier 2` when creating the run.
-  At 2, fifteen wall minutes consume thirty simulated minutes; at 0.5, they
-  consume seven and a half. Actor delays and scheduled events follow simulated time.
-- **Neither actor blocks the other.** Jesse writes at her own pace (30 seconds to
-  an hour per turn, deterministic per turn so a resumed run keeps the same
-  rhythm). If the companion says nothing back she still writes again after at
-  least 30 minutes, so an ignored message is recorded as an outcome instead of
-  stalling the run. The companion may also speak unprompted.
-- Run state is `<data>/runs/<run-id>/state.json`. The participant's own log is
-  `participants/primary/logs/runtime_*.log`, and every prompt it sent is kept
-  under `participants/primary/logs/prompts/`.
-
-## More information
-
-- [Example characters and optional histories](docs/workflows/example-characters.md)
-- [Local and remote model configuration](docs/models.md)
-- [Operator console](docs/workflows/console.md)
-- [Engineering manual](docs/index.md)
-- [Development and tests](docs/workflows/development.md)
-
-Installations use the revisions in `uv.lock`. Dependency repositories must be accessible during installation.
+The [research notes](docs/work_items/alpha-plan/cognitive-sources.md) list the wider reading and the mechanisms adopted from each source.
 
 ## Disclaimer
 

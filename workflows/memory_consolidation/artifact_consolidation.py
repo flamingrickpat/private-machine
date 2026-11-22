@@ -28,6 +28,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
+from pm.runs.run_receipt import ManagedRunReceipt
 from pm.constants import BODY_EPISODE_TAGGED_IMAGES, MINECRAFT_MCP_SERVER
 from pm.records.media import MediaProvenance, RecordImage, attach_images, image_from_bytes, with_tags
 from pm.utils import yaml_util
@@ -382,6 +383,15 @@ class Consolidator:
 
         batch = self.ghost.begin_batch(f"consolidation:{key}", new_tick=True)
         batch.guard_consolidation_run(run_id)
+        # Artifact memories inherit the action that authorized the managed run.
+        with self.ghost.lock:
+            run_row = self.ghost.managed_runs.get(run_id)
+            if run_row is not None:
+                run = ManagedRunReceipt.from_dict(run_row)
+                if run.authority_record_id is not None:
+                    batch.depend_on(source_event_ids or [], authority=run.authority_record_id,
+                                    manifest={"operation": "consolidate_artifacts", "run_id": run_id})
+                    batch.depend_on_commits([run.causal_commit_id])
         existing_keys = {memory_key for receipt in batch._initial_consolidations.values()
                          if receipt.get("run_id") == run_id for memory_key in receipt.get("memory_keys", [])}
         proposals = self.proposals(run_id, inventory, images, root=Path(artifact_path))

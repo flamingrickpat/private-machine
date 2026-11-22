@@ -24,13 +24,15 @@ def gameplay_history(store: TreeStore) -> dict:
         relative = attempt.get("journal", attempt["path"] + "/scratch/actor-journal.jsonl")
         for row in read_actor_journal(store.path_for(relative)):
             evidence.consume(row, relative)
-    if store.state.get("planning_observation"):
+    observation_time = store.state.get("planning_observation_time")
+    # A restored legacy file has a new filesystem timestamp. It cannot clear a later timeout.
+    if store.state.get("planning_observation") and (observation_time is not None or evidence.service_wait is None):
         path = store.path_for(store.state["planning_observation"])
         observation = json.loads(path.read_text(encoding="utf-8"))
         # Planning can discover danger. It cannot supply an actor's geometry
         # checks or grant an escape completion certificate.
         evidence.consume({"event": "result", "seq": 0, "tool": "minecraft_observe", "arguments": {},
-                          "time": path.stat().st_mtime, "ok": True, "result": observation}, str(path))
+                          "time": observation_time if observation_time is not None else path.stat().st_mtime, "ok": True, "result": observation}, str(path))
     return scoped_gameplay(evidence.snapshot())
 
 

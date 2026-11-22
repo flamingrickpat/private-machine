@@ -305,6 +305,20 @@ class ManagedRunTests(unittest.TestCase):
         self.assertIn("the blue artifact", observations)
         self.assertEqual(self.supervisor.status(run_id)["answer"], "the blue artifact")
 
+    def test_instruction_update_resumes_a_parked_resumable_workflow(self) -> None:
+        self.supervisor.workflows["resumable_question"] = WorkflowSpec(
+            LOCAL_TASK / "local_task_question.workflow.md", namespace="resumable_question", resumable=True,
+        )
+        receipt = self.supervisor.start(action_id="revised-question", workflow_name="resumable_question")
+        run_id = receipt["run_id"]
+        self.assertTrue(_wait_for(lambda: self.supervisor.status(run_id)["state"] == "waiting_for_input"))
+        self.supervisor.update(run_id, "the revised artifact", request_id="revision-one")
+        repeated = self.supervisor.update(run_id, "the revised artifact", request_id="revision-one")
+        self.assertEqual(repeated["revision"], 1)
+        self.assertTrue(_wait_for(lambda: self.supervisor.status(run_id)["state"] == "completed"))
+        observations = Path(receipt["artifact_path"]) / "scratch" / "observations.md"
+        self.assertIn("the revised artifact", observations.read_text(encoding="utf-8"))
+
     def test_terminate_is_refused_after_a_terminal_state(self):
         receipt = self.supervisor.start(
             action_id="action-4", workflow_name="local_task", instructions="quick",

@@ -14,7 +14,7 @@ update, termination, and memory recovery from a reopened checkpoint.
 """
 from __future__ import annotations
 from pm.utils.operating_system import OperatingSystem
-from workflows.minecraft_body.lease import BODY_LEASES
+import yaml
 
 import json
 import time
@@ -24,17 +24,19 @@ from pathlib import Path
 from uuid import uuid4
 
 from pm.memory.store import MemoryStore
-from pm.records.cycle_state import PersonaConfig
+from pm.records.enums import ActionType
+from pm.records.global_workspace import GwtTurnRecord
+from pm.records.memory_records import ActionSchemaRecord
 from pm.llm.stage_model import LazyStageModel
 from pm.llm.activation import ModelActivation
 from pm.llm.config import load_config, resolve_connection
 from workflows.memory_consolidation.artifact_consolidation import Consolidator
 from pm.runs.supervisor import ManagedRunSupervisor
 from pm.runs.workflow_spec import WorkflowSpec
-from workflows.minecraft_body.mcp_client import DEFAULT_MCP_URL, build_minecraft_tools
+from workflows.minecraft_body.mcp_client import DEFAULT_MCP_URL, MinecraftTransport, MinecraftTransportSettings
 from tests.live.minecraft_stack import MinecraftStack, autostart_enabled
 from pm.runs.workflow_module import PROJECT_ROOT
-from workflows.minecraft.host import persona_context
+from workflows.minecraft.host import MinecraftContextOwner, MinecraftRuntimeOwner
 
 EVIDENCE_ROOT = (
     Path(".runtime/w8/live-minecraft")
@@ -81,32 +83,29 @@ class LiveMinecraftBodyTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self.mcp_url = type(self).mcp_url
-        tools = build_minecraft_tools(self.mcp_url)
-        try:
-            names = tools["minecraft_list_tools"]()
-        except Exception as error:  # a required endpoint is missing
-            self.fail(f"The Minecraft MCP is not reachable at {self.mcp_url}: {error!r}")
-        self.assertIn("minecraft_observe", names)
-        self.tools = tools
         config_path = OperatingSystem.environment.get("PM_MODEL_CONFIG", "config.local.yaml" if Path("config.local.yaml").is_file() else "config.example.yaml")
         self.model = LazyStageModel(resolve_connection(load_config(config_path)), ModelActivation(), live_test=True)
 
+        self.transport = MinecraftTransport(MinecraftTransportSettings(endpoint=self.mcp_url), self.model)
+        self.assertIn("minecraft_observe", self.transport.list_tools())
+
     def _target(self) -> dict:
-        observation = self.tools["minecraft_call"]("minecraft_observe", {"include_image": False})
+        observation = self.transport.call("minecraft_observe", {"include_image": False})
         self.assertTrue(observation["ok"], observation)
-        blocks = [
-            block for block in (observation["result"].get("nearby_blocks") or [])
-            if block.get("block_name") in {"dirt", "grass_block", "stone", "oak_log"}
-        ]
-        self.assertTrue(blocks, "the isolated world has no minable block near the player")
-        target = min(blocks, key=lambda block: block.get("distance", 999))
-        return {"position": target["nearest"], "block": target["block_name"]}
+        feet = observation["result"]["camera"]["block_position"]
+        for dx, dz in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            position = {"x": feet["x"] + dx, "y": feet["y"] - 1, "z": feet["z"] + dz}
+            inspected = self.transport.call("minecraft_inspect_block", {"position": position})
+            block = inspected["result"]["block_name"]
+            if block in {"dirt", "grass_block", "stone", "oak_log"}:
+                return {"position": position, "block": block}
+        self.fail("No adjacent supported mining target in the test world.")
 
     def test_body_lifecycle_and_memory_recovery(self):
         root = EVIDENCE_ROOT / "state"
         root.mkdir(parents=True, exist_ok=True)
-        ghost = MemoryStore(
-            PersonaConfig(user_name="Jesse", companion_name="Spamuel"),
+        ghost = MemoryStore.from_yaml(
+            PROJECT_ROOT / "test_data/personas/spamuel/canon.yaml",
             checkpoint=root / "ghost.pickle",
         )
         consolidator = Consolidator(ghost)
@@ -118,12 +117,8 @@ class LiveMinecraftBodyTests(unittest.TestCase):
                     MANIFEST,
                     namespace="minecraft",
                     resumable=True,
-                    request_context=persona_context,
-                    tools_factory=lambda run_id, environment: {
-                        **build_minecraft_tools(self.mcp_url, plan_model=self.model.complete),
-                        "minecraft_endpoint": lambda: self.mcp_url,
-                        "minecraft_lease": lambda: BODY_LEASES.acquire(self.mcp_url, run_id),
-                    },
+                    request_context_owner=MinecraftContextOwner(),
+                    runtime_owner=MinecraftRuntimeOwner(self.transport),
                 ),
             },
             clock=time.monotonic,
@@ -140,6 +135,11 @@ class LiveMinecraftBodyTests(unittest.TestCase):
         target = self._target()
 
         # Observation, one real action, and completion.
+        selection = ghost.begin_batch("main-mining-selection", new_tick=True)
+        action = selection.create(ActionSchemaRecord(content="Mine the adjacent block", action_type=ActionType.ToolCall,
+            metadata={"action_id": "mc-action-1", "dispatch_status": "pending"}))
+        selection.set_gwt(GwtTurnRecord(tick_id=selection.tick_id, knoxel_ids=[action.id]))
+        ghost.commit(selection)
         run = supervisor.start(
             action_id="mc-action-1", workflow_name="minecraft",
             instructions=f"mine one {target['block']}",
@@ -160,11 +160,11 @@ class LiveMinecraftBodyTests(unittest.TestCase):
         self.assertIn("outbox/world.yaml", status["evidence"])
         world = (Path(status["artifact_path"]) / "outbox" / "world.yaml").read_text(encoding="utf-8")
         self.assertIn("places", world)
-        report = json.loads(json.dumps(__import__("yaml").safe_load(
-            (Path(status["artifact_path"]) / "outbox/report.yaml").read_text(encoding="utf-8"))))
+        report = yaml.safe_load(
+            (Path(status["artifact_path"]) / "outbox/report.yaml").read_text(encoding="utf-8"))
         self.assertTrue(report["accepted"], report)
         self.assertTrue(report["action"]["result"]["ok"], report["action"])
-        after = self.tools["minecraft_call"]("minecraft_inspect_block", {"position": target["position"]})
+        after = self.transport.call("minecraft_inspect_block", {"position": target["position"]})
         # The MCP reports an emptied cell as ``ok=False`` with ``not_found`` and
         # ``block_name="air"``. The removal is confirmed by the block name.
         self.assertIs(after["result"]["ok"], False, after)
@@ -175,6 +175,7 @@ class LiveMinecraftBodyTests(unittest.TestCase):
 
         # Memory recovery from a reopened checkpoint.
         self.assertTrue(_wait_for(lambda: ghost.consolidations, timeout=30))
+        ghost.save()
         reopened = MemoryStore.from_checkpoint(root / "ghost.pickle")
         self.assertTrue(reopened.consolidations)
         consolidation = next(iter(reopened.consolidations.values()))
@@ -199,7 +200,7 @@ class LiveMinecraftBodyTests(unittest.TestCase):
         self.assertTrue(_wait_for(lambda: (held_path / "outbox/report.yaml").is_file()
                                  or supervisor.status(held_id)["state"] == "failed", timeout=None))
         self.assertNotEqual(supervisor.status(held_id)["state"], "failed", supervisor.status(held_id))
-        held_report = __import__("yaml").safe_load((held_path / "outbox/report.yaml").read_text(encoding="utf-8"))
+        held_report = yaml.safe_load((held_path / "outbox/report.yaml").read_text(encoding="utf-8"))
         self.assertEqual(held_report["goal"], updated["instructions"])
         self.assertEqual(held_report["action"]["tool"], "minecraft_observe")
         self.assertEqual(supervisor.status(held_id)["applied_revision"], 1)

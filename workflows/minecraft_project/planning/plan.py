@@ -5,6 +5,7 @@ from workflows.minecraft.runtime import require_minecraft_runtime
 from pm.runs.managed_boundary import BoundaryReadSettings
 
 import json
+import time
 from pm.memory.snapshot import GhostConflict
 from pm.runs.role_runtime import PMWorkflowRuntime
 
@@ -31,6 +32,7 @@ def plan(context: RoleContext, store: TreeStore) -> ProjectPhaseResult:
     current = require_minecraft_runtime(context.runtime).instructions()
     goal = current["instruction"] or req.goal or req.instruction
     with BODY_LEASES.command(require_minecraft_runtime(context.runtime).minecraft_transport.settings.endpoint, context.runtime.stop_event):
+        observation_started_at = time.time()
         observation = require_minecraft_runtime(context.runtime).minecraft_transport.call("minecraft_observe", {"include_image": False})
         server_info = require_minecraft_runtime(context.runtime).minecraft_transport.call("minecraft_info", {})
     if not observation["ok"]:
@@ -43,6 +45,7 @@ def plan(context: RoleContext, store: TreeStore) -> ProjectPhaseResult:
     store.write(rules_path, server_info["result"])
     store.state["server_rules"] = rules_path
     store.state["planning_observation"] = observation_path
+    store.state["planning_observation_time"] = observation_started_at
     first = "planning/observations/0001.json"
     store.state.setdefault("initial_observation", first if store.path_for(first).is_file() else observation_path)
     store.save()

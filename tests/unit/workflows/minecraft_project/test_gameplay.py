@@ -1891,8 +1891,10 @@ class GameplayTests(unittest.TestCase):
         self.assertIsNotNone(evidence.service_wait)
         self.assertIsNone(evidence.guard("minecraft_observe", {}))
         self.assertEqual(evidence.guard("minecraft_mine_block", {})["reason"], "service_wait")
-        observed = {**self.capture["search"]["observation"], "time": 2}
-        evidence.consume(observed, "service-journal")
+        observed = {**self.capture["search"]["observation"], "time": 0.5}
+        evidence.consume(observed, "older-planning-observation")
+        self.assertIsNotNone(evidence.service_wait)
+        evidence.consume({**observed, "time": 2}, "service-journal")
         self.assertIsNone(evidence.service_wait)
 
     def test_exact_block_contract_rejects_inventory_globs(self):

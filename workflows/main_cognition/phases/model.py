@@ -85,9 +85,8 @@ def complete(context: RoleContext, messages: Sequence[TurnInput], schema: type[R
 def complete_prose(context: RoleContext, messages: Sequence[TurnInput]) -> str:
     """Call the model for prose and return the non-empty answer.
 
-    The settings match :func:`complete`. Codelet calls get no grounding turn,
-    so all codelet calls of one cycle share their prefix byte for byte. See
-    ``complete_text`` for retries and errors.
+    The codelet frame supplies the rendered story and view. Check their
+    combined token budget before asking the model for a recommendation.
     """
     assert context.runtime is not None
     session = role_model(context.runtime)

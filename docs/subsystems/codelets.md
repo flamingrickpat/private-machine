@@ -173,7 +173,8 @@ Every call of the phase starts with the same three turns of the shared story pre
 3. The acknowledgement of the story.
 
 [`CodeletFrame`][workflows.main_cognition.phases.codelets.CodeletFrame] uses that prefix for every call of the cycle.
-So the bytes are equal for every call, and the provider can reuse the cached prefix.
+Calls share the selected story records. The renderer shows a repeated image once across the story and the codelet's view.
+When the view adds an image at the prompt limit, an older image in the story becomes a text description.
 The codelets read the shards as the previous cycle left them, with the new tails.
 Memories reach a codelet through its CSM view, not through the prefix.
 The codelet's CSM view and its instruction come last.

@@ -4,7 +4,6 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from pm.memory.store import MemoryStore
-from pm.records.cycle_state import PersonaConfig
 from pm.records.enums import ActionType
 from pm.records.global_workspace import GwtTurnRecord
 from pm.records.memory_records import ActionSchemaRecord
@@ -18,7 +17,7 @@ class ParkedRecoveryTests(unittest.TestCase):
     def test_accepted_parked_run_survives_graceful_shutdown_and_answers_after_reload(self):
         with TemporaryDirectory() as directory:
             root = Path(directory)
-            store = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"), checkpoint=root / "ghost.pickle")
+            store = MemoryStore.from_yaml(REPO_ROOT / "test_data/personas/spamuel/canon.yaml", checkpoint=root / "ghost.pickle")
             batch = store.begin_batch("main-selection", new_tick=True)
             action = batch.create(ActionSchemaRecord(content="Run the question workflow", action_type=ActionType.ToolCall,
                 metadata={"action_id": "approved-question", "dispatch_status": "pending"}))
@@ -32,8 +31,11 @@ class ParkedRecoveryTests(unittest.TestCase):
             run_id = receipt["run_id"]
             self.assertTrue(_wait_for(lambda: original.status(run_id)["state"] == "waiting_for_input"))
             original.shutdown(preserve_parked=True)
+            store.save()
             parked_bytes = (root / "ghost.pickle").read_bytes()
-            restored = MemoryStore.from_checkpoint(root / "ghost.pickle")
+            clean = MemoryStore.from_checkpoint(root / "ghost.pickle")
+            self.assertEqual(clean.managed_runs[run_id]["state"], "cancelled")
+            restored = MemoryStore.from_checkpoint(root / "ghost.pickle", raw=True)
             resumed = supervisor(restored)
             try:
                 waiting = resumed.status(run_id)
@@ -48,7 +50,7 @@ class ParkedRecoveryTests(unittest.TestCase):
             # The restored ghost owns its parked kernel state. Later disk work
             # must not replace the earlier branch's pending question.
             (root / "ghost.pickle").write_bytes(parked_bytes)
-            earlier = MemoryStore.from_checkpoint(root / "ghost.pickle")
+            earlier = MemoryStore.from_checkpoint(root / "ghost.pickle", raw=True)
             branch = supervisor(earlier)
             try:
                 waiting = branch.status(run_id)
@@ -66,7 +68,7 @@ class ParkedRecoveryTests(unittest.TestCase):
             fork = root / "fork"
             fork.mkdir()
             (fork / "ghost.pickle").write_bytes(parked_bytes)
-            forked = MemoryStore.from_checkpoint(fork / "ghost.pickle")
+            forked = MemoryStore.from_checkpoint(fork / "ghost.pickle", raw=True)
             isolated = ManagedRunSupervisor(forked, runtime_root=fork / "runtime", workflows=workflows, clock=lambda: 0)
             try:
                 waiting = isolated.status(run_id)
