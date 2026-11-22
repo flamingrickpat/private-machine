@@ -5,8 +5,8 @@ stimulus group that triage did not mark insignificant. The calls run in
 parallel. Each call reads the story prefix of its own group (the self shard
 and the group's shard after attention, the group's subjective experience in
 the self tail, the group's new events) and then the group instruction: the group's stimuli, the feeling, the subjective experience,
-the causal codelet percepts in the self shard and the group shard, and the
-goals.
+the causal codelet percepts in the self shard and the group shard, the goals,
+and the current receipts for managed work.
 
 Each call returns zero or ``DECISION_VARIANTS`` decision texts. A decision
 is a recommendation to the character in the story, in the character's voice
@@ -150,6 +150,7 @@ def build_messages(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix, 
         experience=work.experience.text_for(group.key) or "(nothing)",
         impulses=group_percepts(work, group),
         goals=render_goals(work),
+        managed_runs=render_managed_runs(work.request.managed_runs),
         variants=DECISION_VARIANTS)).text
     return prefix.ask(instruction)
 

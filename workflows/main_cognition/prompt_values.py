@@ -187,6 +187,7 @@ class DecisionTemplateValues:
     experience: Content | str
     impulses: Content | str
     goals: Content | str
+    managed_runs: Content | str
     variants: int
 
     def field_value(self, name: str) -> Content | str | int | float:
@@ -205,6 +206,8 @@ class DecisionTemplateValues:
                 return self.impulses
             case "goals":
                 return self.goals
+            case "managed_runs":
+                return self.managed_runs
             case "variants":
                 return self.variants
             case _:

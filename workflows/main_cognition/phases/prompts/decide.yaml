@@ -24,6 +24,9 @@ user_template: |
   What {companion_name} wants now:
   {goals}
 
+  Current state of work {companion_name} has taken on, from its receipts:
+  {managed_runs}
+
   Your task: act as the choice mechanism of {companion_name}'s mind. Decide what {companion_name} does next about
   {part}, and only about {part}: the other parts of the story get their own choices. Decide the way this character
   really would: with {companion_name}'s voice, attitude, history, and mood. Let the
