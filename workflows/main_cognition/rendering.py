@@ -27,7 +27,8 @@ def situation_source_text(source: SituationSource) -> str:
             f"{source.kind}; reality {source.scope.reality_id}/{source.scope.frame.value}] {source.text}")
 
 
-def render_cognition_guidance(situations: list[SituationalGuidance], settings: RenderSettings) -> str:
+def render_cognition_guidance(situations: list[SituationalGuidance], settings: RenderSettings, *,
+                              reserved_story_tokens: int = 0) -> str:
     required = ["Partner statements are attributed evidence. Interpretations remain uncertain. "
                 "Silence does not establish a new state. Delivered speech remains delivered."]
     optional: list[SituationEvidence] = []
@@ -70,7 +71,7 @@ def render_cognition_guidance(situations: list[SituationalGuidance], settings: R
         for source in situation.intentions:
             optional.append(SituationEvidence(-4, source.record_id, "Accepted intention: " + situation_source_text(source)))
     estimator = TokenEstimator(estimate_factor=settings.estimate_factor)
-    budget = settings.input_ceiling // 5
+    budget = min(settings.input_ceiling // 5, settings.input_ceiling - reserved_story_tokens)
     selected = list(required)
     if estimator.estimate((Turn(Role.User, "\n".join(selected)),)) > budget:
         pinned_texts = {row.text for row in pinned}
@@ -203,8 +204,12 @@ def cognition_story_turns(input: CognitionStoryInput, selected: frozenset[int]) 
 
 
 def render_cognition_story(input: CognitionStoryInput, settings: RenderSettings) -> RenderedPrompt:
+    estimator = TokenEstimator(estimate_factor=settings.estimate_factor)
     if input.situations:
-        input = replace(input, guidance=render_cognition_guidance(list(input.situations), settings), situations=())
+        mandatory_turns = cognition_story_turns(replace(input, guidance=""), frozenset())
+        guidance = render_cognition_guidance(list(input.situations), settings,
+                                             reserved_story_tokens=estimator.estimate(mandatory_turns))
+        input = replace(input, guidance=guidance, situations=())
     required: set[int] = set()
     priority: dict[int, float] = {}
     for shard in input.shards:
@@ -224,7 +229,6 @@ def render_cognition_story(input: CognitionStoryInput, settings: RenderSettings)
             priority[record_id] = max(priority.get(record_id, 0), weight)
     required.difference_update(input.new_ids)
     selected = frozenset(required)
-    estimator = TokenEstimator(estimate_factor=settings.estimate_factor)
     limits = cognition_story_turns(input, selected)
     relax_pins = bool(required) and estimator.estimate(limits) > settings.input_ceiling
     if relax_pins:
