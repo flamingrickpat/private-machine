@@ -15,7 +15,6 @@ from pydantic import BaseModel, ConfigDict
 
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope, new_id
-from pm.memory.snapshot import GhostConflict
 from pm.records.memory_records import Feature
 from pm.records.base import Provenance, RecordBase, RecordScope
 from pm.records.enums import FeatureType, InterlocusType, SourceKind
@@ -191,16 +190,18 @@ def validate_public_context(ghost: MemoryStore, context: PublicContext) -> None:
             validate_entity_context(ghost, entity_context, as_of_utc=vclock.utcnow())
         except EntityContextChanged as error:
             raise InteractionContextChanged(str(error)) from error
-    conflict_type = InteractionContextChanged if context.action_origin == "interaction" else GhostConflict
-    if any(key not in ghost.all_knoxels for key in context.head_ids):
-        raise conflict_type("Public evidence acquired a successor during generation.")
+    # Every draft depends on its frozen evidence, including speech selected
+    # by main cognition. A changed source sends the action for reconsideration.
+    for key in context.head_ids:
+        if key not in ghost.all_knoxels:
+            raise InteractionContextChanged(f"Public evidence {key} acquired a successor during generation.")
     for key, revision in context.revisions.items():
         if ghost.revisions.get(key) != revision:
             from workflows.public_speech.public_context import source_fingerprint
             current = ghost.get_knoxel_by_id(key)
             if (current is None or key not in context.source_fingerprints
                     or source_fingerprint(current) != context.source_fingerprints[key]):
-                raise conflict_type(f"Public evidence {key} changed during generation.")
+                raise InteractionContextChanged(f"Public evidence {key} changed during generation.")
 
 
 def publish_reply(bus: BusSystem, source: str, correlation: str, reply_id: int, *,

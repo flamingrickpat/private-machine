@@ -1532,7 +1532,7 @@ class MainCogLoop(CognitiveWorkflow):
             changes = self.ghost.begin_batch(f"entity-reconsider:{action_id}", embed=False)
             changes.depend_on([action_id], authority=action_id)
             changes.set_lifecycle(action_id, dispatch_status="deferred", execution_status="awaiting_reconsideration")
-            marker = self._stage_entity_reconsideration(changes, request, "The public action's relevant entity context changed.")
+            marker = self._stage_entity_reconsideration(changes, request, "The evidence that guided this public action has changed.")
             self.ghost.commit(changes)
             self._publish_entity_reconsideration(marker)
 

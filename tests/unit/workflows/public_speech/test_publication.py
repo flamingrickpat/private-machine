@@ -15,11 +15,11 @@ from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope
 from workflows.main_cognition.schemas import ActionRequest, Stimulus
 from workflows.public_speech.user_input import UserInputProxy
-from pm.memory.snapshot import GhostConflict
+from workflows.public_speech.dependencies import InteractionContextChanged
 from pm.memory.store import MemoryStore
 from pm.records.cycle_state import PersonaConfig
-from pm.records.memory_records import ActionSchemaRecord
-from pm.records.enums import ActionType
+from pm.records.memory_records import ActionSchemaRecord, Feature
+from pm.records.enums import ActionType, FeatureType
 from workflows.public_speech.publication import acknowledge_reply, commit_public_reply, exchange_record
 from workflows.public_speech.reply_recovery import ReplyRecovery, task_evidence
 from pm.runs.supervisor import ManagedRunSupervisor
@@ -37,7 +37,7 @@ class PublicationTests(unittest.TestCase):
     def supervisor(self, ghost):
         return ManagedRunSupervisor(ghost, runtime_root=Path(self.tmp.name), workflows={}, clock=lambda: 0)
 
-    def test_stale_revision_cannot_publish_candidate(self):
+    def test_changed_evidence_sends_a_main_reply_for_reconsideration(self) -> None:
         correlation = self.proxy.submit("Keep this original report.")
         source = exchange_record(self.ghost, correlation)
         context = build_public_context(self.ghost, ActionRequest(stimuli=[Stimulus(knoxel_id=source.id)]))
@@ -46,10 +46,29 @@ class PublicationTests(unittest.TestCase):
         source.content = "The report changed before publication."
         changes.replace(source)
         self.ghost.commit(changes)
-        with self.assertRaises(GhostConflict):
+        self.assertEqual(context.action_origin, "main")
+        with self.assertRaisesRegex(InteractionContextChanged, r"Public evidence \d+ acquired a successor"):
             commit_public_reply(self.ghost, "Unsupported stale candidate.", correlation, commit_id="stale", context=context)
         self.assertFalse(any(item.content == "Unsupported stale candidate." for item in self.ghost.all_features))
         self.assertEqual(exchange_record(self.ghost, correlation).metadata["exchange_status"], "pending")
+
+    def test_wait_waking_during_main_reply_requires_fresh_evidence(self) -> None:
+        correlation = self.proxy.submit("I'll wait here.")
+        source = exchange_record(self.ghost, correlation)
+        assert source is not None
+        waiting = self.ghost.begin_batch("wait", embed=False)
+        wait = waiting.create(Feature(content="Wait for an answer.", feature_type=FeatureType.StateUpdate, metadata={
+            "control_kind": "inference_wait", "status": "waiting"}))
+        self.ghost.commit(waiting)
+        request = ActionRequest(stimuli=[Stimulus(knoxel_id=source.id), Stimulus(knoxel_id=wait.id)])
+        context = build_public_context(self.ghost, request)
+        wake = self.ghost.begin_batch("wake", embed=False)
+        wake.set_lifecycle(wait.id, status="awake", wake_reason="timeout")
+        self.ghost.commit(wake)
+        with self.assertRaisesRegex(InteractionContextChanged, f"Public evidence {wait.id} changed"):
+            commit_public_reply(self.ghost, "Stale draft.", correlation, commit_id="stale-wait", context=context)
+        self.assertEqual(exchange_record(self.ghost, correlation).metadata["exchange_status"], "pending")
+        self.assertFalse(any(item.content == "Stale draft." for item in self.ghost.all_features))
 
     def test_new_input_does_not_cancel_frozen_reply(self):
         correlation = self.proxy.submit("First request.")
