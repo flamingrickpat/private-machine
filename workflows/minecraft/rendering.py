@@ -39,8 +39,13 @@ def leaf_sections(leaf: LeafSpecification) -> list[TechnicalSection]:
     sections = [TechnicalSection("Current leaf instruction", leaf.instruction, True)]
     if leaf.identity is not None:
         sections.append(TechnicalSection("Current attempt", identity_text(leaf.identity), True))
+    project = leaf.project
+    parent_goal: str | None = None
+    if project is not None:
+        parent_goal = project.goal
+        sections.append(TechnicalSection("Parent project goal", parent_goal, True))
     if leaf.project_intent is not None:
-        sections.append(TechnicalSection("Owner project intent", intent_text(leaf.project_intent), True))
+        sections.append(TechnicalSection("Owner project intent", intent_text(leaf.project_intent, parent_goal=parent_goal), True))
     sections.extend(TechnicalSection("Exact current criterion", condition_text(item), True) for item in leaf.criteria)
     observations = leaf.current_criterion_observations
     if observations is not None:
@@ -48,10 +53,8 @@ def leaf_sections(leaf: LeafSpecification) -> list[TechnicalSection]:
         text += "\n".join(f"{name}: {passed}" for name, passed in observations.checks.items())
         text += "\n" + "\n\n".join(read_text(read) for read in observations.reads)
         sections.append(TechnicalSection("Current criterion observations", text, True))
-    project = leaf.project
     if project is not None:
-        sections.append(TechnicalSection("Parent project goal", project.goal, True))
-        sections.extend(TechnicalSection("Ancestor integration requirement", node_text(node), True)
+        sections.extend(TechnicalSection("Ancestor integration requirement", node_text(node, parent_goal=parent_goal), True)
             for node in project.ancestor_specifications)
         if project.caller_constraints is not None:
             sections.append(TechnicalSection("Caller requirements", caller_requirements_text(project.caller_constraints), True))

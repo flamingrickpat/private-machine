@@ -36,8 +36,16 @@ def condition_text(condition: Condition) -> str:
     return "\n".join(lines)
 
 
-def node_text(node: Node) -> str:
-    lines = [f"{node.id} revision {node.revision}: {node.kind}; parent={node.parent}; specialist={node.specialist}", node.instruction]
+def instruction_text(instruction: str, parent_goal: str | None) -> str:
+    reference = "Same as Parent project goal."
+    if instruction == parent_goal and len(instruction) > len(reference):
+        return reference
+    return instruction
+
+
+def node_text(node: Node, *, parent_goal: str | None = None) -> str:
+    lines = [f"{node.id} revision {node.revision}: {node.kind}; parent={node.parent}; specialist={node.specialist}",
+        instruction_text(node.instruction, parent_goal)]
     if node.children:
         lines.append("Children: " + ", ".join(node.children))
     if node.depends_on:
@@ -55,9 +63,11 @@ def identity_text(identity: DecisionIdentity) -> str:
         f"specification revision {identity.spec_revision}; actor {identity.actor_attempt}; verifier {identity.verifier_attempt}")
 
 
-def intent_text(intent: ProjectIntent) -> str:
-    return (f"Original request: {intent.original_request}\nOriginal goal: {intent.original_goal}\n"
-        f"Current instruction: {intent.current_instruction}\nConstraints:\n" + "\n".join(intent.constraints))
+def intent_text(intent: ProjectIntent, *, parent_goal: str | None = None) -> str:
+    return (f"Original request: {instruction_text(intent.original_request, parent_goal)}\n"
+        f"Original goal: {instruction_text(intent.original_goal, parent_goal)}\n"
+        f"Current instruction: {instruction_text(intent.current_instruction, parent_goal)}\n"
+        "Constraints:\n" + "\n".join(intent.constraints))
 
 
 def read_text(read: RecordedRead) -> str:
