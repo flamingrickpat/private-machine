@@ -50,6 +50,16 @@ class NoteResult(TypedDict):
     summary: str
 
 
+class NoteRejectionReport(TypedDict):
+    schema: str
+    accepted: Literal[False]
+    verified: Literal[False]
+    rejection_reason: str
+    summary: str
+    original_request: str
+    original_request_id: int | None
+
+
 def _write_note(context: RoleContext) -> NoteResult:
     """Write the selected note and publish independently verified evidence.
 
@@ -68,7 +78,15 @@ def _write_note(context: RoleContext) -> NoteResult:
         from pm.llm.role_model import role_model
         selection = NoteToolAdapter(role_model(runtime).model).select_note(original or request.instruction, cancel=runtime.stop_event)
         if not selection.requested:
-            raise ValueError("The original request does not specify a new note operation.")
+            reason = "The note selector found no request for a new note write."
+            rejection = NoteRejectionReport(
+                schema="pm.note-verification.v1", accepted=False, verified=False,
+                rejection_reason=reason, summary=reason,
+                original_request=original, original_request_id=request.original_request_id,
+            )
+            runtime.check_cancelled()
+            environment.write_text("outbox/report.yaml", yaml_util.safe_dump(rejection, allow_unicode=True, sort_keys=False))
+            return NoteResult(status="done", summary=reason)
         spec = NoteSpec(path=selection.path, text=selection.text)
     path = relative_path(spec.path)
     if not path.startswith("outbox/"):

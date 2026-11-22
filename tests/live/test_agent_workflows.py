@@ -7,16 +7,21 @@ import unittest
 from uuid import uuid4
 
 import yaml
+from pydantic import TypeAdapter
 from pm_workflows.runtime import AgentModel, WorkflowRuntime
 
 from pm.utils.operating_system import OperatingSystem
 from pm.host.mcp_listeners import ScopedMcpRegistry
 from pm.llm.activation import ModelActivation
 from pm.llm.config import load_config, resolve_connection
-from pm.runs.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
+from pm.llm.session import ModelSession
+from pm.llm.stage_model import LazyStageModel
+from pm.runs.role_runtime import PMWorkflowRuntime
+from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 from pm.memory.store_tools import build_mcp
-from pm.host.folder_target import FolderTarget
+from pm.host.folder_target import FolderEnvironment, FolderTarget
 from pm.memory.bash_view import MemoryBashEnvironment
+from workflows.note_task.steps import NoteRejectionReport, NoteRequest
 
 
 class LiveAgentWorkflowTests(unittest.TestCase):
@@ -26,6 +31,25 @@ class LiveAgentWorkflowTests(unittest.TestCase):
         cls.connection = resolve_connection(load_config(OperatingSystem.environment.get("PM_MODEL_CONFIG", default)))
         cls.owner = ModelActivation()
         asyncio.run(cls.owner.activate(cls.connection, live_test=True))
+
+    def test_note_worker_rejects_a_request_without_a_note_write(self) -> None:
+        root = (Path(".runtime/note-task") / uuid4().hex).resolve()
+        model = LazyStageModel(self.connection, self.owner, live_test=True)
+        environment = FolderEnvironment(root / "task", "bash")
+        cancel = Event()
+        runtime = PMWorkflowRuntime(environment=environment, stop_event=cancel, tools={},  # pm-lint: allow PM005 -- pm-workflows requires an external tool map for each role
+            model_session=ModelSession(model, cancel), propagate_python_errors=True)
+        manifest = PROJECT_ROOT / "workflows/note_task/note_task.workflow.md"
+        runner = WorkflowRunner(manifest, root / "runtime")
+        note = NoteRequest(instruction="Thanks for listening. I feel better.")
+        payload = note.model_dump(by_alias=True)  # pm-lint: allow PM007 -- kernel writes the request as inbox YAML
+        result = runner.invoke(WorkflowRequest("note-selection", payload), runtime)
+        self.assertEqual(result.status, WorkflowStatus.Completed)
+        self.assertEqual(environment.list_files("outbox"), ["outbox/report.yaml"])
+        report = TypeAdapter(NoteRejectionReport).validate_python(result.report)
+        self.assertIs(report["accepted"], False)
+        self.assertIs(report["verified"], False)
+        self.assertTrue(report["rejection_reason"])
 
     def run_target(self, virtual):
         root = (Path(".runtime/w3/agent-targets") / uuid4().hex).resolve()
