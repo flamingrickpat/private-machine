@@ -332,6 +332,7 @@ class GameplayMethod(ContextContract):
 
 class Diagnosis(ContextContract):
     event: Literal["diagnosis"]
+    revision: int | None = Field(default=None, ge=0, description="Managed instruction revision recorded by the body gateway, when available.")
     diagnosis: str
     evidence_sequences: tuple[int, ...]
     next_tool: str
