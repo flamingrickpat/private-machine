@@ -39,6 +39,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from pm.memory.snapshot import Snapshot
 from pm.records.cognitive_records import ExpectationRecord, Intention
 from pm.records.memory_records import ActionSchemaRecord, Feature
+from workflows.main_cognition.schemas import InhibitionVerdict
 from workflows.public_speech.public_context import ActionOrigin
 from workflows.public_speech.situational_guidance import GuidanceDisposition, RecentMove, recent_move
 
@@ -129,7 +130,7 @@ class _GuidanceDecision(BaseModel):
 
 class _InhibitionJudgment(BaseModel):
     model_config = ConfigDict(extra="ignore")
-    allow: bool
+    verdict: InhibitionVerdict
     reason: str
 
 
@@ -246,7 +247,7 @@ def build_interval_review(view: Snapshot, *, after_record_id: int | None) -> Int
         elif isinstance(record, Feature) and "interaction_receipt" in record.metadata:
             receipt = _GuidanceMetadata.model_validate(record.metadata).interaction_receipt
             decision = receipt.decision
-            if receipt.inhibition is not None and not receipt.inhibition.allow:
+            if receipt.inhibition is not None and receipt.inhibition.verdict is InhibitionVerdict.SILENCE:
                 inhibitions.append(InhibitedMove(receipt_id=record.id, source_ids=list(receipt.source_ids),
                     proposals=list(decision.variants), reason=receipt.inhibition.reason))
             if decision.guidance_disposition == GuidanceDisposition.Follow:

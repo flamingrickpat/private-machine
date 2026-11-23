@@ -355,7 +355,7 @@ class Interaction(CognitiveWorkflow):
                 route_summary = (f"\nProposed action: {receipt.route.action_type}, {receipt.route.workflow_name}. "
                                  f"{receipt.route.reasoning}")
             if receipt.inhibition is not None:
-                route_summary += (f"\nAction inhibition: {'allowed' if receipt.inhibition.allow else 'inhibited'}. "
+                route_summary += (f"\nAction inhibition: {receipt.inhibition.verdict.value}. "
                                   f"{receipt.inhibition.reason}")
             batch.create(Feature(content=f"Ordinary character choice: {decision}\nEvidence:\n{original}\n"
                                  f"Guidance use: {receipt.decision.guidance_disposition.value}. "

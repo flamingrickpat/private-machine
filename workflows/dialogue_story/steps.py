@@ -94,10 +94,14 @@ WORKFLOW_DIR = Path(__file__).resolve().parent
 
 #: Correction turns requested before the conversation restarts from its origin.
 FOLLOWUPS_PER_RESTART = 10
+#: Completions asked for before a reply is called hopeless. Effectively unlimited, so a
+#: completion that yields no public speech is simply asked for again.
+SPEECH_ATTEMPTS = 99999
 #: Full restarts before a reply that keeps failing review is reported as blocked.
-#: Two restarts give three rounds of corrections. Without a bound here a
-#: persistently blocked draft retried with no end and no rejection receipt.
-BLOCKED_REPLY_RESTARTS = 2
+#: Effectively unlimited by owner instruction: a rejected reply is revised until the speech
+#: review accepts it. The give-up path below stays as the last resort that still writes its
+#: rejection receipt, so a bounded run remains possible by lowering this back.
+BLOCKED_REPLY_RESTARTS = 99999
 
 
 
@@ -411,7 +415,9 @@ def clean_reply(raw: str, companion_name: str, partner_name: str, *, prefill: st
     model-invented next user turn from becoming stored dialogue.
 
     A marker only ends the reply when it opens a line, so no punctuation and no
-    inline mention of another speaker can truncate a spoken utterance. Every
+    inline mention of another speaker can truncate a spoken utterance. One leading
+    day header such as ``*(3 June 2026)*`` is removed before these checks, because a
+    completion may copy the transcript's own day marker. Every
     companion bubble before that boundary is kept, in order, one per line.
     """
     reply = (raw or "").lstrip()
@@ -419,6 +425,14 @@ def clean_reply(raw: str, companion_name: str, partner_name: str, *, prefill: st
         reply = reply[len(prefill):]
     # A provider report can quote either speaker. Check before parsing its lines as turns.
     reply = strip_classifier_report(reply.strip())
+    # The transcript opens every day with "*(3 June 2026)*", so a completion can copy that
+    # header in front of its own bubble. Drop one leading header here so the speech after
+    # it is still speech. A completion that is only a header, or narration from a marker
+    # line, has nothing left and is rejected by the same checks below.
+    if reply.startswith("*("):
+        header_end = reply.find(")*")
+        if header_end != -1:
+            reply = reply[header_end + 2:].lstrip()
     leading_marker = False
     for prefix in (f"{companion_name} says:", f"{companion_name}:"):
         if reply.lower().startswith(prefix.lower()):
@@ -547,7 +561,7 @@ def generate_reviewed(request: StoryRequest, prompts: StoryPrompts, generate: Mo
     Each rejection adds the draft and review reason to the generation context.
     After ten follow-ups, discard repair turns and start from the original context.
     Retries print their progress to stdout. No tool actions or memory commits occur.
-    Each draft permits one empty-output recovery. Exhaustion raises SpeechOutputError.
+    A completion that yields no public speech is asked for again, up to SPEECH_ATTEMPTS.
     Transport, cancellation, recording, and programming errors propagate.
     ``on_attempt`` records each attempt before review and after its result.
     Runtime prompts select optional evidence against their full rendered layout.
@@ -565,7 +579,7 @@ def generate_reviewed(request: StoryRequest, prompts: StoryPrompts, generate: Mo
     followups = 0
     restarts = 0
     while True:
-        for index in range(2):
+        for index in range(SPEECH_ATTEMPTS):
             selection = None
             from workflows.dialogue_story.context import StoryRenderInput, render_story
             from pm.context_render.budget import SelectionReceipt
@@ -604,6 +618,7 @@ def generate_reviewed(request: StoryRequest, prompts: StoryPrompts, generate: Mo
                 recorder.record(len(attempts), attempt)
             if candidate:
                 break
+            print(f"[dialogue_story] Attempt {index + 1} returned no speech; asking again.", flush=True)
             if index == 0:
                 # Keep the full context and request only new speech after empty output.
                 problem = prompts["empty_completion_recovery"].format(
@@ -611,7 +626,8 @@ def generate_reviewed(request: StoryRequest, prompts: StoryPrompts, generate: Mo
                 # The raw provider report stays in the receipt, outside the character's conversation.
                 rejected_answer = "" if classifier_only else raw
         else:
-            raise SpeechOutputError("The Story completion returned no new speech after two generation attempts.")
+            raise SpeechOutputError(
+                f"The Story completion returned no new speech after {SPEECH_ATTEMPTS} generation attempts.")
         review_messages = None
         review_grounding = context
         if rendered.temporal_history is not None:

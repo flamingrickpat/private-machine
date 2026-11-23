@@ -1,52 +1,78 @@
-"""Replay captured model responses through the retrieve phase boundary."""
-import json
-from pathlib import Path
-from tempfile import TemporaryDirectory
-from threading import Event
+"""Deterministic tests of the recall candidate-id rule.
+
+A recall answer may only name memories the phase actually offered. The rule
+lives in the answer schema, validated with a caller-supplied context, so the
+structured-output repair loop of ``pm.llm.structured.complete_json`` rejects a
+wrong id and asks again instead of ending the cycle. These tests cover the
+contract and the prompt shape only. They replay no model answer, and they
+prove nothing about a real model converging on a valid answer. That gate is
+the live gate ``test_a_copied_story_id_is_rejected_and_repaired_into_the_candidates``
+in ``tests/live/test_recall_candidate_repair.py``.
+"""
+from __future__ import annotations
+
 import unittest
 
-from pm.host.folder_target import FolderEnvironment
-from pm_workflows.runtime import WorkflowRuntime
-from workflows.main_cognition.cycle_work import CycleRequest, CycleWork
+from pydantic import ValidationError
+
+from pm.memory.evidence import EvidenceItem as MemoryCandidate
 from workflows.main_cognition.phases import retrieve
-from workflows.main_cognition.phases.model import phase_prompts
-from workflows.main_cognition.schemas import RecordView
-from tests.unit.workflows.main_cognition.cycle_support import fake_embedding
-
-ROOT = Path(__file__).resolve().parents[4]
+from workflows.main_cognition.schemas import ContextResult, RecallValidationContext
 
 
-class _Context:
-    def __init__(self, runtime):
-        self.runtime = runtime
+def _candidate(knoxel_id: int) -> MemoryCandidate:
+    return MemoryCandidate(knoxel_id=knoxel_id, text=f"memory {knoxel_id}", score=1.0, revision=1,
+                           memory_kind="Dialogue", evidence_role="user_report", historical=False)
 
 
-class ContextRecoveryTests(unittest.TestCase):
-    def test_failed_id_repair_keeps_only_real_candidates_and_completes_the_phase(self):
-        capture = json.loads((ROOT / "test_data/captures/alpha/context-invalid-memory-selection.json").read_text(encoding="utf-8"))
-        responses = iter(row["choices"][0]["message"]["content"] for row in capture["model_results"])
-        with TemporaryDirectory() as directory:
-            environment = FolderEnvironment(Path(directory) / "workspace", "bash")
-            runtime = WorkflowRuntime(environment, Event(),
-                {"llm_complete": lambda *args, **kwargs: next(responses),
-                 "embed_texts": lambda texts: [fake_embedding(text) for text in texts]},
-                propagate_python_errors=True)
-            request = CycleRequest.model_validate(capture["request"])
-            # The capture predates record views. The host builds them from the
-            # store; here they come from the captured stimuli and candidates.
-            request.records = {
-                **{item.knoxel_id: RecordView(record_id=item.knoxel_id, kind="Feature", content=item.text)
-                   for item in request.stimuli},
-                **{item.knoxel_id: RecordView(record_id=item.knoxel_id, kind=item.memory_kind, content=item.text)
-                   for item in request.memory_candidates}}
-            work = CycleWork(request=request, records=dict(request.records))
-            work = retrieve.run(_Context(runtime), work)
-            candidates = work.request.memory_candidates
-            retrieve.validate_selection(work.context, candidates)
-            receipt = json.loads(environment.read_text("outbox/selection-recovery.json"))
-            self.assertTrue(receipt["dropped_ids"])
-            self.assertFalse(set(receipt["dropped_ids"]) & set(work.context.candidate_ids))
-            sources = {row.knoxel_id: row.text for row in candidates}
-            self.assertEqual(work.context.memories, [sources[key] for key in work.context.candidate_ids])
-            self.assertEqual([item.knoxel_id for item in work.selected_memories], work.context.candidate_ids)
-            self.assertTrue(phase_prompts("retrieve").user_template)
+class RecallCandidateIdRuleTests(unittest.TestCase):
+    """The schema, not the phase body, refuses an id that was never offered."""
+
+    def test_an_id_outside_the_supplied_candidates_is_rejected_by_name(self) -> None:
+        answer = {"memories": [], "active_goals": [], "candidate_ids": [15377, 15368], "belief_updates": []}
+        offered = RecallValidationContext(candidate_ids=frozenset({15342, 15377}))
+
+        with self.assertRaises(ValidationError) as raised:
+            ContextResult.model_validate(answer, context=offered)
+
+        problem = str(raised.exception)
+        self.assertIn("15368", problem)
+        self.assertIn("candidate_id=", problem)
+
+    def test_ids_inside_the_supplied_candidates_are_accepted(self) -> None:
+        answer = {"memories": [], "active_goals": [], "candidate_ids": [15342, 15377], "belief_updates": []}
+        offered = RecallValidationContext(candidate_ids=frozenset({15342, 15377}))
+
+        result = ContextResult.model_validate(answer, context=offered)
+
+        self.assertEqual(result.candidate_ids, [15342, 15377])
+
+    def test_an_answer_without_the_context_keeps_the_old_permissive_rule(self) -> None:
+        # Only the retrieve phase knows the offered ids. Other callers of the
+        # schema, such as a plain replay, keep their old permissive behaviour.
+        result = ContextResult.model_validate({"candidate_ids": [999]})
+
+        self.assertEqual(result.candidate_ids, [999])
+
+
+class RecallCandidateRenderingTests(unittest.TestCase):
+    """The offered id must be readable as the only copyable number."""
+
+    def test_each_candidate_leads_with_its_marker_line(self) -> None:
+        rendered = retrieve.render_memories([_candidate(15377), _candidate(15342)])
+
+        first, _, remainder = rendered.partition("\n")
+        self.assertEqual(first, "candidate_id=15377 | revision 1 | Dialogue | user_report | current")
+        self.assertTrue(remainder.startswith("memory 15377"))
+        self.assertIn("candidate_id=15342", rendered)
+
+    def test_the_phase_prompt_names_the_marker_the_validator_demands(self) -> None:
+        # The repair turn quotes the validator message. If the prompt and the
+        # message disagree about the marker, the model cannot repair the answer.
+        template = retrieve.phase_prompts("retrieve").user_template
+
+        self.assertIn("candidate_id=", template)
+
+
+if __name__ == "__main__":
+    unittest.main()

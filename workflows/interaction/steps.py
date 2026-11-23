@@ -18,6 +18,7 @@ from workflows.interaction.schemas import (
 from workflows.public_speech.situational_guidance import GuidanceDisposition
 from workflows.main_cognition.affect import describe_mental_state, regulation_mode
 from workflows.main_cognition.cycle_work import CycleWork
+from workflows.main_cognition.schemas import InhibitionVerdict
 from pm.runs.role_io import write_report
 from workflows.main_cognition.phases import decide, intake, route, triage
 from workflows.main_cognition.phases.model import complete, phase_prompts
@@ -80,7 +81,7 @@ def select_interaction(context: RoleContext, request: InteractionRequest) -> Int
     inhibition: DecisionInhibition | None = None
     if answer.variants:
         inhibition = decide.inhibit_decision(context, work, answer, group)
-    if not answer.variants or (inhibition is not None and not inhibition.allow):
+    if not answer.variants or (inhibition is not None and inhibition.verdict is InhibitionVerdict.SILENCE):
         outcome = InteractionOutcome.Quiet
         if answer.guidance_disposition != GuidanceDisposition.Follow:
             outcome = InteractionOutcome.Reconsider

@@ -108,8 +108,19 @@ def render_reflection_guidance(guidance: list[ReflectionGuidance]) -> str:
 
 
 def memory_candidate_text(candidate: MemoryCandidate) -> str:
-    return (f"[{candidate.knoxel_id}; revision {candidate.revision}; {candidate.memory_kind}; "
-            f"{candidate.evidence_role}; {'historical' if candidate.historical else 'current'}] {candidate.text}")
+    """Render one recall candidate with its selectable id on its own marker line.
+
+    The id leads as ``candidate_id=<integer>`` instead of a bare bracketed
+    ``[15377; ...]``. The story prefix, the state of mind, and the body of a
+    memory all print record ids in brackets, and a candidate body can cite
+    other records. A distinct marker keeps the one number the model may copy
+    apart from every id it may not, which is what
+    :class:`workflows.main_cognition.schemas.ContextResult` refuses otherwise.
+    """
+    status = "historical" if candidate.historical else "current"
+    marker = (f"candidate_id={candidate.knoxel_id} | revision {candidate.revision} | {candidate.memory_kind}"
+              f" | {candidate.evidence_role} | {status}")
+    return f"{marker}\n{candidate.text}"
 
 
 @dataclass(frozen=True, slots=True, order=True)

@@ -72,12 +72,18 @@ def complete(context: RoleContext, messages: Sequence[TurnInput], schema: type[R
     of each attempt. A story-framed phase passes the length of the shared
     prefix, so the prefix bytes stay equal and the provider can reuse the
     cache. ``emotion`` and ``capabilities`` are passed to :func:`grounding_turn`.
-    ``validation_context`` is passed to the schema validation. Invalid output
-    gets repair turns (see ``complete_json``). Exhausted repairs raise
-    ``ModelFormatError``. Transport errors and cancellation propagate.
+    ``validation_context`` is passed to the schema validation, so a rule that
+    needs caller data, such as the ids a phase actually offered, can reject an
+    answer inside the repair loop. Invalid output gets repair turns (see
+    ``complete_json``). The loop has no attempt limit: it stops at the first
+    answer that fits, and every rejection is logged with its attempt number.
+    ``cancel`` comes from the model session, so stopping the run ends the loop
+    between attempts. ``ModelFormatError`` covers the format failures the loop
+    itself reports. Transport errors and cancellation propagate.
     """
     turns = normalize_turns(messages)
-    return complete_json(role_model(context.runtime), turns, schema, validation_context=validation_context,
+    session = role_model(context.runtime)
+    return complete_json(session, turns, schema, validation_context=validation_context, cancel=session.cancel,
                          settings=GenerationSettings(temperature=Sampler.TempInstruct, enable_thinking=False))
 
 

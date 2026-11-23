@@ -4,10 +4,17 @@ This phase ports the old context stage. The host already retrieved the
 memory candidates by embedding before the run. The call is story-framed
 (A19F step 7): it starts with the shared story prefix and ends with the
 recall instruction. The model selects the relevant candidates and reports
-user beliefs. Every selected id must come
-from the supplied candidates. An invalid id gets one repair turn. A failed
-repair keeps only the supplied sources and records the dropped ids, so the
-conversation can continue without false memory references.
+user beliefs. Every selected id must come from the supplied candidates. That
+rule lives in the answer schema itself: the call validates
+:class:`~workflows.main_cognition.schemas.ContextResult` with a
+:class:`~workflows.main_cognition.schemas.RecallValidationContext` that holds
+the offered ids, so a wrong id is a rejected answer and
+:func:`pm.llm.structured.complete_json` asks the model again with the problem
+text until an answer fits or the run is cancelled. The phase runs no second
+check after the model answers, so one copied id cannot end the cycle.
+The prompt shows many ids that are not selectable, which is why the marker of
+a candidate is written differently from every other id (see
+:func:`workflows.main_cognition.rendering.memory_candidate_text`).
 
 The selected memory text always comes from the supplied snapshot. A model
 paraphrase cannot replace the source text.
@@ -23,20 +30,17 @@ from workflows.main_cognition.prompt_values import RetrievalTemplateValues
 
 from pm.llm.role_model import role_model
 
-import json
-
 from pm_workflows.python_role import RoleContext
 
-from pm.context_render.turns import Role, Turn, format_content
+from pm.context_render.turns import Turn, format_content
 
 from workflows.main_cognition.csm_view import Embedder, enter_retrieval
 from workflows.main_cognition.rendering import render_appraisal, render_reflection_guidance, memory_candidate_text, select_recall_candidates
 from workflows.main_cognition.cycle_work import CycleWork
 from workflows.main_cognition.expectations import csm_expectation_ids
 from workflows.main_cognition.prompt_config import PhasePrompts
-from pm.llm.structured import JsonOutputError as StageOutputError
 from workflows.main_cognition.phases.model import complete, phase_prompts
-from workflows.main_cognition.schemas import ContextResult, MemoryCandidate
+from workflows.main_cognition.schemas import ContextResult, MemoryCandidate, RecallValidationContext
 from workflows.main_cognition.story_prefix import StoryPrefix
 
 
@@ -64,38 +68,14 @@ def build_messages(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix) 
     return prefix.ask(user.text)
 
 
-def validate_selection(result: ContextResult, candidates: list[MemoryCandidate]) -> None:
-    """Raise if the model selected an id outside the supplied candidate set."""
-    allowed = {candidate.knoxel_id for candidate in candidates}
-    for candidate_id in result.candidate_ids:
-        if candidate_id not in allowed:
-            raise StageOutputError(
-                f"Context selected knoxel_id {candidate_id} that is not a "
-                "supplied memory candidate."
-            )
-
-
-def retain_valid_selection(result: ContextResult, candidates: list[MemoryCandidate]) -> tuple[ContextResult, list[int]]:
-    """Drop unavailable memory IDs after a failed repair, retaining real sources.
-
-    Rebuild memory text from the supplied snapshot. This avoids promoting an
-    unsupported model summary when its reference cannot be resolved. Current
-    stimuli remain in the cycle, so failed recall does not block conversation.
-    Return the repaired result and dropped IDs for the diagnostic receipt.
-    """
-    sources = {item.knoxel_id: item.text for item in candidates}
-    retained = list(dict.fromkeys(key for key in result.candidate_ids if key in sources))
-    dropped = [key for key in result.candidate_ids if key not in sources]
-    selected = result.model_copy()
-    selected.candidate_ids = retained
-    selected.memories = [str(sources[key]) for key in retained]
-    return selected, dropped
-
-
 def select(context: RoleContext, work: CycleWork, prompts: PhasePrompts) -> ContextResult:
-    """Ask the model for a selection and repair invalid ids once.
+    """Ask the model for one selection of the candidates that fit the budget.
 
-    Diagnostic files go to ``outbox/`` of the working target.
+    Only the candidates that the rendered prompt can hold are offered, and
+    their ids become the validation context of the answer. An id outside them
+    is repaired inside the model call, which logs each rejected attempt
+    (``Answer rejected operation=ContextResult``) and keeps the rejected
+    attempts in the prompt log.
     """
     assert context.runtime is not None
     prefix = StoryPrefix(work, settings=role_model(context.runtime).render_settings(),
@@ -106,27 +86,14 @@ def select(context: RoleContext, work: CycleWork, prompts: PhasePrompts) -> Cont
     shown = work.model_copy()
     shown.request = request
     messages = build_messages(shown, prompts, prefix)
-    candidates = selected_candidates
-    result = complete(context, messages, ContextResult)
-    try:
-        validate_selection(result, candidates)
-    except StageOutputError as error:
-        # The public domain context also contains IDs. They are not a grant
-        # for memory selection. Retain the invalid response and repair once.
-        allowed = [item.knoxel_id for item in candidates]
-        context.runtime.environment.write_text("outbox/selection-rejection.json", json.dumps({
-            "error": str(error), "rejected_result": result.model_dump(mode="json"),
-            "allowed_ids": allowed}, indent=2))
-        recovery = [*messages, Turn(Role.User, str(error) + " Select only candidate IDs: " + str(allowed)
-                     + ". IDs in other fields are not granted. Return an empty selection if none fits.")]
-        result = complete(context, recovery, ContextResult)
-        validate_selection(result, candidates)
-    return result
+    offered = RecallValidationContext(candidate_ids=frozenset(item.knoxel_id for item in selected_candidates))
+    return complete(context, messages, ContextResult, validation_context=offered)
 
 
 def run(context: RoleContext, work: CycleWork) -> CycleWork:
     """Select memories and bind them to their original candidate records."""
     result = select(context, work, phase_prompts("retrieve"))
+    # The snapshot, not the model, supplies the text of a selected memory.
     by_id = {item.knoxel_id: item for item in work.request.memory_candidates}
     selected = list({key: by_id[key] for key in result.candidate_ids}.values())
     result.memories = [item.text for item in selected]
@@ -139,4 +106,4 @@ def run(context: RoleContext, work: CycleWork) -> CycleWork:
     return work
 
 
-__all__ = ["build_messages", "render_memories", "retain_valid_selection", "run", "select", "validate_selection"]
+__all__ = ["build_messages", "render_memories", "run", "select"]

@@ -251,12 +251,19 @@ def import_exchanges(store: MemoryStore, exchanges: list[Exchange], *, import_id
         moment = exchange.rows[-1].timestamp
         workspace = GlobalWorkspace()
         workspace.ensure_shard(user_key).tail_ids = list(ids)
+        # The import stores one main cycle per exchange, so the next ordinary
+        # reply anchors on it. Its interval review must therefore start above the
+        # imported speech: the frontier is this exchange's highest record, which
+        # is the last line imported. Without it,
+        # ``workflows/dialogue_story/guidance.accepted_story_guidance`` refuses the
+        # first reply that a freshly imported persona answers.
         state = CycleState(
             tick_id=batch.tick_id, timestamp=moment,
             mental_state=FullMentalState(state_personality=personality.model_copy()),
             workspace=workspace,
             stimulus_groups=[StimulusGroup(key=user_key, stimulus_ids=[item.id for item in users],
-                                           correlation_id=correlation)] if users else [])
+                                           correlation_id=correlation)] if users else [],
+            interval_reviewed_through=max(ids))
         turn = GwtTurnRecord(tick_id=batch.tick_id, slot_id="main", stimulus_ids=[item.id for item in users],
                              knoxel_ids=ids, timestamp=moment)
         batch.set_gwt(turn, state)

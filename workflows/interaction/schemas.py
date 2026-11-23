@@ -10,7 +10,9 @@ from typing import Self
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from workflows.main_cognition.cycle_work import CycleRequest
-from workflows.main_cognition.schemas import ActionDispatch, ActionRequest, DecisionAnswer, DecisionInhibition, RouteChoice
+from workflows.main_cognition.schemas import (
+    ActionDispatch, ActionRequest, DecisionAnswer, DecisionInhibition, InhibitionVerdict, RouteChoice,
+)
 from workflows.public_speech.dependencies import WorkDependencies
 from workflows.public_speech.situational_guidance import GuidanceDisposition
 
@@ -71,8 +73,9 @@ class InteractionReceipt(BaseModel):
         if self.inhibition is not None:
             if not self.decision.variants:
                 raise ValueError("An inhibition judgment requires its original nonempty proposal.")
-            if not self.inhibition.allow and (self.outcome == InteractionOutcome.Reply or self.dispatch is not None):
-                raise ValueError("An inhibited proposal cannot dispatch a reply.")
+            if self.inhibition.verdict is InhibitionVerdict.SILENCE and (
+                    self.outcome == InteractionOutcome.Reply or self.dispatch is not None):
+                raise ValueError("A silenced proposal cannot dispatch a reply.")
         if self.outcome == InteractionOutcome.Reply:
             if self.dispatch is None or self.route is None:
                 raise ValueError("An ordinary reply requires its selected route and dispatch.")
@@ -83,7 +86,7 @@ class InteractionReceipt(BaseModel):
                 raise ValueError("A routine workflow action requires a selected dispatch and explicit partner request.")
             if self.dispatch.action_type != "ToolCallAndReply" or not self.dispatch.workflow_name:
                 raise ValueError("A routine workflow action requires a named managed action with public reporting.")
-            if self.inhibition is None or not self.inhibition.allow:
+            if self.inhibition is None or self.inhibition.verdict is InhibitionVerdict.SILENCE:
                 raise ValueError("A routine workflow action requires an allowed move.")
         elif self.dispatch is not None:
             raise ValueError("Only a reply or admitted workflow start can carry a dispatch.")

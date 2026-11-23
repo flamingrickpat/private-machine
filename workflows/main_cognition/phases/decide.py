@@ -53,7 +53,9 @@ from workflows.main_cognition.rendering import render_managed_runs, render_cogni
 from workflows.main_cognition.cycle_work import CycleWork
 from workflows.main_cognition.prompt_config import PhasePrompts
 from workflows.main_cognition.phases.model import complete, phase_prompts
-from workflows.main_cognition.schemas import DecisionAnswer, DecisionCheck, DecisionInhibition, InhibitionAssessment, WorkflowOption
+from workflows.main_cognition.schemas import (
+    DecisionAnswer, DecisionCheck, DecisionInhibition, InhibitionAssessment, InhibitionVerdict, WorkflowOption,
+)
 from workflows.main_cognition.story_prefix import StoryPrefix, shard_label
 
 #: The action space when the configuration names no workflows.
@@ -89,8 +91,8 @@ class DecisionSelection:
 
     @property
     def accepted(self) -> DecisionAnswer:
-        """Return the original proposal or quiet; inhibition never rewrites an action."""
-        if self.inhibition is not None and not self.inhibition.allow:
+        """Return the proposed move, or quiet only when the gate chose silence."""
+        if self.inhibition is not None and self.inhibition.verdict is InhibitionVerdict.SILENCE:
             return DecisionAnswer()
         return self.proposal
 
@@ -162,7 +164,8 @@ def inhibit_decision(context: RoleContext, work: CycleWork, proposal: DecisionAn
     The compact prompt keeps the group's attributed situation and new events,
     rather than recopying its whole workspace. Failed inference or malformed
     JSON follows the existing model boundary's repair/cancellation policy. A
-    valid ``allow=False`` is an accepted outcome, never a model-output failure.
+    valid ``silence`` verdict is an accepted outcome, never a model-output failure. A ``revise`` verdict is
+    accepted and carried as ``allow`` until a rewrite step exists.
     """
     if not proposal.variants:
         raise ValueError("Action inhibition requires a nonempty proposal.")
@@ -182,8 +185,8 @@ def inhibit_decision(context: RoleContext, work: CycleWork, proposal: DecisionAn
                      "Do not write a new action, a reply, or a story continuation."),
                 Turn(Role.User, instruction)]
     assessment = complete(context, messages, InhibitionAssessment)
-    result = DecisionInhibition(allow=assessment.allow, reason=assessment.reason)
-    if assessment.allow and assessment.reminds_partner_about_unanswered_question:
+    result = DecisionInhibition(verdict=assessment.verdict, reason=assessment.reason)
+    if assessment.verdict is not InhibitionVerdict.SILENCE and assessment.reminds_partner_about_unanswered_question:
         evidence = assessment.reminder_evidence
         questions: dict[int, str] = {}
         grounds: dict[int, str] = {}
@@ -207,8 +210,9 @@ def inhibit_decision(context: RoleContext, work: CycleWork, proposal: DecisionAn
                 or evidence.partner_or_event_record_id not in grounds
                 or not evidence.reason_to_interrupt_quote.strip()
                 or evidence.reason_to_interrupt_quote not in grounds[evidence.partner_or_event_record_id]):
-            result = DecisionInhibition(allow=False, reason="Reminder lacks a verifiable delivered question "
-                                        "or partner/external grounds for interrupting now.")
+            result = DecisionInhibition(verdict=InhibitionVerdict.SILENCE,
+                                        reason="Reminder lacks a verifiable delivered question "
+                                               "or partner/external grounds for interrupting now.")
     assert context.runtime is not None
     group_identity = sha256(group.key.model_dump_json().encode("utf-8")).hexdigest()[:16]
     receipt_name = f"action-inhibition-{group_identity}.json"
@@ -262,7 +266,7 @@ def run(context: RoleContext, work: CycleWork) -> CycleWork:
         if selection.inhibition is not None:
             result = selection.inhibition
             work.receipt("action_inhibition", f"{group.key.kind}:{group.key.ref}: "
-                         f"{'allowed' if result.allow else 'inhibited'}: {result.reason}")
+                         f"{result.verdict.value}: {result.reason}")
     skipped = len(work.state.stimulus_groups) - len(groups)
     work.receipt("decide", f"{len(work.state.decisions)} decisions for {len(groups)} significant groups; "
                            f"{skipped} insignificant groups skipped")

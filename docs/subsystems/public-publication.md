@@ -159,9 +159,11 @@ Cancellation propagates to the worker, and unexpected logic errors keep their tr
 ## Cognitive protocol recovery
 
 Context selection can only use IDs from the current memory candidate list.
-An invalid selection retains its original response in `outbox/selection-rejection.json`.
-One scoped model call receives the actual granted IDs and repairs that protocol error.
-The host validates the repaired result again.
+The retrieve phase passes that list to the answer schema as `RecallValidationContext`, so a copied ID becomes a schema violation inside `pm.llm.structured.complete_json`.
+The repair loop sends the model the broken ID and the marker to copy, then asks again.
+It has no attempt limit; each rejection is logged with its attempt number, and the prompt log under `PM_PROMPT_LOG_DIR` keeps every rejected answer.
+Because the rule is part of the schema, no later check can end the cycle over one ID.
+The prompt itself keeps the selectable ID distinct, in the `candidate_id=` marker of a memory, so the repair loop stays rare rather than permanent. See [`memory_candidate_text`][workflows.main_cognition.rendering.memory_candidate_text].
 This procedure does not rewrite public prose or optimize a quality score.
 
 [`workflows.main_cognition.host.MainCogLoop`][] propagates model, stage protocol, and Python failures to application shutdown.

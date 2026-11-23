@@ -59,7 +59,8 @@ user_template: |
   {{"variants": ["..."]}}
 
 check_template: |
-  Judge this proposed move by {companion_name}. Do not write a replacement move.
+  Judge this proposed move by {companion_name}. Answer with one verdict: allow, revise, or silence. Do not write
+  a replacement move.
 
   Character and enduring preferences:
   {character}
@@ -76,9 +77,12 @@ check_template: |
   Proposed move:
   {proposals}
 
-  Decide whether to allow this move now. Compare what it would accomplish with what was actually delivered,
-  not with the wording of an earlier proposal. Different wording does not make the same pressure a new purpose.
-  A chosen or privately rehearsed move is not a delivered move. Preserve the difference.
+  Answer allow when the move is justified as proposed. Answer revise when she should still speak or act, but the
+  move should be smaller, gentler, or differently aimed; revise carries the move as allow until a rewrite step
+  exists, so use it for a real difference in manner, never as a polite hedge on silence. Answer silence when the
+  move should be withheld. Compare what a move would accomplish with what was actually delivered, not with the
+  wording of an earlier proposal. Different wording does not make the same pressure a new purpose. A chosen or
+  privately rehearsed move is not a delivered move. Preserve the difference.
 
   Inhibit repeating a completed conversational purpose unless a new partner request, new relevant evidence,
   a changed situation, or a concrete unresolved need justifies doing it again. Repeated reassurance, probing,
@@ -100,10 +104,10 @@ check_template: |
   task may need progress. Distinguish these from repeating a completed effect. If an external effect is
   uncertain, checking its status is justified; repeating the effect without reconciliation is not.
 
-  Return allow=false when the proposed move should be inhibited. This ends the candidate for this cycle;
-  it will not trigger another attempt to phrase the same move differently. Give a short reason grounded in
-  the supplied events and delivery history. If needed facts are absent, state that uncertainty instead of
-  inventing a partner reaction or a task outcome.
+  Return silence when the proposed move should be withheld. This ends the candidate for this cycle; it will not
+  trigger another attempt to phrase the same move differently. Give a short reason grounded in the supplied
+  events and delivery history. If needed facts are absent, state that uncertainty instead of inventing a partner
+  reaction or a task outcome.
 
   Answer only with this JSON object:
   For a proposed reminder, identify the actual public words that asked that specific question.
@@ -111,7 +115,7 @@ check_template: |
   Quote the partner request or changed external event that warrants interrupting them now.
   A prior intention, a timer to reconsider, and speculation cannot supply either citation.
   If either citation is missing, withhold the reminder. Classify reminders even when withheld.
-  {{"reminds_partner_about_unanswered_question": false, "reminder_evidence": null, "allow": true, "reason": "..."}}
+  {{"reminds_partner_about_unanswered_question": false, "reminder_evidence": null, "verdict": "allow", "reason": "..."}}
   For reminders, reminder_evidence holds question_record_id, question_quote, partner_or_event_record_id,
   and reason_to_interrupt_quote. Use exact quotations, null IDs and empty quotes for absent evidence.
 

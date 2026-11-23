@@ -9,8 +9,10 @@ user_template: |
   {companion_name}'s state of mind: {state_summary}
   How {companion_name} judged the new events: {appraisal_summary}
 
-  Memories that could come back to {companion_name} now. Each line starts with its id, its kind, and its role as
-  evidence:
+  Memories that could come back to {companion_name} now. Each memory opens with one marker line that states its
+  selectable id, its kind, and its role as evidence:
+  candidate_id=<integer> | revision | kind | evidence role | historical or current
+  The text after that marker is the memory itself.
   {memory_candidates}
 
   What {companion_name} is after right now:
@@ -21,8 +23,10 @@ user_template: |
   only by their ids.
 
   Rules that keep memories true to their sources:
-  - "candidate_ids" holds the ids of the chosen memories. Every id comes from the list above. Write each id once, as a
-    complete integer. Never abbreviate a list.
+  - "candidate_ids" holds the ids of the chosen memories. Copy each id from a "candidate_id=" marker above. Any other
+    number in this prompt, inside a memory's own text or in the story, is a record reference or an evidence source. It
+    is not a memory you may choose. The one exception is a belief update's "source_id", which names the new event the
+    belief comes from. Write each id once, as a complete integer. Never abbreviate a list.
   - Leave "memories" empty. The mind fills it with the exact source text.
   - "active_goals" holds the goals from the list above that matter now.
   - If nothing fits, return empty lists.

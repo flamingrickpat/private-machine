@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from pm.memory.evidence import EvidenceItem as MemoryCandidate
 
+from enum import StrEnum
 from typing import Literal, Self
 from workflows.public_speech.task_receipts import TaskReceipt, read_optional_task_receipt
 
@@ -429,12 +430,49 @@ class BeliefUpdate(BaseModel):
     correction_target_ids: list[str] = Field(default_factory=list[str])
 
 
+class RecallValidationContext(BaseModel):
+    """The memory candidates that one recall answer may select.
+
+    The retrieve phase passes this as the pydantic validation context of
+    :class:`ContextResult`. A selected id outside the supplied candidates is
+    then a schema violation, so :func:`pm.llm.structured.complete_json` rejects
+    the answer and asks the model again in its own repair loop. The phase does
+    not run a separate check afterwards, which would end the cycle.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    candidate_ids: frozenset[int]
+
+
 class ContextResult(BaseModel):
+    """One model answer to the retrieval prompt."""
+
     memories: list[str] = Field(default_factory=list[str])
     active_goals: list[str] = Field(default_factory=list[str])
     capabilities: list[str] = Field(default_factory=list[str])
     candidate_ids: list[int] = Field(default_factory=list[int])
     belief_updates: list[BeliefUpdate] = Field(default_factory=list[BeliefUpdate], max_length=4)
+
+    @model_validator(mode="after")
+    def check_candidate_ids(self, info: ValidationInfo) -> Self:
+        """Reject a selected id that was never offered as a candidate.
+
+        The recall prompt shows many record ids that are not selectable, so
+        copying an id out of the story is a common answer. The message names
+        the offending id and the marker to copy, because the repair turn shows
+        the model this exact problem.
+        """
+        context = info.context
+        if isinstance(context, RecallValidationContext):
+            for candidate_id in self.candidate_ids:
+                if candidate_id not in context.candidate_ids:
+                    raise ValueError(
+                        f"candidate_ids contains {candidate_id}, which is not a supplied memory candidate. Copy"
+                        " each id from the 'candidate_id=' marker that opens a memory. Numbers elsewhere, inside a"
+                        " memory's text or in the story, are evidence sources and record references, not"
+                        " selectable candidates.")
+        return self
 
 
 class VariantPercept(BaseModel):
@@ -877,12 +915,27 @@ TICKET_OPENINGS = ("generate", "validate", "acknowledge", "provide", "ensure", "
 SYSTEM_WORDS = ("ToolCall", "workflow", "action_type")
 
 
+class InhibitionVerdict(StrEnum):
+    """The gate's three-way judgment on one proposed move."""
+
+    ALLOW = "allow"
+    REVISE = "revise"
+    SILENCE = "silence"
+
+
 class DecisionInhibition(BaseModel):
-    """A retained judgment on whether a proposed move is justified now."""
+    """A retained judgment on whether a proposed move is justified now.
+
+    ``revise`` is the model's "she should speak, but differently". It behaves as
+    ``allow`` until a rewrite step exists, so the gate no longer has to choose
+    between an unsuitable move and silence.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
-    allow: bool = Field(description="Whether this proposal adds a justified move in the current situation.")
+    verdict: InhibitionVerdict = Field(
+        description="allow the move as proposed, revise for a smaller or gentler move that is treated as allow "
+        "for now, or silence to withhold the move.")
     reason: str = Field(min_length=1, description="Reason grounded in actual events and delivery history.")
 
 
