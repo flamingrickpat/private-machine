@@ -223,6 +223,9 @@ class _Run:
             self.user_id = store.get_entity_id(self.user)
         self.system = self.fill(prompts.system_prompt)
         self.intro = self.fill(prompts.story_intro).strip()
+        # Every commit id this run has written, in order. The final receipt commit names
+        # them so one acceptance admits the whole run (see ``reconsolidate``).
+        self.commit_ids: list[str] = []
 
     # ------------------------------------------------------------- helpers
 
@@ -258,6 +261,7 @@ class _Run:
 
     def finish_batch(self, batch: WriteBatch) -> list[int]:
         receipt = self.store.commit(batch)
+        self.commit_ids.append(batch.commit_id)
         return list(receipt.added_ids)
 
     def image_catalog(self, features: Sequence[Feature]) -> ImageCatalog:
@@ -540,11 +544,20 @@ class _Run:
                     if text not in record.source_texts and text != record.content:
                         record.source_texts.append(text)
                     record.importance = max(record.importance, filing.importance)
-                    open_records[record_id] = record
                     if record_id in batch.created_ids:
                         batch.revise(record)
+                        open_records[record_id] = record
                     else:
                         batch.replace(record)
+                        # ``replace`` appends a successor under a new id, so the open
+                        # copies and the dedup map must follow that id. Left on the
+                        # superseded id, the next commit group appends to a record the
+                        # store no longer holds as a head and its commit raises
+                        # GhostConflict. The old id is in ``open_records`` only when this
+                        # same batch read it earlier; a record fetched now never was.
+                        open_records.pop(record_id, None)
+                        open_records[record.id] = record
+                        existing[key] = record.id
                         if record_id not in self.report.semantic_updated_ids + self.report.semantic_ids:
                             self.report.semantic_updated_ids.append(record_id)
                 else:
@@ -739,14 +752,24 @@ def reconsolidate(store: MemoryStore, *, complete: LazyStageModel, embeddings: E
     run.temporal()
     run.facts()
     run.narratives()
-    run.prepare_index(report.created_ids)
     report.model_calls = calls.calls
     report.finished_at = naive_utc_now()
 
+    # A reconsolidation runs outside a workspace slot, so none of its commits is ever
+    # ``main`` and :meth:`pm.memory.causal.CausalHistory.accepted` would leave the whole
+    # run out of the live memory of the next process. This one receipt commit names every
+    # commit the run made, so accepting the receipt accepts the run. A stage that raised,
+    # or a cancel before here, never writes it and leaves its partial work unaccepted.
     batch = run.begin_batch("receipt")
     batch.set_consolidation_receipt(f"{RECEIPT_PREFIX}{report.run_id}",
         {"run_id": report.run_id, "kind": "memory_reconsolidation", **report.model_dump(mode="json")})
+    batch.depend_on_commits(run.commit_ids)
     run.finish_batch(batch)
+
+    # The run's single save. It comes after the receipt so the file on disk always carries
+    # the receipt that makes its records live; ``_Run.prepare_index`` commits nothing, it
+    # only puts vectors on records this run already committed.
+    run.prepare_index(report.created_ids)
     return report
 
 

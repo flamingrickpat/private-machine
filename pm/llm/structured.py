@@ -24,6 +24,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Sequence
 import json
+import re
 from threading import Event
 from typing import TypeVar
 from dataclasses import dataclass
@@ -147,6 +148,112 @@ def _unmasked_problem(extracted: str, repair_schema: dict[str, JsonValue] | bool
     return problem
 
 
+#: The repair library's enum rejection, which names the path but nothing else.
+_ENUM_PROBLEM = re.compile(r"Value at (?P<path>\S+) does not match enum")
+
+
+def _path_parts(path: str) -> list[str | int]:
+    """Split a reported path such as ``$.facts[21].record_type`` into its parts."""
+    parts: list[str | int] = []
+    for segment in path.split("."):
+        if segment in ("", "$"):
+            continue
+        name = segment.split("[", 1)[0]
+        if name:
+            parts.append(name)
+        for index in re.findall(r"\[(\d+)\]", segment):
+            parts.append(int(index))
+    return parts
+
+
+def _follow_reference(schema: dict[str, JsonValue], node: dict[str, JsonValue]) -> dict[str, JsonValue] | None:
+    """Return the definition a ``$ref`` such as ``#/$defs/FactFiling`` points at."""
+    reference = node.get("$ref")
+    if not isinstance(reference, str) or not reference.startswith("#/"):
+        return node
+    resolved: dict[str, JsonValue] | None = schema
+    for part in reference[2:].split("/"):
+        if resolved is None:
+            return None
+        child = resolved.get(part)
+        resolved = child if isinstance(child, dict) else None
+    return resolved
+
+
+def _schema_node(schema: dict[str, JsonValue], path: str) -> dict[str, JsonValue] | None:
+    """Return the JSON Schema node a reported path names, following ``$ref`` links.
+
+    Array indices are ignored while walking the schema because one ``items`` node
+    describes every element. The schema is foreign wire format, which is why this
+    module, and not the domain layer, walks it as a mapping.
+    """
+    node: dict[str, JsonValue] | None = schema
+    for part in _path_parts(path):
+        if node is None:
+            return None
+        node = _follow_reference(schema, node)
+        if node is None:
+            return None
+        if isinstance(part, int):
+            items = node.get("items")
+            node = items if isinstance(items, dict) else None
+            continue
+        properties = node.get("properties")
+        child = properties.get(part) if isinstance(properties, dict) else None
+        node = child if isinstance(child, dict) else None
+    if node is None:
+        return None
+    return _follow_reference(schema, node)
+
+
+def _answer_value(answer: JsonValue, path: str) -> JsonValue:
+    """Return the value a reported path names in the decoded model answer."""
+    current: JsonValue = answer
+    for part in _path_parts(path):
+        if isinstance(part, int):
+            if not isinstance(current, list) or part >= len(current):
+                return None
+            current = current[part]
+            continue
+        if not isinstance(current, dict) or part not in current:
+            return None
+        current = current[part]
+    return current
+
+
+def _enum_detail(extracted: str, schema: dict[str, JsonValue] | bool, problem: str) -> str:
+    """Name the rejected value and the values its schema allows.
+
+    The repair library reports an enum violation as ``Value at $.facts[21].record_type
+    does not match enum.`` A model that cannot see what it wrote, or what the schema
+    accepts, sends the same value back. Measured on 2026-11-22: one fact
+    classification was repaired 164 times in 108 minutes with that text alone. This
+    appends one line per enum violation the schema can describe. A path the schema
+    does not describe keeps the original text, because a guessed allowed set would
+    be a guess about our own schema.
+    """
+    matches = list(_ENUM_PROBLEM.finditer(problem))
+    if not matches or isinstance(schema, bool):
+        return problem
+    try:
+        answer = json.loads(extracted)
+    except ValueError:
+        return problem
+    details: list[str] = []
+    for match in matches:
+        path = match.group("path")
+        node = _schema_node(schema, path)
+        allowed = node.get("enum") if node is not None else None
+        if not isinstance(allowed, list):
+            continue
+        chosen = _answer_value(answer, path)
+        allowed_names = ", ".join(str(option) for option in allowed)
+        details.append(f"{path} is {chosen!r}, which the schema does not allow. Use one of {allowed_names}.")
+    if not details:
+        return problem
+    return problem + "\n" + "\n".join(details)
+
+
 def parse_response(raw: str, schema: type[T], *, validation_context: BaseModel | None = None) -> T:
     try:
         repair_schema = TypeAdapter[dict[str, JsonValue] | bool](dict[str, JsonValue] | bool).validate_python(schema.model_json_schema())
@@ -161,7 +268,8 @@ def parse_response(raw: str, schema: type[T], *, validation_context: BaseModel |
     except SchemaDefinitionError as error:
         raise InternalResponseSchemaError("The internal response schema is invalid.") from error
     except ValueError as error:
-        raise JsonOutputError(_unmasked_problem(extracted, repair_schema, str(error))) from error
+        problem = _unmasked_problem(extracted, repair_schema, str(error))
+        raise JsonOutputError(_enum_detail(extracted, repair_schema, problem)) from error
     return schema.model_validate(payload, context=validation_context)
 
 
@@ -181,7 +289,7 @@ def complete_json(session: ModelSession, messages: Sequence[TurnInput], schema: 
         try:
             return parse_response(raw, schema, validation_context=validation_context)
         except (JsonOutputError, ValidationError) as error:
-            diagnostic = corrections.record_rejection(str(error))
+            diagnostic = corrections.record_rejection(schema.__name__, str(error))
             correction = JsonCorrectionInput(schema.__name__, original, raw, diagnostic)
             with RendererCapture(session.capture_settings("json correction"),
                                  RendererInput("json correction", correction, render_settings)) as capture:
@@ -205,7 +313,7 @@ async def complete_json_async(session: ModelSession, messages: Sequence[TurnInpu
         try:
             return parse_response(raw, schema, validation_context=validation_context)
         except (JsonOutputError, ValidationError) as error:
-            diagnostic = corrections.record_rejection(str(error))
+            diagnostic = corrections.record_rejection(schema.__name__, str(error))
             correction = JsonCorrectionInput(schema.__name__, original, raw, diagnostic)
             with RendererCapture(session.capture_settings("json correction"),
                                  RendererInput("json correction", correction, render_settings)) as capture:

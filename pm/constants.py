@@ -251,6 +251,10 @@ RECONSOLIDATION_WORKERS = 4  # Parallel model calls in one stage.
 RECONSOLIDATION_EMBED_WORKERS = 8  # Parallel embedding requests.
 RECONSOLIDATION_PROVIDER_RETRIES = 3  # Repeats of a call that the provider failed (ModelError). Transport errors retry inside JsonClient.
 RECONSOLIDATION_TEMPERATURE = 0.4  # Sampling temperature of the reconsolidation calls.
+RECONSOLIDATION_REPAIR_ATTEMPTS = 12  # Answers one call may send before its repairs are given up (ModelFormatError).
+# Measured 2026-11-22: one fact classification was repaired 164 times in 108 minutes because the correction text
+# named neither the rejected value nor the allowed values. With both named (pm.llm.structured._enum_detail), a call
+# that still has not produced a valid answer after this many answers is a prompt or model defect, not bad luck.
 RECONSOLIDATION_SESSION_GAP_MINUTES = 120  # Contextual embeddings do not blend events across a silence this long. New in the port.
 RECONSOLIDATION_COMMIT_GROUP = 16  # Clusters or ranges that one commit holds, so a long run keeps finished work.
 # Synthetic transfer records of a character import. {companion_name}, {user_name}, and {date} are filled at import.

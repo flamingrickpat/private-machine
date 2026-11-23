@@ -108,6 +108,14 @@ class CausalHistory(BaseModel):
         for transaction in self.transactions.values():
             if transaction.main:
                 admit(transaction.commit_id)
+        # Completed background work is its own authority. Reconsolidation and chat import
+        # commit outside a workspace slot, so they can never be ``main``; the commit that
+        # records their finished consolidation receipt names the commits it finished as
+        # dependencies, so admitting it admits that run and no partial one. A run that
+        # stopped before its receipt keeps its work unaccepted, as unconfirmed work must.
+        for transaction in self.transactions.values():
+            if transaction.consolidations:
+                admit(transaction.commit_id)
         # Main admission can release an older result. The ordered pass then
         # releases its descendants without recursion or a fixed depth limit.
         for transaction in sorted(self.transactions.values(), key=lambda item: item.sequence):

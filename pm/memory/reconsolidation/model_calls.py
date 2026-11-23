@@ -1,9 +1,14 @@
 """Validated model calls of memory reconsolidation.
 
 Every call returns one JSON object that a pydantic schema validates. An
-invalid answer gets a repair turn with the validation error. A provider
-failure (``ModelError``: a filtered, cut-off, or empty completion) repeats
-the same call. Transport errors and HTTP 429/5xx already retry inside
+invalid answer gets a repair turn with the validation error, and every
+rejection is logged with its attempt number. A provider failure
+(``ModelError``: a filtered, cut-off, or empty completion) repeats the same
+call. Repairs are bounded: after ``RECONSOLIDATION_REPAIR_ATTEMPTS`` rejected
+answers the call raises ``ModelFormatError`` (exported here as
+``ReconsolidationOutputError``) with the last problem and the start of the
+last answer, because a repair that has not worked that many times is a prompt
+or model defect and repeating it holds the whole run. Transport errors and HTTP 429/5xx already retry inside
 ``pm.llm.http_client.JsonClient``. Other errors and cancellation propagate.
 
 Calls of one stage can run in parallel with :meth:`ModelCalls.map`. The
@@ -17,7 +22,7 @@ from dataclasses import dataclass
 from pm.llm.generation import GenerationSettings
 from typing import TypeVar
 from pydantic import BaseModel, ValidationError
-from pm.constants import RECONSOLIDATION_TEMPERATURE, RECONSOLIDATION_WORKERS
+from pm.constants import RECONSOLIDATION_REPAIR_ATTEMPTS, RECONSOLIDATION_TEMPERATURE, RECONSOLIDATION_WORKERS
 from pm.llm.stage_model import LazyStageModel
 from pm.llm.session import ModelSession
 from pm.context_render.prompt import RenderedPrompt, RendererCapture, RendererInput
@@ -69,7 +74,12 @@ class ModelCalls:
             try:
                 return parse_response(raw, schema, validation_context=context)
             except (JsonOutputError, ValidationError) as error:
-                diagnostic = corrections.record_rejection(str(error))
+                diagnostic = corrections.record_rejection(operation, str(error))
+                if corrections.rejected_answers >= RECONSOLIDATION_REPAIR_ATTEMPTS:
+                    raise ReconsolidationOutputError(
+                        f"{operation}: {corrections.rejected_answers} answers were rejected without one passing"
+                        f" the schema. The last problem was: {diagnostic[:300]}"
+                        f" The last answer started: {raw[:200]}") from error
                 input = JsonCorrectionInput(operation, original, raw, diagnostic)
                 with RendererCapture(self.session.capture_settings("memory.correction"),
                         RendererInput("memory.correction", input, settings)) as capture:

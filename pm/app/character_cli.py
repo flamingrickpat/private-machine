@@ -34,7 +34,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from pm import vclock
 from pm.app.character_home import CharacterFile, CharacterHome, parse_personality
-from pm.constants import DEFAULT_SUPPORTED_CAPABILITIES, DEFAULT_UNSUPPORTED_CAPABILITIES, RECONSOLIDATION_WORKERS
+from pm.constants import DEFAULT_SUPPORTED_CAPABILITIES, DEFAULT_UNSUPPORTED_CAPABILITIES
 from pm.memory.reconsolidation import ReconsolidationReport, reconsolidate
 from pm.records.enums import FeatureType
 from pm.utils import yaml_util
@@ -172,7 +172,11 @@ def build_models(config_path: str) -> "tuple[LazyStageModel, EmbeddingService]":
     from pm.memory.embeddings import EmbeddingService
 
     config = load_config(config_path)
-    stage = LazyStageModel(resolve_connection(config), ModelActivation(), max_concurrency=RECONSOLIDATION_WORKERS)
+    # Parallel model calls belong to the pipeline, which passes RECONSOLIDATION_WORKERS
+    # to ModelCalls. The stage model only gates requests by the connection's
+    # max_concurrent_requests, so this call takes no concurrency argument.
+    stage = LazyStageModel(resolve_connection(config), ModelActivation(),
+                           capture_options=config.renderer_capture)
     return stage, EmbeddingService(config.embedding)
 
 
@@ -269,7 +273,13 @@ def _embed_records(store: "MemoryStore", embeddings: "EmbeddingService", ids: li
 
 
 def reconsolidate_home(home: CharacterHome, config_path: str) -> ReconsolidationReport:
-    """Run reconsolidation on the saved home. Each committed group saves ``ghost.pickle``.
+    """Run reconsolidation on the saved home, then write ``ghost.pickle`` once.
+
+    The pipeline keeps its work in memory and persists it at the end. ``reconsolidate``
+    first commits the run's consolidation receipt, which is what admits the run's records
+    into live memory on the next open, then ``prepare_index`` puts vectors on every record
+    the run created and writes the one checkpoint. Stopping early leaves the previous
+    ``ghost.pickle`` untouched.
 
     The report goes to ``runtime/reconsolidation-<run_id>.json``.
     """

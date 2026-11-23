@@ -308,3 +308,47 @@ class CausalRecoveryTests(unittest.TestCase):
         restored = MemoryStore.from_checkpoint(self.path)
         self.assertEqual(restored.get_knoxel_by_id(action.id).embedding, [1.0, 2.0])
         self.assertEqual(restored.get_knoxel_by_id(action.id).embedding_model, "new-model")
+
+    # ---------------------------------------------- reconsolidation acceptance
+    # A reconsolidation run commits outside a workspace slot, so no commit of its own can
+    # be ``main``. Its one receipt commit names the commits it finished, so a finished run
+    # is admitted as a unit and an interrupted run is not. Measured 2026-11-23 on a
+    # rebuilt personal-character home: without this rule 8166 stored records reopened
+    # as 633 live ones.
+
+    def commit_like_a_reconsolidation(self, names: Sequence[str], *, write_receipt: bool) -> list[int]:
+        """Commit derived records in background batches, then optionally the receipt."""
+        created: list[int] = []
+        commit_ids: list[str] = []
+        for name in names:
+            batch = self.ghost.begin_batch(f"reconsolidation:run-1:{name}")
+            created.append(batch.create(self.feature(f"derived {name}")).id)
+            commit_ids.append(batch.commit_id)
+            self.ghost.commit(batch)
+        if write_receipt:
+            receipt = self.ghost.begin_batch("reconsolidation:run-1:receipt")
+            receipt.set_consolidation_receipt("reconsolidation:run-1",
+                                              {"run_id": "run-1", "kind": "memory_reconsolidation"})
+            receipt.depend_on_commits(commit_ids)
+            self.ghost.commit(receipt)
+        self.ghost.save()
+        return created
+
+    def test_finished_reconsolidation_admits_every_record_the_run_committed(self) -> None:
+        created = self.commit_like_a_reconsolidation(["cluster", "fact", "narrative"], write_receipt=True)
+        reopened = MemoryStore.from_checkpoint(self.path)
+        for record_id in created:
+            self.assertIsNotNone(reopened.get_knoxel_by_id(record_id),
+                                 f"record {record_id} of a finished run is missing from live memory")
+        self.assertIn("reconsolidation:run-1", reopened.consolidations,
+                      "the receipt must survive the save, or nothing admits the run")
+
+    def test_reconsolidation_without_its_receipt_stays_unaccepted_but_kept_raw(self) -> None:
+        created = self.commit_like_a_reconsolidation(["cluster", "fact"], write_receipt=False)
+        reopened = MemoryStore.from_checkpoint(self.path)
+        for record_id in created:
+            self.assertIsNone(reopened.get_knoxel_by_id(record_id))
+        raw = MemoryStore.from_checkpoint(self.path, raw=True)
+        for record_id in created:
+            self.assertIsNotNone(raw.get_knoxel_by_id(record_id),
+                                 "unconfirmed work stays in the file as evidence, not as live memory")
