@@ -129,8 +129,11 @@ def select_story_history(request: StoryRequest, prompts: StoryPrompts, repairs: 
     minimum_request = history_request(request, minimum.items)
     minimum_turns = history_turns(minimum_request, prompts, repairs)
     minimum_tokens = estimator.estimate(minimum_turns)
-    whole_life_fits = minimum_tokens <= request.input_budget_tokens
-    token_budget = max(0, minimum.total_tokens + request.input_budget_tokens - minimum_tokens)
+    # Older events already have interval summaries. Spend a limited amount on
+    # temporal detail even when the endpoint offers a much larger window.
+    history_ceiling = min(request.input_budget_tokens, baseline_tokens + min(4096, request.input_budget_tokens // 4))
+    whole_life_fits = minimum_tokens <= history_ceiling
+    token_budget = max(0, minimum.total_tokens + history_ceiling - minimum_tokens)
     attempts = 0
     while True:
         attempts += 1
@@ -143,9 +146,14 @@ def select_story_history(request: StoryRequest, prompts: StoryPrompts, repairs: 
             selected = history_request(request, coverage.items)
             turns = history_turns(selected, prompts, repairs)
             tokens = estimator.estimate(turns)
-        if tokens <= request.input_budget_tokens:
+        if tokens <= history_ceiling:
             break
-        token_budget = max(0, token_budget - (tokens - request.input_budget_tokens))
+        if token_budget == 0:
+            omitted = tuple(item.record_id for item in minimum.items)
+            coverage = problem.selection((), omitted)
+            selected, turns, tokens = request, baseline_turns, baseline_tokens
+            break
+        token_budget = max(0, token_budget - (tokens - history_ceiling))
     if not whole_life_fits:
         coarse_by_id = {item.record_id: item for item in minimum.items}
         for record_id in reversed(coverage.omitted_record_ids):
@@ -156,7 +164,7 @@ def select_story_history(request: StoryRequest, prompts: StoryPrompts, repairs: 
             trial_turns = history_turns(trial_request, prompts, repairs)
             trial_tokens = estimator.estimate(trial_turns)
             attempts += 1
-            if trial_tokens <= request.input_budget_tokens:
+            if trial_tokens <= history_ceiling:
                 selected_ids = {item.record_id for item in trial_items}
                 omitted_ids = tuple(item.record_id for item in minimum.items if item.record_id not in selected_ids)
                 coverage = problem.selection(trial_items, omitted_ids)

@@ -64,7 +64,7 @@ class WorldEventTests(unittest.TestCase):
         self.assertEqual(len(self.events.events), 2)
         latest = self.ghost.get_knoxel_by_id(self.module.pending_id)
         original = json.loads(Path("test_data/captures/alpha/minecraft-world-observation.json").read_text(encoding="utf-8"))["observation"]
-        self.assertEqual(latest.metadata["previous_conditions"], world_conditions(original))
+        self.assertEqual(latest.metadata["previous_conditions"], world_conditions(original).model_dump(mode="json"))
 
     def test_shutdown_discards_late_observation(self):
         def observed_after_stop():

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
+from datetime import datetime
 from pydantic import BaseModel, ConfigDict, JsonValue
 from workflows.minecraft_project.schemas import Point
 from workflows.minecraft_body.spatial import WorldPosition
@@ -85,6 +87,17 @@ def coordinates(point: Point | WorldPosition) -> str:
     return f"({point.x}, {point.y}, {point.z})"
 
 
+def block_bearing(origin: Point, target: Point) -> str:
+    """Compass bearing between block columns. Positive Minecraft Z is south."""
+    east = target.x - origin.x
+    north = origin.z - target.z
+    if east == 0 and north == 0:
+        return "in the body's column"
+    directions = ("north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest")
+    sector = math.floor(math.atan2(east, north) / (math.pi / 4) + 0.5)
+    return directions[sector % 8] + " of the body"
+
+
 def item_text(item: WorldItem) -> str:
     text = f"{item.count} {item.name}"
     if item.slot is not None:
@@ -92,6 +105,58 @@ def item_text(item: WorldItem) -> str:
     if item.durability is not None:
         text += f"; durability {item.durability}/{item.max_durability}"
     return text
+
+
+class InventoryChange(BaseModel):
+    item: str
+    before: int
+    after: int
+
+
+class InventoryDelta(BaseModel):
+    changes: tuple[InventoryChange, ...] = ()
+
+
+class MinedBlock(BaseModel):
+    position: Point
+    block_name: str
+
+
+class MinecraftToolResult(BaseModel):
+    ok: bool
+    reason: str | None = None
+    block: MinedBlock | None = None
+    block_name: str | None = None
+    position: WorldPosition | None = None
+    final_position: WorldPosition | None = None
+    tool_used: str | None = None
+    inventory_delta: InventoryDelta | None = None
+    placed_count: int | None = None
+    dropped: int | None = None
+
+    def facts(self) -> str:
+        fields = ["ok=" + str(self.ok)]
+        if self.reason:
+            fields.append(self.reason)
+        if self.block:
+            fields.append(self.block.block_name + " at " + coordinates(self.block.position))
+        if self.tool_used:
+            fields.append("used " + self.tool_used)
+        elif self.block and "tool_used" in self.model_fields_set:
+            fields.append("no tool equipped")
+        if self.block_name and self.position:
+            fields.append(self.block_name + " at " + coordinates(self.position))
+        if self.final_position:
+            fields.append("ended at " + coordinates(self.final_position))
+        if self.placed_count is not None:
+            fields.append(f"placed {self.placed_count}")
+        if self.dropped is not None:
+            fields.append(f"dropped {self.dropped}")
+        if self.inventory_delta:
+            fields.extend(f"inventory {item.item} {item.before} -> {item.after}" for item in self.inventory_delta.changes)
+            if not self.inventory_delta.changes and "changes" in self.inventory_delta.model_fields_set:
+                fields.append("no inventory change")
+        return ", ".join(fields)
 
 
 def inventory_text(items: tuple[JsonValue, ...]) -> str:
@@ -119,7 +184,9 @@ def render_world_observation(observation: WorldObservation) -> str:
     ranked_blocks = sorted(NearbyOrder(block.distance, index) for index, block in enumerate(observation.nearby_blocks))
     for order in ranked_blocks[:12]:
         block = observation.nearby_blocks[order.index]
-        lines.append(f"Nearby {block.block_name}: {block.count}; nearest {coordinates(block.nearest)}; distance {block.distance:.2f}")
+        lines.append(f"{block.block_name}: {block.count} blocks across the sampled area. "
+                     f"Nearest single block at {coordinates(block.nearest)}, {block.distance:.2f} blocks away, "
+                     f"{block_bearing(camera.block_position, block.nearest)}.")
     ranked_entities = sorted(NearbyOrder(entity.distance, index) for index, entity in enumerate(observation.nearby_entities))
     for order in ranked_entities[:8]:
         entity = observation.nearby_entities[order.index]
@@ -149,3 +216,26 @@ def world_result_text(tool: str, result: JsonValue) -> str:
     if tool == "minecraft_observe":
         return observation_text(result)
     return foreign_operands_text(result)
+
+
+class BodyReading(BaseModel):
+    model_config = ConfigDict(frozen=True)
+    observed_at: datetime
+    observation: WorldObservation
+
+    def summary(self) -> str:
+        world = self.observation
+        player = world.player
+        if player.alive is False or player.health <= 0:
+            return f"Body observed dead at {self.observed_at.isoformat()}."
+        inventory = ", ".join(f"{item.count} {item.name}" for item in world.inventory) or "empty"
+        return (f"At {self.observed_at.isoformat()} the body was at {coordinates(world.camera.feet_position)}, "
+                f"health {player.health}/{player.max_health}, hunger {player.food}/20, inventory {inventory}.")
+
+
+class StopObservation(BaseModel):
+    run_id: str
+    epoch: int
+    acknowledged_at: datetime
+    uncertain_effects: tuple[str, ...] = ()
+    reading: BodyReading

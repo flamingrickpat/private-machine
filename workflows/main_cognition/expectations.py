@@ -39,6 +39,8 @@ from __future__ import annotations
 
 from workflows.main_cognition.prompt_values import ExpectationCheckTemplateValues, AnticipationTemplateValues
 
+from pm.context_render.turns import Role, Turn
+from pm.context_render.budget import TokenEstimator, evidence_excerpt
 from typing import Literal
 from dataclasses import dataclass, field
 
@@ -306,10 +308,25 @@ def _check_group(context: RoleContext, work: CycleWork, prefix: StoryPrefix, pro
     invalid and gets a repair turn. Each outcome's ``observation_ids`` are
     exactly the rated stimuli, which the commit adds to the counted list.
     """
+    retained = max(max(len(item.content) for item in expectations),
+                   max(len(item.text) for item in stimuli))
+    estimator = TokenEstimator(estimate_factor=prefix.settings.estimate_factor)
+    while True:
+        instruction = format_content(prefix.fill(prompts.check_template), ExpectationCheckTemplateValues(
+            expectations="\n".join(f"[id {item.record_id}] {evidence_excerpt(item.content, retained)}"
+                                   for item in expectations),
+            stimuli="\n".join(f"- {evidence_excerpt(item.text, retained)}" for item in stimuli))).text
+        if estimator.estimate((Turn(Role.User, instruction),)) <= prefix.settings.input_ceiling // 2:
+            break
+        if len(expectations) > 1:
+            middle = len(expectations) // 2
+            first = _check_group(context, work, prefix, prompts, expectations[:middle], stimuli)
+            second = _check_group(context, work, prefix, prompts, expectations[middle:], stimuli)
+            return first + second
+        if not retained:
+            break
+        retained //= 2
     check = ExpectationCheckContext(required_ids=tuple(sorted(item.record_id for item in expectations)))
-    instruction = format_content(prefix.fill(prompts.check_template), ExpectationCheckTemplateValues(
-        expectations="\n".join(f"[id {item.record_id}] {item.content}" for item in expectations),
-        stimuli="\n".join(f"- {item.text}" for item in stimuli))).text
     answer = complete(context, prefix.ask(instruction), CheckedExpectationAnswer, validation_context=check)
     by_id = {item.expectation_id: item for item in answer.fulfillments}
     observed = [item.knoxel_id for item in stimuli]

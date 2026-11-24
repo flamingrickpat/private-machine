@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from pm.context_render.budget import TokenEstimator
+from pm.context_render.budget import TokenEstimator, evidence_excerpt
 from pm.context_render.correction import render_regeneration_feedback
 from pm.context_render.images import ImageCatalog, resolve_media
 from pm.context_render.prompt import EvidenceDecision, RenderedPrompt, RenderSettings, require_rendered_prompt
@@ -22,6 +22,7 @@ class PrivateEvidenceBlock:
 
 @dataclass(frozen=True, slots=True, order=True)
 class RankedPrivateEvidence:
+    optional: bool
     negative_priority: float
     input_order: int
     block: PrivateEvidenceBlock = field(compare=False)
@@ -72,7 +73,7 @@ def select_private_evidence(input: PrivatePromptInput, settings: RenderSettings)
     require_rendered_prompt(input.operation, turns, settings, tuple(decisions))
     ranked: list[RankedPrivateEvidence] = []
     for index, block in enumerate(optional):
-        ranked.append(RankedPrivateEvidence(-block.priority, index, block))
+        ranked.append(RankedPrivateEvidence(not block.required, -block.priority, index, block))
     ranked.sort()
     for entry in ranked:
         block = entry.block
@@ -81,14 +82,28 @@ def select_private_evidence(input: PrivatePromptInput, settings: RenderSettings)
         text = f"{block.title}:\n{block.text}"
         trial = resolve_media((turns[0], Turn(Role.User, "\n\n".join([*selected, text]))), images)
         admitted = estimator.estimate(trial) <= settings.input_ceiling
+        excerpted = False
+        if block.required and not admitted:
+            # Preserve the selectable record identity even when its full body exceeds the lane.
+            retained = min(len(block.text), settings.input_ceiling // 4)
+            while True:
+                text = f"{block.title} (source IDs {block.source_ids}):\n" + evidence_excerpt(block.text, retained)
+                trial = resolve_media((turns[0], Turn(Role.User, "\n\n".join([*selected, text]))), images)
+                admitted = estimator.estimate(trial) <= settings.input_ceiling
+                if admitted or retained == 0:
+                    break
+                retained //= 2
+            excerpted = admitted
         if admitted:
             selected.append(text)
             selected_groups.append(block.title)
             seen.add((block.title, block.text))
             turns = trial
         for key in block.source_ids:
-            decisions.append(EvidenceDecision(key, block.priority, admitted,
-                "ranked operation evidence" if admitted else "outside operation budget"))
+            reason = "outside operation budget"
+            if admitted:
+                reason = "source excerpt" if excerpted else "ranked operation evidence"
+            decisions.append(EvidenceDecision(key, block.priority, admitted, reason))
     return require_rendered_prompt(input.operation, turns, settings, tuple(decisions), selected_groups=tuple(selected_groups))
 
 
@@ -122,14 +137,17 @@ def private_source_blocks(request: InnerRequest, *, required_ids: frozenset[int]
     return tuple(blocks)
 
 
-def private_frame(request: InnerRequest) -> str:
+def private_frame(request: InnerRequest, settings: RenderSettings) -> str:
+    field_chars = max(64, settings.input_ceiling // 12)
     frame = request.main_frame
     lines = [f"Companion: {request.companion_name}; partner: {request.user_name}",
-        "Character:\n" + request.character,
-        f"Current accepted frame [{frame.frame_id}]: {frame.summary}",
-        "Current internal state: " + request.state_summary]
+        "Character:\n" + evidence_excerpt(request.character, field_chars),
+        f"Current accepted frame [{frame.frame_id}]: {evidence_excerpt(frame.summary, field_chars)}",
+        "Current internal state: " + evidence_excerpt(request.state_summary, field_chars)]
+    if request.inspection and request.inspection.runtime_orientation:
+        lines.append(request.inspection.runtime_orientation)
     if request.context_limits:
-        lines.append("Evidence limits: " + "; ".join(request.context_limits))
+        lines.append("Evidence limits: " + evidence_excerpt("; ".join(request.context_limits), field_chars))
     if request.seconds_since_user_input is not None:
         lines.append(f"Seconds since user input: {request.seconds_since_user_input:.0f}")
     episode = request.episode
@@ -137,5 +155,5 @@ def private_frame(request: InnerRequest) -> str:
         state = episode.state
         lines.append(f"Retained linear episode {state.episode_id}; step {state.sequence}; stalled {state.stalled}; "
             f"closed {state.closed}; awaiting acknowledgment {episode.awaiting_acknowledgment}; "
-            f"steps remaining {episode.steps_remaining}.\nContinuation: {state.continuation}; next operation {state.next_operation}.")
+            f"steps remaining {episode.steps_remaining}.\nContinuation: {evidence_excerpt(state.continuation, field_chars)}; next operation {state.next_operation}.")
     return "\n\n".join(lines)

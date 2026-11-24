@@ -47,6 +47,7 @@ from datetime import datetime
 import time
 from pathlib import Path
 from collections.abc import Callable, Mapping
+from threading import Event
 from typing import TYPE_CHECKING, Any, NamedTuple, TypedDict
 
 from pm.constants import Sampler
@@ -75,6 +76,7 @@ from workflows.cognitive_control.schemas import ControlConfig
 from pm.llm.mcp_config import ToolCallConfig
 
 if TYPE_CHECKING:
+    from workflows.minecraft_body.mcp_client import MinecraftTransport
     from pm.introspection.capabilities import CapabilityOverlay
     from pm.llm.config import ModelConfig
     from pm.llm.stage_model import LazyStageModel
@@ -92,6 +94,12 @@ REAL_BANNER = "REAL COGNITION \u2014 model activates on first request\n"
 DEFAULT_SEED = REPO_ROOT / "test_data" / "personas" / "spamuel" / "canon.yaml"
 
 
+class CompanionApplication(Application):
+    """The assembled companion owns the supervisor used by task selection and dispatch."""
+
+    supervisor: ManagedRunSupervisor
+
+
 def _managed_workflows(
     stage_model: LazyStageModel | None = None,
     embeddings: EmbeddingService | None = None,
@@ -100,6 +108,7 @@ def _managed_workflows(
     minecraft_endpoint: str | None = None,
     *,
     enable_minecraft: bool = True,
+    shutdown: Event | None = None,
 ) -> dict[str, WorkflowSpec]:
     """Return the managed workflow specifications, keyed by workflow name.
 
@@ -119,7 +128,22 @@ def _managed_workflows(
     ``stage_model`` and ``embeddings`` are None in dummy cognition; the tool
     factories then report the missing model when a run actually needs one.
     """
+    from dataclasses import replace
+    import logging
     from workflows.minecraft.host import build_minecraft_module_tools, MinecraftContextOwner, ProjectMemoryOwner
+    from workflows.minecraft_body.ownership import BodyOwnership
+    from workflows.minecraft_body.lease import body_key
+    body_runtime = build_minecraft_module_tools(stage_model, mcp_url=minecraft_endpoint)
+    body_suite = next((server for server in tool_call.mcp_servers if server.name == "minecraft"), None) if tool_call else None
+    if body_suite is not None and minecraft_endpoint and body_key(body_suite.url) != body_key(minecraft_endpoint):
+        raise ValueError("tool_call.minecraft and minecraft.mcp_url must name the same body.")
+    if body_suite is not None and minecraft_endpoint is None:
+        body_runtime = build_minecraft_module_tools(stage_model, mcp_url=body_suite.url)
+    ownership = BodyOwnership(body_runtime.transport, shutdown)
+    body_runtime = replace(body_runtime, ownership=ownership)
+    if body_suite is not None:
+        body_runtime.transport.headers = body_suite.resolved_headers()
+        logging.getLogger(__name__).info("Minecraft MCP suite %s shares its body lease with minecraft and minecraft_project", body_suite.name)
     from workflows.memory_reconsolidation.host import build_reconsolidation_tools
 
     base = PROJECT_ROOT / "workflows" / "local_task"
@@ -127,6 +151,12 @@ def _managed_workflows(
     if tool_call is not None and tool_call.mcp_servers:
         from workflows.tool_call.host import WORKFLOW_NAME, build_workflow_spec
         optional[WORKFLOW_NAME] = build_workflow_spec(tool_call)
+        optional["assistant"] = build_workflow_spec(tool_call, private=True)
+        if body_suite is not None or (minecraft_endpoint and any(body_key(server.url) == body_key(minecraft_endpoint) for server in tool_call.mcp_servers)):
+            for name, spec in optional.items():
+                suites = frozenset(server.name for server in tool_call.mcp_servers
+                                  if body_key(server.url) == body_key(ownership.endpoint))
+                optional[name] = replace(spec, runtime_owner=body_runtime, dispatch_reservation=ownership, reserved_suites=suites)
     result = {**optional,
         "local_task": WorkflowSpec(base / "local_task.workflow.md", namespace="local_task"),
         "local_task_question": WorkflowSpec(
@@ -150,7 +180,7 @@ def _managed_workflows(
             resumable=True,
             singleton=True, singleton_key="minecraft_body", routine_start=True,
             request_context_owner=MinecraftContextOwner(),
-            runtime_owner=build_minecraft_module_tools(stage_model, mcp_url=minecraft_endpoint),
+            runtime_owner=body_runtime, reservation=ownership,
         ),
         "minecraft_project": WorkflowSpec(
             PROJECT_ROOT / "workflows" / "minecraft_project" / "minecraft_project.workflow.md",
@@ -160,7 +190,7 @@ def _managed_workflows(
             direct_request=("Perform a concrete multi-step task in the live Minecraft world, "
                             "such as gathering, exploring, or building, with independent verification."),
             request_context_owner=MinecraftContextOwner(),
-            runtime_owner=build_minecraft_module_tools(stage_model, mcp_url=minecraft_endpoint),
+            runtime_owner=body_runtime, reservation=ownership,
             memory_config_owner=ProjectMemoryOwner(embeddings) if stage_model is not None else None,
         ),
     }
@@ -217,12 +247,11 @@ def _cognition_modules(
     thought_period: float = 30.0,
     embeddings: EmbeddingService | None = None,
     workflow_models: WorkflowModels | None = None,
-    minecraft_endpoint: str | None = None,
+    minecraft_transport: MinecraftTransport | None = None,
 ) -> CognitionModules:
     """Return the cognitive modules of one assembly, by role.
 
-    ``minecraft_endpoint`` is the resolved body endpoint, or None when this
-    character has no Minecraft body. The assistant reads the world through it.
+    The assistant reads its assigned body through the shared Minecraft transport.
     ``stage_model`` is None only in dummy cognition, which builds fixed
     prototype loops and no private thought planning.
     """
@@ -265,11 +294,11 @@ def _cognition_modules(
             ghost=ghost,
         )
         assistant = AssistantDialogue(
-            "assistant", application, None,
+            "speech_recovery", application, None,
             working_target=target,
             workflow=PROJECT_ROOT / "workflows" / "dialogue_assistant" / "dialogue_assistant.workflow.md",
             tools_factory=None,
-            mcp_services=AssistantMcpServices(supervisor, minecraft_endpoint),
+            mcp_services=AssistantMcpServices(supervisor, minecraft_transport),
             runtime_root=runtime_root,
             stage_model=stage_model,
             ghost=ghost,
@@ -358,7 +387,7 @@ def build_app(
     tool_call: ToolCallConfig | None = None,
     enable_minecraft: bool = True,
     bus_observer: Callable[[Envelope, str], None] | None = None,
-) -> Application:
+) -> CompanionApplication:
     """Construct an application without service activation.
 
     Real cognition shares its activation owner with lazy workflow classification.
@@ -419,7 +448,7 @@ def build_app(
     target = MemoryBashTarget(ghost, mode="read")
     bus = BusSystem()
     bus.observer = bus_observer
-    app = Application(bus, [], clock=clock)
+    app = CompanionApplication(bus, [], clock=clock)
     tasks = TaskTable(app.clock.monotonic)
 
     on_error = app.on_error
@@ -429,6 +458,7 @@ def build_app(
     consolidator = Consolidator(ghost, clock=app.clock)
     context_embeddings = None
     minecraft_endpoint = None
+    probe_timeout_seconds: float | None = None
     if cognition == "real":
         from pm.llm.config import load_config
         from pm.memory.embeddings import EmbeddingService
@@ -442,19 +472,26 @@ def build_app(
             tool_call = loaded.tool_call
         if cognitive_control_config is None:
             cognitive_control_config = loaded.cognitive_control
+        probe_timeout_seconds = loaded.minecraft.probe_timeout_seconds if loaded.minecraft is not None else None
         minecraft_endpoint = _minecraft_endpoint(loaded) if enable_minecraft else None
-        if loaded.minecraft is not None and minecraft_endpoint is not None:
-            # The operator named a body in the model configuration, so the
-            # endpoint must answer now. Failing here beats a session where
-            # every Minecraft task ends unverified.
-            from workflows.minecraft_body.mcp_client import probe_body
-            probe_body(minecraft_endpoint, timeout_seconds=loaded.minecraft.probe_timeout_seconds)
+        if enable_minecraft and minecraft_endpoint is None and tool_call is not None:
+            minecraft_endpoint = next((server.url for server in tool_call.mcp_servers if server.name == "minecraft"), None)
+    specs = _managed_workflows(stage_model, context_embeddings, ghost, tool_call, minecraft_endpoint,
+                               enable_minecraft=enable_minecraft, shutdown=app.shutdown_event)
+    from workflows.minecraft.host import MinecraftRuntimeOwner
+    body_runtime = next((spec.runtime_owner for spec in specs.values()
+                         if isinstance(spec.runtime_owner, MinecraftRuntimeOwner)), None)
+    body_transport = body_runtime.transport if body_runtime is not None else None
+    if minecraft_endpoint and body_transport is not None:
+        assert body_runtime is not None and body_runtime.ownership is not None
+        body_transport.probe(probe_timeout_seconds or body_transport.settings.request_timeout_seconds)
+        body_runtime.ownership.reconcile_at_startup(runtime_root / "managed_tasks")
+        body_transport.call("minecraft_observe", {"include_image": False})
     supervisor = ManagedRunSupervisor(
         ghost,
         profiler=app.profiler,
         runtime_root=runtime_root,
-        workflows=_managed_workflows(stage_model, context_embeddings, ghost, tool_call, minecraft_endpoint,
-                                     enable_minecraft=enable_minecraft),
+        workflows=specs,
         clock=app.clock.monotonic,
         task_root=runtime_root / "managed_tasks",
         on_error=on_error,
@@ -493,7 +530,7 @@ def build_app(
 
     supervisor.on_terminal = _on_terminal
     supervisor.event_sink = _event_sink
-    steward = Steward(supervisor, clock=app.clock.monotonic)
+    steward = Steward(supervisor, clock=app.clock.monotonic, body=body_runtime.ownership if body_runtime else None)
 
     def workflow_paths(name: str) -> DummyWorkflowPaths:
         """Return the constructor keywords of the dummy prototype workflow ``name``."""
@@ -512,8 +549,10 @@ def build_app(
         stage_model=stage_model, config_path=resolved_config, supervisor=supervisor,
         codelet_definitions=codelet_definitions, thought_period=thought_period,
         embeddings=context_embeddings, workflow_models=workflow_models,
-        minecraft_endpoint=minecraft_endpoint,
+        minecraft_transport=body_transport if minecraft_endpoint else None,
     )
+    if isinstance(self_management, SelfManagement):
+        self_management.steward = steward
     scheduler = ScheduleSubprocesses(
         "scheduler", app, task_period,
         **workflow_paths("schedule"), tasks=tasks,
@@ -604,17 +643,8 @@ def build_app(
         )
         interaction.embedding_service = context_embeddings
         interaction.cognitive_control = control
-        control.validate_selection = interaction.validate_selection
-        control.refresh_selection = interaction.refresh_selection
-        from workflows.main_cognition.schemas import ActionRequest
-
-        def refresh_public_action(request: ActionRequest) -> None:
-            """Reconsider selected direction without repeating accepted external work."""
-            if request.interaction_selection_id:
-                interaction.refresh_selection(request.interaction_selection_id)
-            elif request.knoxel_id is not None:
-                main_cog.defer_public_action(request)
-        control.refresh_action = refresh_public_action
+        control.interaction = interaction
+        control.main_cognition = main_cog
         interaction.main_cognition = main_cog
         main_cog.interaction_enabled = True
         modules.insert(2, interaction)
@@ -636,10 +666,10 @@ def build_app(
         app.cognitive_control = control
         if world_poll_seconds is not None and minecraft_endpoint is not None:
             from workflows.minecraft_body.world_events import WorldEvents
-            from workflows.minecraft_body.mcp_client import MinecraftTransport, MinecraftTransportSettings
             from workflows.minecraft_body.lease import BODY_LEASES
             endpoint = minecraft_endpoint
-            transport = MinecraftTransport(MinecraftTransportSettings(endpoint=endpoint, request_timeout_seconds=30), None)
+            assert body_transport is not None
+            transport = body_transport
 
             def observe_world() -> dict[str, Any]:
                 # Reads share the command lock with actor calls. They never
@@ -660,7 +690,10 @@ def build_app(
             app.world_events = world_events
         from workflows.minecraft_body.capabilities import CapabilitySnapshotOwner
         from workflows.public_speech.reply_recovery import ReplyRecovery, ReplyRecoverySelection
-        capability_owner = CapabilitySnapshotOwner(ghost, supervisor, app)
+        capability_owner = CapabilitySnapshotOwner(ghost, supervisor, app, minecraft_endpoint,
+            tuple(server.name for server in tool_call.mcp_servers) if tool_call else (), body_transport)
+        input_triage.capability_owner = capability_owner
+        inner_thought.capability_owner = capability_owner
         main_cog.capability_owner = capability_owner
         if "tool_call" in supervisor.workflows:
             # The tool list is discovered at route time and cached, so a

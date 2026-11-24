@@ -6,7 +6,18 @@ CLASSIFIER_OUTPUT_ERROR = "The model returned a classification report without pu
 
 
 class SpeechOutputError(ValueError):
-    """Model output has no usable public speech after bounded recovery."""
+    """The current sample cannot supply a public utterance."""
+
+
+def contains_tool_protocol(text: str) -> bool:
+    """Identify serialized function calls emitted as text by a speech model."""
+    return re.search(r"<(?:/?[｜|]DSML[｜|]\s*(?:calls|invoke|parameter)\b|tool_call>|function=)",
+                     text, flags=re.IGNORECASE) is not None
+
+
+def validate_public_speech(text: str) -> None:
+    if contains_tool_protocol(text):
+        raise SpeechOutputError("The model returned tool protocol. Answer the partner in ordinary speech using the supplied evidence.")
 
 
 def strip_classifier_report(text: str) -> str:

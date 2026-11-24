@@ -94,7 +94,7 @@ def run_specialist_session(context: RoleContext) -> dict[str, Any]:
     request = MinecraftRequest.model_validate({key: value for key, value in payload.items()
                                              if not key.startswith("_public_")})
     endpoint = require_minecraft_runtime(runtime).minecraft_transport.settings.endpoint
-    gateway = BodyGateway(endpoint, context.task_id, environment, runtime)
+    gateway = BodyGateway(endpoint, runtime.body_lease.owner, environment, runtime)
     request.goal = require_minecraft_runtime(runtime).instructions()["instruction"] or request.goal or request.instruction
     current_leaf = leaf_execution_context(request)
     session_model = role_model(runtime)

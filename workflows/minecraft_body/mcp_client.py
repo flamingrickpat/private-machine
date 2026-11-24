@@ -1,14 +1,14 @@
-"""Scoped Minecraft body tools backed by the real pm-minecraft MCP server.
+"""Transport for a configured Minecraft MCP endpoint.
 
-The application owns the connection. A Python role receives a synchronous
-``minecraft_call(name, arguments)`` closure that calls the configured MCP over
-HTTP, keeps structured results, and extracts screenshot pixels as base64 with
-their media type and frame id. No base64 enters a text prompt.
-
-A test or a unit run can inject a deterministic ``minecraft_call`` instead of a
-live server; the workflow contract is identical.
+The companion shares one transport across body workflows, polling and dialogue.
+It records the time of successful observations and invalidates cached body state
+when the live server reports a change of life or a connection failure.
 """
 from __future__ import annotations
+
+from datetime import datetime, timezone
+from threading import RLock
+from workflows.minecraft_body.world_text import BodyReading, WorldObservation
 
 import asyncio
 from contextlib import asynccontextmanager
@@ -37,14 +37,14 @@ BODY_TOOL = "minecraft_observe"
 
 
 @asynccontextmanager
-async def _client(mcp_url: str, *, timeout: int = MCP_REQUEST_TIMEOUT_SECONDS) -> AsyncGenerator[Client[StreamableHttpTransport], None]:
+async def _client(mcp_url: str, *, headers: dict[str, str] | None = None, timeout: float = MCP_REQUEST_TIMEOUT_SECONDS) -> AsyncGenerator[Client[StreamableHttpTransport], None]:
     """Translate transport failure without hiding cancellation or logic errors.
 
     FastMCP wraps connection errors in RuntimeError. Keep the upstream cause
     for diagnostics. A lost response cannot establish the command's outcome.
     """
     try:
-        async with Client(StreamableHttpTransport(mcp_url), timeout=timeout) as client:
+        async with Client(StreamableHttpTransport(mcp_url, headers=headers), timeout=timeout) as client:
             yield client
     except (httpx.TransportError, TimeoutError) as error:
         raise TaskServiceError("Minecraft transport failed. The task outcome is unverified.") from error
@@ -66,6 +66,7 @@ class MinecraftToolReply(TypedDict):
     ok: bool
     result: JsonValue
     images: list[MinecraftImageWire]
+    observed_at: str
 
 
 def _extract_images(content: list[ContentBlock]) -> list[MinecraftImageWire]:
@@ -85,16 +86,8 @@ def probe_body(mcp_url: str, *, timeout_seconds: float = 5.0) -> list[str]:
     endpoint and says what to do, so a wrong ``mcp_url`` is not mistaken for a
     model or task failure later in the session.
     """
-    try:
-        names = MinecraftTransport(MinecraftTransportSettings(endpoint=mcp_url, request_timeout_seconds=int(timeout_seconds)), None).list_tools()
-    except TaskServiceError as error:
-        raise TaskServiceError(
-            f"No Minecraft body answers at {mcp_url}. Start the MCP server, or fix "
-            f"minecraft.mcp_url in the model config.") from error
-    if BODY_TOOL not in names:
-        raise TaskServiceError(f"{mcp_url} answers but offers no {BODY_TOOL} tool. "
-                               f"It is not a Minecraft body endpoint.")
-    return names
+    transport = MinecraftTransport(MinecraftTransportSettings(endpoint=mcp_url), None)
+    return list(transport.probe(timeout_seconds))
 
 
 class MinecraftTransportSettings(BaseModel):
@@ -112,21 +105,49 @@ class MinecraftTransport:
     def __init__(self, settings: MinecraftTransportSettings, model: LazyStageModel | None) -> None:
         self.settings = settings
         self.planner = MinecraftPlanner(model)
+        self.headers: dict[str, str] = {}
+        self.read_lock = RLock()
+        self.latest: BodyReading | None = None
+        self.connected: bool | None = None
+        self.tools: tuple[str, ...] = ()
+
 
     async def call_async(self, name: str, arguments: dict[str, JsonValue], settings: BodyCallSettings = BodyCallSettings()) -> MinecraftToolReply:
-        async with _client(self.settings.endpoint, timeout=self.settings.request_timeout_seconds) as client:
-            dispatch_name = name
-            dispatch_arguments = arguments
-            token = settings.epoch
-            if token is not None:
-                dispatch_name = "minecraft_body_call"
-                dispatch_arguments = {"owner": token.owner, "epoch": token.epoch, "session": token.session,
-                    "tool": name, "arguments": arguments}
-            result = await client.call_tool(dispatch_name, dispatch_arguments)
-            data = TypeAdapter[dict[str, JsonValue]](dict[str, JsonValue]).validate_python(
-                result.data if result.data is not None else result.structured_content)
-            return {"tool": name, "arguments": arguments, "ok": not result.is_error and data["ok"] is True,
-                "result": data, "images": _extract_images(result.content)}
+        try:
+            async with _client(self.settings.endpoint, headers=self.headers, timeout=self.settings.request_timeout_seconds) as client:
+                dispatch_name = name
+                dispatch_arguments = arguments
+                token = settings.epoch
+                if token is not None:
+                    dispatch_name = "minecraft_body_call"
+                    dispatch_arguments = {"owner": token.owner, "epoch": token.epoch, "session": token.session,
+                        "tool": name, "arguments": arguments}
+                result = await client.call_tool(dispatch_name, dispatch_arguments)
+                data = TypeAdapter[dict[str, JsonValue]](dict[str, JsonValue]).validate_python(
+                    result.data if result.data is not None else result.structured_content)
+                observed_at = datetime.now(timezone.utc)
+                with self.read_lock:
+                    if data.get("reason") in {"not_connected", "not_spawned"} or name == "minecraft_disconnect" and data["ok"]:
+                        self.connected = False
+                        self.latest = None
+                    elif name != BODY_TOOL and self.latest is not None:
+                        previous = self.latest.observation
+                        if (data.get("death_count_after", previous.death_count) != previous.death_count
+                                or data.get("body_session", previous.body_session) != previous.body_session
+                                or data.get("died") is True or data.get("respawned") is True
+                                or name == "minecraft_respawn" and data["ok"]):
+                            self.latest = None
+                    elif name == BODY_TOOL and data["ok"]:
+                        self.latest = BodyReading(observed_at=observed_at,
+                                                  observation=WorldObservation.model_validate(data))
+                        self.connected = True
+                return {"tool": name, "arguments": arguments, "ok": not result.is_error and data["ok"] is True,
+                    "result": data, "images": _extract_images(result.content), "observed_at": observed_at.isoformat()}
+        except TaskServiceError:
+            with self.read_lock:
+                self.latest = None
+                self.connected = None
+            raise
 
     def call(self, name: str, arguments: dict[str, JsonValue]) -> MinecraftToolReply:
         return asyncio.run(self.call_async(name, arguments))
@@ -140,18 +161,29 @@ class MinecraftTransport:
     def release(self, token: BodyEpoch) -> MinecraftToolReply:
         return self.call("minecraft_body_release", {"owner": token.owner, "epoch": token.epoch, "session": token.session})
 
-    async def list_tools_async(self) -> list[str]:
-        async with _client(self.settings.endpoint, timeout=self.settings.request_timeout_seconds) as client:
+    def probe(self, timeout_seconds: float) -> tuple[str, ...]:
+        try:
+            self.tools = tuple(asyncio.run(self.list_tools_async(timeout_seconds)))
+        except TaskServiceError as error:
+            raise TaskServiceError(f"No Minecraft body answers at {self.settings.endpoint}.") from error
+        if BODY_TOOL not in self.tools:
+            raise TaskServiceError(f"{self.settings.endpoint} offers no {BODY_TOOL} tool.")
+        return self.tools
+
+    async def list_tools_async(self, timeout_seconds: float | None = None) -> list[str]:
+        timeout = self.settings.request_timeout_seconds if timeout_seconds is None else timeout_seconds
+        async with _client(self.settings.endpoint, headers=self.headers, timeout=timeout) as client:
             return [tool.name for tool in await client.list_tools()]
 
     def list_tools(self) -> list[str]:
         return asyncio.run(self.list_tools_async())
 
     async def tool_schemas_async(self) -> tuple[MinecraftActionTool, ...]:
-        async with _client(self.settings.endpoint, timeout=self.settings.request_timeout_seconds) as client:
+        async with _client(self.settings.endpoint, headers=self.headers, timeout=self.settings.request_timeout_seconds) as client:
             return tuple(MinecraftActionTool(name=tool.name, description=tool.description,
                 parameters=TypeAdapter[dict[str, JsonValue]](dict[str, JsonValue]).validate_python(tool.inputSchema))
-                for tool in await client.list_tools() if not tool.name.startswith("minecraft_body_"))
+                for tool in await client.list_tools() if not tool.name.startswith("minecraft_body_")
+                and tool.name not in {"minecraft_connect", "minecraft_disconnect", "minecraft_execute_typescript", "minecraft_suicide"})
 
     def tool_schemas(self) -> tuple[MinecraftActionTool, ...]:
         return asyncio.run(self.tool_schemas_async())

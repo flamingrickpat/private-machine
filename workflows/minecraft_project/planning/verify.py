@@ -3,6 +3,7 @@ from __future__ import annotations
 from workflows.minecraft_project.schemas import ProjectPhaseResult
 
 import json
+from datetime import datetime, timezone
 
 from pm.utils import yaml_util
 from pm_workflows.python_role import RoleContext
@@ -64,6 +65,11 @@ def verify_node(context: RoleContext, store: TreeStore, node: Node, actor_attemp
         "outcome": "completion_evidence" if verified else "unmet_completion_conditions"})
     if verified:
         store.accept(node.id, relative, files)
+        from workflows.minecraft.runtime import require_minecraft_runtime
+        boundary_owner = require_minecraft_runtime(context.runtime).managed_boundary
+        if boundary_owner is not None:
+            observed_at = datetime.fromtimestamp(min(row["time"] for row in reads), timezone.utc) if reads else None
+            boundary_owner.milestone(verifier_id, review_result.summary, relative, observed_at)
         return ProjectPhaseResult(status="accepted", summary=review_result.summary)
     return ProjectPhaseResult(status="replan" if review_result.status in PASSING_REVIEWS else review_result.status, summary="Independent verification failed: " + review_result.summary)
 

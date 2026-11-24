@@ -12,8 +12,8 @@ from pm import vclock
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 from dataclasses import dataclass
-from fastmcp import FastMCP, Client
-from pydantic import JsonValue, TypeAdapter
+from fastmcp import FastMCP
+from pydantic import JsonValue
 from pm_workflows.working_target import WorkingEnvironment
 
 from pm.host.mcp_listeners import McpServerDescriptor
@@ -28,6 +28,7 @@ from pm.context_render.turns import Role
 from workflows.dialogue_assistant.schemas import AssistantMessage, AssistantReport, AssistantRequest
 from workflows.dialogue_assistant.steps import ToolExecutionError, load_prompts, unsupported_management_claims
 from workflows.dialogue_assistant.tools import reply_tools
+from workflows.minecraft_body.mcp_client import MinecraftTransport
 from workflows.main_cognition.schemas import ActionRequest
 from workflows.public_speech.public_context import DialogueTurn, ability_lines, time_lines, PromptNames
 from workflows.public_speech.public_dialogue import PublicDialogue
@@ -39,18 +40,17 @@ if TYPE_CHECKING:
 @dataclass(frozen=True, slots=True)
 class AssistantMcpServices:
     supervisor: ManagedRunSupervisor
-    minecraft_endpoint: str | None
+    transport: MinecraftTransport | None
 
     async def observe_minecraft(self, include_image: bool = False) -> JsonValue:
-        if self.minecraft_endpoint is None:
+        if self.transport is None:
             raise ToolExecutionError("No Minecraft body is configured for this character.")
         from workflows.minecraft_body.lease import BODY_LEASES
-        with BODY_LEASES.command(self.minecraft_endpoint):
-            async with Client(self.minecraft_endpoint) as client:
-                result = await client.call_tool("minecraft_observe", {"include_image": False})
-            if result.is_error:
-                raise ToolExecutionError(f"Minecraft observation failed: {result}")
-            return TypeAdapter[JsonValue](JsonValue).validate_python(result.structured_content if result.structured_content is not None else result.data)
+        with BODY_LEASES.command(self.transport.settings.endpoint):
+            result = await self.transport.call_async("minecraft_observe", {"include_image": False})
+            if not result["ok"]:
+                raise ToolExecutionError(f"Minecraft observation failed: {result['result']}")
+            return result["result"]
 
     def services(self, environment: WorkingEnvironment) -> dict[str, FastMCP]:
         if not isinstance(environment, MemoryBashEnvironment):

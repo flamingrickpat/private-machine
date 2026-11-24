@@ -4,11 +4,7 @@ Every call returns one JSON object that a pydantic schema validates. An
 invalid answer gets a repair turn with the validation error, and every
 rejection is logged with its attempt number. A provider failure
 (``ModelError``: a filtered, cut-off, or empty completion) repeats the same
-call. Repairs are bounded: after ``RECONSOLIDATION_REPAIR_ATTEMPTS`` rejected
-answers the call raises ``ModelFormatError`` (exported here as
-``ReconsolidationOutputError``) with the last problem and the start of the
-last answer, because a repair that has not worked that many times is a prompt
-or model defect and repeating it holds the whole run. Transport errors and HTTP 429/5xx already retry inside
+call. Rejected answers retry with bounded correction feedback until cancellation. Transport errors and HTTP 429/5xx already retry inside
 ``pm.llm.http_client.JsonClient``. Other errors and cancellation propagate.
 
 Calls of one stage can run in parallel with :meth:`ModelCalls.map`. The
@@ -18,17 +14,18 @@ start yet, and the first error propagates after all workers end.
 from __future__ import annotations
 
 from threading import Event, Lock
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from pm.context_render.budget import TokenEstimator
 from pm.llm.generation import GenerationSettings
 from typing import TypeVar
 from pydantic import BaseModel, ValidationError
-from pm.constants import RECONSOLIDATION_REPAIR_ATTEMPTS, RECONSOLIDATION_TEMPERATURE, RECONSOLIDATION_WORKERS
+from pm.constants import RECONSOLIDATION_TEMPERATURE, RECONSOLIDATION_WORKERS
 from pm.llm.stage_model import LazyStageModel
 from pm.llm.session import ModelSession
 from pm.context_render.prompt import RenderedPrompt, RendererCapture, RendererInput
 from pm.context_render.correction import CorrectionHistory, JsonCorrectionInput, render_json_correction
 from pm.llm.structured import parse_response, JsonOutputError, extract_json as extract_object, ModelFormatError as ReconsolidationOutputError
-from pm.memory.reconsolidation.schemas import SummaryAnswer, MentalStateAnswer, FactsAnswer, FilingAnswer, NarrativeAnswer, FactExtractionValidation, FactClassificationValidation
+from pm.memory.reconsolidation.schemas import SummaryAnswer, MentalStateAnswer, FactsAnswer, FilingAnswer, FactFiling, NarrativeAnswer, FactExtractionValidation, FactClassificationValidation
 from pm.memory.reconsolidation.rendering import (
     SceneSummaryInput, TemporalSummaryInput, RecordedStateInput, FactExtractionInput, FactClassificationInput, NarrativeRenderInput,
     render_scene_summary, render_temporal_summary, render_recorded_state, render_fact_extraction, render_fact_classification, render_narrative,
@@ -75,19 +72,20 @@ class ModelCalls:
                 return parse_response(raw, schema, validation_context=context)
             except (JsonOutputError, ValidationError) as error:
                 diagnostic = corrections.record_rejection(operation, str(error))
-                if corrections.rejected_answers >= RECONSOLIDATION_REPAIR_ATTEMPTS:
-                    raise ReconsolidationOutputError(
-                        f"{operation}: {corrections.rejected_answers} answers were rejected without one passing"
-                        f" the schema. The last problem was: {diagnostic[:300]}"
-                        f" The last answer started: {raw[:200]}") from error
                 input = JsonCorrectionInput(operation, original, raw, diagnostic)
                 with RendererCapture(self.session.capture_settings("memory.correction"),
                         RendererInput("memory.correction", input, settings)) as capture:
                     rendered = render_json_correction(input, settings)
                     capture.save_output(rendered)
 
+    def bounded_scene(self, scene: SceneSummaryInput, field_tokens: int) -> SceneSummaryInput:
+        intro = self.session.summarize_long_source(scene.intro, "character introduction", field_tokens)
+        story = self.session.summarize_long_source(scene.story, "scene", field_tokens)
+        return replace(scene, intro=intro, story=story)
+
     def summarize_scene(self, input: SceneSummaryInput) -> SummaryAnswer:
         settings = self.session.renderer_settings_for(self.generation)
+        input = self.bounded_scene(input, settings.input_ceiling // 5)
         with RendererCapture(self.session.capture_settings("memory.scene_summary"), RendererInput("memory.scene_summary", input, settings)) as capture:
             rendered = render_scene_summary(input, settings)
             capture.save_output(rendered)
@@ -95,6 +93,7 @@ class ModelCalls:
 
     def summarize_temporal(self, input: TemporalSummaryInput) -> SummaryAnswer:
         settings = self.session.renderer_settings_for(self.generation)
+        input = replace(input, scene=self.bounded_scene(input.scene, settings.input_ceiling // 5))
         with RendererCapture(self.session.capture_settings("memory.temporal_summary"), RendererInput("memory.temporal_summary", input, settings)) as capture:
             rendered = render_temporal_summary(input, settings)
             capture.save_output(rendered)
@@ -102,6 +101,8 @@ class ModelCalls:
 
     def describe_recorded_state(self, input: RecordedStateInput) -> MentalStateAnswer:
         settings = self.session.renderer_settings_for(self.generation)
+        input = replace(input, scene=self.bounded_scene(input.scene, settings.input_ceiling // 6),
+            recorded=self.session.summarize_long_source(input.recorded, "recorded state", settings.input_ceiling // 6))
         with RendererCapture(self.session.capture_settings("memory.recorded_state"), RendererInput("memory.recorded_state", input, settings)) as capture:
             rendered = render_recorded_state(input, settings)
             capture.save_output(rendered)
@@ -114,12 +115,26 @@ class ModelCalls:
             capture.save_output(rendered)
         return self.json(rendered, FactsAnswer, context=FactExtractionValidation(line_count=line_count))
 
-    def classify_facts(self, input: FactClassificationInput) -> FilingAnswer:
+    def classify_facts(self, input: FactClassificationInput) -> list[FactFiling]:
         settings = self.session.renderer_settings_for(self.generation)
+        estimator = TokenEstimator(estimate_factor=settings.estimate_factor)
+        # The answer has one sizable schema entry per fact. Batch both sides of the request.
+        maximum_facts = max(1, settings.reserved_output_tokens // 400)
+        listing = "\n".join(input.facts)
+        if len(input.facts) > 1 and (len(input.facts) > maximum_facts
+                or estimator.text_tokens(listing) > settings.input_ceiling // 3):
+            middle = len(input.facts) // 2
+            first = self.classify_facts(replace(input, facts=input.facts[:middle]))
+            second = self.classify_facts(replace(input, facts=input.facts[middle:]))
+            for filing in second:
+                filing.index += middle
+            return [*first, *second]
+        intro = self.session.summarize_long_source(input.intro, "character introduction", settings.input_ceiling // 6)
+        input = replace(input, intro=intro)
         with RendererCapture(self.session.capture_settings("memory.fact_classification"), RendererInput("memory.fact_classification", input, settings)) as capture:
             rendered = render_fact_classification(input, settings)
             capture.save_output(rendered)
-        return self.json(rendered, FilingAnswer, context=FactClassificationValidation(fact_count=len(input.facts), allowed_subjects=(input.companion_name, input.user_name, "both", "other")))
+        return self.json(rendered, FilingAnswer, context=FactClassificationValidation(fact_count=len(input.facts), allowed_subjects=(input.companion_name, input.user_name, "both", "other"))).facts
 
     def refine_narrative(self, input: NarrativeRenderInput) -> NarrativeRefinement:
         settings = self.session.renderer_settings_for(self.generation)

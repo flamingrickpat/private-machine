@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
-from pm.context_render.budget import TokenEstimator
+from pm.context_render.budget import TokenEstimator, evidence_excerpt
 from pm.context_render.prompt import RenderedPrompt, RenderSettings, EvidenceDecision, require_rendered_prompt
 from pm.context_render.turns import Turn, Role
 
@@ -107,11 +107,19 @@ class NarrativeRenderInput:
 
 
 def render_narrative(input: NarrativeRenderInput, settings: RenderSettings) -> RenderedPrompt:
-    body = input.template.format(intro=input.intro, card=input.card, label=input.label, target=input.target,
-        previous=input.previous, story="", goal=input.goal, companion_name=input.companion_name, user_name=input.user_name)
-    turns = (Turn(Role.System, input.system), Turn(Role.User, body))
-    require_rendered_prompt("memory narrative", turns, settings)
     estimator = TokenEstimator(estimate_factor=settings.estimate_factor)
+    original = input
+    retained = max(len(input.intro), len(input.card), len(input.previous), len(input.target), len(input.goal))
+    while True:
+        body = input.template.format(intro=input.intro, card=input.card, label=input.label, target=input.target,
+            previous=input.previous, story="", goal=input.goal, companion_name=input.companion_name, user_name=input.user_name)
+        turns = (Turn(Role.System, input.system), Turn(Role.User, body))
+        if estimator.estimate(turns) <= settings.input_ceiling // 2 or retained == 0:
+            break
+        retained //= 2
+        input = replace(original, intro=evidence_excerpt(original.intro, retained), card=evidence_excerpt(original.card, retained),
+            previous=evidence_excerpt(original.previous, retained), goal=evidence_excerpt(original.goal, retained),
+            target=evidence_excerpt(original.target, retained))
     selected: list[str] = []
     decisions: list[EvidenceDecision] = []
     exhausted = False
@@ -130,10 +138,17 @@ def render_narrative(input: NarrativeRenderInput, settings: RenderSettings) -> R
             "chronological unprocessed narrative evidence" if admitted else "deferred to next narrative version"))
     if input.evidence and not selected:
         first = input.evidence[0]
-        body = input.template.format(intro=input.intro, card=input.card, label=input.label, target=input.target,
-            previous=input.previous, story=first.text, goal=input.goal,
-            companion_name=input.companion_name, user_name=input.user_name)
-        return require_rendered_prompt("memory narrative first evidence", (turns[0], Turn(Role.User, body)), settings)
+        retained = len(first.text)
+        while True:
+            excerpt = evidence_excerpt(first.text, retained)
+            body = input.template.format(intro=input.intro, card=input.card, label=input.label, target=input.target,
+                previous=input.previous, story=excerpt, goal=input.goal,
+                companion_name=input.companion_name, user_name=input.user_name)
+            turns = (turns[0], Turn(Role.User, body))
+            if estimator.estimate(turns) <= settings.input_ceiling or retained == 0:
+                decisions[0] = EvidenceDecision(first.record_id, 1, True, "bounded first narrative source")
+                break
+            retained //= 2
     return require_rendered_prompt("memory narrative", turns, settings, tuple(decisions))
 
 

@@ -3,8 +3,7 @@
 Only the route phase reads this text: the decide phase stays in character and
 never sees tool names (decision D25). Discovery lists the tools of each
 server with a short deadline (``TOOL_DISCOVERY_SECONDS``), as the Minecraft
-capability discovery does. A successful listing is cached for the life of the
-application. A server that does not answer is shown as unavailable now and is
+capability discovery does. A successful listing is cached until the next refresh. A server that does not answer is shown as unavailable now and is
 asked again after ``TOOL_DISCOVERY_RETRY_SECONDS``. Discovery calls no tool.
 """
 from __future__ import annotations
@@ -43,7 +42,9 @@ async def _list_tools(server: McpServerConfig) -> list[ToolEntry]:
     transport = StreamableHttpTransport(server.url, headers=server.resolved_headers())
     async with Client(transport) as client:
         return [ToolEntry(name=item.name, description=_first_line(item.description))
-                for item in await client.list_tools()]
+                for item in await client.list_tools() if server.name != "minecraft" or
+                (not item.name.startswith("minecraft_body_") and item.name not in
+                 {"minecraft_disconnect", "minecraft_connect", "minecraft_execute_typescript", "minecraft_suicide"})]
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,12 +66,13 @@ class ToolCatalogue:
         self._tools: dict[str, list[ToolEntry]] = {}
         #: Server name -> (error type, clock time of the failed listing).
         self._failures: dict[str, ToolDiscoveryFailure] = {}
+        self._checked: dict[str, float] = {}
         self._lock = threading.Lock()
 
     def tools(self, server: McpServerConfig) -> list[ToolEntry] | str:
         """Return the tools of one server, or the error type when the server does not answer now."""
         with self._lock:
-            if server.name in self._tools:
+            if server.name in self._tools and time.monotonic() - self._checked[server.name] < TOOL_DISCOVERY_RETRY_SECONDS:
                 return self._tools[server.name]
             if (server.name in self._failures
                     and time.monotonic() - self._failures[server.name].observed_at < TOOL_DISCOVERY_RETRY_SECONDS):
@@ -84,10 +86,11 @@ class ToolCatalogue:
                 self._failures[server.name] = ToolDiscoveryFailure(type(error).__name__, time.monotonic())
             return type(error).__name__
         with self._lock:
+            self._checked[server.name] = time.monotonic()
             self._tools[server.name] = found
         return found
 
-    def describe(self) -> str:
+    def describe(self, *, compact: bool = False) -> str:
         """Return the servers and their tools as indented lines for the workflow list."""
         lines: list[str] = []
         for server in self.config.mcp_servers:
@@ -96,8 +99,26 @@ class ToolCatalogue:
                 lines.append(f"  - server {server.name}: unavailable now ({found})")
                 continue
             lines.append(f"  - server {server.name}:")
-            lines += [f"    - {tool.name}: {tool.description}" if tool.description else f"    - {tool.name}"
-                      for tool in found]
+            if compact:
+                # The agent receives all schemas when it enters the session. The chooser needs orientation.
+                entries: list[str] = []
+                remaining = 800
+                for tool in found:
+                    label = tool.name.removeprefix(server.name + "_")
+                    if len(found) <= 8 and tool.description:
+                        label += " (" + tool.description[:64] + ")"
+                    if len(label) + 2 > remaining:
+                        break
+                    entries.append(label)
+                    remaining -= len(label) + 2
+                omitted = len(found) - len(entries)
+                if omitted:
+                    entries.append(f"{omitted} more in session")
+                lines.append(f"    {len(found)} tools: " + ", ".join(entries))
+            else:
+                for tool in found:
+                    lines.append(f"    - {tool.name}: {tool.description[:160]}")
+
         return "\n".join(lines)
 
 

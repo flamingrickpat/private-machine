@@ -6,6 +6,10 @@ accepted_dependencies and historical preceding_reviews preserve that proof; orig
 Current material provenance and final world truth have separate independent guards. Request their original sources when needed.
 
 Return one JSON object with status, summary, and target_id.
+Review only the selected node. If you need an existing observation or the original request,
+issue an evidence_requests entry now and read it yourself. Reserve caller questions for a choice
+the caller actually needs to make. A plan that requires an unsupported measurement must report
+the limitation or obtain agreement on a measurable substitute before claiming the original result.
 review_policy names the passing judgments allowed by this workflow.
 In flexible mode, accepted, good_enough, and equivalent_or_better all pass immediately.
 Use good_enough for a feasible plan that meets the user's practical goal despite minor wording or implementation gaps.
@@ -20,6 +24,11 @@ Choose acceptance conditions that express the user's required outcome without ad
 All passing judgments retain the independent evidence and publication checks below.
 In strict mode, use accepted only when the requested contract is met.
 Judge the original request in project_intent together with its current instruction changes.
+The body worker performs the physical task. Its MCP journal retains the action result, coordinates and actual inventory change.
+After the worker finishes, the separate public reply workflow reads that evidence and tells the partner what happened.
+When asked to harvest and report whatever drops, accept a plan that verifies the harvested cell and instructs the actor to check the pickup.
+The exact drop count is unknown before execution. A spoken reply cannot be a Minecraft world predicate.
+Do not require a chat, note, guessed item count, or extra action to certify that future reply.
 A footprint update changes dimensions; it does not erase an earlier instruction to use an unused site or preserve buildings.
 Do not add requirements for aesthetics, extra doors, signs, buttons, or newly crafted items unless the user requested them.
 Already-owned materials count. An adequate existing door does not need another crafting step.
@@ -52,6 +61,9 @@ Set target_id to the actual node that needs repair.
 decision_scope retains paused methods and recent results. Archived last-result totals cannot prove resource provenance; full operands remain in context_archive.
 Review the supplied tree independently of the planner's confidence.
 When active_recovery is present, require a prerequisite-ready recovery specialist leaf with observable safety acceptance.
+Use the causes on the active recovery record. A water escape requires evidence of a dry, supported landing.
+Apply the food minimum when the record includes low_supplies.
+The specialist gateway supplies actor_diagnose for recovery decisions. The upstream Minecraft tool catalogue lists the world commands.
 Recovery takes priority over optional work. Its needed tree changes can supersede an earlier optional refinement scope.
 Recovery criteria describe the finished safe landing; they need not hold before ordinary escape or clearance actions.
 If a placed workstation obstructs that landing, a different surveyed landing or ordinary block removal can establish safety.
@@ -116,6 +128,8 @@ Do not ask the operator for a grid already present in these observations.
 For incorrect criteria, missing acceptance coverage, or unsupported assumptions, return revise.
 Revision can repair acceptance conditions. Refinement preserves them while splitting oversized work.
 One meaningful leaf can gather, craft, construct, and demonstrate use when those actions serve one requested outcome.
+Check assumptions on ancestors and leaves against the expected final state. Revise an assumption that success itself will invalidate.
+For random drops the actor can report a zero inventory change. Require a particular drop only if the user requested that result.
 Request refinement only when separate outcomes need independent scheduling or a demonstrated failure needs a smaller scope.
 Tool-call count alone does not make a leaf oversized.
 Select one target_id for controlled refinement.

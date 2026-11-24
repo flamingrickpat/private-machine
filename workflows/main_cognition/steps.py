@@ -8,6 +8,8 @@ phase state. The host.py overview describes memory and publication ownership.
 """
 from __future__ import annotations
 
+from pm.llm.role_model import role_model
+
 from pm_workflows.python_role import RoleContext
 from collections.abc import Sequence
 from dataclasses import replace
@@ -53,7 +55,9 @@ def run(context: RoleContext) -> dict[str, str]:
     runtime = context.runtime
     assert runtime is not None
     request = CycleRequest.model_validate(yaml_util.safe_load(runtime.environment.read_text("inbox/request.yaml")))
-    work = run_selected_phases(context, intake.start(request), list(PHASES))
+    work = intake.start(request)
+    work.prepare_stimulus_summaries(role_model(runtime))
+    work = run_selected_phases(context, work, list(PHASES))
     return {"status": "done", "summary": work.phases[-1].summary}
 
 

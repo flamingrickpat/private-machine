@@ -1,16 +1,18 @@
 """Read current domain capabilities without moving the Minecraft character."""
 from __future__ import annotations
 
-from pm.utils.operating_system import OperatingSystem
 from pm import vclock
+from workflows.minecraft_body.lease import BODY_LEASES
+from workflows.minecraft_body.mcp_client import MinecraftTransport
 
 import asyncio
-import socket
+
 from datetime import datetime
 from typing import TYPE_CHECKING, Literal, cast
 from dataclasses import dataclass
 from pydantic import BaseModel, ConfigDict, Field
 from pm.records.mental_state import StateEmotions
+from pm.runs.run_receipt import ACTIVE_STATES
 from workflows.inner_thought.request_views import CapabilityInspection
 
 import anyio
@@ -54,6 +56,7 @@ class CapabilityEvidenceLimit(BaseModel):
 
 
 class CapabilitySnapshot(BaseModel):
+    runtime_orientation: str = ""
     model_config = ConfigDict(extra="forbid")
     text: bool = True
     persistent_memory: bool = True
@@ -70,27 +73,37 @@ class CapabilitySnapshot(BaseModel):
     evidence_limit: CapabilityEvidenceLimit = Field(default_factory=CapabilityEvidenceLimit)
 
 
-async def discover_body_tools(endpoint: str) -> tuple[str, ...]:
+class BodyConnection(BaseModel):
+    connected: bool = False
+    spawned: bool = False
+    reason: str | None = None
+
+
+async def inspect_body(endpoint: str) -> MinecraftCapabilityState:
     from fastmcp import Client
+    state = MinecraftCapabilityState(endpoint=endpoint, observed_at=vclock.now_aware())
     async with Client(endpoint) as client:
-        return tuple(item.name for item in await client.list_tools())
+        state.tools = tuple(tool.name for tool in await client.list_tools())
+        info = await client.call_tool("minecraft_info", {}, raise_on_error=False)
+        connection = BodyConnection.model_validate(info.structured_content)
+        if connection.reason == "not_connected" or not info.is_error:
+            state.status = "connected" if connection.connected and connection.spawned else "disconnected"
+        else:
+            state.error_type = connection.reason or "tool_error"
+    return state
 
 
-def capability_snapshot(ghost: MemoryStore, workflow_names: Iterable[str]) -> CapabilitySnapshot:
-    from pm.app.operator_config import environment_values
-    values, _ = environment_values()
-    url = OperatingSystem.environment.get("MINECRAFT_MCP_URL") or values.get("MINECRAFT_MCP_URL") or "http://127.0.0.1:6767/mcp"
-    minecraft = MinecraftCapabilityState(status="disconnected", endpoint=url, observed_at=vclock.now_aware())
-    try:
-        minecraft.tools = asyncio.run(asyncio.wait_for(discover_body_tools(url), timeout=5))
-        with socket.create_connection((values.get("PM_MINECRAFT_HOST", "127.0.0.1"),
-                                       int(values.get("PM_MINECRAFT_PORT", "12345"))), timeout=2):
-            pass
-        minecraft.status = "connected"
-    except Exception as error:
-        if not _transport_failure(error):
-            raise
-        minecraft.error_type = type(error).__name__
+def capability_snapshot(ghost: MemoryStore, workflow_names: Iterable[str],
+                        endpoint: str | None = None) -> CapabilitySnapshot:
+    minecraft = MinecraftCapabilityState()
+    if endpoint:
+        try:
+            minecraft = asyncio.run(asyncio.wait_for(inspect_body(endpoint), timeout=8))
+        except Exception as error:
+            if not _transport_failure(error):
+                raise
+            minecraft = MinecraftCapabilityState(endpoint=endpoint, observed_at=vclock.now_aware(),
+                                                 error_type=type(error).__name__)
     config = ghost.ghost_config
     return CapabilitySnapshot(configured=tuple(config.supported_capabilities),
         unavailable=tuple(str(item) for item in config.unsupported_capabilities),
@@ -105,9 +118,45 @@ class CapabilitySnapshotOwner:
     supervisor: ManagedRunSupervisor
     application: Application
 
+    endpoint: str | None = None
+    suites: tuple[str, ...] = ()
+
+    transport: MinecraftTransport | None = None
+
+    def suite_status(self, name: str) -> str:
+        tools = self.supervisor.workflows.get("tool_call")
+        if tools and name in tools.reserved_suites and self.endpoint:
+            spec = self.supervisor.workflows.get("minecraft_project")
+            owner = spec.reservation.owner() if spec and spec.reservation else BODY_LEASES.owner(self.endpoint)
+            if owner:
+                return f"{name} busy with {owner} (status, wait, yield or terminate)"
+        return f"{name} available"
+
+    def orientation(self, snapshot: CapabilitySnapshot) -> str:
+        from pm.introspection.runtime_state import RuntimeSelfState, machine_identity
+        active = tuple(f"{run['workflow_name']} {run['run_id']} ({run['state']})"
+                       for run in self.store.read_run_receipts().values() if run["state"] in ACTIVE_STATES)
+        body = snapshot.minecraft.status if self.endpoint else "no assigned body"
+        if self.transport is not None and self.endpoint:
+            with self.transport.read_lock:
+                if self.transport.latest is not None:
+                    body += ". " + self.transport.latest.summary()
+        return RuntimeSelfState(machine_identity(), snapshot.configured,
+            ("dialogue_story", "self_management", "focus_management", "theory_of_mind", *snapshot.managed_workflows),
+            tuple(self.suite_status(name) for name in self.suites), body, active).render()
+
     def snapshot(self) -> CapabilitySnapshot:
         from workflows.introspection.inspection_owner import capability_inspection
         snapshot = capability_snapshot(self.store, self.supervisor.workflows)
+        if self.transport is not None and self.endpoint:
+            with self.transport.read_lock:
+                reading = self.transport.latest
+                connected = self.transport.connected
+                snapshot.minecraft = MinecraftCapabilityState(endpoint=self.endpoint, tools=self.transport.tools,
+                    status="unknown" if connected is None else ("connected" if connected else "disconnected"),
+                    observed_at=reading.observed_at if reading else None)
+
+        snapshot.runtime_orientation = self.orientation(snapshot)
         snapshot.self_model = capability_inspection(self.application.capability_overlay)
         return snapshot
 

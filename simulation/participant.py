@@ -152,10 +152,10 @@ class Participant:
             store = CharacterHome(self.home).open_store()
             # A body starts only when this participant declared its endpoint, and
             # then the configuration names it and the application probes it
-            # before the first cycle. The world poll stays off (module docstring).
+            # before the first cycle.
             app = build_app(None, self.home / "runtime", ghost=store, cognition="real",
                             config_path=self.config, enable_minecraft=self.minecraft_mcp_url is not None,
-                            world_poll_seconds=None, emit_reply=lambda text: None,
+                            emit_reply=lambda text: None,
                             bus_observer=self.observe, record_lifecycle=False)
             self.app = app
             self.server.store = store
@@ -205,7 +205,10 @@ class Participant:
                         # One body endpoint for this participant. The model
                         # configuration is the normal source for it, so the rest
                         # of the application reads one typed section.
-                        config["minecraft"] = {"mcp_url": minecraft_mcp_url}
+                        config.setdefault("minecraft", {})["mcp_url"] = minecraft_mcp_url
+                        for server in config.get("tool_call", {}).get("mcp_servers", []):
+                            if server["name"] == "minecraft":
+                                server["url"] = minecraft_mcp_url
                     selected = self.home / "runtime" / "model-config.yaml"
                     selected.parent.mkdir(parents=True, exist_ok=True)
                     selected.write_text(yaml_util.safe_dump(config), encoding="utf-8")

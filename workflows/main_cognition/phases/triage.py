@@ -33,7 +33,7 @@ from typing import Literal
 from pm_workflows.python_role import RoleContext
 
 from pm.constants import CODELET_BUDGET_DEFAULT, CODELET_BUDGET_MAX
-from pm.context_render.budget import ContextBudget, ContextGroup, PromptSelection, RequiredContextTooLarge
+from pm.context_render.budget import evidence_excerpt, ContextBudget, ContextGroup, PromptSelection, RequiredContextTooLarge
 from pm.context_render.images import ImageCatalog, resolve_media
 from pm.context_render.story import fill_story_names
 from pm.context_render.turns import Content, Role, Turn, format_content
@@ -45,11 +45,14 @@ from workflows.main_cognition.cycle_work import CycleWork
 from workflows.main_cognition.prompt_config import PhasePrompts
 from workflows.main_cognition.phases.intake import group_key, group_stimuli
 from workflows.main_cognition.phases.model import complete, grounding_turn, phase_prompts
-from workflows.main_cognition.schemas import TriageCheck, TRIAGE_CATEGORIES, TriageResult
+from workflows.main_cognition.schemas import TriageCheck, TRIAGE_CATEGORIES, TriageResult, TriageItem
 from workflows.main_cognition.story_prefix import StoryPrefix, shard_label, shown_shards, story_entities
 
 #: Triage categories from the least to the most important.
 CATEGORIES = TRIAGE_CATEGORIES
+
+# Leave output room for one full classification and its constraints per input.
+TRIAGE_STIMULI_PER_BATCH = 12
 
 #: Largest serving context, in tokens, that one triage prompt may plan for.
 #: The configured input fraction of this window is the triage input ceiling.
@@ -109,6 +112,17 @@ class TriagePrompt:
     selection: PromptSelection
     input_ceiling: int
 
+    retained_stimulus_characters: int | None = None
+
+    def shown_stimulus_texts(self, work: CycleWork) -> dict[int, str]:  # pm-lint: allow PM004 -- rendered stimulus text by source ID
+        shown: dict[int, str] = {}  # pm-lint: allow PM004 -- rendered stimulus text by source ID
+        for stimulus in work.request.stimuli:
+            text = work.prompt_summaries.get(stimulus.knoxel_id, stimulus.text)
+            if self.retained_stimulus_characters is not None:
+                text = evidence_excerpt(text, self.retained_stimulus_characters)
+            shown[stimulus.knoxel_id] = text
+        return shown  # pm-lint: allow PM005 -- rendered stimulus text by source ID
+
     def summary(self) -> str:
         """Describe the fitting for the phase receipt."""
         optional_shown = len(self.selection.included) - 1  # Without the required group.
@@ -116,13 +130,16 @@ class TriagePrompt:
                 f"estimated {self.selection.estimated_tokens} of {self.input_ceiling} input tokens")
 
 
-def render_stimuli(work: CycleWork) -> str:
+def render_stimuli(work: CycleWork, retained_characters: int | None = None) -> str:
     """Render each stimulus with its id, source, kind, text, and the story part of its group."""
     lines: list[str] = []
     for stimulus in work.request.stimuli:
         part = shard_label(group_key(stimulus, work.request), work.request)
+        text = work.prompt_summaries.get(stimulus.knoxel_id, stimulus.text)
+        if retained_characters is not None:
+            text = evidence_excerpt(text, retained_characters)
         lines.append(f"- id={stimulus.knoxel_id} source={stimulus.source} "
-                     f"kind={stimulus.kind} text={stimulus.text!r} part={part}")
+                     f"kind={stimulus.kind} text={text!r} part={part}")
     return "\n".join(lines) or "(none)"
 
 
@@ -132,14 +149,15 @@ def build_messages(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix) 
     return prefix.ask(user)
 
 
-def triage_instruction(work: CycleWork, template: str, *, include_background: bool) -> str:
+def triage_instruction(work: CycleWork, template: str, *, include_background: bool,
+                       retained_characters: int | None = None) -> str:
     """Render the same classification rules for the full and compact prompts."""
     feelings = work.state_summary if include_background else ""
     goals = "; ".join(work.request.active_goals) if include_background else ""
     return format_content(template, TriageTemplateValues(
         state_summary=feelings or "(no feeling recorded yet)",
         active_goals=goals or "(nothing in particular)",
-        stimuli=render_stimuli(work),
+        stimuli=render_stimuli(work, retained_characters),
         budget_max=str(CODELET_BUDGET_MAX),
         budget_default=str(CODELET_BUDGET_DEFAULT))).text
 
@@ -338,6 +356,14 @@ def render_triage(input: TriageRenderInput, settings: RenderSettings) -> TriageP
                       appended=input.appended)
 
 
+def citation_guide(ids: set[int]) -> Turn:
+    eligible = sorted(ids)
+    example = eligible[:1]
+    return Turn(Role.User, f"Eligible integer knoxel IDs for evidence_ids: {eligible}. "
+                f'One valid citation is "evidence_ids": {example}. '
+                "Use [] when no evidence applies. Hashes, claim IDs and commit IDs cannot be cited here.")
+
+
 def assemble_triage(work: CycleWork, selectable: TriageContext, chosen: Sequence[ContextGroup],
                     prompts: PhasePrompts, story_prompts: PhasePrompts, settings: RenderSettings,
                     appended: Sequence[Turn]) -> list[Turn]:
@@ -357,7 +383,11 @@ def assemble_triage(work: CycleWork, selectable: TriageContext, chosen: Sequence
     grounding = grounding_turn(shown, emotion=True)
     if grounding is not None:
         turns.insert(len(prefix.turns), grounding)
-    return [*turns, *appended]
+    eligible = {record_id for group in chosen for record_id in group.source_ids}
+    eligible.update(item.knoxel_id for item in work.request.stimuli)
+    if work.request.latest_body_observation_id is not None:
+        eligible.add(work.request.latest_body_observation_id)
+    return [*turns, *appended, citation_guide(eligible)]
 
 
 def fit_prompt(work: CycleWork, budget: ContextBudget, *, prompts: PhasePrompts, story_prompts: PhasePrompts,
@@ -374,13 +404,25 @@ def fit_prompt(work: CycleWork, budget: ContextBudget, *, prompts: PhasePrompts,
     partners = story_entities(work)
     system = fill_story_names(story_prompts.system_prompt, companion, partners).strip()
     template = fill_story_names(prompts.user_template, companion, partners)
-    instruction = triage_instruction(work, template, include_background=False)
-    compact = resolve_media((Turn(Role.System, system), Turn(Role.User, instruction), *appended),
-                            ImageCatalog(work.request.images))
+    longest = max((len(item.text) for item in work.request.stimuli), default=0)
+    retained = longest
+    while True:
+        instruction = triage_instruction(work, template, include_background=False, retained_characters=retained)
+        compact = resolve_media((Turn(Role.System, system), citation_guide({item.knoxel_id for item in work.request.stimuli}),
+                                 Turn(Role.User, instruction), *appended),
+                                ImageCatalog(work.request.images))
+        if budget.estimate(compact) <= settings.input_ceiling or retained == 0:
+            break
+        retained //= 2
     fitted = require_rendered_prompt("compact triage", compact, settings)
-    selection = PromptSelection(fitted.turns, ("current stimuli",), ("story and workspace context",),
-                                fitted.estimated_tokens, (), ())
-    return TriagePrompt(turns=list(compact), selection=selection, input_ceiling=budget.input_ceiling)
+    omitted = ["story and workspace context"]
+    if retained < longest:
+        omitted.append(f"stimulus excerpts retain up to {retained} characters per source")
+    sources = tuple(item.knoxel_id for item in work.request.stimuli)
+    selection = PromptSelection(fitted.turns, ("current stimuli",), tuple(omitted),
+                                fitted.estimated_tokens, sources, ())
+    return TriagePrompt(turns=list(fitted.turns), selection=selection, input_ceiling=budget.input_ceiling,
+                        retained_stimulus_characters=retained)
 
 
 def fit_triage_evidence(work: CycleWork, budget: ContextBudget, settings: RenderSettings,
@@ -405,7 +447,11 @@ def fit_triage_evidence(work: CycleWork, budget: ContextBudget, settings: Render
             turns = trial_turns
         else:
             omitted.append(ranked.name)
-    source_ids = tuple(sorted({record_id for group in chosen for record_id in group.source_ids}))
+    visible = {record_id for group in chosen for record_id in group.source_ids}
+    if work.request.latest_body_observation_id is not None:
+        visible.add(work.request.latest_body_observation_id)
+    visible.update(item.knoxel_id for item in work.request.stimuli)
+    source_ids = tuple(sorted(visible))
     selection = PromptSelection(tuple(turns), tuple(group.name for group in chosen), tuple(omitted),
                                 budget.estimate(turns), source_ids, ())
     return TriagePrompt(turns=turns, selection=selection, input_ceiling=budget.input_ceiling)
@@ -416,22 +462,22 @@ def run(context: RoleContext, work: CycleWork) -> CycleWork:
     early = work.request.early_triage
     classified_ids: set[int] = {item.knoxel_id for item in early.items} if early is not None else set()
     remaining = [item for item in work.request.stimuli if item.knoxel_id not in classified_ids]
-    if remaining:
+    if not remaining and early is None:
+        raise ValueError("Triage requires stimuli or an accepted early assessment.")
+    items: list[TriageItem] = list(early.items) if early is not None else []
+    codelet_budget = early.codelet_budget if early is not None else 1
+    for start in range(0, len(remaining), TRIAGE_STIMULI_PER_BATCH):
         pending = work.model_copy(deep=True)
-        pending.request.stimuli = remaining
+        pending.request.stimuli = remaining[start:start + TRIAGE_STIMULI_PER_BATCH]
         pending.state.stimulus_groups = group_stimuli(pending.request)
         prompt = fit_messages(context, pending)
         work.receipt("triage-context", prompt.summary())
-        result = complete(context, prompt.turns, TriageResult,
-            validation_context=TriageCheck(stimulus_ids=tuple(item.knoxel_id for item in remaining),
-                shown_evidence_ids=frozenset(prompt.selection.source_ids) | {item.knoxel_id for item in remaining}))
-        if early is not None:
-            result = TriageResult(items=[*early.items, *result.items],
-                                  codelet_budget=max(early.codelet_budget, result.codelet_budget))
-    else:
-        if early is None:
-            raise ValueError("Triage requires stimuli or an accepted early assessment.")
-        result = early
+        batch_result = complete(context, prompt.turns, TriageResult,
+            validation_context=TriageCheck(stimulus_ids=tuple(item.knoxel_id for item in pending.request.stimuli),
+                shown_evidence_ids=frozenset(prompt.selection.source_ids)))
+        items.extend(batch_result.items)
+        codelet_budget = max(codelet_budget, batch_result.codelet_budget)
+    result = TriageResult(items=items, codelet_budget=codelet_budget)
     work.triage = result
     rate_groups(work)
     work.receipt("triage", f"triaged {len(result.items)} stimuli")

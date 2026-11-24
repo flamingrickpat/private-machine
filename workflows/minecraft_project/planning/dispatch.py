@@ -78,7 +78,7 @@ def act(context: RoleContext, store: TreeStore) -> ProjectPhaseResult:
     parent_revision = store.state["instruction_revision"]
     child_boundary = runtime.managed_boundary.for_leaf(LeafBoundarySettings(node.instruction, parent_revision))
     endpoint = require_minecraft_runtime(runtime).minecraft_transport.settings.endpoint
-    lease = MinecraftBodyLease(endpoint, child_id)
+    lease = runtime.body_lease if runtime.body_lease.ownership is not None else MinecraftBodyLease(endpoint, child_id)
     child_stop = LinkedStopEvent(runtime.stop_event)
     child_runtime = replace(runtime, environment=child_environment, stop_event=child_stop,
         managed_boundary=child_boundary, body_lease=lease)

@@ -1,14 +1,12 @@
-"""Typed scheduling callbacks supplied to the public-speech library.
+"""Scheduling contract supplied to the public-speech library.
 
 See :mod:`workflows.public_speech.public_dialogue` for the publication path.
-The assembly supplies these callbacks; speech never imports a behavior host.
+The assembly supplies the control owner; speech never imports a behavior host.
 """
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass
 from threading import Event
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from workflows.main_cognition.schemas import ActionRequest
@@ -30,18 +28,13 @@ def validate_unmanaged_action(request: ActionRequest) -> None:
         raise RuntimeError("Public action refresh requires its injected behavior owner.")
 
 
-@dataclass(frozen=True, slots=True)
-class PublicationControl:
-    """Wait and validate against the state owner's critical-input fence.
+class PublicationControl(Protocol):
+    """The scheduling and commit checks owned by cognitive control."""
 
-    ``validate_publication`` receives the draft epoch and accepted guidance
-    tick. Its caller holds the memory-store lock through durable publication.
-    """
-
-    wait_for_reconsideration: Callable[[Event], bool]
-    wait_for_classification: Callable[[Event], bool]
-    publication_epoch: Callable[[], int]
-    validate_publication: Callable[[int | None, int | None], None]
-    validate_selection: Callable[[str], None] = validate_unmanaged_selection
-    refresh_selection: Callable[[str], None] = validate_unmanaged_selection
-    refresh_action: Callable[[ActionRequest], None] = validate_unmanaged_action
+    def wait_for_reconsideration(self, cancel: Event, stop_source: int | None = None) -> bool: ...
+    def wait_for_classification(self, cancel: Event) -> bool: ...
+    def publication_epoch(self, stop_source: int | None = None) -> int: ...
+    def validate_publication(self, epoch: int | None, guidance_tick: int | None, stop_source: int | None = None) -> None: ...
+    def validate_selection(self, selection_id: str) -> None: ...
+    def refresh_selection(self, selection_id: str) -> None: ...
+    def refresh_action(self, request: ActionRequest) -> None: ...

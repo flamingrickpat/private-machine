@@ -121,6 +121,18 @@ def run_draft_session(
                                 artifact_dir, timeout_seconds, enable_write))
 
 
+async def close_native_model(agent: Agent[None, str]) -> None:
+    """pm-coder supplies its own AsyncOpenAI client. Its creating loop must close it."""
+    from pydantic_ai.models.wrapper import WrapperModel
+    from pydantic_ai.models.openai import OpenAIChatModel
+    model = agent.model
+    while isinstance(model, WrapperModel):
+        model = model.wrapped
+    if not isinstance(model, OpenAIChatModel):
+        raise TypeError("Native PM sessions require the configured OpenAI-compatible model.")
+    await model.client.close()
+
+
 async def _run(runtime: WorkflowRuntime, connection: AgentModel, target: AgentTarget, run_id: str, prompt: str,
                validator: DraftValidator[T], config: Path, artifact_dir: Path,
                timeout_seconds: float, enable_write: bool) -> DraftSessionResult[T]:
@@ -149,6 +161,7 @@ async def _run(runtime: WorkflowRuntime, connection: AgentModel, target: AgentTa
         if not task.done():
             task.cancel()
         await asyncio.gather(task, return_exceptions=True)
+        await close_native_model(agent)
 
 
 async def _draft_turns(runtime: WorkflowRuntime, agent: Agent[None, str], settings: Settings,

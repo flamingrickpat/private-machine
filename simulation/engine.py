@@ -38,6 +38,7 @@ from pm.memory.checkpoint import read_checkpoint
 from simulation.agents import ActorContext, Agents, StageContext
 from simulation.actors import ActorProfile, ConversationTurn, DeliveryEvidence, identity, load_profile
 from simulation.client import PMProcess
+from pm.memory.store import MemoryStore
 from simulation.evidence import capture_participant
 
 #: How often virtual time is pushed to the participants. One push per second
@@ -726,6 +727,25 @@ class RunEngine:
             "coordinated_checkpoint": "coordinated-checkpoint.json" if (attempt / "coordinated-checkpoint.json").exists() else None,
             "source": "source.json" if (attempt / "source.json").exists() else None,
             "automated_fact_checks": self.state["facts"]}
+        from simulation.stop_review import StageFactSources, StopReview, review_stops
+        reviewed: list[StopReview] = []
+        for step in self.plan.steps:
+            if not step.review_body_stop:
+                continue
+            participant = attempt / "evidence" / step.target
+            checkpoint = participant / "ghost.pickle"
+            if not checkpoint.is_file():
+                reviewed.append(StopReview(stage_id=step.id))
+                continue
+            cited: set[str] = set()
+            for fact_id in step.fact_ids:
+                if fact_id in self.state["facts"]:
+                    sources = StageFactSources.model_validate(self.state["facts"][fact_id])
+                    cited.update(sources.delivery_ids)
+                    if sources.delivery_id:
+                        cited.add(sources.delivery_id)
+            reviewed.extend(review_stops(participant / "runtime", MemoryStore.from_checkpoint(checkpoint), step.id, cited))
+        report["minecraft_stop_reviews"] = [review.model_dump(mode="json") for review in reviewed]
         atomic_json(attempt / "report.json", report)
         self.state["reports"].append((attempt / "report.json").relative_to(self.root).as_posix())
         self.state["requested_status"] = None

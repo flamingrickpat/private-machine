@@ -22,6 +22,7 @@ from pm.utils.operating_system import OperatingSystem
 from pm.llm.stage_model import LazyStageModel
 from pm.runs.role_runtime import PMWorkflowRuntime
 from workflows.minecraft_body.mcp_client import DEFAULT_MCP_URL, MinecraftTransport, MinecraftTransportSettings
+from workflows.minecraft_body.ownership import BodyOwnership
 from workflows.minecraft.runtime import MinecraftBodyLease, MinecraftWorkflowRuntime
 from pm.memory.agent_tools import MemoryToolConfig, MemoryRefreshScope, accepted_in_world_view
 
@@ -36,6 +37,8 @@ class MinecraftRuntimeOwner:
     project_audit: ProjectAuditOwner | None = None
     evidence_sources: dict[str, Path] = field(default_factory=dict[str, Path])
 
+    ownership: BodyOwnership | None = None
+
     def build_runtime(self, runtime: PMWorkflowRuntime, run_id: str) -> MinecraftWorkflowRuntime:
         return MinecraftWorkflowRuntime(environment=runtime.environment, stop_event=runtime.stop_event,
             tools=runtime.tools, propagate_python_errors=runtime.propagate_python_errors,
@@ -44,7 +47,7 @@ class MinecraftRuntimeOwner:
             model_session=runtime.model_session, embedding_service=runtime.embedding_service,
             managed_boundary=runtime.managed_boundary, tool_call_config=runtime.tool_call_config,
             memory_store=runtime.memory_store, memory_context=runtime.memory_context,
-            minecraft_transport=self.transport, body_lease=MinecraftBodyLease(self.transport.settings.endpoint, run_id),
+            minecraft_transport=self.transport, body_lease=MinecraftBodyLease(self.transport.settings.endpoint, run_id, self.ownership),
             project_audit=self.project_audit, evidence_sources=self.evidence_sources.copy())
 
 

@@ -116,8 +116,6 @@ CODELET_WAVES = 2  # Waves of one cycle. A later wave sees the CSM after the ear
 CODELET_VIEW_TOKENS = 1500  # Token budget of one codelet's view of the CSM.
 CODELET_PERCEPT_TYPES = 3  # Percept types that one percept conversion call offers.
 CODELET_PERCEPT_TEMPERATURE = 0.2  # Randomness of the percept type sample: 0 is the top types, 1 is weighted random.
-CODELET_TEXT_ATTEMPTS = 10  # Attempts for one prose call that returns empty text.
-CODELET_AGENT_ATTEMPTS = 3  # Sessions for one agent codelet whose answer fails validation.
 CODELET_AGENT_TIMEOUT_SECONDS = 600  # Deadline of one agent codelet session.
 
 # What the retrieve phase puts into the CSM, with the endorser "retrieval".
@@ -251,7 +249,6 @@ RECONSOLIDATION_WORKERS = 4  # Parallel model calls in one stage.
 RECONSOLIDATION_EMBED_WORKERS = 8  # Parallel embedding requests.
 RECONSOLIDATION_PROVIDER_RETRIES = 3  # Repeats of a call that the provider failed (ModelError). Transport errors retry inside JsonClient.
 RECONSOLIDATION_TEMPERATURE = 0.4  # Sampling temperature of the reconsolidation calls.
-RECONSOLIDATION_REPAIR_ATTEMPTS = 12  # Answers one call may send before its repairs are given up (ModelFormatError).
 # Measured 2026-11-22: one fact classification was repaired 164 times in 108 minutes because the correction text
 # named neither the rejected value nor the allowed values. With both named (pm.llm.structured._enum_detail), a call
 # that still has not produced a valid answer after this many answers is a prompt or model defect, not bad luck.

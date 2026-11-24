@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, JsonValue
+from datetime import datetime
+from collections import deque
+from pathlib import Path
+from pm.context_render.budget import evidence_excerpt
+from pydantic import BaseModel, ConfigDict, Field, field_validator, JsonValue, ValidationError
+from workflows.minecraft_body.world_text import MinecraftToolResult
 from workflows.minecraft.execution_contracts import ActorAcceptance
 from workflows.tool_call.schemas import ToolCallReport
 from workflows.tool_call.report import FileCheck
@@ -53,23 +58,92 @@ class TaskReportEvidence(TaskReportHeader):
     final_observation: JsonValue = None
 
 
+class AdmissionObservation(BaseModel):
+    source_id: int
+    observed_at: datetime
+    text: str
+
+
+class BodyJournalEntry(BaseModel):
+    event: str
+
+
+class BodyJournalReturn(BaseModel):
+    seq: int
+    tool: str
+    result: JsonValue
+
+
+def recent_body_effects(root: Path) -> tuple[str, ...]:
+    """Recover individual server returns even when the project stopped before writing its final report."""
+    effects: deque[str] = deque(maxlen=8)
+    count = 0
+    for journal in sorted(root.glob("attempts/actor-*/scratch/actor-journal.jsonl")):
+        if not journal.resolve().is_relative_to(root):
+            raise ValueError(f"Actor journal escapes its task folder: {journal}")
+        with journal.open(encoding="utf-8") as stream:
+            for line in stream:
+                if BodyJournalEntry.model_validate_json(line).event != "result":
+                    continue
+                entry = BodyJournalReturn.model_validate_json(line)
+                if entry.tool not in {"minecraft_mine_block", "minecraft_drop_item", "minecraft_build"}:
+                    continue
+                try:
+                    facts = MinecraftToolResult.model_validate(entry.result).facts()
+                except ValidationError:
+                    facts = "Unsupported server response shape. Effect unverified."
+                count += 1
+                effects.append(f"Server return {journal.parent.parent.name} #{entry.seq} {entry.tool}: {facts}")
+    if count > len(effects):
+        effects_summary = f"Showing the latest {len(effects)} of {count} mining, dropping or building returns. Earlier returns remain in the actor journals."
+        return (effects_summary, *effects)
+    return tuple(effects)
+
+
+from workflows.minecraft_body.world_text import StopObservation
+
+
 class TaskReceipt(BaseModel):
+    stop_source_id: int | None = None
+    stop_observation: StopObservation | None = None
+    awaiting_stop_observation: bool = False
     model_config = ConfigDict(extra="ignore")
     artifact_path: str = ""
     workflow_name: str
     state: str
     run_id: str = ""
+    latest_event: str = ""
+    blocked_by_run_id: str = ""
     instructions: str = ""
     summary: str = ""
     answer: str = ""
     task_verified: bool = False
     admission_only: bool = Field(default=False, description="Acknowledge that the worker accepted the request.")
+    admission_observation: AdmissionObservation | None = None
     evidence: tuple[str, ...] = ()
     report: TaskReportEvidence | ToolCallReport | None = None
     file_checks: tuple[FileCheck, ...] = ()
     actual_hex: str | None = None
     verification_error: str = ""
     minecraft_verification: TaskVerificationEvidence | None = None
+
+
+    def prompt_excerpt(self, characters: int) -> TaskReceipt:
+        """Keep the worker and verifier verdicts when detailed evidence has to shrink."""
+        evidence = [evidence_excerpt(render_task_receipt(self), characters)]
+        verification = self.minecraft_verification
+        if verification is not None:
+            evidence.insert(0, f"Independent world verification: {verification.verified}. "
+                            + evidence_excerpt(verification.reason, characters))
+        observed = self.admission_observation
+        return TaskReceipt(workflow_name=self.workflow_name, state=self.state, run_id=self.run_id,
+            latest_event=evidence_excerpt(self.latest_event, characters), blocked_by_run_id=self.blocked_by_run_id,
+            instructions=evidence_excerpt(self.instructions, characters), task_verified=self.task_verified,
+            admission_only=self.admission_only, evidence=tuple(evidence), stop_observation=self.stop_observation,
+            stop_source_id=self.stop_source_id, awaiting_stop_observation=self.awaiting_stop_observation,
+            summary=evidence_excerpt(self.summary, characters),
+            admission_observation=observed.model_copy(update={"text": evidence_excerpt(observed.text, characters)})
+                if observed else None)
 
 
     @field_validator("report", mode="before")
@@ -94,9 +168,18 @@ def read_optional_task_receipt(value: object) -> TaskReceipt | None:
 
 def render_task_receipt(receipt: TaskReceipt) -> str:
     identity = f" (run {receipt.run_id})" if receipt.run_id else ""
+    if receipt.blocked_by_run_id:
+        return (f"Task {receipt.workflow_name}{identity} did not start. Resource owner: {receipt.blocked_by_run_id}. "
+                f"Admission detail: {receipt.latest_event}. Requested work: {receipt.instructions}")
     if receipt.admission_only:
-        return (f"Task {receipt.workflow_name}{identity}: worker state {receipt.state}. "
+        text = (f"Task {receipt.workflow_name}{identity}: worker state {receipt.state}. "
                 "This receipt confirms admission only. Original instructions: " + receipt.instructions)
+        observation = receipt.admission_observation
+        if observation:
+            text += (f"\nEarlier body observation [{observation.source_id}, {observation.observed_at}]. "
+                     "Coordinates, distance and compass bearings are relative to your own Minecraft body. "
+                     "Speak from that viewpoint.\n" + observation.text)
+        return text
     verified = "verified" if receipt.task_verified else "not verified"
     lines = [f"Task {receipt.workflow_name}{identity}: worker state {receipt.state}; requested effect {verified}."]
     if receipt.instructions:
@@ -110,6 +193,10 @@ def render_task_receipt(receipt: TaskReceipt) -> str:
     report = receipt.report
     if isinstance(report, ToolCallReport):
         lines.append(f"Worker-assessed tool goal outcome: {report.outcome}; {report.summary}")
+        lines.extend(f"Server return [{call.call_id}] {call.tool}: {call.returned_facts}"
+                     for call in report.tool_calls if call.returned_facts)
+        lines.append("Use returned facts for quantities and locations. Attribute worker interpretations and "
+                     "describe unsupported measurements as unknown.")
         for artifact in report.artifacts:
             lines.append(f"Reported artifact: {artifact.claim.path or artifact.claim.uri}; bytes verified={artifact.file_verified}; {artifact.reason}")
         if report.agent_outcome is not None:

@@ -467,7 +467,7 @@ def _run_preserve_history_lane(lane: LaneSpec, pool: list[int], records: dict[in
         token_costs=token_costs,
         require_temporal_history=True,
         require_contiguous_temporal_span=True,
-        run_final_checks=True,
+        run_final_checks=True, allow_coverage_omissions=True,
     )
     chosen = [item.id for item in selected]
     plan.used = sum(token_costs[key] for key in chosen)

@@ -40,7 +40,6 @@ from time import monotonic
 
 from pm import vclock
 from pm.llm.stage_model import LazyStageModel
-from pm.context_render.budget import RequiredContextTooLarge
 
 from pm.records.copying import pickle_copy
 from pm.records.base import RecordBase
@@ -158,6 +157,9 @@ class PrivateInvocation:
 @dataclass(kw_only=True)
 class PrivateThoughtRuntime(PMWorkflowRuntime):
     private_invocation: PrivateInvocation
+
+
+from workflows.minecraft_body.capabilities import CapabilitySnapshotOwner
 
 
 class PrivateThoughtLoop(CognitiveWorkflow):
@@ -387,7 +389,7 @@ class PrivateThoughtLoop(CognitiveWorkflow):
         try:
             with background_inference():
                 super().handle_batch(batch)
-        except (ModelProposalError, ModelFormatError, ModelError, RequiredContextTooLarge) as error:
+        except (ModelProposalError, ModelFormatError, ModelError) as error:
             diagnostic = {
                 "invocation_id": self.invocation_id,
                 "error_type": type(error).__name__,
@@ -753,6 +755,8 @@ class PrivateThoughtLoop(CognitiveWorkflow):
     # Deterministic gathering helpers. All read committed state under the
     # caller's lock.
 
+    capability_owner: CapabilitySnapshotOwner | None = None
+
     def _build_inspection(self, permitted_ids: frozenset[int] | None = None) -> PrivateInspection | None:
         """Freeze selected implementation evidence or the provider's explicit limit.
 
@@ -781,6 +785,7 @@ class PrivateThoughtLoop(CognitiveWorkflow):
             recent = [item for item in recent if item.record_ids() <= permitted_ids]
         answers = answer_questions(self.ghost, recent[0], overlay=overlay) if recent else {}
         return PrivateInspection(status="ok",
+            runtime_orientation=self.capability_owner.snapshot().runtime_orientation if self.capability_owner else "",
             capability_overlay=capability_inspection(overlay),
             episodes=[item.to_dict() for item in recent], newest_episode_answers=answers,
             observed_at=overlay.built_at)

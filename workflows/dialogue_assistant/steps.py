@@ -17,7 +17,7 @@ from __future__ import annotations
 import asyncio
 import json
 from pathlib import Path
-from dataclasses import dataclass
+from dataclasses import replace, dataclass
 from collections.abc import Sequence
 from typing import Literal, TypedDict
 from pm_workflows.python_role import RoleContext
@@ -35,7 +35,7 @@ from pm.utils import yaml_util
 import httpx
 from workflows.public_speech.public_context import DialogueTurn, memory_sections, task_lines
 from workflows.public_speech.speech_text import (
-    CLASSIFIER_OUTPUT_ERROR, SpeechOutputError, strip_classifier_report, strip_narrator_setup,
+    SpeechOutputError, strip_classifier_report, strip_narrator_setup, validate_public_speech,
 )
 from workflows.public_speech.speech_review import (
     SpeechReview, block_reason, is_blocked, load_prompts as load_review_prompts, review_speech,
@@ -98,6 +98,9 @@ def build_messages(request: AssistantRequest, prompts: AssistantPrompts) -> list
         abilities=request.abilities.strip() or "- Text conversation only.",
     ).strip()
     tasks = task_lines(request.public_context) if request.public_context is not None else []
+    tool_guidance = "Answer in ordinary speech from the supplied observations and task results."
+    if request.tool_grant and request.max_tool_turns > 1 and not request.minecraft_read:
+        tool_guidance = "Use a granted tool if the reply needs a fresh observation."
     user = prompts["user_template"].format(
         companion_name=request.companion_name,
         partner_name=request.partner_name,
@@ -108,6 +111,7 @@ def build_messages(request: AssistantRequest, prompts: AssistantPrompts) -> list
         workspace=request.workspace.strip() or "(nothing in particular)",
         intent=request.selected_action.strip() or "answer in your own voice",
         tasks="\n".join(tasks) or "- No task result yet.",
+        tool_guidance=tool_guidance,
         current_user_message=request.current_user_message,
     ).strip()
     messages = [AssistantMessage(role=Role.System, content=system)]
@@ -252,12 +256,6 @@ async def execute_tool_calls(context: RoleContext, message: AssistantMessage, re
     return ToolExecutionBatch(tuple(receipts), tuple(tool_messages))
 
 
-def validate_public_speech(text: str) -> None:
-    """Reject captured raw tool protocol before claim review or publication."""
-    if text.lstrip().startswith(("<tool_call>", "<function=")):
-        raise SpeechOutputError("The model returned tool protocol instead of public speech.")
-
-
 def final_public_speech(text: str, request: AssistantRequest) -> str:
     """Return one candidate utterance after the public-speech guards.
 
@@ -269,6 +267,16 @@ def final_public_speech(text: str, request: AssistantRequest) -> str:
     validate_public_speech(speech)
     if not speech:
         raise SpeechOutputError("The Assistant completion returned no public speech after its final text attempt.")
+    if request.public_context and request.public_context.task_receipt:
+        from workflows.minecraft_body.spatial import coordinates_in_answer, mentions_coordinates
+        receipt = request.public_context.task_receipt
+        if receipt.awaiting_stop_observation and mentions_coordinates(speech):
+            raise SpeechOutputError("Acknowledge receipt of the stop request. Coordinates must wait for the final observation.")
+        stopped = receipt.stop_observation
+        if stopped is not None:
+            point = stopped.reading.observation.camera.feet_position
+            if not coordinates_in_answer(speech, point):
+                raise SpeechOutputError(f"Answer from the confirmed post-stop position ({point.x}, {point.y}, {point.z}).")
     return speech
 
 
@@ -293,6 +301,20 @@ def capture_assistant_continuation(session: ModelSession, input: AssistantContin
         rendered = render_assistant_continuation(input, settings)
         capture.save_output(rendered)
     return rendered
+
+
+def sample_public_speech(session: ModelSession, request: AssistantRequest, input: AssistantContinuationInput) -> str:
+    """Resample text from the retained transcript without repeating a tool call."""
+    while True:
+        session.check_cancelled()
+        rendered = capture_assistant_continuation(session, input)
+        raw = asyncio.run(session.complete_tools_async(rendered.turns, tools=(), settings=input.generation))
+        message = parse_completion(raw)
+        try:
+            return final_public_speech(message.content.strip(), request)
+        except SpeechOutputError as error:
+            print(f"[dialogue_assistant] Invalid spoken response: {error}. Resampling.", flush=True)
+            input = replace(input, problem=str(error))
 
 
 def review_and_revise(request: AssistantRequest, candidate: str, messages: list[AssistantMessage],
@@ -347,10 +369,7 @@ def review_and_revise(request: AssistantRequest, candidate: str, messages: list[
             messages=retained, tools=(), images=request.images, generation=generation,
             problem=problem, rejected_answer=text,
         )
-        rendered = capture_assistant_continuation(complete, repair_input)
-        completion = asyncio.run(complete.complete_tools_async(rendered.turns, tools=(), settings=generation))
-        message = parse_completion(completion)
-        text = final_public_speech(message.content.strip(), request)
+        text = sample_public_speech(complete, request, repair_input)
 
 
 class AssistantRoleResult(TypedDict):
@@ -370,6 +389,8 @@ def run(context: RoleContext) -> AssistantRoleResult:
     completion = role_model(context.runtime)
     generation = prompts.get("generation", GenerationSettings())
     settings = completion.render_settings(max_tokens=generation.output_allowance(completion.model.connection.completion_token_limit))
+    request.current_user_message = completion.summarize_long_source(request.current_user_message,
+        "current partner message", settings.input_ceiling // 3)
     schemas = tool_schemas(request)
     render_input = AssistantRenderInput(request, prompts, schemas)
     with RendererCapture(completion.capture_settings("assistant"), RendererInput("assistant", render_input, settings)) as capture:
@@ -409,17 +430,11 @@ def run(context: RoleContext) -> AssistantRoleResult:
         final_text = message.content.strip()
         if final_text:
             break
-    classifier_only = bool(final_text) and not strip_classifier_report(strip_narrator_setup(final_text, request.partner_name))
-    if not final_text or classifier_only:
-        # Tool results are already in the transcript. Repair only the spoken response.
-        problem = prompts["rejected_reply_recovery"].format(reason=CLASSIFIER_OUTPUT_ERROR) if classifier_only else ""
-        repair = AssistantContinuationInput(tuple(messages), (), request.images, generation, problem=problem)
-        payload = capture_assistant_continuation(completion, repair).turns
-        raw = asyncio.run(completion.complete_tools_async(payload, tools=(), settings=generation))
-        message = parse_completion(raw)
-        final_text = message.content.strip()
-
-    final_text = final_public_speech(final_text, request)
+    try:
+        final_text = final_public_speech(final_text, request)
+    except SpeechOutputError as error:
+        repair = AssistantContinuationInput(tuple(messages), (), request.images, generation, problem=str(error))
+        final_text = sample_public_speech(completion, request, repair)
     review = None
     if request.public_context is not None:
         # A blocked draft returns for correction until one draft passes, so

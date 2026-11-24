@@ -337,7 +337,8 @@ def finish_prompt_log(path: Path | None, *, response: dict[str, JsonValue] | Non
     try:
         request = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
         # Keep the exact request and provider error for failed-run diagnosis.
-        raw_response = response if request["route"] == "chat/completions" else {"usage": (response or {}).get("usage")}
+        raw_response = response if request["route"] == "chat/completions" else {
+            key: response[key] for key in ("usage", "error") if response is not None and key in response}
         path.with_suffix(".json").write_text(json.dumps({**request, "response": raw_response,
             "error": repr(error) if error is not None else None}, ensure_ascii=False, default=str), encoding="utf-8")
 

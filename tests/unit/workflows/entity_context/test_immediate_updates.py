@@ -175,6 +175,7 @@ class ImmediateEntityUpdateTests(unittest.TestCase):
         self.assertTrue(self.control.has_assessment(source.id))
         self.control.validate_publication(epoch, None)
         self.assertEqual(self.store.states, [])
+        self.store.save()
         restored = MemoryStore.from_checkpoint(self.path)
         rebuilt = self.controller(restored)
         self.assertTrue(rebuilt.has_assessment(source.id))
@@ -210,11 +211,14 @@ class ImmediateEntityUpdateTests(unittest.TestCase):
         self.assertEqual(len(active_claims(self.store.snapshot(capture=False), key=self.key(self.peer.id))), 1)
         with self.assertRaises(ReplySuperseded):
             self.control.validate_publication(epoch, None)
+        self.store.save()
         restored = MemoryStore.from_checkpoint(self.path)
         rebuilt = self.controller(restored)
         self.assertFalse(rebuilt.has_assessment(source.id))
-        with self.assertRaises(ReplySuperseded):
-            rebuilt.publication_epoch()
+        # Normal restart closes abandoned inputs. It must preserve the existing
+        # peer family without fabricating a completed assessment for this source.
+        self.assertEqual(restored.snapshot({source.id}).get(source.id).metadata["exchange_status"], "resolved")
+        rebuilt.publication_epoch()
         self.assertEqual(active_claims(restored.snapshot(capture=False), key=self.key(self.partner.id)), [])
         refreshed = self.capture(source, subject_ids=[self.partner.id, self.peer.id])
         refreshed_proposals = hydrate_entity_extraction(refreshed, semantic, producer="immediate")

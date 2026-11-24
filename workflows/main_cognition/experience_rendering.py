@@ -8,7 +8,7 @@ from pm.context_render.story import RecordView, story_line
 from pm.context_render.turns import Role, Turn, format_content
 from pm.memory.retrieval import distinctive_terms
 from workflows.main_cognition.prompt_values import ExperienceTemplateValues
-from workflows.main_cognition.rendering import CognitionStoryInput, cognition_story_turns, render_cognition_guidance
+from workflows.main_cognition.rendering import CognitionStoryInput, cognition_story_turns, render_cognition_guidance, fit_story_frame
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,6 +64,11 @@ def render_experience(input: ExperienceRenderInput, settings: RenderSettings) ->
     if relax_pins:
         required.clear()
         selected = ExperienceSelection(frozenset(), frozenset())
+        turns = experience_turns(input, selected)
+    if estimator.estimate(turns) > settings.input_ceiling:
+        frame = replace(story, instruction=format_content(input.instruction_template, ExperienceTemplateValues(
+            entered="(nothing newly selected)")).text)
+        input = replace(input, story=fit_story_frame(frame, settings))
         turns = experience_turns(input, selected)
     baseline = require_rendered_prompt("subjective experience", turns, settings)
     entered_ceiling = baseline.estimated_tokens + (settings.input_ceiling - baseline.estimated_tokens) * 2 // 3

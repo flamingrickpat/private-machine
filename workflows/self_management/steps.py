@@ -50,7 +50,7 @@ def _dispatch(request: SelfManagementRequest,
     if operation == "resume":
         receipt = tools["managed_resume"](run_id=request.run_id, request_id=request.request_id or request.action_id)
         return SelfManagementReport(operation=operation, accepted=True,
-                                    summary=f"run {receipt['run_id']} recovery accepted", receipt=receipt)
+                                    summary=f"The existing run {receipt['run_id']} has resumed. Its worker starts from a fresh observation of the retained world.", receipt=receipt)
     if operation == "start":
         receipt = tools["managed_start"](
             action_id=request.action_id,

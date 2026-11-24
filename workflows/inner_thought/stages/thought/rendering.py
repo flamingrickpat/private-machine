@@ -63,7 +63,7 @@ def render_thought(request: ThoughtEnvelope, prompts: ThoughtPrompts, settings: 
     system = prompts.system_prompt.format(companion_name=request.request.companion_name,
         operation_name=operation.name, operation_group=operation.group, operation_mode=operation.mode,
         operation_focus=operation.temporal_focus, operation_description=operation.description)
-    required = private_frame(request.request) + "\nTrigger reason: " + trigger.reason
+    required = private_frame(request.request, settings) + "\nTrigger reason: " + trigger.reason
     required += "\nAvailable next operations:\n" + "\n".join(item.name for item in request.request.operations)
     blocks = list(private_source_blocks(request.request, required_ids=frozenset(trigger.candidate_ids)))
     if request.request.inspection is not None:
@@ -93,7 +93,7 @@ def render_graph_thought(request: GraphThoughtRequest, settings: RenderSettings,
     system = graph_thought_instruction(instruction_input)
     state = request.state
     origin = request.origin
-    required = (private_frame(request.request) + f"\n\nQuestion: {origin.question}\nOrigin: {origin.text}\n"
+    required = (private_frame(request.request, settings) + f"\n\nQuestion: {origin.question}\nOrigin: {origin.text}\n"
         f"Episode {state.episode_id}; sequence {state.sequence}; status {state.status}; stalled steps {state.stalled_steps}; "
         f"pending generated nodes {state.pending_generation_ids}; frontier {state.frontier_ids}.\n"
         f"Observer {request.grant.observer_entity_id}; reality {request.grant.scope.reality_id}; frame {request.grant.scope.frame}.\n"
@@ -161,6 +161,8 @@ def run(context: RoleContext) -> PrivateRoleResult:
                 cited = set(graph_result.evidence_ids)
                 for alternative in graph_result.alternatives:
                     cited.update(alternative.evidence_ids)
+                cited.update(relation.target_record_id for relation in graph_result.relations)
+                cited.update(graph_result.progress.compared_node_ids)
                 if cited - known:
                     raise ValueError("Inquiry citations must name evidence selected for this prompt.")
             except (ValidationError, JsonOutputError, ValueError) as error:

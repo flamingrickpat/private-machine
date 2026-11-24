@@ -14,6 +14,8 @@ the request ID and the applied revision.
 from __future__ import annotations
 
 from typing import Callable
+from workflows.minecraft_body.ownership import BodyOwnership
+from pm.runs.run_receipt import ManagedRunData
 
 from pm.runs.run_receipt import ManagedRunError
 from pm.runs.supervisor import ManagedRunSupervisor
@@ -30,10 +32,12 @@ class Steward:
         *,
         clock: Callable[[], float],
         active: bool = False,
+        body: BodyOwnership | None = None,
     ) -> None:
         self.supervisor = supervisor
         self.clock = clock
         self._active = active
+        self.body = body
 
     @property
     def dormant(self) -> bool:
@@ -53,6 +57,23 @@ class Steward:
         }
 
     # ---------------------------------------------------------- operations
+
+    def describe_progress(self, receipt: ManagedRunData) -> str:
+        detail = receipt["latest_event"]
+        for event in reversed(receipt["events"]):
+            message = event["message"]
+            if str(message.get("evidence", "")).startswith("verification/"):
+                detail = f"verified at {message.get('observed_at') or 'unknown time'}: {message['detail']}"
+                break
+        summary = f"{receipt['instructions']} ({receipt['state']}; {detail})."
+        if self.body is not None and (receipt["workflow_name"] in {"minecraft", "minecraft_project"}
+                                      or self.body.owner() == receipt["run_id"]):
+            with self.body.transport.read_lock:
+                reading = self.body.transport.latest
+                summary += " " + (reading.summary() if reading is not None else "Current body state unknown.")
+        if receipt["state"] == "waiting_for_input":
+            summary += f" {receipt['latest_event']}. Answer the question, ask the run to yield, or terminate it."
+        return summary
 
     def status(self, run_id: str) -> dict:
         """Read committed progress and return an evidence-backed report."""

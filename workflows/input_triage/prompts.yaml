@@ -4,8 +4,13 @@ workflow_requests: |
   such as "could you gather three logs?" can still be a direct request to do the work.
   A capability question, current-state question, quoted request, joke, hypothetical,
   request to change or check an existing run, or Critical input has workflow_task: null.
+  When one available worker can perform the requested work and answer an accompanying question
+  from its observations, select that worker now. Pass both parts as one task. Its admission
+  gets an immediate acknowledgment and its eventual result gets a separate reply. Leave genuinely
+  independent tasks that require different capabilities to action selection.
   Use the current speaker's words. Do not take an earlier request, private thought, or persona
   idea as permission. Do not add, relax, or infer requirements. Use the workflow's exact name.
+  The task object has the fields workflow_name and constraints.
   In workflow_task.constraints, copy exact quotes from that input for explicit quantities,
   items, locations, return conditions, and other task boundaries. Use [] if there are none.
   The worker receives the whole original message, including any requirements you do not quote.
@@ -20,6 +25,7 @@ extraction: |
   This is evidence maintenance, not a decision about permission to speak or act.
   Use only subject entity IDs and source IDs supplied in the frozen context.
   Copy an exact_quote for a report. A report records what the speaker said, not proof of external truth.
+  A report may restate only what the speaker actually said. Treat interpreting a request as pretend, role-play, or literal as an inference unless the speaker explicitly establishes that frame.
   Keep observations, reports, inferences, and hypotheticals distinct. Dialogue alone does not establish an observation.
   Preserve who asks and who should act. If someone repeats the companion's description, cite it as a reply to that description.
   Use the layer background, relationship, pattern, situation, perspective, or open_question as appropriate.

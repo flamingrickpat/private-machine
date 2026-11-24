@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from pm.context_render.budget import RequiredContextTooLarge, TokenEstimator
+from pm.context_render.budget import RequiredContextTooLarge, TokenEstimator, evidence_excerpt
 from pm.context_render.prompt import RenderedPrompt, RenderSettings, require_rendered_prompt
 from pm.context_render.turns import Role, Turn
 
@@ -108,12 +108,18 @@ def render_json_correction(input: JsonCorrectionInput, settings: RenderSettings)
 
 
 def render_agent_report_correction(input: AgentReportCorrectionInput, settings: RenderSettings) -> RenderedPrompt:
-    turns = (Turn(Role.System,
+    system = Turn(Role.System,
         "Correct the final report of a completed agent session. No tools are available. "
         "Keep recorded facts and source IDs. Do not invent tool results or repeat actions. "
-        "The required JSON schema is: " + input.response_schema),
-        Turn(Role.User, input.instruction),
-        Turn(Role.User, "Completed agent report, retained as evidence of work already performed:\n"
-            "<completed_agent_report>\n" + input.completed_report + "\n</completed_agent_report>"))
-    return require_rendered_prompt(input.operation, turns, settings,
-        selected_groups=("original instruction", "completed report evidence"))
+        "The required JSON schema is: " + input.response_schema)
+    estimator = TokenEstimator(estimate_factor=settings.estimate_factor)
+    retained = max(len(input.instruction), len(input.completed_report))
+    while True:
+        instruction = evidence_excerpt(input.instruction, retained)
+        report = evidence_excerpt(input.completed_report, retained)
+        turns = (system, Turn(Role.User, instruction),
+                 Turn(Role.User, f"Evidence of completed work:\n<completed_agent_report>\n{report}\n</completed_agent_report>"))
+        if estimator.estimate(turns) <= settings.input_ceiling or retained == 0:
+            return require_rendered_prompt(input.operation, turns, settings,
+                selected_groups=("original instruction", "completed report evidence"))
+        retained //= 2

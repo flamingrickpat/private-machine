@@ -6,18 +6,9 @@ source ids; a rejected answer never becomes accepted state. Only syntax and
 declared validation errors receive repair turns. Completion, measurement,
 recording, and programming errors keep their original boundary and propagate.
 
-A fresh conversation is a new sample, so a stochastic mistake gets unlimited
-conversations. One case is not stochastic: when the same set of problems rejects
-two consecutive complete conversations, the correction text
-itself does not lead the model to a valid answer. That raises
-:class:`RepeatedRejectionError` instead of a third conversation, because the
-prompt or the validator message needs a human look.
-
-Reading map: :func:`extract_json` reads the object, :class:`RepairConversation` owns the
-conversation and its rejections, :func:`complete_json` and
-:func:`complete_json_async` run the loop for synchronous and asynchronous
-completions, and :func:`repair_agent_result` applies the same policy to the
-final report of an agent session without replaying its tool actions.
+Each repair starts with the same fitted evidence and the latest bounded
+diagnostics. A schema rejection can resample until cancellation. Repairing a
+completed agent report never runs the agent's tools again.
 """
 from __future__ import annotations
 
@@ -275,12 +266,15 @@ def parse_response(raw: str, schema: type[T], *, validation_context: BaseModel |
 
 def complete_json(session: ModelSession, messages: Sequence[TurnInput], schema: type[T], *,
                   validation_context: BaseModel | None = None,
-                  initial: InitialResponse | None = None, cancel: Event | None = None,
+                  initial: InitialResponse | None = None, initial_problem: str = "", cancel: Event | None = None,
                   settings: GenerationSettings = GenerationSettings()) -> T:
     original = tuple(normalize_turns(messages))
     render_settings = session.renderer_settings_for(settings)
     prompt = require_rendered_prompt(schema.__name__, original, render_settings)
     corrections = CorrectionHistory()
+    if initial_problem:
+        correction = JsonCorrectionInput(schema.__name__, original, "", initial_problem)
+        prompt = render_json_correction(correction, render_settings)
     while True:
         if cancel is not None and cancel.is_set():
             raise asyncio.CancelledError

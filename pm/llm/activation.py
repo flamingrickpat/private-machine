@@ -14,6 +14,7 @@ import asyncio
 import json
 import httpx
 import logging
+from dataclasses import dataclass
 from collections.abc import Sequence
 from contextlib import contextmanager
 from pathlib import Path
@@ -30,8 +31,10 @@ from pm.llm.multimodal import encode_messages
 from pm.llm.prompt_encoding import TurnInput
 from pm.llm.completion import Completion, Reasoning, ProviderTokenUsage
 from pm.llm.reasoning import ReasoningOptions
+from pm.llm.http_client import TruncatedCompletionError
 from pm.llm.generation import GenerationSettings
 from pm.context_render.turns import Role, Turn, ProviderState, ToolCall
+from pm.context_render.prompt import RenderSettings, RenderedPrompt, require_rendered_prompt
 
 
 class ModelDiscoveryLimits(TypedDict, total=False):
@@ -273,6 +276,13 @@ class ModelCatalog(BaseModel):
     data: list[ModelDiscoveryEntry]
 
 
+@dataclass(frozen=True, slots=True)
+class FittedChatRequest:
+    prompt: RenderedPrompt
+    generation: GenerationSettings
+    limits: RenderSettings
+
+
 class ChatClient:
     """Send neutral turns to one activated connection and check the result.
 
@@ -292,6 +302,23 @@ class ChatClient:
         """Return one validated completion for these turns."""
         if cancel is not None and cancel.is_set():
             raise asyncio.CancelledError
+        from pm.llm.workflow_sessions import serving_context
+        from pm.llm.prompt_encoding import normalize_turns
+        from pm.llm.protocol_context import reserve_protocol
+        window, _source = await serving_context(self.connection, cancel if cancel is not None else Event(),
+                                                live_test=self.client.live_test)
+        limits = RenderSettings(context_window=window, input_fraction=self.connection.context_input_fraction,
+            reserved_output_tokens=settings.output_allowance(self.connection.completion_token_limit), correction_tokens=0)
+        limits = reserve_protocol(limits, settings)
+        prompt = require_rendered_prompt("chat transport", tuple(normalize_turns(messages)), limits)
+        return await self._send_fitted(FittedChatRequest(prompt, settings, limits), cancel)
+
+    async def _send_fitted(self, request: FittedChatRequest, cancel: Event | None) -> ChatResult:
+        """Encode the measured turns with the generation options reserved at preparation."""
+        prompt = request.prompt
+        settings = request.generation
+        limits = request.limits
+        messages = prompt.turns
         maximum = settings.output_allowance(self.connection.completion_token_limit)
         reasoning = settings.reasoning
         tokens = settings.reasoning_tokens or settings.reasoning_budget_tokens
@@ -308,11 +335,11 @@ class ChatClient:
         if budget is not None:
             if settings.reasoning is not None or tokens is not None or settings.reasoning_effort is not None:
                 raise ValueError("Choose a reasoning budget or explicit reasoning controls.")
-            from pm.llm.context_window import estimate_tokens
-            from pm.llm.workflow_sessions import serving_context
-            context, _source = await serving_context(self.connection, cancel if cancel is not None else Event(), live_test=self.client.live_test)
-            input_tokens, _label = estimate_tokens(self.connection.model, messages)
-            reasoning = budget.generation(context_window=context, input_tokens=input_tokens, max_output_tokens=maximum)
+            reasoning = budget.generation(context_window=limits.context_window, input_tokens=prompt.estimated_tokens,
+                                          max_output_tokens=maximum)
+        if self.connection.require_reasoning:
+            reasoning = ReasoningOptions(enabled=True, max_tokens=reasoning.max_tokens,
+                effort=None if reasoning.effort == "none" else reasoning.effort, exclude=reasoning.exclude)
         encoded = encode_messages(messages)
         outbound = settings.model_dump(mode="json", by_alias=True, exclude_none=True,
             exclude={"reasoning_budget", "reasoning", "enable_thinking", "reasoning_tokens", "reasoning_budget_tokens",
@@ -345,7 +372,13 @@ class ChatClient:
             **outbound, "model": self.connection.model, **encoded, "stream": False,
         })
         with self.activation.use(self.connection):
-            response = await self.client.request("POST", "chat/completions", payload=payload, cancel=cancel)
+            try:
+                response = await self.client.request("POST", "chat/completions", payload=payload, cancel=cancel)
+            except TruncatedCompletionError as error:
+                headroom = limits.context_window - prompt.estimated_tokens - limits.protocol_tokens
+                provider = self.activation.metadata(self.connection).get("top_provider", {})
+                error.output_headroom = min(headroom, provider.get("max_completion_tokens") or headroom)
+                raise
         try:
             result = ChatResult.model_validate(response)
         except ValidationError as error:
@@ -355,6 +388,14 @@ class ChatClient:
         message = result.choices[0].message
         if not (message.content or "").strip() and not message.tool_calls:
             raise EmptyCompletionError("The model returned no content or tool call. Inspect its generation config.")
+        if message.content and not message.tool_calls and settings.response_format is None:
+            # A long suffix of the same natural-language word indicates a stuck
+            # decoder. Preserve structured arrays, tool payloads and shorter emphatic repetitions.
+            words = message.content.rstrip().split()
+            if len(words) >= 96:
+                last_word = words[-1].casefold().strip(".,")
+                if last_word.isalpha() and all(word.casefold().strip(".,") == last_word for word in words[-96:]):
+                    raise RetryableCompletionError("The completion ended with 96 repetitions of the same word.")
         if reasoning.exclude:
             # Local servers can retain reasoning in their wire response. Hide
             # it here too, while preserving final content, usage and raw logs.

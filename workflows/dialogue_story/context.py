@@ -30,7 +30,7 @@ from pm.memory.temporal_context import TemporalCoverageSelection
 
 from pm.context_render.correction import render_regeneration_feedback
 from pm.context_render.turns import Role
-from pm.context_render.budget import PromptSelection, StoryTokenEstimator, RequiredContextTooLarge
+from pm.context_render.budget import evidence_excerpt, PromptSelection, StoryTokenEstimator, RequiredContextTooLarge
 from pm.context_render.turns import Turn
 from pm.context_render.prompt import RenderSettings, RenderedPrompt, EvidenceDecision, TemporalHistoryMeasurement, require_rendered_prompt
 
@@ -83,7 +83,8 @@ def render_story(input: StoryRenderInput, settings: RenderSettings) -> RenderedP
                            for record_id in planned.history.omitted_feature_ids)
     rendered = require_rendered_prompt("story generation", planned.selection.turns, settings, decisions,
         selected_groups=planned.selection.included)
-    return replace(rendered, temporal_history=planned.history, temporal_history_measurement=planned.history_measurement)
+    return replace(rendered, temporal_history=planned.history, temporal_history_measurement=planned.history_measurement,
+                   visible_source_ids=planned.selection.source_ids, required_source_ids=planned.request.required_evidence_ids)
 
 
 def select_story_prompt(
@@ -97,7 +98,8 @@ def select_story_prompt(
     estimator = StoryTokenEstimator(estimate_factor=settings.estimate_factor if settings is not None else 1.5)
     context = request.public_context
     evidence = list(context.evidence) if context is not None else []
-    required_ids = set(request.required_evidence_ids)
+    requested_pins = set(request.required_evidence_ids)
+    required_ids = set(requested_pins)
     if request.current_message_id is not None:
         required_ids.add(request.current_message_id)
     speech_history = [turn for turn in request.prior_dialogue if turn.kind == "speech"]
@@ -137,19 +139,24 @@ def select_story_prompt(
         assert selected.public_context is not None
         selected_evidence = list(selected.public_context.evidence)
         selected_dialogue = list(selected.prior_dialogue)
+    available_ids = {row.knoxel_id for row in selected_evidence}
+    available_ids.update(turn.knoxel_id for turn in selected_dialogue if turn.knoxel_id is not None)
+    if request.current_message_id is not None:
+        available_ids.add(request.current_message_id)
+    missing = required_ids - available_ids
+    if missing:
+        raise ValueError(f"Story prompt is missing required record IDs {sorted(missing)}.")
     turns = history_turns(selected, prompts, repair_turns)
     mandatory_tokens = estimator.estimate(turns)
     included: list[str] = []
     omitted: list[str] = []
+    compact_background = mandatory_tokens > request.input_budget_tokens
+    if compact_background:
+        selected = without_story_background(selected)
+        turns = history_turns(selected, prompts, repair_turns)
+        mandatory_tokens = estimator.estimate(turns)
     relax_pins = mandatory_tokens > request.input_budget_tokens
     if relax_pins:
-        available_ids = {item.knoxel_id for item in selected_evidence}
-        available_ids.update(turn.knoxel_id for turn in selected.prior_dialogue if turn.knoxel_id is not None)
-        if selected.current_user_message and selected.current_message_id is not None:
-            available_ids.add(selected.current_message_id)
-        missing = required_ids - available_ids
-        if missing:
-            raise ValueError(f"Story prompt is missing required record IDs {sorted(missing)}.")
         # Start from the current exchange. The same dialogue and evidence
         # loops consider all earlier records, including the former pins.
         required_ids.clear()
@@ -168,6 +175,37 @@ def select_story_prompt(
         selected = without_story_background(selected)
         turns = history_turns(selected, prompts, repair_turns)
         mandatory_tokens = estimator.estimate(turns)
+        retained_characters = request.input_budget_tokens
+        while mandatory_tokens > request.input_budget_tokens and retained_characters:
+            retained_characters //= 2
+            selected.current_user_message = evidence_excerpt(request.current_user_message, retained_characters)
+            selected.selected_action = evidence_excerpt(request.selected_action, retained_characters)
+            selected.supported_capabilities = []
+            selected.unsupported_capabilities = []
+            selected.capability_notes = []
+            if selected.guidance is not None and request.guidance is not None:
+                guidance = request.guidance
+                selected.guidance = StoryGuidance(tick_id=guidance.tick_id,
+                    through_record_id=guidance.through_record_id, observed_at_utc=guidance.observed_at_utc,
+                    shard_story="", workspace="", feelings="", regulation=guidance.regulation, goals=(),
+                    selected_action=evidence_excerpt(guidance.selected_action, retained_characters), sources=guidance.sources)
+            if selected.public_context is not None and context is not None:
+                capabilities = context.capabilities.model_copy()
+                capabilities.configured = ()
+                capabilities.unavailable = ()
+                capabilities.notes = ()
+                selected.public_context.capabilities = capabilities
+                presentation = context.presentation.model_copy()
+                if len(presentation.shareable_summary) > retained_characters:
+                    presentation.shareable_summary = ""
+                presentation.purpose = evidence_excerpt(presentation.purpose, retained_characters)
+                selected.public_context.presentation = presentation
+                if context.task_receipt is not None:
+                    selected.public_context.task_receipt = context.task_receipt.prompt_excerpt(retained_characters)
+            turns = history_turns(selected, prompts, repair_turns)
+            mandatory_tokens = estimator.estimate(turns)
+        if selected.current_user_message != request.current_user_message:
+            omitted.append("current message detail (excerpt)")
         if mandatory_tokens > request.input_budget_tokens:
             raise RequiredContextTooLarge(
                 f"Story current input and instructions use {mandatory_tokens} estimated tokens; "
@@ -187,7 +225,8 @@ def select_story_prompt(
             continue
         shared_terms = focus_terms.intersection(distinctive_terms(turn.text))
         new_terms = shared_terms - represented_terms
-        if not new_terms:
+        pinned_turn = turn.knoxel_id in requested_pins
+        if not new_terms and not pinned_turn:
             omitted.append(f"dialogue:{turn.knoxel_id}")
             continue
         trial_dialogue = order_dialogue([*selected_dialogue, turn])
@@ -196,7 +235,7 @@ def select_story_prompt(
         trial_turns = history_turns(trial, prompts, repair_turns)
         trial_tokens = estimator.estimate(trial_turns)
         cost = trial_tokens - accepted_tokens
-        if dialogue_cost + cost > dialogue_budget or trial_tokens > request.input_budget_tokens:
+        if (dialogue_cost + cost > dialogue_budget and not pinned_turn) or trial_tokens > request.input_budget_tokens:
             omitted.append(f"dialogue:{turn.knoxel_id}")
             continue
         selected_dialogue = trial_dialogue
@@ -208,7 +247,11 @@ def select_story_prompt(
     lane_used = {lane: 0 for lane in shares}
     seen_texts = {" ".join(turn.text.casefold().split()) for turn in selected_dialogue}
     seen_texts.add(" ".join(request.current_user_message.casefold().split()))
-    for item in rank_public_evidence(evidence, prefer_recent=relax_pins):
+    ranked_evidence = rank_public_evidence(evidence, prefer_recent=relax_pins)
+    if relax_pins:
+        ranked_evidence = [item for item in ranked_evidence if item.knoxel_id in requested_pins] + [
+            item for item in ranked_evidence if item.knoxel_id not in requested_pins]
+    for item in ranked_evidence:
         if any(row.knoxel_id == item.knoxel_id for row in selected_evidence):
             continue
         lane = item.lane if item.lane in shares else "inner"
@@ -234,7 +277,8 @@ def select_story_prompt(
         trial_turns = history_turns(trial, prompts, repair_turns)
         trial_tokens = estimator.estimate(trial_turns)
         cost = trial_tokens - accepted_tokens
-        if lane_used[lane] + cost > int(remaining * shares[lane]) or trial_tokens > request.input_budget_tokens:
+        lane_full = lane_used[lane] + cost > int(remaining * shares[lane])
+        if (lane_full and item.knoxel_id not in requested_pins) or trial_tokens > request.input_budget_tokens:
             omitted.append(f"memory:{item.knoxel_id}")
             continue
         selected_evidence = trial_evidence
@@ -252,7 +296,7 @@ def select_story_prompt(
                 included.append(f"plain-memory:{memory.position}")
             else:
                 omitted.append(f"plain-memory:{memory.position}")
-    if relax_pins:
+    if compact_background:
         trial = selected.model_copy()
         trial.character_card_story = request.character_card_story
         trial_turns = history_turns(trial, prompts, repair_turns)
@@ -288,9 +332,8 @@ def select_story_prompt(
     source_ids.update(artifact_ids)
     if selected.current_user_message and selected.current_message_id is not None:
         source_ids.add(selected.current_message_id)
-    missing = required_ids - source_ids
-    if missing:
-        raise ValueError(f"Story prompt is missing required record IDs {sorted(missing)}.")
+    selected.required_evidence_ids = tuple(sorted(requested_pins.intersection(source_ids)))
+    omitted.extend(f"required:{key}" for key in sorted(requested_pins - source_ids))
     included.extend(f"memory:{item.knoxel_id}" for item in selected_evidence if item.knoxel_id in artifact_ids)
     included.extend(f"dialogue:{turn.knoxel_id}" for turn in selected_dialogue if turn.knoxel_id is not None)
     included_names = set(included)

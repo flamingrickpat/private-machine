@@ -25,15 +25,17 @@ from pm.records.memory_records import Feature, new_feature
 from pm.records.lineage import RecordLineage
 from workflows.cognitive_control.schemas import ControlConfig, WaitRequest
 from workflows.public_speech.publication_control import PublicationControl, ReplySuperseded, validate_unmanaged_selection, validate_unmanaged_action
-from workflows.input_triage.schemas import EarlyTriageAssessment, InputSourcePayload
+from workflows.input_triage.schemas import EarlyTriageAssessment
 from workflows.input_triage.workflow_requests import stage_workflow_requests
 from workflows.main_cognition.catalogue import WorkflowCatalogue
-from workflows.main_cognition.schemas import ActionRequest, RecordMetadataView, TriageResult
+from workflows.main_cognition.schemas import ActionRequest, TriageResult
 from workflows.entity_context.owner import EntityContextOwner
 from workflows.entity_context.schemas import EntityUpdateResult
 
 if TYPE_CHECKING:
     from pm.memory.store import MemoryStore
+    from workflows.interaction.host import Interaction
+    from workflows.main_cognition.host import MainCogLoop
 
 
 class CognitiveControl(BusModule):
@@ -77,11 +79,30 @@ class CognitiveControl(BusModule):
         self.cancel_critical_private: Callable[[], None] = lambda: None
         self.prioritize_critical: Callable[[set[int]], None] = lambda source_ids: None
         self.cancel_public_drafts: Callable[[int], None] = lambda epoch: None
-        self.validate_selection: Callable[[str], None] = validate_unmanaged_selection
+        self.interaction: Interaction | None = None
+        self.main_cognition: MainCogLoop | None = None
         self.entity_context_owner: EntityContextOwner | None = None
         self.workflow_catalogue: WorkflowCatalogue | None = None
-        self.refresh_selection: Callable[[str], None] = validate_unmanaged_selection
-        self.refresh_action: Callable[[ActionRequest], None] = validate_unmanaged_action
+
+    def validate_selection(self, selection_id: str) -> None:
+        if self.interaction is None:
+            validate_unmanaged_selection(selection_id)
+        else:
+            self.interaction.validate_selection(selection_id)
+
+    def refresh_selection(self, selection_id: str) -> None:
+        if self.interaction is None:
+            validate_unmanaged_selection(selection_id)
+        else:
+            self.interaction.refresh_selection(selection_id)
+
+    def refresh_action(self, request: ActionRequest) -> None:
+        if request.interaction_selection_id:
+            self.refresh_selection(request.interaction_selection_id)
+        elif self.main_cognition is not None and request.knoxel_id is not None:
+            self.main_cognition.defer_public_action(request)
+        else:
+            validate_unmanaged_action(request)
 
     def enable_input_triage(self) -> None:
         """Reconstruct unresolved classification and reconsideration from memory.
@@ -123,31 +144,13 @@ class CognitiveControl(BusModule):
             return
         with self.ghost.lock:
             self.ghost.snapshot({source_id}).get(source_id)
-            if source_id not in self._assessments and not self.triage_budget_rejected(source_id):
+            if source_id not in self._assessments:
                 self._pending_triage.add(source_id)
 
     def has_assessment(self, source_id: int) -> bool:
         """Return whether this source already has an accepted early assessment."""
         with self.ghost.lock:
             return source_id in self._assessments
-
-    def triage_budget_rejected(self, source_id: int) -> bool:
-        """Read the durable disposition of an input that could not be classified."""
-        with self.ghost.lock:
-            source = self.ghost.snapshot({source_id}, capture=False).get(source_id)
-            return RecordMetadataView.model_validate(source.metadata).recovery_outcome == "triage_context_too_large"
-
-    def reject_triage_budget(self, envelope: Envelope) -> None:
-        """Close an oversized input without an assessment or a fabricated reply."""
-        source_id = InputSourcePayload.model_validate(envelope.payload).knoxel_id
-        with self.ghost.lock:
-            batch = self.ghost.begin_batch("triage-budget-" + new_id(), embed=False)
-            batch.set_lifecycle(source_id, exchange_status="resolved", recovery_outcome="triage_context_too_large")
-            batch.depend_on({source_id}, authority=source_id, manifest={"kind": "triage_budget_rejection"})
-            self.ghost.commit(batch)
-            self._pending_triage.discard(source_id)
-            self._pending_inputs.discard(envelope.id)
-            self._classification_changed.notify_all()
 
     def accept_triage(self, assessment: EarlyTriageAssessment) -> EarlyTriageAssessment:
         """Commit classification before releasing its unknown-input barrier."""
@@ -192,10 +195,10 @@ class CognitiveControl(BusModule):
                         raise GhostConflict(f"Immediate entity update requires fresh extraction: {outcome.reason}.")
                     entity_outcomes.append(outcome)
             task_actions: dict[int, int] = {}  # pm-lint: allow PM004 -- action IDs indexed by source knoxel ID
-            if (self.workflow_catalogue is not None and not critical and not self._critical_sources
-                    and not self._pending_triage.difference(source_ids)):
+            if self.workflow_catalogue is not None:
+                allow_start = not (critical or self._critical_sources or self._pending_triage.difference(source_ids))
                 task_actions = stage_workflow_requests(
-                    self.ghost, evidence_view, batch, assessment, self.workflow_catalogue)
+                    self.ghost, evidence_view, batch, assessment, self.workflow_catalogue, allow_start=allow_start)
             accepted = assessment.model_copy(update={"reconsideration_epoch": epoch, "entity_outcomes": entity_outcomes,
                                                      "routine_task_action_ids": task_actions})
             batch.create(Feature(
@@ -227,16 +230,7 @@ class CognitiveControl(BusModule):
         return accepted
 
     def publication_control(self) -> PublicationControl:
-        """Expose typed scheduling callbacks without a speech-to-behavior import."""
-        return PublicationControl(
-            wait_for_reconsideration=self.wait_for_reconsideration,
-            wait_for_classification=self.wait_for_classification,
-            publication_epoch=self.publication_epoch,
-            validate_publication=self.validate_publication,
-            validate_selection=lambda selection_id: self.validate_selection(selection_id),
-            refresh_selection=lambda selection_id: self.refresh_selection(selection_id),
-            refresh_action=lambda request: self.refresh_action(request),
-        )
+        return self
 
     def validate_cognition(self, source_ids: Sequence[int]) -> None:
         """Reject an older calculation before any state or action commits."""
@@ -249,7 +243,7 @@ class CognitiveControl(BusModule):
         while not cancel.is_set():
             with self.ghost.lock:
                 if not self.input_triage_enabled or all(
-                    key in self._assessments or self.triage_budget_rejected(key) for key in source_ids
+                    key in self._assessments for key in source_ids
                 ):
                     return True
             cancel.wait(0.05)
@@ -271,15 +265,21 @@ class CognitiveControl(BusModule):
             return {key for key in source_ids if key in self._assessments
                     and key in self._assessments[key].routine_task_action_ids}
 
-    def reconsideration_required(self) -> bool:
+    def reconsideration_required(self, stop_source: int | None = None) -> bool:
         """Return whether unknown or Critical input currently holds ordinary work."""
         with self.ghost.lock:
+            if stop_source is not None and stop_source in self._assessments:
+                assessment = self._assessments[stop_source]
+                authorized = stop_source in assessment.routine_task_action_ids and any(
+                    item.knoxel_id == stop_source and item.body_operation in {"stop", "yield"} for item in assessment.result.items)
+                if authorized:
+                    return bool(self._pending_triage or self._critical_sources.difference({stop_source}))
             return bool(self._pending_triage or self._critical_sources)
 
-    def wait_for_reconsideration(self, cancel: Event) -> bool:
+    def wait_for_reconsideration(self, cancel: Event, stop_source: int | None = None) -> bool:
         """Defer ordinary work until required cognition is accepted or stopped."""
         while not cancel.is_set():
-            if not self.reconsideration_required():
+            if not self.reconsideration_required(stop_source):
                 return True
             cancel.wait(0.05)
         return False
@@ -293,14 +293,14 @@ class CognitiveControl(BusModule):
             cancel.wait(0.05)
         return False
 
-    def publication_epoch(self) -> int:
+    def publication_epoch(self, stop_source: int | None = None) -> int:
         """Capture the Critical assessment epoch while freezing public context."""
         with self.ghost.lock:
-            if self.reconsideration_required():
+            if self.reconsideration_required(stop_source):
                 raise ReplySuperseded("Input requires classification or accepted reconsideration.")
             return self._reconsideration_epoch
 
-    def validate_publication(self, epoch: int | None, guidance_tick: int | None) -> None:
+    def validate_publication(self, epoch: int | None, guidance_tick: int | None, stop_source: int | None = None) -> None:
         """Atomically reject drafts composed before required reconsideration.
 
         Call while holding ``ghost.lock`` through the durable utterance commit.
@@ -310,7 +310,7 @@ class CognitiveControl(BusModule):
             return
         if epoch is None:
             raise ReplySuperseded("Public draft has no early-triage publication stamp.")
-        if self.reconsideration_required():
+        if self.reconsideration_required(stop_source):
             raise ReplySuperseded("New input requires accepted reconsideration before speech.")
         if epoch != self._reconsideration_epoch:
             raise ReplySuperseded("A Critical input superseded this draft's composition context.")
@@ -387,10 +387,6 @@ class CognitiveControl(BusModule):
         with self.ghost.lock:
             if envelope.id in self._seen_inputs:
                 return
-            if envelope.topic == "user.input":
-                source_id = InputSourcePayload.model_validate(envelope.payload).knoxel_id
-                if self.triage_budget_rejected(source_id):
-                    return
             self._seen_inputs.add(envelope.id)
             self._pending_inputs.add(envelope.id)
             record = self._record()
@@ -421,10 +417,6 @@ class CognitiveControl(BusModule):
                 return [], self.generation
             accepted = []
             for envelope in envelopes:
-                if envelope.topic == "user.input":
-                    source_id = InputSourcePayload.model_validate(envelope.payload).knoxel_id
-                    if self.triage_budget_rejected(source_id):
-                        continue
                 record = self.ghost.get_knoxel_by_id(envelope.payload.get("knoxel_id", -1))
                 if envelope.topic == "cognition.wake":
                     if record is None or record.metadata.get("wake_status") != "pending":

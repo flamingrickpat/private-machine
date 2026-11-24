@@ -61,7 +61,9 @@ class ModelError(RuntimeError):
 
 
 class ModelRequestRejected(RuntimeError):
-    pass
+    def __init__(self, reason: str, *, status_code: int) -> None:
+        super().__init__(reason)
+        self.status_code = status_code
 
 
 class RetryableCompletionError(ModelError):
@@ -74,6 +76,16 @@ class EmptyCompletionError(RetryableCompletionError):
 
 class TruncatedCompletionError(RetryableCompletionError):
     """The provider reached the requested output limit before finishing."""
+
+    def __init__(self, reason: str, *, completion_tokens: int = 0, reasoning_tokens: int = 0) -> None:
+        super().__init__(reason)
+        self.completion_tokens = completion_tokens
+        self.reasoning_tokens = reasoning_tokens
+        self.output_headroom: int | None = None
+
+    @property
+    def reasoning_dominated(self) -> bool:
+        return self.completion_tokens > 0 and self.reasoning_tokens * 2 >= self.completion_tokens
 
 
 class ProviderCompletionError(ModelError):
@@ -91,6 +103,19 @@ class CompletionChoiceStatus(BaseModel):
 
 class CompletionStatus(BaseModel):
     choices: tuple[CompletionChoiceStatus, ...] = ()
+
+
+class CompletionTokenDetails(BaseModel):
+    reasoning_tokens: int | None = None
+
+
+class TruncatedUsage(BaseModel):
+    completion_tokens: int | None = None
+    completion_tokens_details: CompletionTokenDetails | None = None
+
+
+class TruncatedResponse(BaseModel):
+    usage: TruncatedUsage | None = None
 
 
 class ProviderErrorMessage(BaseModel):
@@ -124,7 +149,15 @@ def completion_error(data: JsonValue | None) -> ProviderCompletionError | Retrya
         if choice.finish_reason == "content_filter":
             return ProviderCompletionError("The model provider filtered generation. No partial completion was accepted.")
         if choice.finish_reason == "length":
-            return TruncatedCompletionError("The completion reached the output limit (finish_reason=length).")
+            try:
+                usage = TruncatedResponse.model_validate(data).usage
+            except ValidationError:
+                # Length is authoritative even when a backend omits or malforms its counters.
+                usage = None
+            details = usage.completion_tokens_details if usage else None
+            return TruncatedCompletionError("The completion reached the output limit (finish_reason=length).",
+                completion_tokens=(usage.completion_tokens or 0) if usage else 0,
+                reasoning_tokens=(details.reasoning_tokens or 0) if details else 0)
         if choice.error is not None or choice.finish_reason == "error":
             return ProviderGenerationError("The model provider failed during generation. No partial completion was accepted.")
     return None
@@ -277,8 +310,6 @@ class JsonClient:
         cached_chat = chat and OperatingSystem.environment.get("PM_COMPLETION_CACHE", "1") != "0"
         if chat:
             payload = {**(payload or {}), "seed": secrets.randbelow(2**31)}
-            if self.connection.require_reasoning:
-                payload["reasoning"] = {"enabled": True}
             if urlsplit(self.connection.base_url).hostname == "openrouter.ai":
                 if self.connection.provider is not None:
                     payload["provider"] = {"only": [self.connection.provider], "allow_fallbacks": False}
@@ -320,7 +351,8 @@ class JsonClient:
                     if response.status_code == 429 or response.status_code >= 500:
                         failure = f"Model service returned HTTP {response.status_code}."
                     elif not response.is_success:
-                        raise ModelRequestRejected(f"Model request rejected ({http_failure_reason(response)}).")
+                        raise ModelRequestRejected(f"Model request rejected ({http_failure_reason(response)}).",
+                                                   status_code=response.status_code)
                     else:
                         try:
                             data = TypeAdapter[dict[str, JsonValue]](dict[str, JsonValue]).validate_json(response.content)

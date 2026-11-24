@@ -10,7 +10,7 @@ from pathlib import Path
 import time
 from pydantic import BaseModel
 
-from workflows.minecraft_project.schemas import Node, TaskTree
+from workflows.minecraft_project.schemas import Condition, Node, TaskTree
 
 
 def digest(value: object) -> str:
@@ -22,6 +22,25 @@ def digest(value: object) -> str:
 def node_digest(node: Node) -> str:
     """Exclude the revision counter when comparing specification content."""
     return digest(node.model_dump(exclude={"revision"}))
+
+
+def check_block_assumptions(node: Node) -> None:
+    """Reject a proposed persistent assumption that its own completion criterion would invalidate."""
+    block_criteria: list[Condition] = [condition for condition in node.criteria if condition.kind == "block"]
+    for assumption in node.assumptions:
+        if assumption.kind != "block":
+            continue
+        assumed_cells = [assumption.position] if assumption.position is not None else assumption.positions
+        for criterion in block_criteria:
+            if assumption.dimension != criterion.dimension or not set(assumption.names).isdisjoint(criterion.names):
+                continue
+            final_cells = [criterion.position] if criterion.position is not None else criterion.positions
+            for cell in assumed_cells:
+                if cell in final_cells:
+                    raise ValueError(f"Node {node.id} requires incompatible blocks at ({cell.x}, {cell.y}, {cell.z}) "
+                        f"in {assumption.dimension}. Assumption {assumption.id} requires {assumption.names} "
+                        f"while criterion {criterion.id} requires {criterion.names}. Put the starting block "
+                        "in the actor's baseline and keep the requested final criterion.")
 
 
 def validate_tree(tree: TaskTree) -> dict[str, set[str]]:
@@ -217,6 +236,9 @@ class TreeStore:
         validate_tree(proposed)
         old = {node.id: node for node in self.load().nodes} if self.state["revision"] else {}
         new = {node.id: node for node in proposed.nodes}
+        for node in proposed.nodes:
+            if old.get(node.id) != node:
+                check_block_assumptions(node)
         # Adding a name permits that material at every cell. Keep a retained
         # single-material requirement strict and assign exceptions separately.
         # Existing terrain alternatives and historical certificates stay valid.

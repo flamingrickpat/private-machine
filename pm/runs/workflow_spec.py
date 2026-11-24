@@ -49,6 +49,14 @@ class RequestContextOwner(Protocol):
     def capture(self, store: MemoryStore) -> BaseModel: ...
 
 
+class WorkflowReservation(Protocol):
+    def owner(self) -> str | None: ...
+    def reserve(self, run_id: str) -> None: ...
+    def authorize_resume(self, run_id: str) -> None: ...
+    def activate(self, run_id: str) -> None: ...
+    def finish(self, run_id: str, interrupted: bool, artifact: Path) -> None: ...
+
+
 @dataclass(frozen=True)
 class WorkflowSpec:
     """One workflow with explicit agent, MCP, and child runtime configuration.
@@ -85,6 +93,10 @@ class WorkflowSpec:
     singleton: bool = False
     #: Share admission across workflow names. An empty key uses the workflow name.
     singleton_key: str = ""
+    reservation: WorkflowReservation | None = None
+    #: Ad hoc sessions reserve on dispatch and can resume while they own the retained pause.
+    dispatch_reservation: WorkflowReservation | None = None
+    reserved_suites: frozenset[str] = frozenset()
     #: Allow main cognition to accept an explicit partner request during ordinary interaction.
     routine_start: bool = False
     #: Describe the tasks this routine workflow can start from original partner text alone.

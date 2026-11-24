@@ -27,10 +27,9 @@ from pathlib import Path
 from dataclasses import dataclass
 from pm.host.application import Application
 import json
-from typing import TYPE_CHECKING, Any
-from collections.abc import Callable
+from typing import TYPE_CHECKING
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
-from workflows.public_speech.task_receipts import TaskReceipt, TaskReportEvidence, TaskVerificationEvidence
+from workflows.public_speech.task_receipts import AdmissionObservation, TaskReceipt, TaskReportEvidence, TaskVerificationEvidence, recent_body_effects
 
 from pm.utils import yaml_util
 
@@ -97,6 +96,8 @@ def task_evidence(receipt: TaskReceipt) -> TaskReceipt:
     if not receipt.artifact_path:
         return result
     root = Path(receipt.artifact_path).resolve()
+    if receipt.workflow_name == "minecraft_project" and receipt.state in TERMINAL:
+        result.evidence = (*recent_body_effects(root), *result.evidence)
     report_path = root / "outbox" / "report.yaml"
     if not report_path.is_file():
         return result
@@ -194,18 +195,16 @@ class ReplyRecovery(BusModule):
                                  "state": receipt.get("state", envelope.payload["status"]),
                                  "workflow_name": receipt.get("workflow_name", "self_management"),
                                  "artifact_path": receipt.get("artifact_path", ""),
-                                 "operation_result": envelope.payload,
+                                 "operation_result": envelope.payload, "summary": envelope.payload["summary"],
                                  "arguments": {"_public_reply_requested": True,
                                                "_public_action_schema_id": envelope.payload.get("action_schema_id")}}
                     self.reply_to_task(operation)
                 elif receipt.get("state") in TERMINAL:
                     self.reply_to_task(receipt)
                 elif receipt.get("state") in {"accepted", "running", "waiting_for_input"}:
-                    workflow = self.supervisor.workflows.get(receipt["workflow_name"])
-                    if workflow is not None and workflow.routine_start:
-                        current = self.supervisor.status(receipt["run_id"])
-                        if current["state"] not in TERMINAL:
-                            self.reply_to_task(current, admission=True)
+                    current = self.supervisor.status(receipt["run_id"])
+                    if current["state"] not in TERMINAL:
+                        self.reply_to_task(current, admission=True)
                 elif envelope.payload.get("status") == "rejected":
                     self.fail_exchange(envelope.correlation_id, "The task request was rejected. "
                                        + envelope.payload.get("summary", "No task execution was verified."))
@@ -250,10 +249,23 @@ class ReplyRecovery(BusModule):
         if admission:
             evidence.admission_only = True
             identity = f"task-admission:{evidence.run_id}:{source.id}"
-            instruction = "Briefly acknowledge the accepted background task in your own voice."
+            instruction = ("Briefly acknowledge the accepted background task in your own voice. If asked what you "
+                           "see, answer from the dated body observation if available, or say you will look.")
             workspace = ("This receipt confirms admission. Describe its actual state in one brief acknowledgment. "
                          "Any observation, work done, or result requires separate evidence. "
                          "The terminal outcome will be reported separately.")
+        elif "operation_result" in receipt:
+            operation = receipt["operation_result"]["operation"]
+            if operation in {"terminate", "stop_observed"}:
+                evidence.stop_source_id = exchange.id
+            identity = f"management-reply:{operation}:{evidence.run_id}:{source.id}"
+            instruction = "Answer the current question using the dated management report."
+            if operation == "resume" and receipt["operation_result"]["status"] == "accepted":
+                instruction = "Acknowledge that the same worker task has resumed from the retained world. Jesse has already authorized it."
+            if evidence.awaiting_stop_observation:
+                instruction = ("Briefly say you received the stop request and are checking where you stopped. "
+                               "Coordinates and confirmation will follow from the worker.")
+            workspace = evidence.summary
         else:
             evidence = task_evidence(evidence)
             identity = f"task-reply:{evidence.run_id}:{receipt['revision']}:{source.id}"
@@ -265,6 +277,13 @@ class ReplyRecovery(BusModule):
             if prior is None:
                 changes = self.ghost.begin_batch(identity)
                 changes.depend_on([source.id, exchange.id], authority=source.id)
+                if admission and evidence.workflow_name in {"minecraft", "minecraft_project"}:
+                    observed = next((item for item in reversed(self.ghost.all_features)
+                                     if item.scope == source.scope and item.metadata.get("origin") == "minecraft.world"), None)
+                    if observed is not None:
+                        evidence.admission_observation = AdmissionObservation(source_id=observed.id,
+                            observed_at=observed.timestamp_world_begin, text=observed.content)
+                        changes.depend_on([observed.id])
                 causality = TaskReceiptCausality.model_validate(receipt)
                 changes.depend_on(causality.input_record_ids)
                 changes.depend_on_commits(causality.input_commit_ids)
@@ -282,13 +301,10 @@ class ReplyRecovery(BusModule):
                     workspace=workspace)
                 action.metadata = {**action.metadata, "dispatch_status": "pending", "dispatch_target": "dialogue_assistant",
                                    "dispatch_correlation": correlation, "dispatch_payload": request.payload()}
-                accepted = self.ghost.commit(changes)
-                action_id = accepted.added_ids[0]
+                self.ghost.commit(changes)
             else:
-                action_id = prior.id
-        request = user_reply_request(self.ghost, knoxel_id=action_id, action_id=identity, exchange=exchange,
-            task_receipt=evidence,
-            workspace=workspace)
+                from workflows.main_cognition.schemas import PendingDispatch
+                request = PendingDispatch.model_validate(prior.metadata).dispatch_payload
         self.bus.put(Envelope(
             id=new_id(), source=self.module_id, kind="data", topic="action.request", correlation_id=correlation,
             target="dialogue_assistant", payload=request.payload(),

@@ -101,10 +101,11 @@ def reason_once[T: EvidenceDecision](context: RoleContext, store: TreeStore, rol
         context=selected, input_tokens=prompt.estimated_tokens, input_ceiling=prompt.input_ceiling))
     store.state["decisions"].append({"role": role.value, "path": name, "identity": selected.identity.model_dump(mode="json")})
     store.save()
-    validation_context = (ReviewValidationContext(node_ids=frozenset(node.id for node in payload.tree_topology))
-        if isinstance(payload, ReviewContext) else None)
     attempt = 0
     while True:
+        validation_context = None
+        if isinstance(payload, ReviewContext):
+            validation_context = ReviewValidationContext(node_ids=frozenset(prompt.selected_groups))
         text = session.complete(prompt.turns, settings=generation)
         store.write(name + "/raw.json", RawDecision(text=text))
         runtime.check_cancelled()

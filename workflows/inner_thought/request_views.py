@@ -155,6 +155,7 @@ class PrivateInspection(BaseModel):
     model_config = ConfigDict(extra="forbid")
     status: Literal["ok", "unavailable"]
     reason: str = ""
+    runtime_orientation: str = ""
     capability_overlay: CapabilityInspection = Field(default_factory=CapabilityInspection)
     episodes: list[EpisodeRow] = Field(default_factory=list[EpisodeRow])
     newest_episode_answers: dict[str, EpisodeAnswer] = Field(default_factory=dict[str, EpisodeAnswer])

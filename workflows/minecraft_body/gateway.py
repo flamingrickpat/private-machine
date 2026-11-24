@@ -8,7 +8,6 @@ import json
 import math
 import threading
 import time
-from typing import Any
 
 from pm_workflows.runtime import WorkflowRuntime
 from pm.runs.role_runtime import PMWorkflowRuntime
@@ -21,7 +20,7 @@ from pm_workflows.working_target import WorkingEnvironment
 from fastmcp import FastMCP
 from fastmcp.tools import Tool, ToolResult
 from jsonschema.validators import validator_for
-from pydantic import Field
+from pydantic import ConfigDict, Field, JsonValue
 
 from workflows.minecraft_body.lease import BodyEpoch, BODY_LEASES, StaleEpoch
 from workflows.minecraft_body.call_outcomes import GameplayEvidence
@@ -33,7 +32,7 @@ READ_TOOLS = frozenset({
     "minecraft_find_block", "minecraft_find_interactables", "minecraft_raytrace",
     "minecraft_recipe_search", "minecraft_info", "minecraft_list_capabilities",
     "minecraft_list_waypoints", "minecraft_relative", "minecraft_distance",
-    "minecraft_screenshot", "minecraft_analyze_area", "minecraft_find_path",
+    "minecraft_status", "minecraft_screenshot", "minecraft_analyze_area", "minecraft_find_path",
     "minecraft_is_safe_to_dig", "minecraft_recall",
 })
 
@@ -126,6 +125,8 @@ class BodyGateway:
         self._tool_names = frozenset(row["name"] for row in self.tool_schemas) - {"minecraft_execute_typescript", "minecraft_suicide"}
         self._lock = threading.Lock()
         self._journal_lock = threading.RLock()
+        self.admission_lock = threading.Lock()
+        self.closed = False
         self.receipts: list[dict] = []
         self.token: BodyEpoch | None = None
         self.observed_epoch = False
@@ -176,6 +177,10 @@ class BodyGateway:
         outcome and cancels future work. No automatic action retry occurs.
         """
         self.runtime.check_cancelled()
+        if self.closed:
+            raise StaleEpoch("This MCP session has closed.")
+        if name.startswith("minecraft_body_") or name in {"minecraft_connect", "minecraft_disconnect", "minecraft_execute_typescript", "minecraft_suicide"}:
+            raise PermissionError("Body control belongs to the host.")
         if self.token is not None:
             BODY_LEASES.validate(self.endpoint, self.token)
         elif BODY_LEASES.owner(self.endpoint) == self.owner:
@@ -368,7 +373,7 @@ class BodyGateway:
     def wait_idle(self) -> None:
         """Wait for an external call before releasing its body lease."""
         with self._lock:
-            if self.token is not None:
+            if self.token is not None and self.runtime.body_lease.ownership is None:
                 try:
                     self.transport.release(self.token)
                 except Exception as error:
@@ -382,6 +387,8 @@ class BodyGateway:
         for schema in schemas:
             server.add_tool(GatewayTool(name=schema["name"], description=schema["description"],
                                       parameters=schema["parameters"], gateway=self))
+        if isinstance(self, SessionBodyGateway):
+            return server
         server.add_tool(Tool.from_function(self.boundary, name="actor_instructions"))
         server.add_tool(Tool.from_function(self.diagnose, name="actor_diagnose"))
         return server
@@ -431,10 +438,39 @@ def observed_target(receipt: dict, point: dict) -> bool:
         and result.get("position") == point))
 
 
+class SessionBodyGateway(BodyGateway):
+    """A configured assistant acquires the endpoint only when it dispatches a body tool."""
+
+    def call(self, name: str, arguments: dict[str, JsonValue], *, close: bool = False) -> dict[str, JsonValue]:
+        ownership = self.runtime.body_lease.ownership
+        assert ownership is not None
+        self.runtime.check_cancelled()
+        from pm.host.durable_files import BodyBusy
+        try:
+            with self.admission_lock:
+                if self.closed:
+                    raise StaleEpoch("This MCP session has closed.")
+                ownership.reserve(self.owner)
+                ownership.activate(self.owner)
+        except BodyBusy as error:
+            return {"ok": False, "reason": "body_busy", "owner": ownership.owner(), "message": str(error), "images": []}
+        self.observed_epoch = True
+        return super().call(name, arguments, close=close)
+
+
+    def close_admission(self) -> None:
+        with self.admission_lock:
+            self.closed = True
+        with self._lock:
+            # A command that already passed admission must have returned before release.
+            pass
+
+
 class GatewayTool(Tool):
     """Forward one upstream schema through its owning actor gateway."""
 
-    gateway: Any = Field(exclude=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    gateway: BodyGateway = Field(exclude=True)
 
     async def run(self, arguments: dict) -> ToolResult:
         """Await external cleanup even if the MCP caller disconnects."""
@@ -453,5 +489,9 @@ class GatewayTool(Tool):
                 data = self.gateway.environment._path(frame["path"]).read_bytes()
                 blocks.append(ImageContent(type="image", mimeType=frame["media_type"],
                                            data=base64.b64encode(data).decode("ascii")))
+        if isinstance(self.gateway, SessionBodyGateway):
+            wire = result.get("result", content)
+            blocks[0] = self.convert_result(wire).content[0]
+            return ToolResult(content=blocks, structured_content=wire)
         return ToolResult(content=blocks)
 

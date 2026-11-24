@@ -27,6 +27,8 @@ class RestartTests(unittest.TestCase):
             reply = batch.create(Feature(content='unfinished answer', feature_type=FeatureType.Dialogue,
                 metadata={'publication_status':'pending'}))
             action = batch.create(ActionSchemaRecord(content='reply later', action_type=ActionType.Reply, metadata={'dispatch_status':'pending'}))
+            completed = batch.create(ActionSchemaRecord(content='finished work', action_type=ActionType.Reply))
+            batch.set_lifecycle(completed.id, dispatch_status='admitted', execution_status='completed')
             store.commit(batch)
             store.save()
             saved = path.read_bytes()
@@ -35,6 +37,7 @@ class RestartTests(unittest.TestCase):
             self.assertEqual(reopened.all_knoxels[message.id].metadata['exchange_status'], 'resolved')
             self.assertEqual(reopened.all_knoxels[reply.id].metadata['publication_status'], 'discarded')
             self.assertEqual(reopened.all_knoxels[action.id].metadata['execution_status'], 'cancelled')
+            self.assertEqual(reopened.all_knoxels[completed.id].metadata['execution_status'], 'completed')
             clean = reopened.export_clean(Path(directory) / 'clean.pickle')
             again = MemoryStore.from_checkpoint(clean)
             self.assertEqual(again.all_knoxels[message.id].metadata['exchange_status'], 'resolved')

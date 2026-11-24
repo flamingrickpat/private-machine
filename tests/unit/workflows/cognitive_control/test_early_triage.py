@@ -127,26 +127,18 @@ class EarlyTriageBoundaryTests(unittest.TestCase):
         self.assertFalse(accepted.routine_task_action_ids)
         self.assertFalse(any(isinstance(record, ActionSchemaRecord) for record in self.store.all_knoxels.values()))
 
-    def test_budget_rejection_releases_the_fence_and_keeps_the_input(self) -> None:
-        text = "Original oversized request."
+    def test_long_input_stays_pending_until_its_classification_is_accepted(self) -> None:
+        text = "Original oversized request. " * 5000
         source = self.submit(text)
-        envelope = new_envelope("user_input", "data", "user.input", "", {"knoxel_id": source})
-        self.control.observe(envelope)
         self.assertTrue(self.control.reconsideration_required())
+        self.assertFalse(self.control.has_assessment(source))
+        self.assertEqual(self.store.snapshot({source}).get(source).metadata["exchange_status"], "pending")
 
-        self.control.reject_triage_budget(envelope)
+        self.assess(source, "Moderate")
 
-        retained = self.store.snapshot({source}).get(source)
-        self.assertEqual(retained.content, text)
-        self.assertEqual(retained.metadata["exchange_status"], "resolved")
-        self.assertNotIn("public_reply_id", retained.metadata)
-        for control in (self.control, self.controller(self.store)):
-            control.register_input(source)
-            self.assertTrue(control.triage_budget_rejected(source))
-            self.assertFalse(control.reconsideration_required())
-            self.assertFalse(control.has_assessment(source))
-            admitted, _generation = control.admit([envelope])
-            self.assertEqual(admitted, [])
+        self.assertFalse(self.control.reconsideration_required())
+        self.assertTrue(self.control.has_assessment(source))
+        self.assertEqual(self.store.snapshot({source}).get(source).content, text)
 
     def accept_cycle(self, source_ids: list[int]) -> int:
         """Accept a real state/write batch without claiming an LLM calculation."""

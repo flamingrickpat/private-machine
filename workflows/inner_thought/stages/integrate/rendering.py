@@ -78,7 +78,7 @@ class IntegrationRenderInput:
 def render_integration(request: IntegrationEnvelope, prompts: IntegrationPrompts, settings: RenderSettings,
                        correction: str = "") -> RenderedPrompt:
     thought = request.thought
-    required = (private_frame(request.request) + "\n\nPerformed private thought:\n" + thought.thought +
+    required = (private_frame(request.request, settings) + "\n\nPerformed private thought:\n" + thought.thought +
         "\nReality: " + thought.reality + "\nEvidence summary: " + thought.evidence_summary +
         "\nInterpretation: " + thought.interpretation + f"\nCited evidence: {thought.evidence_ids}" +
         "\nOperation: " + (request.operation.name if request.operation is not None else request.trigger.operation))
@@ -118,7 +118,8 @@ def run(context: RoleContext) -> PrivateRoleResult:
         known = {item.record_id for item in rendered.evidence if item.included}
         if request.request.main_frame.frame_id is not None:
             known.add(request.request.main_frame.frame_id)
-        source_texts = {item.knoxel_id: item.text for item in request.request.candidates if item.knoxel_id in known}
+        quote_ids = {item.record_id for item in rendered.evidence if item.included and item.reason != "source excerpt"}
+        source_texts = {item.knoxel_id: item.text for item in request.request.candidates if item.knoxel_id in quote_ids}
         try:
             result = parse_response(raw, IntegrationResult)
             validate_integration(result, known, request.request, focus_requested=request.focus_advice is not None,

@@ -27,6 +27,8 @@ class RestartLifecycle(BaseModel):
     publication_status: str = ""
     dispatch_status: str = ""
     execution_status: str = ""
+    run_id: str = ""
+    recovery_outcome: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,7 +54,19 @@ def discard_unfinished_work(ghost: MemoryStore) -> RestartSummary:
         if lifecycle.publication_status == "pending":
             batch.set_lifecycle(record.id, publication_status="discarded", recovery_outcome="discarded_on_restart")
             changed = True
-        if lifecycle.dispatch_status in {"pending", "admitted"} or lifecycle.execution_status in {"pending", "running"}:
+        # Older checkpoints can already carry the restart cancellation on an
+        # admitted action. Its own linked worker receipt is authoritative.
+        if lifecycle.run_id and lifecycle.recovery_outcome == "discarded_on_restart" and lifecycle.execution_status == "cancelled":
+            stored_run = ghost.managed_runs.get(lifecycle.run_id)
+            if stored_run is not None:
+                linked = ManagedRunReceipt.from_dict(stored_run)
+                if linked.authority_record_id == record.id and linked.state in {"completed", "failed"}:
+                    batch.set_lifecycle(record.id, dispatch_status="admitted", execution_status=linked.state,
+                                        recovery_outcome="reconciled_from_run_receipt")
+                    changed = True
+        terminal = lifecycle.execution_status in {"completed", "failed", "cancelled"}
+        dispatched = lifecycle.dispatch_status in {"pending", "admitted"}
+        if not terminal and (dispatched or lifecycle.execution_status in {"pending", "running"}):
             batch.set_lifecycle(record.id, dispatch_status="cancelled", execution_status="cancelled",
                                 recovery_outcome="discarded_on_restart")
             changed = True

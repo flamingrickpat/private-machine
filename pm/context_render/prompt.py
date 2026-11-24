@@ -70,6 +70,8 @@ class RenderedPrompt:
     selected_groups: tuple[str, ...] = ()
     temporal_history: TemporalCoverageSelection | None = None
     temporal_history_measurement: TemporalHistoryMeasurement | None = None
+    visible_source_ids: tuple[int, ...] = ()
+    required_source_ids: tuple[int, ...] = ()
 
 
 def require_rendered_prompt(operation: str, turns: tuple[Turn, ...], settings: RenderSettings,
@@ -105,7 +107,8 @@ def require_rendered_prompt(operation: str, turns: tuple[Turn, ...], settings: R
             parts.append(str(turn.tool_calls))
         rendered_turns.append(f"[{turn.role.value}]\n" + "\n".join(parts))
     raw_text = "\n\n".join(rendered_turns)
-    return RenderedPrompt(operation, turns, raw_text, estimated_tokens, settings.input_ceiling, evidence, selected_groups)
+    return RenderedPrompt(operation, turns, raw_text, estimated_tokens, settings.input_ceiling, evidence, selected_groups,
+                          visible_source_ids=tuple(sorted({row.record_id for row in evidence if row.included})))
 
 
 @dataclass(frozen=True, slots=True)

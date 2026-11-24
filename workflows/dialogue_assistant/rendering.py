@@ -5,7 +5,7 @@ from workflows.public_speech.public_context import rank_public_evidence, rank_me
 from dataclasses import dataclass
 from typing import TypedDict, NotRequired
 
-from pm.context_render.budget import TokenEstimator
+from pm.context_render.budget import TokenEstimator, evidence_excerpt
 from pm.context_render.correction import render_regeneration_feedback
 from pm.llm.generation import GenerationSettings, ToolSchema
 from pm.llm.protocol_context import reserve_protocol
@@ -84,6 +84,15 @@ def render_assistant_prompt(input: AssistantRenderInput, settings: RenderSetting
             if selected_context is not None:
                 selected_context.shard_story = ""
             turns = resolve_media(tuple(completion_turns(build_messages(selected, prompts))), images)
+    retained = settings.input_ceiling
+    while estimator.estimate(turns) > settings.input_ceiling and retained:
+        retained //= 2
+        selected.current_user_message = evidence_excerpt(request.current_user_message, retained)
+        selected.selected_action = evidence_excerpt(request.selected_action, retained)
+        selected.abilities = evidence_excerpt(request.abilities, retained)
+        if selected_context is not None and context is not None and context.task_receipt is not None:
+            selected_context.task_receipt = context.task_receipt.prompt_excerpt(retained)
+        turns = resolve_media(tuple(completion_turns(build_messages(selected, prompts))), images)
     require_rendered_prompt("assistant dialogue", turns, settings)
     evidence: list[EvidenceItem] = []
     decisions: list[EvidenceDecision] = []
@@ -140,7 +149,7 @@ def render_assistant_prompt(input: AssistantRenderInput, settings: RenderSetting
 
 
 def assistant_protocol_settings(settings: RenderSettings, tools: tuple[ToolSchema, ...], generation: GenerationSettings) -> RenderSettings:
-    actual_generation = generation.with_tools(tools)
+    actual_generation = generation.for_request(tools=tools)
     output_tokens = actual_generation.output_allowance(settings.reserved_output_tokens)
     resolved = RenderSettings(context_window=settings.context_window, input_fraction=settings.input_fraction,
         reserved_output_tokens=output_tokens, protocol_tokens=settings.protocol_tokens,
@@ -150,14 +159,38 @@ def assistant_protocol_settings(settings: RenderSettings, tools: tuple[ToolSchem
 
 def render_assistant_continuation(input: AssistantContinuationInput, settings: RenderSettings) -> RenderedPrompt:
     from workflows.dialogue_assistant.steps import completion_turns
-    messages = input.messages
     effective_settings = assistant_protocol_settings(settings, input.tools, input.generation)
-    turns = resolve_media(tuple(completion_turns(list(messages))), ImageCatalog(input.images))
+    images = ImageCatalog(input.images)
+    turns = resolve_media(tuple(completion_turns(input.messages)), images)
+    correction: tuple[Turn, ...] = ()
     if input.problem:
         feedback = render_regeneration_feedback("assistant dialogue", input.problem, effective_settings)
-        turns = (*turns, Turn(Role.User, feedback.text))
+        correction = (Turn(Role.User, feedback.text),)
         effective_settings = effective_settings.without_correction_reserve()
-    return require_rendered_prompt("assistant tool continuation", turns, effective_settings)
+    estimator = TokenEstimator(estimate_factor=settings.estimate_factor)
+    if estimator.estimate((*turns, *correction)) <= effective_settings.input_ceiling:
+        return require_rendered_prompt("assistant tool continuation", (*turns, *correction), effective_settings)
+    # Fold completed call/result pairs into attributed observations. Signed provider
+    # reasoning and tool arguments remain intact in the durable transcript.
+    retained = effective_settings.input_ceiling
+    while True:
+        compact: list[Turn] = []
+        for message in input.messages:
+            if message.tool_calls:
+                for call in message.tool_calls:
+                    compact.append(Turn(Role.User, f"Previous tool request {call.id}: {call.function.name} "
+                        + evidence_excerpt(call.function.arguments, retained)))
+            elif message.role == Role.Tool:
+                compact.append(Turn(Role.User, f"Recorded result of {message.name} ({message.tool_call_id}):\n"
+                    + evidence_excerpt(message.content, retained)))
+            else:
+                content = message.content if message.role == Role.System else evidence_excerpt(message.content, retained)
+                compact.append(Turn(message.role, content))
+        turns = (*resolve_media(tuple(compact), images), *correction)
+        if estimator.estimate(turns) <= effective_settings.input_ceiling or retained == 0:
+            return require_rendered_prompt("assistant tool continuation", turns, effective_settings,
+                selected_groups=("completed tool transcript with bounded excerpts",))
+        retained //= 2
 
 
 def assistant_transcript(prompt: RenderedPrompt) -> list[AssistantMessage]:

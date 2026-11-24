@@ -883,7 +883,7 @@ def build_temporal_context(features: list[Feature], temporal_summaries: list[Mem
                            embedding: list[float], ratio: float, max_tokens: int, *,
                            vectors: dict[int, list[float] | None], token_costs: dict[int, int],
                            require_temporal_history: bool = True, require_contiguous_temporal_span: bool = True,
-                           run_final_checks: bool = True) -> list[Feature | MemoryClusterRecord]:
+                           run_final_checks: bool = True, allow_coverage_omissions: bool = False) -> list[Feature | MemoryClusterRecord]:
     items: list[TemporalHistoryItem] = []
     records: dict[int, Feature | MemoryClusterRecord] = {}
     for feature in features:
@@ -902,10 +902,10 @@ def build_temporal_context(features: list[Feature], temporal_summaries: list[Mem
             ended_at=summary.timestamp_world_end, kind="summary", level=summary.level, content=summary.content,
             source="", feature_type=None, relevance=0.0, token_cost=token_costs[summary.id]))
     problem = TemporalCoverageProblem(TemporalHistoryInput(items=tuple(items)))
-    settings = TemporalSelectionSettings(max_tokens=max(0, max_tokens), raw_ratio=ratio,
+    settings = TemporalSelectionSettings(max_tokens=max(0, max_tokens), raw_ratio=ratio, allow_coverage_omissions=allow_coverage_omissions,
         require_temporal_history=require_temporal_history,
         require_contiguous_temporal_span=require_contiguous_temporal_span, run_final_checks=run_final_checks)
-    if max_tokens <= 0 and problem.graph.features:
+    if max_tokens <= 0 and problem.graph.features and not allow_coverage_omissions:
         selected_items = _TemporalRefinement(problem, settings).refine()
     else:
         selected_items = list(problem.select(settings).items)

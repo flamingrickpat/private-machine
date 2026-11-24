@@ -16,7 +16,7 @@ from pm.records.copying import pickle_copy
 from pm.constants import WORKSPACE_TAIL_TOKENS
 from pm.records.cycle_records import StimulusGroup
 from pm.records.cycle_state import CycleState
-from pm.records.workspace import SELF_SHARD, ShardKey
+from pm.records.workspace import SELF_SHARD, GlobalWorkspace, ShardKey
 
 from workflows.main_cognition.codelet_registry import decay_registry
 from workflows.main_cognition.csm_view import record_tokens
@@ -100,10 +100,15 @@ def set_tails(work: CycleWork) -> None:
     because the prompt shows them as new. A stream for a shard that does not
     exist yet creates the shard.
     """
-    exclude = {item.knoxel_id for item in work.request.stimuli}
-    for stream in work.request.streams:
-        shard = work.state.workspace.ensure_shard(stream.key)
-        token_costs = {record_id: record_tokens(work.records, record_id) for record_id in stream.record_ids}
+    refresh_workspace_tails(work.state.workspace, work.request)
+
+
+def refresh_workspace_tails(workspace: GlobalWorkspace, request: CycleRequest) -> None:
+    """Update the named workspace from this selection's frozen streams."""
+    exclude = {item.knoxel_id for item in request.stimuli}
+    for stream in request.streams:
+        shard = workspace.ensure_shard(stream.key)
+        token_costs = {record_id: record_tokens(request.records, record_id) for record_id in stream.record_ids}
         shard.tail_ids = select_tail(stream.record_ids, token_costs, WORKSPACE_TAIL_TOKENS, exclude)
 
 

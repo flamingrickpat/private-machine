@@ -631,6 +631,8 @@ def ability_lines(context: PublicContext) -> list[str]:
     lines += [f"- Note: {item}" for item in capabilities.notes]
     if not capabilities.human_body:
         lines.append(f"- {context.companion_name} has no human body and no human senses.")
+    if capabilities.runtime_orientation:
+        lines.append(capabilities.runtime_orientation)
     minecraft = capabilities.minecraft
     lines.append(f"- Minecraft connection right now: {minecraft.status}.")
     if minecraft.status == "connected":

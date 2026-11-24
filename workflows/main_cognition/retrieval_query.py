@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from threading import Event
 from pm.constants import Sampler
+from pm.context_render.budget import TokenEstimator, evidence_excerpt
 from pm.context_render.turns import Role, Turn
 from pm.context_render.prompt import RenderSettings, RenderedPrompt, require_rendered_prompt, RendererCapture, RendererInput
 from pm.llm.stage_model import LazyStageModel
@@ -21,6 +22,11 @@ class QueryRenderInput:
 
 def render_retrieval_query(input: QueryRenderInput, settings: RenderSettings) -> RenderedPrompt:
     turns = (Turn(Role.System, SYSTEM_PROMPT), Turn(Role.User, input.text))
+    retained = len(input.text)
+    estimator = TokenEstimator(estimate_factor=settings.estimate_factor)
+    while retained and estimator.estimate(turns) > settings.input_ceiling:
+        retained //= 2
+        turns = (turns[0], Turn(Role.User, evidence_excerpt(input.text, retained)))
     return require_rendered_prompt("retrieval query", turns, settings)
 
 

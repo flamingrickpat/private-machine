@@ -38,6 +38,7 @@ class PinnedDispatch(BaseModel):
     public_reply_requested: bool = Field(default=False, alias="_public_reply_requested")
     original_request_id: int | None = Field(default=None, alias="_public_original_request_id")
     tool_goal: str = ""
+    related_run_id: str = ""
 
 
 class SourceStimulus(BaseModel):
@@ -124,6 +125,9 @@ class ToolCallContext(BaseModel):
     records: list[ContextRecord] = Field(default_factory=list[ContextRecord])
     missing_record_ids: list[int] = Field(default_factory=list[int])
     images: tuple[RecordImage, ...] = ()
+    related_run_id: str = ""
+    original_assignment: str = ""
+    current_assignment: str = ""
 
 
 class ToolCallRequest(BaseModel):
@@ -224,6 +228,8 @@ class ToolCallSeen(BaseModel):
     server: str
     tool: str
     arguments: str = ""
+    call_id: str = ""
+    returned_facts: str = ""
 
 
 class ToolImage(BaseModel):
@@ -257,6 +263,7 @@ class ToolCallReport(BaseModel):
 
     schema_id: Literal["pm.tool-call-report.v1"] = Field(default=REPORT_SCHEMA, alias="schema")
     run_id: str
+    related_run_id: str = ""
     instruction: str
     tool_goal: str = ""
     outcome: Outcome

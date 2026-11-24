@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from operator import attrgetter
 import re
-from pm.context_render.budget import TokenEstimator
+from pm.context_render.budget import TokenEstimator, evidence_excerpt
 from pm.context_render.images import ImageCatalog, resolve_media
 from pm.context_render.prompt import RenderSettings, RenderedPrompt, EvidenceDecision, require_rendered_prompt
 from pm.context_render.records import render_record
@@ -29,29 +29,68 @@ class RankedToolEvidence:
 def render_tool_session(input: ToolSessionRenderInput, settings: RenderSettings) -> RenderedPrompt:
     request = input.request
     context = request.tool_call_context
-    lines = [f"You are {context.companion_name}. Carry out your selected decision with your own tools.",
-        "Character:\n" + context.character_card.strip(), "Selected decision:\n" + input.instruction]
-    if request.tool_goal:
-        lines.append("Concrete tool goal: " + request.tool_goal)
     source = context.source_action
+    estimator = TokenEstimator(estimate_factor=settings.estimate_factor)
+    source_count = len(source.stimuli) if source is not None else 0
+    selected_count = source_count
+    retained = max(len(context.character_card), len(input.instruction), len(request.tool_goal),
+                   len(context.original_assignment), len(context.current_assignment))
+    if source is not None:
+        retained = max(retained, len(source.affect), max((len(item.text) for item in source.stimuli), default=0))
     decisions: list[EvidenceDecision] = []
     seen: set[int] = set()
-    if source is not None:
-        lines.append(f"Decision action {source.action_schema_id}; source tick {source.tick_id}.")
-        for stimulus in source.stimuli:
-            lines.append(f"Current cause [{stimulus.knoxel_id}; {stimulus.kind}; {stimulus.source}]:\n{stimulus.text}")
-            seen.add(stimulus.knoxel_id)
-            decisions.append(EvidenceDecision(stimulus.knoxel_id, 100, True, "current cause of selected tool goal"))
-        if source.affect:
-            lines.append("Feeling when selected: " + source.affect)
-    else:
-        lines.append("This task starts from the operator's instruction and current accepted context.")
-    lines.append("MCP servers: " + ", ".join(input.server_names) + ". Tool names use server_name prefixes.")
-    lines.append(f"Work folder: {input.work_root}. Place host artifacts directly in outbox/.")
-    lines.append("Return the terminal JSON object specified by the tool-session instructions.")
-    turns = resolve_media((Turn(Role.System, input.skill_text), Turn(Role.User, "\n\n".join(lines))), ImageCatalog(context.images))
+    reduced = False
+    while True:
+        lines = [f"You are {context.companion_name}. Carry out your selected decision with your own tools.",
+            "Character:\n" + evidence_excerpt(context.character_card.strip(), retained),
+            "Selected decision:\n" + evidence_excerpt(input.instruction, retained)]
+        if request.tool_goal:
+            lines.append("Concrete tool goal: " + evidence_excerpt(request.tool_goal, retained))
+        if context.related_run_id:
+            lines.append("Related worker " + context.related_run_id + ". Original assignment and site:\n"
+                         + evidence_excerpt(context.original_assignment, retained))
+            if context.current_assignment != context.original_assignment:
+                lines.append("Current assignment:\n" + evidence_excerpt(context.current_assignment, retained))
+        if reduced and input.work_root:
+            lines.append("Source detail was abbreviated. Check inbox/request.yaml before an external action "
+                         "if its goal or constraints are incomplete. Report uncertainty if you cannot establish them.")
+        decisions.clear()
+        seen.clear()
+        if source is not None:
+            lines.append(f"Decision action {source.action_schema_id}; source tick {source.tick_id}.")
+            for index, stimulus in enumerate(source.stimuli):
+                included = index >= source_count - selected_count
+                if included:
+                    lines.append(f"Current cause [{stimulus.knoxel_id}; {stimulus.kind}; {stimulus.source}]:\n"
+                                 + evidence_excerpt(stimulus.text, retained))
+                    seen.add(stimulus.knoxel_id)
+                decisions.append(EvidenceDecision(stimulus.knoxel_id, 100, included,
+                    "cause of selected tool goal" if included else "omitted cause retained in task input"))
+            if source.affect:
+                lines.append("Feeling when selected: " + evidence_excerpt(source.affect, retained))
+        else:
+            lines.append("This task starts from the operator's instruction and current accepted context.")
+        lines.append("MCP servers: " + ", ".join(input.server_names) + ". Tool names use server_name prefixes.")
+        lines.append("Ground external work in actual tool returns. Resolve a named site or object against its "
+                     "original task and check it before acting. If its identity is ambiguous, inspect or report "
+                     "the ambiguity. Keep the quantity collected separate from the total held. Report the "
+                     "actual action, target and instrument. If a requested measurement is unavailable, say so. "
+                     "A substitute experiment can establish only what its instrument actually measured.")
+        if input.work_root:
+            lines.append(f"Work folder: {input.work_root}. Place host artifacts directly in outbox/.")
+        if input.work_root:
+            lines.append("Return the terminal JSON object specified by the tool-session instructions.")
+        turns = resolve_media((Turn(Role.System, input.skill_text), Turn(Role.User, "\n\n".join(lines))), ImageCatalog(context.images))
+        if estimator.estimate(turns) <= settings.input_ceiling:
+            break
+        reduced = True
+        if retained:
+            retained //= 2
+        elif selected_count:
+            selected_count //= 2
+        else:
+            break
     required = require_rendered_prompt("tool goal session", turns, settings, tuple(decisions))
-    estimator = TokenEstimator(estimate_factor=settings.estimate_factor)
     remaining = settings.input_ceiling - required.estimated_tokens
     selected_groups: list[str] = []
     if source is not None and source.workspace:

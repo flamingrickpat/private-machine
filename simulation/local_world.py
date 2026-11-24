@@ -266,7 +266,7 @@ class LocalWorld:
                 f"MCMCP_AGENT_HOME={home}", "MCP_HOST=0.0.0.0", f"MCP_PORT={mcp.port}",
                 "MCMCP_BODY_HOST=127.0.0.1", f"MCMCP_BODY_PORT={http.port}", f"MCMCP_VIEWER_PORT={viewer.port}",
                 "MINECRAFT_HOST=127.0.0.1", f"MINECRAFT_PORT={game.port}", f"MINECRAFT_PLAYER={body.username}",
-                "MINECRAFT_RCON_HOST=127.0.0.1", f"MINECRAFT_RCON_PORT={rcon.port}", f"MINECRAFT_RCON_PASSWORD={password}",
+                "MCMCP_CONNECTION_TOOLS=true", "MINECRAFT_RCON_HOST=127.0.0.1", f"MINECRAFT_RCON_PORT={rcon.port}", f"MINECRAFT_RCON_PASSWORD={password}",
             ]
             env_path.write_text("\n".join(values) + "\n", encoding="utf-8")
             environment = os.environ.copy()

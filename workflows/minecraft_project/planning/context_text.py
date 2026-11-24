@@ -347,7 +347,7 @@ def review_sections(context: ReviewContext) -> tuple[TechnicalSection, ...]:
         text += "\n" + "\n".join(f"{criterion}: {passed}" for criterion, passed in dependency.checks.items())
         sections.append(TechnicalSection("Accepted dependency " + node_id, text, True))
     sections.append(TechnicalSection("Leaf prerequisites", "\n".join(f"{node}: {dependencies}" for node, dependencies in context.leaf_prerequisites.items()), True))
-    sections.extend(TechnicalSection("Task topology", f"{node.id}: {node.kind}; parent={node.parent}; children={node.children}; prerequisites={node.depends_on}", True)
+    sections.extend(TechnicalSection(f"Task topology node {node.id}", f"{node.kind}; parent={node.parent}; children={node.children}; prerequisites={node.depends_on}", True, node.id)
         for node in context.tree_topology)
     if context.latest_project_check is not None:
         check = context.latest_project_check

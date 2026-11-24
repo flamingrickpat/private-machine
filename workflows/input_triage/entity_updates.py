@@ -44,11 +44,11 @@ def capture_entity_extraction(owner: EntityContextOwner, view: Snapshot, *, subj
                                  input_commit_ids=sorted(view.commit_ids))
 
 
-def render_extraction_context(extraction: EntityExtractionInput) -> str:
+def render_extraction_context(extraction: EntityExtractionInput, claim_limit: int | None = None) -> str:
     """Show compact accepted claims without exposing host-generated answer fields."""
     lines = ["Accepted entity context for this extraction:"]
     for family in extraction.families:
-        lines.append(render_entity_context(family.context))
+        lines.append(render_entity_context(family.context, claim_limit))
     lines.append("Only these new source IDs require maintenance: " + ", ".join(map(str, extraction.source_ids)))
     return "\n".join(lines)
 
@@ -97,7 +97,8 @@ def hydrate_entity_extraction(extraction: EntityExtractionInput, draft: EntityEx
                 and draft_claim.exact_quote in sources[source_id].content else None) for source_id in draft_claim.source_ids]
             observed = max(sources[source_id].occurred_at_utc for source_id in draft_claim.source_ids)
             claims.append(EntityContextClaim(layer=draft_claim.layer, claim_key=draft_claim.claim_key,
-                statement=draft_claim.statement, epistemic_kind=draft_claim.epistemic_kind,
+                statement=(draft_claim.exact_quote if draft_claim.epistemic_kind == "report" and draft_claim.exact_quote
+                           else draft_claim.statement), epistemic_kind=draft_claim.epistemic_kind,
                 perspective_entity_id=draft_claim.perspective_entity_id, confidence=draft_claim.confidence,
                 evidence=evidence, observed_at_utc=observed,
                 applicable_from_utc=draft_claim.applicable_from_utc or observed,

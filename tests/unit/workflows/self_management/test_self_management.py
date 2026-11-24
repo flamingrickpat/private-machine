@@ -18,7 +18,6 @@ from pm_workflows.runtime import WorkflowRuntime
 
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope
-from pm.memory.store_tools import build_tools
 from workflows.companion import build_app
 from workflows.self_management.host import SelfManagement
 from pm.memory.store import MemoryStore
@@ -60,7 +59,7 @@ class SelfManagementTests(unittest.TestCase):
                     LOCAL_TASK / "local_task.workflow.md", namespace="local_task",
                 ),
             },
-            clock=None,
+            clock=time.monotonic,
             task_root=self.root / "tasks",
         )
 
@@ -154,6 +153,12 @@ class SelfManagementModuleTests(unittest.TestCase):
             for operation in ("status", "cancel", "resume"):
                 request.payload = {**payload, "arguments": {**payload["arguments"], "operation": operation}}
                 self.assertEqual(module.prepare_input([request])["operation"], operation)
+            request.payload = {**payload, "content": "Inspect the original site",
+                               "arguments": {"operation": "", "run_id": "", "instructions": "", "tool_goal": "inspect"}}
+            direct = module.prepare_input([request])
+            self.assertEqual(direct["operation"], "start")
+            self.assertEqual(direct["instructions"], "Inspect the original site")
+            self.assertEqual(direct["arguments"]["tool_goal"], "inspect")
 
     def test_module_maps_action_arguments_to_a_receipt(self):
         with TemporaryDirectory() as tmp:
@@ -169,7 +174,7 @@ class SelfManagementModuleTests(unittest.TestCase):
                         LOCAL_TASK / "local_task.workflow.md", namespace="local_task",
                     ),
                 },
-                clock=None,
+                clock=time.monotonic,
                 task_root=root / "tasks",
             )
             app = build_app(None, root / "app-runtime", ghost=ghost, clock=None)
@@ -223,7 +228,7 @@ class ManagementMcpTests(unittest.TestCase):
                         LOCAL_TASK / "local_task.workflow.md", namespace="local_task",
                     ),
                 },
-                clock=None, task_root=root / "tasks",
+                clock=time.monotonic, task_root=root / "tasks",
             )
 
             seen: dict = {}

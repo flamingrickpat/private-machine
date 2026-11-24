@@ -97,6 +97,7 @@ class Step(BaseModel):
     completion: str = Field(min_length=1)
     target: str = "primary"
     speaker: str = "Jesse"
+    review_body_stop: bool = False
     minimum_turns: int = Field(default=1, ge=1, description="Minimum actor turns before the director can finish this scene.")
 
 

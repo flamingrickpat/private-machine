@@ -104,6 +104,7 @@ def plan_session(context: RoleContext, store: TreeStore, payload: PlanningContex
     draft = TaskDraft(store, payload.goal, name + "/draft.json", boundary,
         DraftSettings(base=store.load() if store.state["revision"] else None,
             scope=frozenset(scope) if scope is not None else None,
+            recovery_required=payload.gameplay_history.recovery is not None,
             refinement_target=payload.refinement_target,
             require_leaf_change=bool(store.state.get("require_leaf_change", False))))
     server = draft.server()
@@ -155,7 +156,12 @@ def plan_session(context: RoleContext, store: TreeStore, payload: PlanningContex
         "If no preference is available, choose a practical option within the current request. "
         "Match planning effort to this task's consequences and requested review mode. "
         "For a small reversible task, prefer one useful executable leaf over speculative future phases. "
-        "")
+        "A request to do something and tell the partner the result has two owners. Your leaf performs the "
+        "world action and records the actual outcome. After verification the public reply workflow reads the "
+        "server returns and speaks. A harvest with random drops needs a before/after inventory read in the "
+        "actor instructions and a world criterion such as the original cell becoming air. Zero drops is a "
+        "valid observed outcome. Keep the original block in the baseline. Remove tautological count tests and "
+        "speech predicates if an earlier proposal invented them.")
     initial_input = NativePlannerRenderInput(prompt, payload.goal)
     with RendererCapture(session_model.capture_settings("minecraft.native_planner"),
             RendererInput("minecraft.native_planner", initial_input, render_settings)) as capture:

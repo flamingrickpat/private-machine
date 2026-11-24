@@ -40,7 +40,8 @@ import hashlib
 import json
 
 from pm.constants import EXPECTATION_COUNT
-from pm.context_render.turns import Turn, format_content
+from pm.context_render.shards import fit_shard_instruction
+from pm.context_render.turns import Turn
 from concurrent.futures import ThreadPoolExecutor
 from contextvars import copy_context
 from pm.llm.concurrency import wait_model_futures
@@ -75,7 +76,7 @@ BODY_WORKFLOWS = {"minecraft": "minecraft", "minecraft_project": "minecraft"}
 #: Workflows whose goal is the decision text itself. Their dispatch drops a
 #: routed ``instructions`` or ``instruction`` argument, so the start uses the
 #: decision text unchanged. Other arguments (for example ``tool_goal``) stay.
-DECISION_GOAL_WORKFLOWS = frozenset({"tool_call"})
+DECISION_GOAL_WORKFLOWS = frozenset({"tool_call", "assistant"})
 
 
 def stable_action_id(dispatch: ActionDispatch, index: int) -> str:
@@ -105,7 +106,7 @@ def group_of(work: CycleWork, decision: ActionDecision) -> StimulusGroup:
 
 def render_group_stimuli(work: CycleWork, group: StimulusGroup) -> str:
     """Return the group's stimuli with their ids, source, and kind, so routing can cite them."""
-    lines = [f"- id={item.knoxel_id} source={item.source} kind={item.kind} text={item.text!r}"
+    lines = [f"- id={item.knoxel_id} source={item.source} kind={item.kind} text={work.prompt_summaries.get(item.knoxel_id, item.text)!r}"
              for item in work.request.stimuli if item.knoxel_id in group.stimulus_ids]
     return "\n".join(lines) or "(none)"
 
@@ -121,7 +122,7 @@ def build_messages(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix, 
     """Return the shared story prefix and then the routing instruction for one decision as the last turn."""
     request = work.request
     group = group_of(work, decision)
-    instruction = format_content(prefix.fill(prompts.user_template), RouteTemplateValues(
+    values = RouteTemplateValues(
         part=group_part(work, prompts, prefix, group),
         decision=decision.text,
         stimuli=render_group_stimuli(work, group),
@@ -130,14 +131,30 @@ def build_messages(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix, 
         managed_runs=render_managed_runs(request.managed_runs) if request.managed_runs else "(none)",
         capabilities="\n".join(f"- {item}" for item in request.capabilities) or "(none)",
         workflows="\n".join(f"- {item.name}: {item.description}" for item in available_workflows(work)),
-        wait_default_seconds=request.wait_default_seconds)).text
+        wait_default_seconds=request.wait_default_seconds)
+    instruction = fit_shard_instruction(prefix.fill(prompts.user_template), values,
+        frozenset({"decision", "stimuli", "memories", "goals", "managed_runs", "capabilities"}),
+        request.images, prefix.settings)
     return prefix.ask(instruction)
 
 
 def route(context: RoleContext, work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix,
           decision: ActionDecision) -> RouteAnswer:
     """Run the routing call of one decision. Runs in a worker thread and does not change ``work``."""
-    check = RouteCheck(workflow_names=[item.name for item in available_workflows(work)])
+    runs = work.request.managed_runs
+    changed_goal = any(item.change in {"add", "complete", "defer", "refuse", "reprioritize"}
+                       for item in work.goals.changes)
+    change_sources = {item.knoxel_id for item in work.request.stimuli
+                      if item.knoxel_id in decision.stimulus_ids and
+                      (item.kind in {"user.input", "minecraft.world", "workflow.question", "workflow.event"}
+                       or changed_goal and item.kind == "thought.created")}
+    check = RouteCheck(workflow_names=[item.name for item in available_workflows(work)],
+        visible_run_ids=frozenset(run.run_id for run in runs if run.run_id),
+        updatable_run_ids=frozenset(run.run_id for run in runs if run.run_id and run.updates_open
+            and run.state in {"running", "accepted", "waiting_for_input"}),
+        pending_revision_run_ids=frozenset(run.run_id for run in runs if run.run_id and run.revision > run.applied_revision),
+        partner_sources=frozenset(item.knoxel_id for item in work.request.stimuli if item.kind == "user.input"),
+        change_sources=frozenset(change_sources))
     return complete(context, build_messages(work, prompts, prefix, decision), RouteAnswer,
                     validation_context=check)
 
@@ -151,6 +168,13 @@ def routed_decisions(work: CycleWork, answers: list[RouteAnswer]) -> list[Routed
                                      correlation_id=group.correlation_id, decision=decision.text,
                                      route=RouteChoice(action_type=answer.action_type, workflow_name=answer.workflow_name,
                                          arguments=answer.arguments, presentation=answer.presentation, reasoning=answer.reasoning)))
+        if answer.parallel_inquiry:
+            related = answer.arguments.related_run_id or answer.arguments.run_id
+            routed.append(RoutedDecision(group=group.key, stimulus_ids=list(decision.stimulus_ids),
+                correlation_id=group.correlation_id, decision=answer.parallel_inquiry,
+                route=RouteChoice(action_type="ToolCall", workflow_name="assistant",
+                                  arguments=ActionArguments(related_run_id=related),
+                                  reasoning="Independent observation selected with the task.")))
     return routed
 
 
@@ -184,7 +208,7 @@ def decision_goal_arguments(workflow_name: str, arguments: ActionArguments) -> A
     starts the run with the decision text, unchanged (decision D28).
     """
     target = arguments.workflow_name if workflow_name == "self_management" and arguments.operation == "start" else workflow_name
-    if target not in DECISION_GOAL_WORKFLOWS:
+    if target not in DECISION_GOAL_WORKFLOWS or arguments.run_id:
         return pickle_copy(arguments)
     return ActionArguments.model_validate({key: value for key, value in arguments.payload().items()
                                            if key not in {"instructions", "instruction"}})
@@ -225,25 +249,33 @@ def resolve_conflicts(dispatches: list[ActionDispatch], groups: list[StimulusGro
     by_priority = sorted(range(len(dispatches)), key=lambda index: (-rank[dispatches[index].group],
                                                                      order[dispatches[index].group], index))
     resolved = list(dispatches)
-    acting: dict[ShardKey, str] = {}
+    acting: dict[tuple[ShardKey, bool], str] = {}
     leases: dict[str, str] = {}
+    updates: set[str] = set()
     for index in by_priority:
         dispatch = dispatches[index]
         if dispatch.status != "dispatched":
             continue
         lease = body_lease(dispatch, workflows)
         reason = ""
-        if dispatch.group in acting:
-            reason = f"group {dispatch.group.kind}:{dispatch.group.ref} already acts through {acting[dispatch.group]}"
+        channel = (dispatch.group, dispatch.workflow_name == "assistant")
+        if channel in acting:
+            reason = f"group {dispatch.group.kind}:{dispatch.group.ref} already acts through {acting[channel]}"
         elif lease and lease in leases:
             reason = f"body lease {lease} already claimed by {leases[lease]}"
+        updating = dispatch.arguments.operation == "update" or (
+            bool(dispatch.arguments.run_id) and not dispatch.arguments.operation and dispatch.workflow_name != "self_management")
+        if updating and dispatch.arguments.run_id in updates:
+            reason = f"another group already revised run {dispatch.arguments.run_id} this cycle"
         if reason:
             rejected = dispatch.model_copy()
             rejected.status = "rejected"
             rejected.rejection_reason = reason
             resolved[index] = rejected
             continue
-        acting[dispatch.group] = dispatch.action_id
+        acting[channel] = dispatch.action_id
+        if updating:
+            updates.add(dispatch.arguments.run_id)
         if lease:
             leases[lease] = dispatch.action_id
     return resolved

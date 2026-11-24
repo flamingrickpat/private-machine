@@ -4,8 +4,7 @@ It validates evidence and commits each utterance before publication. Story
 and Assistant subclass it. Completed drafts receive a review. Critical
 reconsideration cancels obsolete calculation; its epoch still fences publication
 when completion races cancellation. Story revises rejected
-drafts. Declared model-output exhaustion leaves the exchange pending. Other errors reach the
-application. Host failure strings never become companion speech.
+drafts until acceptance or cancellation. Internal errors reach the application. Host failure strings never become companion speech.
 """
 from __future__ import annotations
 
@@ -13,10 +12,6 @@ from workflows.minecraft_body.capabilities import CapabilitySnapshotOwner
 
 from typing import TYPE_CHECKING
 
-from pm.host.durable_files import atomic_json
-from pm.context_render.budget import RequiredContextTooLarge
-from pm.llm.http_client import ModelError
-from pm.llm.structured import ModelFormatError
 from pm.llm.concurrency import InferenceRole, inference_role
 from pm.utils import yaml_util
 
@@ -24,7 +19,6 @@ from pm.bus.envelopes import Envelope, new_id
 from workflows.main_cognition.schemas import ActionMetadata, ActionRequest, Stimulus
 from workflows.public_speech.public_context import build_public_context, order_dialogue
 from workflows.public_speech.shard_context import shard_context
-from workflows.public_speech.speech_text import SpeechOutputError
 from workflows.public_speech.publication import commit_public_reply, publish_reply
 from pm.bus.envelopes import new_envelope
 from pm.runs.workflow_module import CognitiveWorkflow
@@ -116,7 +110,8 @@ class PublicDialogue(CognitiveWorkflow):
             self._public_context = build_public_context(self.ghost, request, capabilities=capabilities,
                                                         planned=planned, late_ids=list(late_ids))
             if self.cognitive_control is not None:
-                self._public_context.reconsideration_epoch = self.cognitive_control.publication_epoch()
+                self._public_context.reconsideration_epoch = self.cognitive_control.publication_epoch(
+                    request.task_receipt.stop_source_id if request.task_receipt else None)
         return self._public_context
 
     def reply_context(self, request: ActionRequest, late_ids: list[int] = ()) -> PlannedContext:
@@ -316,11 +311,12 @@ class PublicDialogue(CognitiveWorkflow):
                 control = self.cognitive_control
                 if control is not None:
                     control.validate_selection(request.interaction_selection_id)
-                    if not control.wait_for_reconsideration(self.stop_event):
+                    stop_source = request.task_receipt.stop_source_id if request.task_receipt else None
+                    if not control.wait_for_reconsideration(self.stop_event, stop_source):
                         return
                 with self.ghost.lock:
                     if control is not None:
-                        control.validate_publication(control.publication_epoch(), request.gwt_tick)
+                        control.validate_publication(control.publication_epoch(stop_source), request.gwt_tick, stop_source)
                     self._composing_reply = True
                     self._reply_committed = False
                     self._interrupted_epoch = None
@@ -336,8 +332,6 @@ class PublicDialogue(CognitiveWorkflow):
                 self.supersede_reply(envelope, str(error))
                 if self.cognitive_control is not None:
                     self.cognitive_control.refresh_action(request)
-            except (ModelError, SpeechOutputError, ModelFormatError, RequiredContextTooLarge) as error:
-                self.defer_reply(envelope, error)
             finally:
                 with self.ghost.lock:
                     self._composing_reply = False
@@ -348,31 +342,6 @@ class PublicDialogue(CognitiveWorkflow):
             {"status": "superseded", "workflow_name": self.WORKFLOW_NAME,
              "rejection_reason": reason, "recovery_outcome": "not_published",
              "invocation_id": self.invocation_id}, causation_id=envelope.id))
-
-    def defer_reply(self, envelope: Envelope,
-                    error: ModelError | SpeechOutputError | ModelFormatError | RequiredContextTooLarge) -> None:
-        """Retain exhausted model-output evidence and keep the exchange pending.
-
-        Only declared model-output errors reach this method: any ``ModelError``
-        the client raises after its transport retries (empty, filtered, failed,
-        or cut-off completion, HTTP error), a rejected speech draft, and an
-        exhausted format repair, or an input that exceeds its prompt budget.
-        A failed completion used to crash the module
-        unless it was empty or provider-filtered (B07 Pass 0 finding A4). Snapshot, tool,
-        filesystem, cancellation, and programming errors keep their boundaries.
-        No reply commits, and no tool action repeats. A later action or restart
-        can retry the pending exchange. Saving evidence must succeed.
-        """
-        environment = self.last_environment
-        files = {"inbox/request.yaml": environment.read_text("inbox/request.yaml")}
-        files.update({path: environment.read_text(path) for path in environment.list_files("scratch")})
-        path = self.runtime_root / self.module_id / self.invocation_id / "speech-failure.json"
-        atomic_json(path, {"error_type": type(error).__name__, "reason": str(error),
-                           "correlation_id": envelope.correlation_id, "files": files})
-        self.bus.put(new_envelope(self.module_id, "telemetry", "action.receipt", envelope.correlation_id,
-            {"status": "generation_failed", "workflow_name": self.WORKFLOW_NAME,
-             "rejection_reason": str(error), "recovery_outcome": "not_published", "artifact_path": str(path)},
-            causation_id=envelope.id))
 
     def reject_reply(self, batch: list[Envelope], reason: str, *, status: str = "rejected") -> None:
         """Retain a rejection and stop execution without invented speech.

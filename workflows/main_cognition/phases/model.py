@@ -14,19 +14,20 @@ current phase input stays last and authoritative.
 from __future__ import annotations
 
 from collections.abc import Sequence
+import logging
 from pathlib import Path
 from typing import TypeVar
 
 from pm_workflows.python_role import RoleContext
 from pydantic import BaseModel
 
-from pm.constants import CODELET_TEXT_ATTEMPTS, Sampler
+from pm.constants import Sampler
 from pm.context_render.turns import Role, Turn
 from pm.llm.prompt_encoding import TurnInput, normalize_turns
 
 from workflows.main_cognition.cycle_work import CycleWork
 from workflows.main_cognition.prompt_config import PhasePrompts, load_prompts
-from pm.llm.structured import complete_json, ModelFormatError
+from pm.llm.structured import complete_json
 from pm.llm.generation import GenerationSettings
 from pm.llm.role_model import role_model
 from pm.context_render.prompt import require_rendered_prompt
@@ -98,12 +99,15 @@ def complete_prose(context: RoleContext, messages: Sequence[TurnInput]) -> str:
     session = role_model(context.runtime)
     turns = tuple(normalize_turns(messages))
     require_rendered_prompt("main cognition prose", turns, session.render_settings())
-    for attempt in range(CODELET_TEXT_ATTEMPTS):
+    attempt = 0
+    while True:
+        attempt += 1
+        session.check_cancelled()
         raw = session.complete(turns, settings=GenerationSettings(temperature=Sampler.TempInstruct, enable_thinking=False))
         if raw.strip():
             return raw.strip()
-        context.runtime.environment.write_text(f"scratch/model-output-empty-{attempt + 1:02}.txt", raw)
-    raise ModelFormatError("The main cognition prose model repeatedly returned empty content.")
+        context.runtime.environment.write_text(f"scratch/model-output-empty-{attempt:02}.txt", raw)
+        logging.getLogger(__name__).warning("Empty cognition prose, resampling attempt=%s", attempt)
 
 
 

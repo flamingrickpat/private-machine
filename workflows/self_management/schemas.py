@@ -7,7 +7,25 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
+
+from workflows.main_cognition.schemas import ActionArguments
+
+
+class ManagementArguments(ActionArguments):
+    request_id: str = ""
+    action_id: str = ""
+    parent_correlation: str = ""
+    answer: str = ""
+    question_id: str = ""
+    arguments: dict[str, JsonValue] = Field(default_factory=dict)
+
+
+class ManagementAction(BaseModel):
+    knoxel_id: int | None = None
+    action_id: str = ""
+    content: str = ""
+    arguments: ManagementArguments = Field(default_factory=ManagementArguments)
 
 class SelfManagementRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -22,7 +40,7 @@ class SelfManagementRequest(BaseModel):
     request_id: str = ""
     question_id: str = ""
     answer: str = ""
-    arguments: dict = Field(default_factory=dict)
+    arguments: dict[str, JsonValue] = Field(default_factory=dict)
 
 
 class SelfManagementReport(BaseModel):
@@ -32,8 +50,8 @@ class SelfManagementReport(BaseModel):
     operation: str
     accepted: bool
     summary: str
-    receipt: dict = Field(default_factory=dict)
-    receipts: list[dict] = Field(default_factory=list)
+    receipt: dict[str, JsonValue] = Field(default_factory=dict[str, JsonValue])
+    receipts: list[dict[str, JsonValue]] = Field(default_factory=list[dict[str, JsonValue]])
 
 
 __all__ = ["SelfManagementRequest", "SelfManagementReport"]

@@ -130,6 +130,7 @@ class PublicationTests(unittest.TestCase):
             self.ghost.checkpoint = Path(tmp) / "ghost.pickle"
             correlation = self.proxy.submit("One exchange.", session="original-session")
             reply_id = commit_public_reply(self.ghost, "One answer.", correlation, commit_id="reply")
+            self.ghost.save()
             restored = MemoryStore.from_checkpoint(self.ghost.checkpoint, raw=True)
             self.assertEqual(exchange_record(restored, correlation).metadata["public_reply_id"], reply_id)
             self.assertIsNone(commit_public_reply(restored, "Duplicate answer.", correlation, commit_id="duplicate"))
@@ -167,10 +168,11 @@ class PublicationTests(unittest.TestCase):
             (root / "outbox/report.yaml").write_text(yaml.safe_dump(report), encoding="utf-8")
             path = root / "outbox/note.txt"
             path.write_bytes(b"copper lantern")
-            receipt = {"artifact_path": str(root), "state": "completed", "workflow_name": "note_task"}
-            self.assertTrue(task_evidence(receipt)["task_verified"])
+            from workflows.public_speech.task_receipts import TaskReceipt
+            receipt = TaskReceipt(artifact_path=str(root), state="completed", workflow_name="note_task")
+            self.assertTrue(task_evidence(receipt).task_verified)
             path.write_bytes(b"copper lantern\n")
-            self.assertFalse(task_evidence(receipt)["task_verified"])
+            self.assertFalse(task_evidence(receipt).task_verified)
 
     def test_restart_redispatches_pending_input_without_another_utterance(self):
         correlation = self.proxy.submit("A request interrupted before dispatch.")

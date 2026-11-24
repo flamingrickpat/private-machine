@@ -42,11 +42,11 @@ import traceback
 from collections import deque
 from typing import TYPE_CHECKING
 
-from pydantic import JsonValue
+from pydantic import BaseModel, JsonValue
 
 from pm import vclock
 from pm.bus.envelopes import Envelope, new_envelope
-from pm.constants import CSM_RECENT_DIALOGUE_TURNS, CYCLE_RETRY_DELAY_SECONDS, CYCLE_RETRY_MAX_DELAY_SECONDS, WORKSPACE_TAIL_TOKENS
+from pm.constants import WORKSPACE_TAIL_CANDIDATES, CYCLE_RETRY_DELAY_SECONDS, CYCLE_RETRY_MAX_DELAY_SECONDS, WORKSPACE_TAIL_TOKENS
 from pm.context_render.story import record_view
 from pm.context_render.budget import RequiredContextTooLarge
 from pm.llm.http_client import ModelError
@@ -60,6 +60,7 @@ from pm.records.copying import pickle_copy
 from pm.records.memory_records import Entity, Feature
 from pm.records.workspace import SELF_SHARD, ShardKey
 from pm.runs.workflow_module import CognitiveWorkflow
+from workflows.minecraft_body.capabilities import CapabilitySnapshotOwner
 from workflows.input_triage.schemas import EarlyTriageAssessment, InputSourcePayload, InputTriageRequest, TriageEvidence
 from workflows.main_cognition.cycle_commits import active_intentions
 from workflows.main_cognition.catalogue import WorkflowCatalogue
@@ -70,10 +71,18 @@ from pm.memory.dependencies import source_fingerprint
 from workflows.public_speech.situational_guidance import build_situational_guidance
 from workflows.entity_context.owner import EntityContextOwner
 from workflows.input_triage.entity_updates import capture_entity_extraction
+from workflows.main_cognition.phases.triage import TRIAGE_STIMULI_PER_BATCH
 from workflows.main_cognition.entity_shards import add_entity_context_records, reserve_entity_context
 
 if TYPE_CHECKING:
     from workflows.cognitive_control.host import CognitiveControl
+
+
+class TriageRejection(BaseModel):
+    reason: str
+    artifact_path: str
+    source_ids: list[int]
+    retry_delay_seconds: float | None
 
 
 class InputTriage(CognitiveWorkflow):
@@ -84,6 +93,7 @@ class InputTriage(CognitiveWorkflow):
 
     cognitive_control: CognitiveControl
     entity_context_owner: EntityContextOwner | None = None
+    capability_owner: CapabilitySnapshotOwner | None = None
     workflow_catalogue: WorkflowCatalogue | None = None
 
     def deliver(self, envelope: Envelope) -> None:
@@ -97,10 +107,11 @@ class InputTriage(CognitiveWorkflow):
         remaining: list[Envelope] = []
         for envelope in batch:
             source_id = InputSourcePayload.model_validate(envelope.payload).knoxel_id
-            if not (self.cognitive_control.has_assessment(source_id)
-                    or self.cognitive_control.triage_budget_rejected(source_id)):
+            if not self.cognitive_control.has_assessment(source_id):
                 remaining.append(envelope)
-        pending = deque([remaining]) if remaining else deque()
+        pending: deque[list[Envelope]] = deque()
+        for start in range(0, len(remaining), TRIAGE_STIMULI_PER_BATCH):
+            pending.append(remaining[start:start + TRIAGE_STIMULI_PER_BATCH])
         while pending and not self.stop_event.is_set():
             current = pending.popleft()
             try:
@@ -108,7 +119,7 @@ class InputTriage(CognitiveWorkflow):
             except RequiredContextTooLarge as error:
                 self.record_rejection(current, error, retry_delay_seconds=None)
                 if len(current) == 1:
-                    self.cognitive_control.reject_triage_budget(current[0])
+                    raise
                 else:
                     middle = len(current) // 2
                     pending.appendleft(current[middle:])
@@ -136,9 +147,10 @@ class InputTriage(CognitiveWorkflow):
         path = self.runtime_root / "kernel" / str(self.invocation_id) / "triage-rejected.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(diagnostic, indent=2), encoding="utf-8")
+        rejection = TriageRejection(reason=str(error), artifact_path=str(path), source_ids=source_ids,
+                                   retry_delay_seconds=retry_delay_seconds)
         self.bus.put(new_envelope(self.module_id, "telemetry", "triage.rejected", batch[-1].correlation_id,
-            {"reason": str(error), "artifact_path": str(path), "source_ids": source_ids,
-             "retry_delay_seconds": retry_delay_seconds}))
+            rejection.model_dump(mode="json")))  # pm-lint: allow PM007 -- serialize typed telemetry at the bus boundary
 
     def prepare_input(self, batch: list[Envelope]) -> dict[str, JsonValue]:
         """Freeze identity, accepted guidance, and only the relevant dialogue."""
@@ -147,7 +159,10 @@ class InputTriage(CognitiveWorkflow):
         view = self.last_environment.ghost_view
         assert view is not None, "Early triage requires a frozen memory snapshot."
         request = build_input_request(self.ghost, view, batch, run_id=self.invocation_id or "")
+        if self.capability_owner is not None:
+            request.cycle.runtime_orientation = self.capability_owner.snapshot().runtime_orientation
         if self.workflow_catalogue is not None:
+            request.body_target = self.workflow_catalogue.body_target()
             request.direct_workflows = self.workflow_catalogue.direct_request_options()
         if self.entity_context_owner is not None:
             observer_id = request.cycle.self_entity_id
@@ -162,6 +177,7 @@ class InputTriage(CognitiveWorkflow):
 
     def publish_output(self, report: dict[str, JsonValue], batch: list[Envelope]) -> None:
         """Accept the durable assessment before waking cognition and speech."""
+        assert self.ghost is not None
         assessment = EarlyTriageAssessment.model_validate(report)
         accepted = self.cognitive_control.accept_triage(assessment)
         for envelope in batch:
@@ -214,16 +230,20 @@ def build_input_request(ghost: MemoryStore, view: Snapshot, batch: list[Envelope
                 shard.tail_ids = [record_id for record_id in shard.tail_ids if view.get(record_id).scope in scopes]
             for record_id in [*previous.workspace.item_ids(), *previous.workspace.tail_ids()]:
                 records[record_id] = record_view(view.get(record_id))
-        dialogue = sorted((record for record in view.all_knoxels.values()
-                           if isinstance(record, Feature) and record.feature_type == FeatureType.Dialogue),
+        features = sorted((record for record in view.all_knoxels.values()
+                           if isinstance(record, Feature) and record.scope in source_scopes),
                           key=lambda record: (record.timestamp_world_begin, record.id))
         for key in keys:
-            if key.kind != "entity":
-                continue
-            selected = [record for record in dialogue
-                        if dialogue_partner(record, names, user_id, self_id) == int(key.ref)
-                        and record.scope in partner_scopes[int(key.ref)]]
-            selected = selected[-CSM_RECENT_DIALOGUE_TURNS:]
+            if key == SELF_SHARD:
+                thought_types = {FeatureType.Thought, FeatureType.ExternalThought,
+                                 FeatureType.InnerMonologue, FeatureType.SubjectiveExperience}
+                selected = [record for record in features if record.feature_type in thought_types]
+            else:
+                partner_id = int(key.ref)
+                selected = [record for record in features if record.feature_type == FeatureType.Dialogue
+                            and record.scope in partner_scopes[partner_id]
+                            and dialogue_partner(record, names, user_id, self_id) == partner_id]
+            selected = selected[-WORKSPACE_TAIL_CANDIDATES:]
             streams.append(ShardStream(key=key, record_ids=[record.id for record in selected]))
             for record in selected:
                 records[record.id] = record_view(record)
@@ -241,7 +261,12 @@ def build_input_request(ghost: MemoryStore, view: Snapshot, batch: list[Envelope
         add_entity_context_records(view, records, guidance)
         if previous is not None:
             reserve_entity_context(previous.workspace, records, guidance, tick=previous.tick_id)
+        world = next((record for record in reversed(features)
+                      if record.feature_type == FeatureType.WorldEvent and record.metadata.get("origin") == "minecraft.world"), None)
         cycle = CycleRequest(
+            latest_body_observation_id=world.id if world else None,
+            latest_body_observation=(f"Last observed at {world.timestamp_world_begin} [source {world.id}]: {world.content[:1200]}"
+                                     if world else ""),
             run_id=run_id, correlation_id=batch[-1].correlation_id, companion_name=companion, user_name=user,
             user_entity_id=user_id, self_entity_id=self_id,
             entity_names={key: view.get(key).content for key in partner_ids},
@@ -252,6 +277,8 @@ def build_input_request(ghost: MemoryStore, view: Snapshot, batch: list[Envelope
             situational_guidance=guidance,
         )
         evidence_ids = set(records)
+        if world is not None:
+            evidence_ids.add(world.id)
         evidence_ids.update(item.id for item in goals)
         for item in guidance:
             evidence_ids.update(item.source_revisions())

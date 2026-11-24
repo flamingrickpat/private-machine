@@ -74,7 +74,7 @@ from workflows.public_speech.story_rendering import (
 from workflows.dialogue_story.history_rendering import history_review_context
 from workflows.minecraft_body.capabilities import CapabilitySnapshot
 from workflows.public_speech.speech_text import (
-    CLASSIFIER_OUTPUT_ERROR, SpeechOutputError, strip_classifier_report, strip_narrator_setup,
+    CLASSIFIER_OUTPUT_ERROR, contains_tool_protocol, strip_classifier_report, strip_narrator_setup,
 )
 from workflows.public_speech.speech_review import (
     block_reason, finding_summary, is_blocked, load_prompts as load_review_prompts, review_speech,
@@ -94,15 +94,6 @@ WORKFLOW_DIR = Path(__file__).resolve().parent
 
 #: Correction turns requested before the conversation restarts from its origin.
 FOLLOWUPS_PER_RESTART = 10
-#: Completions asked for before a reply is called hopeless. Effectively unlimited, so a
-#: completion that yields no public speech is simply asked for again.
-SPEECH_ATTEMPTS = 99999
-#: Full restarts before a reply that keeps failing review is reported as blocked.
-#: Effectively unlimited by owner instruction: a rejected reply is revised until the speech
-#: review accepts it. The give-up path below stays as the last resort that still writes its
-#: rejection receipt, so a bounded run remains possible by lowering this back.
-BLOCKED_REPLY_RESTARTS = 99999
-
 
 
 def load_prompts(path: Path | None = None) -> StoryPrompts:
@@ -561,7 +552,7 @@ def generate_reviewed(request: StoryRequest, prompts: StoryPrompts, generate: Mo
     Each rejection adds the draft and review reason to the generation context.
     After ten follow-ups, discard repair turns and start from the original context.
     Retries print their progress to stdout. No tool actions or memory commits occur.
-    A completion that yields no public speech is asked for again, up to SPEECH_ATTEMPTS.
+    Empty speech retries until cancellation.
     Transport, cancellation, recording, and programming errors propagate.
     ``on_attempt`` records each attempt before review and after its result.
     Runtime prompts select optional evidence against their full rendered layout.
@@ -577,9 +568,9 @@ def generate_reviewed(request: StoryRequest, prompts: StoryPrompts, generate: Mo
     recorder = review_deps.recorder
     attempts: list[StoryAttempt] = []
     followups = 0
-    restarts = 0
     while True:
-        for index in range(SPEECH_ATTEMPTS):
+        while True:
+            generate.check_cancelled()
             selection = None
             from workflows.dialogue_story.context import StoryRenderInput, render_story
             from pm.context_render.budget import SelectionReceipt
@@ -593,7 +584,7 @@ def generate_reviewed(request: StoryRequest, prompts: StoryPrompts, generate: Mo
                     *(f"memory:{item.record_id}" for item in rendered.evidence if item.included)))),
                 omitted=tuple(f"memory:{item.record_id}" for item in rendered.evidence if not item.included),
                 estimated_tokens=rendered.estimated_tokens,
-                source_ids=tuple(sorted({item.record_id for item in rendered.evidence if item.included})), episode_ids=())
+                source_ids=rendered.visible_source_ids, episode_ids=())
             error = ""
             try:
                 raw = asyncio.run(generate.complete_async(messages, settings=prompts.get("generation", GenerationSettings())))
@@ -609,6 +600,9 @@ def generate_reviewed(request: StoryRequest, prompts: StoryPrompts, generate: Mo
             classifier_only = not candidate and bool(raw.strip()) and not strip_classifier_report(raw)
             if classifier_only:
                 error = CLASSIFIER_OUTPUT_ERROR
+            if contains_tool_protocol(candidate):
+                error = "The completion contains serialized tool calls instead of speech."
+                candidate = ""
             attempt = StoryAttempt(raw_completion=raw, candidate=candidate,
                 message_roles=[message.role.value for message in messages],
                 context_selection=selection,
@@ -618,22 +612,20 @@ def generate_reviewed(request: StoryRequest, prompts: StoryPrompts, generate: Mo
                 recorder.record(len(attempts), attempt)
             if candidate:
                 break
-            print(f"[dialogue_story] Attempt {index + 1} returned no speech; asking again.", flush=True)
-            if index == 0:
-                # Keep the full context and request only new speech after empty output.
-                problem = prompts["empty_completion_recovery"].format(
-                    companion_name=request.companion_name, partner_name=request.partner_name)
-                # The raw provider report stays in the receipt, outside the character's conversation.
-                rejected_answer = "" if classifier_only else raw
-        else:
-            raise SpeechOutputError(
-                f"The Story completion returned no new speech after {SPEECH_ATTEMPTS} generation attempts.")
-        review_messages = None
-        review_grounding = context
+            print(f"[dialogue_story] Attempt {len(attempts)} returned no speech; asking again.", flush=True)
+            problem = prompts["empty_completion_recovery"].format(
+                companion_name=request.companion_name, partner_name=request.partner_name)
+            rejected_answer = "" if classifier_only else raw
+        review_grounding = context.model_copy()
+        visible_sources = frozenset(rendered.visible_source_ids)
+        review_grounding.evidence = [item for item in context.evidence if item.knoxel_id in visible_sources]
+        review_grounding.memories = []
+        review_dialogue = [turn for turn in conversation if turn.knoxel_id is None or turn.knoxel_id in visible_sources]
         if rendered.temporal_history is not None:
-            review_grounding = history_review_context(context, rendered.temporal_history.items)
-        review = asyncio.run(review_speech(review_complete, candidate, review_grounding, conversation=conversation,
-                                           prompts=review_prompts, prepared_messages=review_messages, images=request.images))
+            review_grounding = history_review_context(review_grounding, tuple(
+                item for item in rendered.temporal_history.items if item.record_id in visible_sources))
+        review = asyncio.run(review_speech(review_complete, candidate, review_grounding, conversation=review_dialogue,
+                                           prompts=review_prompts, images=request.images))
         candidate = select_spoken_text(candidate, review)
         attempt.candidate = candidate
         attempt.review = review
@@ -647,16 +639,10 @@ def generate_reviewed(request: StoryRequest, prompts: StoryPrompts, generate: Mo
         reason = block_reason(review)
         print(f"[dialogue_story] Reply rejected (attempt {len(attempts)}): {reason}", flush=True)
         if followups >= FOLLOWUPS_PER_RESTART:
-            if restarts >= BLOCKED_REPLY_RESTARTS:
-                # Report the blocked draft. The host owns the rejection receipt,
-                # and retrying the same criterion again cannot improve it.
-                print(f"[dialogue_story] Giving up after {len(attempts)} attempts.", flush=True)
-                return attempts, attempt
             print("[dialogue_story] Ten follow-ups failed. Restarting from the original context.", flush=True)
             problem = ""
             rejected_answer = ""
             followups = 0
-            restarts += 1
         else:
             print(f"[dialogue_story] Requesting correction {followups + 1}/{FOLLOWUPS_PER_RESTART}.", flush=True)
             problem = prompts["rejected_reply_recovery"].format(reason=reason)
@@ -685,13 +671,15 @@ def run(context: RoleContext) -> StoryRoleResult:
     settings = session.render_settings()
     request = request.model_copy(deep=True)
     request.input_budget_tokens = settings.input_ceiling
+    request.current_user_message = session.summarize_long_source(request.current_user_message,
+        f"current message {request.current_message_id}", settings.input_ceiling // 3)
     recorder = StoryAttemptRecorder(environment, context.kernel_data, context.phase, context.attempt)
     attempts, chosen = generate_reviewed(request, prompts, session, session, StoryReviewDependencies(recorder=recorder))
     accepted = bool(chosen.candidate) and not chosen.blocked
     review = chosen.review
     verdict = OntologyVerdict(
         version="speech-review-v2", accepted=accepted,
-        facts_checked=len(request.public_context.evidence) if request.public_context else len(request.memories),
+        facts_checked=len(review.reviewed_evidence_ids) if review is not None else 0,
         fact_conflicts=[finding_summary(review)] if review is not None and review.findings else [],
     )
     report = StoryReport(

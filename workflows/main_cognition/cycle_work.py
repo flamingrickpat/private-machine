@@ -21,6 +21,8 @@ No phase writes the memory store. The host owns the store and the bus.
 """
 from __future__ import annotations
 
+from pm.llm.session import ModelSession
+
 from pm.memory.retrieval import RetrievalTrace
 
 from pm import vclock
@@ -119,6 +121,9 @@ class CycleRequest(BaseModel):
     stimuli: list[Stimulus] = Field(default_factory=list[Stimulus])
     memory_candidates: list[MemoryCandidate] = Field(default_factory=list[MemoryCandidate])
     memory_trace: RetrievalTrace | None = None
+    latest_body_observation: str = ""
+    latest_body_observation_id: int | None = None
+    runtime_orientation: str = ""
     capabilities: list[str] = Field(default_factory=list[str])
     available_workflows: list[WorkflowOption] = Field(default_factory=list[WorkflowOption])
     public_context: PublicContext | None = None
@@ -202,6 +207,7 @@ class CycleWork(BaseModel):
     """
 
     request: CycleRequest = Field(default_factory=CycleRequest)
+    prompt_summaries: dict[int, str] = Field(default_factory=dict[int, str])  # pm-lint: allow PM004 -- derived prompt text indexed by original stimulus ID
     state: CycleState = Field(default_factory=lambda: CycleState(tick_id=0))
     state_summary: str = ""
     phases: list[PhaseReceipt] = Field(default_factory=list[PhaseReceipt])
@@ -222,6 +228,18 @@ class CycleWork(BaseModel):
     summary: str = ""
     records: dict[int, RecordView] = Field(default_factory=dict[int, RecordView])
     last_pending_id: int = -1
+
+    def prepare_stimulus_summaries(self, session: ModelSession) -> None:
+        """Keep oversized stimuli readable by all phases while retaining their exact request text."""
+        limits = session.render_settings()
+        per_source = max(512, limits.input_ceiling // (4 * max(1, len(self.request.stimuli))))
+        for stimulus in self.request.stimuli:
+            text = session.summarize_long_source(stimulus.text, f"stimulus {stimulus.knoxel_id}", per_source)
+            if text != stimulus.text:
+                self.prompt_summaries[stimulus.knoxel_id] = text
+                record = self.records[stimulus.knoxel_id].model_copy()
+                record.content = text
+                self.records[stimulus.knoxel_id] = record
 
     def appraisal_view(self) -> AppraisalView:
         """Return the appraisal with the accepted feeling in words, for prompts."""

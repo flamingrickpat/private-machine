@@ -26,7 +26,7 @@ from pm.records.media import alt_text_view, image_ids, metadata_media, RecordIma
 from pm.records.memory_records import ActionSchemaRecord
 from pm.runs.workflow_spec import WorkflowSpec
 
-from workflows.main_cognition.schemas import PendingDispatch
+from workflows.main_cognition.schemas import ManagedRunView, PendingDispatch
 from workflows.tool_call.report import retain_interrupted_report
 from workflows.tool_call.schemas import (
     ContextRecord, ToolContextEvidence, PinnedDispatch, SourceAction, SourceStimulus, ToolCallContext, TurnSummary,
@@ -134,12 +134,17 @@ class ToolCallContextCapture:
             gwt_turns=[TurnSummary(tick_id=turn.tick_id, summary=alt_text_view(turn.summary))
                        for turn in turns[-self.settings.turn_limit:]],
             records=records, missing_record_ids=missing, images=tuple(images[key] for key in sorted(images)))
+        if pinned.related_run_id:
+            run = ManagedRunView.model_validate(store.read_run_receipts()[pinned.related_run_id])
+            context.related_run_id = pinned.related_run_id
+            context.original_assignment = run.original_instructions or run.instructions or ""
+            context.current_assignment = run.instructions or ""
         return ToolCallDispatch(tool_call_context=context, tool_goal=pinned.tool_goal)
 
 
 
 
-def build_workflow_spec(config: ToolCallConfig) -> WorkflowSpec:
+def build_workflow_spec(config: ToolCallConfig, *, private: bool = False) -> WorkflowSpec:
     """Build the specification of the ``tool_call`` workflow.
 
     Every header reference is resolved once here, so a missing environment
@@ -153,8 +158,10 @@ def build_workflow_spec(config: ToolCallConfig) -> WorkflowSpec:
     selected = pickle_copy(config)
 
     return WorkflowSpec(
-        manifest=Path(__file__).with_name("tool_call.workflow.md"),
-        namespace=WORKFLOW_NAME,
+        manifest=(Path(__file__).parent.parent / "assistant/assistant.workflow.md" if private
+                  else Path(__file__).with_name("tool_call.workflow.md")),
+        namespace="assistant" if private else WORKFLOW_NAME,
+        routine_start=private,
         tool_call_config=selected,
         dispatch_context_owner=ToolCallContextCapture(ToolContextSettings(selected.gwt_turn_limit)),
         on_interrupted=retain_interrupted_report,

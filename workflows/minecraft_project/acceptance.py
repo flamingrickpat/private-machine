@@ -27,6 +27,7 @@ def observe_conditions(context: RoleContext, conditions: list[Condition]) -> lis
     reads = []
     with BODY_LEASES.command(endpoint, runtime.stop_event):
         observation = require_minecraft_runtime(runtime).minecraft_transport.call("minecraft_observe", {"include_image": False})
+        observed_at = time.time()
     observed_dimension = observation["result"].get("player", {}).get("dimension") if observation["ok"] else None
     for condition in conditions:
         runtime.check_cancelled()
@@ -70,7 +71,7 @@ def observe_conditions(context: RoleContext, conditions: list[Condition]) -> lis
             if tool == "minecraft_observe":
                 observation = reply
         reads.append({"criterion_id": condition.id, "tool": tool, "arguments": arguments,
-                      "result": reply["result"], "ok": reply["ok"], "time": time.time(),
+                      "result": reply["result"], "ok": reply["ok"], "time": observed_at if tool == "minecraft_observe" else time.time(),
                       "observed_dimension": observed_dimension})
     runtime.check_cancelled()
     return reads

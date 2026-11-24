@@ -14,13 +14,20 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import nullcontext
+from workflows.minecraft.runtime import MinecraftWorkflowRuntime
+from workflows.minecraft_body.lease import body_key
+from workflows.minecraft_body.gateway import SessionBodyGateway
+from pm.host.mcp_listeners import ScopedMcpRegistry
 from dataclasses import replace, dataclass
+import asyncio
 import hashlib
 import json
+import logging
 from pathlib import Path
 from typing import TypedDict, cast
 from collections.abc import Sequence
 from pydantic_ai.messages import BinaryContent, ToolReturnContent
+from pydantic import ValidationError
 from pm_workflows.python_role import RoleContext
 from pm.host.folder_target import FolderEnvironment
 from pm.runs.role_runtime import PMWorkflowRuntime
@@ -30,6 +37,7 @@ from pm.context_render.prompt import RenderSettings, RenderedPrompt, RendererCap
 from pm.context_render.turns import Text, Media, MediaKind
 from pm.llm.mcp_config import McpServerConfig
 from workflows.tool_call.rendering import ToolSessionRenderInput, render_tool_session
+from workflows.minecraft_body.world_text import MinecraftToolResult, WorldObservation, coordinates, item_text
 
 import httpx
 from pm_workflows.drivers import PmCoderDriver
@@ -38,6 +46,7 @@ from pm_workflows.runtime import WorkflowTerminated
 
 from pm.llm.structured import repair_agent_result
 from pm.llm.multimodal import ImageAttachment
+from pm.constants import CYCLE_RETRY_DELAY_SECONDS, CYCLE_RETRY_MAX_DELAY_SECONDS
 from pm.llm.mcp_config import ToolCallConfig
 from pm.records.media import IMAGE_TYPES
 
@@ -187,19 +196,48 @@ def session_activity(messages_path: Path, servers: list[str]) -> ToolSessionActi
     if not messages_path.is_file():
         return ToolSessionActivity((), ())
     calls: list[ToolCallSeen] = []
+    by_id: dict[str, ToolCallSeen] = {}
     images: list[ToolBinaryImage] = []
     for message in ModelMessagesTypeAdapter.validate_json(messages_path.read_bytes()):
         for part in message.parts:
             if isinstance(message, ModelResponse) and isinstance(part, ToolCallPart):
                 name = split_tool_name(part.tool_name, servers)
                 if name.server:
-                    calls.append(ToolCallSeen(server=name.server, tool=name.tool, arguments=part.args_as_json_str()))
+                    call = ToolCallSeen(server=name.server, tool=name.tool, arguments=part.args_as_json_str(),
+                                        call_id=part.tool_call_id)
+                    calls.append(call)
+                    by_id[part.tool_call_id] = call
             elif isinstance(message, ModelRequest) and isinstance(part, ToolReturnPart):
                 name = split_tool_name(part.tool_name, servers)
                 if name.server:
+                    call = by_id.get(part.tool_call_id)
+                    if call is not None:
+                        call.returned_facts = minecraft_return_facts(name.tool, part.content)
                     images += [ToolBinaryImage(name.server, name.tool, item.data, item.media_type) for item in _files(part.content)
                                if item.media_type in IMAGE_TYPES]
     return ToolSessionActivity(tuple(calls), tuple(images))
+
+
+def minecraft_return_facts(tool: str, content: ToolReturnContent) -> str:
+    supported = {"minecraft_observe", "minecraft_mine_block", "minecraft_drop_item", "minecraft_build",
+                 "minecraft_inspect_block", "minecraft_walk_to_exact", "minecraft_walk_to_visible"}
+    if tool not in supported:
+        return ""
+    parts: Sequence[ToolReturnContent] = cast(Sequence[ToolReturnContent], content) if isinstance(content, list) else [content]
+    for value in parts:
+        if not isinstance(value, dict) or "ok" not in value:
+            continue
+        try:
+            if tool == "minecraft_observe" and value["ok"]:
+                world = WorldObservation.model_validate(value)
+                inventory = ", ".join(item_text(item) for item in world.inventory) or "empty"
+                return (f"feet {coordinates(world.camera.feet_position)}, inventory {inventory}, "
+                        f"health {world.player.health}, deaths {world.death_count}")
+            return MinecraftToolResult.model_validate(value).facts()
+        except ValidationError as error:
+            logging.getLogger(__name__).warning("Cannot summarize %s server return: %s invalid fields.", tool, error.error_count())
+            return "Unsupported response shape. The session retains the original server return; the effect is unverified."
+    return ""
 
 
 def keep_tool_images(environment: FolderEnvironment, images: tuple[ToolBinaryImage, ...]) -> list[ToolImage]:
@@ -254,7 +292,7 @@ def _session_mcp_file(path: Path, config: ToolCallConfig) -> None:
     path.write_text(json.dumps({"mcpServers": servers}), encoding="utf-8")
 
 
-def _execute(context: RoleContext, report: ToolCallReport) -> None:
+def _execute(context: RoleContext, report: ToolCallReport, *, private: bool) -> None:
     """Hold one model lease and one native session through the complete goal.
 
     The native loader owns the MCP connections and tool prefixes throughout
@@ -273,6 +311,7 @@ def _execute(context: RoleContext, report: ToolCallReport) -> None:
     source = tool_context.source_action
     report.instruction = request.instruction
     report.tool_goal = request.tool_goal
+    report.related_run_id = tool_context.related_run_id
     report.context_source = tool_context.context_source
     report.context_tick_id = tool_context.captured_tick_id
     report.context_turn_ids = [turn.tick_id for turn in tool_context.gwt_turns]
@@ -306,16 +345,20 @@ def _execute(context: RoleContext, report: ToolCallReport) -> None:
         report.rejection_reason = report.summary
         return
     probe = probe_mcp_servers(config.mcp_servers)
+    delay = CYCLE_RETRY_DELAY_SECONDS
+    attempt = 1
+    while not probe.live:
+        logging.getLogger(__name__).warning("No MCP answered for run %s, attempt %d, retrying in %gs: %s",
+                                            context.task_id, attempt, delay, ", ".join(probe.dead))
+        runtime.stop_event.wait(delay)
+        runtime.check_cancelled()
+        probe = probe_mcp_servers(config.mcp_servers)
+        delay = min(delay * 2, CYCLE_RETRY_MAX_DELAY_SECONDS)
+        attempt += 1
     live = list(probe.live)
     dead = list(probe.dead)
     report.mcp_live_servers = live
     report.mcp_dead_servers = dead
-    if not live:
-        report.outcome = "blocked"
-        report.summary = ("No configured MCP server answers: " + ", ".join(report.mcp_server_names)
-                          + (f". Unreachable: {', '.join(dead)}." if dead else "."))
-        report.rejection_reason = report.summary
-        return
     if dead:
         config = ToolCallConfig(model_connection=config.model_connection, timeout_seconds=config.timeout_seconds,
             gwt_turn_limit=config.gwt_turn_limit, mcp_servers=[server for server in config.mcp_servers if server.name in live])
@@ -329,7 +372,37 @@ def _execute(context: RoleContext, report: ToolCallReport) -> None:
     else:
         assert runtime.classification_session is not None
         session = runtime.classification_session(config.model_connection, False, runtime.stop_event)
+    listeners = ScopedMcpRegistry()
+    scoped_body = None
+    gateway: SessionBodyGateway | None = None
+    from workflows.minecraft_body.world_text import StopObservation
+    interrupted_at: StopObservation | None = None
+    suite_status: list[str] = []
     try:
+        configured_servers: list[McpServerConfig] = []
+        proxy_url: str | None = None
+        for server in config.mcp_servers:
+            if isinstance(runtime, MinecraftWorkflowRuntime) and body_key(server.url) == body_key(runtime.body_lease.endpoint):
+                scoped_body = runtime.body_lease.ownership
+                assert scoped_body is not None
+                owner = scoped_body.owner()
+                paused = scoped_body.paused_task()
+                if paused is not None and paused.run_id == context.task_id:
+                    interrupt = environment.root / f"body-stop-{paused.epoch}.json"
+                    interrupted_at = StopObservation.model_validate_json(interrupt.read_bytes())
+                state = f"busy with {owner}; use self_management.status, wait or terminate it" if owner else "available on first body action"
+                suite_status.append(f"{server.name} {state}")
+                if proxy_url is None:
+                    gateway = SessionBodyGateway(runtime.body_lease.endpoint, context.task_id, environment, runtime, visual=True)
+                    schemas = [row for row in gateway.tool_schemas if row["name"] not in
+                               {"minecraft_execute_typescript", "minecraft_suicide", "minecraft_connect", "minecraft_disconnect"}]
+                    proxy_url = listeners.serve({"body": gateway.server(schemas)})["body"]["url"]
+                configured_servers.append(McpServerConfig(name=server.name, url=proxy_url,
+                    request_timeout_seconds=server.request_timeout_seconds))
+            else:
+                suite_status.append(f"{server.name} available")
+                configured_servers.append(server)
+        config = config.model_copy(update={"mcp_servers": configured_servers})
         _session_mcp_file(mcp_file, config)
         with session as model:
             assert model is not None
@@ -339,37 +412,66 @@ def _execute(context: RoleContext, report: ToolCallReport) -> None:
             settings = RenderSettings(context_window=model.context_window,
                 input_fraction=connection.context_input_fraction,
                 reserved_output_tokens=connection.completion_token_limit)
+            from workflows.assistant.session import PRIVATE_INSTRUCTIONS, private_session
+            session_instructions = PRIVATE_INSTRUCTIONS if private else SKILL.read_text(encoding="utf-8")
+            session_instructions += "\nMCP suite status: " + ", ".join(suite_status)
+            if interrupted_at is not None:
+                session_instructions += ("\nResume the remaining body task from the retained world. "
+                    "Read current state before acting. Do not repeat a command with an uncertain outcome. "
+                    "Previous command receipts: " + str(environment.root / "scratch" / "actor-journal.jsonl"))
+                session_instructions += " Confirmed stop: " + interrupted_at.reading.summary()
+                for effect in interrupted_at.uncertain_effects:
+                    session_instructions += "\n" + effect
+            if dead:
+                session_instructions += "\nUnavailable MCP services in this session: " + ", ".join(dead) + "."
             render_input = ToolSessionRenderInput(request, report.instruction, tuple(servers),
-                str(environment.root.resolve()), SKILL.read_text(encoding="utf-8"))
+                "" if private else str(environment.root.resolve()), session_instructions)
             capture_settings = runtime.model_session.capture_settings("tool.session")
             with RendererCapture(capture_settings, RendererInput("tool.session", render_input, settings)) as capture:
                 rendered = render_tool_session(render_input, settings)
                 capture.save_output(rendered)
             native_prompt = encode_native_tool_prompt(rendered)
             prompt = native_prompt.prompt
-            agent_runtime = replace(runtime, agent_model=replace(model, enable_thinking=True))
-            driver = PmCoderDriver(log_root=log_root, timeout_seconds=config.timeout_seconds)
-            result = driver.run_session(
-                run_id=session_name, attempt=1, skill=str(SKILL), prompt=prompt,
-                images=native_prompt.images,
-                work_dir=context.workspace, runtime=agent_runtime, mcp_config=mcp_file,
-                trace_file=Path(report.trace_path), result_file=context.kernel_data / "tool-call-agent-result.json")
+            if private:
+                session_result = asyncio.run(private_session(model, mcp_file, log_root, session_name + "_1",
+                    native_prompt, runtime, config.timeout_seconds))
+            else:
+                agent_runtime = replace(runtime, agent_model=replace(model, enable_thinking=True))
+                driver = PmCoderDriver(log_root=log_root, timeout_seconds=config.timeout_seconds)
+                session_result = driver.run_session(
+                    run_id=session_name, attempt=1, skill=str(SKILL), prompt=prompt,
+                    images=native_prompt.images,
+                    work_dir=context.workspace, runtime=agent_runtime, mcp_config=mcp_file,
+                    trace_file=Path(report.trace_path), result_file=context.kernel_data / "tool-call-agent-result.json")
     finally:
         mcp_file.unlink(missing_ok=True)
+        if gateway is not None:
+            gateway.close_admission()
+        listeners.close()
+        if scoped_body is not None:
+            scoped_body.finish(context.task_id, runtime.stop_event.is_set(), environment.root)
         # Tool calls and images before an error or a cancellation are real
         # effects too. Keep them in the report in every case.
         activity = session_activity(log_root / f"{session_name}_1" / "messages.json", servers)
         report.tool_calls = list(activity.calls)
         report.tool_images = keep_tool_images(environment, activity.images)
     runtime.check_cancelled()
-    report.agent_session = result.session_ref
-    if result.exit_code != 0:
+    if isinstance(session_result, str):
+        final = boundary.read(BoundaryReadSettings(close=True))
+        report.final_instruction_revision = final["revision"]
+        report.agent_session = session_name + "_1"
+        report.summary = session_result
+        report.accepted = final["revision"] == report.instruction_revision
+        report.outcome = "succeeded" if report.accepted else "uncertain"
+        return
+    report.agent_session = session_result.session_ref
+    if session_result.exit_code != 0:
         report.outcome = "uncertain"
         report.summary = "The tool session failed. Its external effects remain unverified."
         report.rejection_reason = report.summary
         return
 
-    outcome = repair_agent_result(result, AgentOutcome, model, instruction=prompt, cancel=runtime.stop_event)
+    outcome = repair_agent_result(session_result, AgentOutcome, model, instruction=prompt, cancel=runtime.stop_event)
     report.agent_outcome = outcome
     report.artifacts = inspect_artifacts(environment, outcome.artifacts)
     report.outcome = outcome.outcome
@@ -402,6 +504,10 @@ def _write_report(context: RoleContext, report: ToolCallReport) -> None:
 
 
 def run(context: RoleContext) -> ToolRoleResult:
+    return execute_goal(context, private=False)
+
+
+def execute_goal(context: RoleContext, *, private: bool) -> ToolRoleResult:
     """Return a terminal role result for expected task failures and successes.
 
     Cancellation retains a cancelled report, then raises ``WorkflowTerminated``.
@@ -416,7 +522,7 @@ def run(context: RoleContext) -> ToolRoleResult:
     )
     try:
         context.runtime.check_cancelled()
-        _execute(context, report)
+        _execute(context, report, private=private)
         context.runtime.check_cancelled()
     except WorkflowTerminated:
         report.outcome = "cancelled"

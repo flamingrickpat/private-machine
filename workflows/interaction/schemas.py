@@ -82,9 +82,10 @@ class InteractionReceipt(BaseModel):
             if self.dispatch.action_type != "Reply" or self.dispatch.workflow_name != "dialogue_story":
                 raise ValueError("An ordinary reply must use the existing Story speech owner.")
         elif self.outcome == InteractionOutcome.WorkflowAction:
-            if self.dispatch is None or self.route is None or not self.decision.explicit_workflow_request:
+            if self.dispatch is None or self.route is None:
                 raise ValueError("A routine workflow action requires a selected dispatch and explicit partner request.")
-            if self.dispatch.action_type != "ToolCallAndReply" or not self.dispatch.workflow_name:
+            private = self.dispatch.workflow_name == "assistant" and self.dispatch.action_type == "ToolCall"
+            if not private and (not self.decision.explicit_workflow_request or self.dispatch.action_type != "ToolCallAndReply" or not self.dispatch.workflow_name):
                 raise ValueError("A routine workflow action requires a named managed action with public reporting.")
             if self.inhibition is None or self.inhibition.verdict is InhibitionVerdict.SILENCE:
                 raise ValueError("A routine workflow action requires an allowed move.")

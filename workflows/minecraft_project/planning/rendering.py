@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pm.context_render.prompt import RenderSettings, RenderedPrompt, EvidenceDecision, require_rendered_prompt
-from pm.context_render.budget import TokenEstimator
+from pm.context_render.budget import TokenEstimator, evidence_excerpt
+from pm.context_render.correction import render_regeneration_feedback
 from pm.context_render.turns import Turn, Role
 from workflows.minecraft_project.planning.context_contracts import DecisionContext, PlanningContext, ReviewContext, RetentionContext, VerificationContext
 
@@ -12,6 +13,7 @@ class TechnicalSection:
     name: str
     text: str
     required: bool
+    review_node_id: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,13 +44,26 @@ def render_project_decision(input: ProjectDecisionRenderInput, settings: RenderS
                 sections = retention_sections(context)
             case VerificationContext():
                 sections = verification_sections(context)
-    selected = [f"{section.name}:\n{section.text}" for section in sections if section.required]
+    required = [section for section in sections if section.required]
     correction: tuple[Turn, ...] = ()
     if input.problem:
-        correction = (Turn(Role.Assistant, input.rejected_answer),
-            Turn(Role.User, f"The answer failed validation: {input.problem}. Return one corrected object; keep task facts and source identities."))
-    turns = (Turn(Role.System, input.system_prompt), Turn(Role.User, "\n\n".join(selected)), *correction)
-    require_rendered_prompt(input.operation, turns, budget)
+        feedback = render_regeneration_feedback(input.operation, input.problem, settings)
+        correction = (Turn(Role.User, feedback.text),)
+        budget = settings.without_correction_reserve()
+    retained = max((len(section.text) for section in required), default=0)
+    while True:
+        selected = [f"{section.name}:\n{evidence_excerpt(section.text, retained)}" for section in required]
+        turns = (Turn(Role.System, input.system_prompt), Turn(Role.User, "\n\n".join(selected)), *correction)
+        if estimator.estimate(turns) <= budget.input_ceiling:
+            break
+        if retained:
+            retained //= 2
+        elif required:
+            # Keep the goal and current scope ahead of later historical sections.
+            required = required[:len(required) // 2]
+        else:
+            require_rendered_prompt(input.operation, turns, budget)
+    visible_nodes = tuple(section.review_node_id for section in required if section.review_node_id)
     decisions: list[EvidenceDecision] = []
     for index, section in enumerate(sections):
         if section.required:
@@ -61,7 +76,7 @@ def render_project_decision(input: ProjectDecisionRenderInput, settings: RenderS
             turns = trial
         decisions.append(EvidenceDecision(index, 1, included,
             "historical technical context" if included else "available through original context archive"))
-    return require_rendered_prompt(input.operation, turns, budget, tuple(decisions))
+    return require_rendered_prompt(input.operation, turns, budget, tuple(decisions), selected_groups=visible_nodes)
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,5 +86,11 @@ class NativePlannerRenderInput:
 
 
 def render_native_planner(input: NativePlannerRenderInput, settings: RenderSettings) -> RenderedPrompt:
-    prompt = input.instruction + "\nCurrent goal: " + input.goal
-    return require_rendered_prompt("Minecraft native planner", (Turn(Role.User, prompt),), settings)
+    retained = len(input.goal)
+    estimator = TokenEstimator(estimate_factor=settings.estimate_factor)
+    while True:
+        prompt = input.instruction + "\nCurrent goal: " + evidence_excerpt(input.goal, retained)
+        turns = (Turn(Role.User, prompt),)
+        if estimator.estimate(turns) <= settings.input_ceiling or retained == 0:
+            return require_rendered_prompt("Minecraft native planner", turns, settings)
+        retained //= 2

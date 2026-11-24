@@ -75,7 +75,7 @@ class TriggerRenderInput:
 
 def render_trigger(request: InnerRequest, prompts: TriggerPrompts, settings: RenderSettings,
                    correction: str = "") -> RenderedPrompt:
-    required = private_frame(request) + "\n\nFired triggers:\n" + _render_triggers(request)
+    required = private_frame(request, settings) + "\n\nFired triggers:\n" + _render_triggers(request)
     required += f"\nReflection review due: {request.reflection.review_due}"
     return select_private_evidence(PrivatePromptInput("private trigger",
         prompts.system_prompt.format(companion_name=request.companion_name), required,
@@ -85,7 +85,7 @@ def render_trigger(request: InnerRequest, prompts: TriggerPrompts, settings: Ren
 def render_private_attention(request: AttentionStageRequest, prompts: TriggerPrompts,
                              settings: RenderSettings, correction: str = "") -> RenderedPrompt:
     attention = request.attention
-    lines = [private_frame(request.request), "Shared attention: " + attention.attention_summary,
+    lines = [private_frame(request.request, settings), "Shared attention: " + attention.attention_summary,
         "Blocked reason: " + attention.blocked_reason,
         f"Pending input IDs: {attention.pending_input_ids}; active intentions: {attention.active_intention_ids}"]
     focus = attention.accepted_focus

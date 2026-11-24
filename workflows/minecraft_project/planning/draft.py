@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from pm_workflows.runtime import WorkflowRuntime
 from pm.runs.draft_session import DraftValidation
 from workflows.minecraft_project.schemas import Condition, PlanProposal, Point, TaskTree
-from workflows.minecraft_project.tree_store import TreeStore, node_digest, validate_tree
+from workflows.minecraft_project.tree_store import TreeStore, acceptance_requirements, node_digest, validate_tree
 from workflows.minecraft_project.evidence_selection import protect_accepted_specifications
 from workflows.minecraft_project.planning.run_context import InstructionsChanged
 from workflows.minecraft_project.planning.draft_contracts import (
@@ -39,6 +39,7 @@ class DraftSettings:
     scope: frozenset[str] | None = None
     refinement_target: str = ""
     require_leaf_change: bool = False
+    recovery_required: bool = False
 
 
 class TaskDraft:
@@ -51,6 +52,7 @@ class TaskDraft:
         self.scope = settings.scope
         self.refinement_target = settings.refinement_target
         self.require_leaf_change = settings.require_leaf_change
+        self.recovery_required = settings.recovery_required
         self.goal_id = settings.base.goal_id if settings.base is not None else "goal"
         self.nodes: dict[str, DraftNode] = ({node.id: DraftNode.from_node(node) for node in settings.base.nodes}
             if settings.base is not None else {"goal": DraftNode(id="goal", kind="goal", instruction=goal, specialist="builder")})
@@ -196,6 +198,16 @@ class TaskDraft:
             if self.base is not None:
                 protect_accepted_specifications(self.store, tree)
             self.store.check_revision(tree, target=self.refinement_target)
+            if self.recovery_required:
+                requirements = acceptance_requirements(tree)
+                for leaf in tree.nodes:
+                    if leaf.kind != "leaf" or leaf.specialist != "recovery" or leaf.deferred or self.store.valid(leaf.id, tree=tree):
+                        continue
+                    if all(self.store.valid(key, tree=tree) for key in requirements[leaf.id]):
+                        break
+                else:
+                    raise ValueError("The body needs a ready recovery leaf. Use task_edit on the escape or safety leaf "
+                                     "to set specialist to recovery. It must have verified prerequisites and be unfinished.")
             if self.base is not None:
                 old = {node.id: node for node in self.base.nodes}
                 for node in tree.nodes:

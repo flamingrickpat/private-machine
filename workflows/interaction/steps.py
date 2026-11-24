@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from pm_workflows.python_role import RoleContext
 
-from pm.context_render.turns import Role, Turn
 from pm.llm.role_model import role_model
 from pm.records.copying import pickle_copy
 from pm.records.cycle_records import ActionDecision
@@ -55,13 +54,13 @@ def prepare_work(request: InteractionRequest) -> CycleWork:
 def select_interaction(context: RoleContext, request: InteractionRequest) -> InteractionReceipt:
     """Choose one local reply, quiet outcome, or consequential reconsideration."""
     work = prepare_work(request)
+    work.prepare_stimulus_summaries(role_model(context.runtime))
     if len(work.state.stimulus_groups) != 1:
         raise ValueError("An ordinary selection must cover exactly one partner group.")
     group = work.state.stimulus_groups[0]
     prefix = StoryPrefix(work, group=group.key, settings=role_model(context.runtime).render_settings(),
         capture_settings=role_model(context.runtime).capture_settings("interaction"))
-    messages = decide.build_messages(work, phase_prompts("decide"), prefix, group)
-    messages.append(Turn(Role.User,
+    exchange_instruction = (
         "This is an ordinary exchange after the accepted main context above. "
         "Choose whether to continue this conversation, stay quiet, or seek reconsideration. "
         "Earlier immediate purposes may already be fulfilled by delivered speech. "
@@ -74,7 +73,9 @@ def select_interaction(context: RoleContext, request: InteractionRequest) -> Int
         "Set explicit_workflow_request=true only when the latest partner message directly asks you to perform "
         "the proposed task or requests status, an update, or cancellation of their existing run. "
         "Ideas, hypotheticals, questions about capability and your own initiatives do not qualify. "
-        "Keep consequential task choices available for main cognition."))
+        "Keep consequential task choices available for main cognition.")
+    messages = decide.build_messages(work, phase_prompts("decide"), prefix, group,
+                                     exchange_instruction=exchange_instruction)
     check = DecisionCheck(workflow_names=[item.name for item in decide.available_workflows(work)])
     answer = complete(context, messages, InteractionDecision, validation_context=check)
     source_ids = [item.knoxel_id for item in request.cycle.stimuli]
@@ -91,6 +92,10 @@ def select_interaction(context: RoleContext, request: InteractionRequest) -> Int
         variants=list(answer.variants), stimulus_ids=source_ids)]
     work = route.select_routes(context, work)
     choice = work.routes[0].route
+    if len(work.routes) > 1:
+        return InteractionReceipt(selection_id=request.selection_id, source_ids=source_ids,
+            outcome=InteractionOutcome.Reconsider, decision=answer, inhibition=inhibition, route=choice,
+            dependencies=request.dependencies)
     local_reply = choice.action_type == "Reply" and choice.workflow_name == "dialogue_story"
     dispatch = None
     if local_reply:
@@ -98,6 +103,10 @@ def select_interaction(context: RoleContext, request: InteractionRequest) -> Int
         dispatch = work.dispatches[0]
         dispatch.action_id = request.selection_id + ":reply"
         outcome = InteractionOutcome.Reply
+    elif choice.workflow_name == "assistant" and choice.action_type == "ToolCall" and work.dispatches and work.dispatches[0].status == "dispatched":
+        dispatch = work.dispatches[0]
+        dispatch.action_id = request.selection_id + ":assistant"
+        outcome = InteractionOutcome.WorkflowAction
     elif (answer.explicit_workflow_request and answer.guidance_disposition == GuidanceDisposition.Follow
           and choice.action_type == "ToolCallAndReply" and work.dispatches
           and work.dispatches[0].status == "dispatched"

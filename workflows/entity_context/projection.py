@@ -241,13 +241,15 @@ def project_entity_context(view: Snapshot, *, query: EntityProjectionQuery,
         omitted_claim_count=len(relevant) - len(selected))
 
 
-def render_entity_context(context: EntityContextView) -> str:
-    """Render the captured view with attribution, uncertainty, and original claim IDs."""
+def render_entity_context(context: EntityContextView, claim_limit: int | None = None) -> str:
+    """Render only the admitted claims and derive the ability estimate from that same evidence."""
+    claims = context.claims if claim_limit is None else context.claims[:claim_limit]
     lines = [_header(context.query)]
-    lines.extend(_interaction_lines(context.claims, include_interaction=context.query.include_interaction))
-    lines.extend(_claim_line(item) for item in context.claims)
-    if context.omitted_claim_count:
-        lines.append(f"{context.omitted_claim_count} further relevant claims omitted by the context budget.")
+    lines.extend(_interaction_lines(claims, include_interaction=context.query.include_interaction))
+    lines.extend(_claim_line(item) for item in claims)
+    omitted = context.omitted_claim_count + len(context.claims) - len(claims)
+    if omitted:
+        lines.append(f"{omitted} further relevant claims omitted by the context budget.")
     return "\n".join(lines)
 
 

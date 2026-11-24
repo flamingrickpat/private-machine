@@ -16,7 +16,7 @@ from pm_workflows.manifest import parse_workflow
 from pydantic import ValidationError
 
 from workflows.minecraft.specialist_session import ActorOutcome
-from workflows.minecraft_project.schemas import Condition, Node, PlanProposal, ProjectRequest, TaskTree
+from workflows.minecraft_project.schemas import Condition, Node, PlanProposal, Point, ProjectRequest, TaskTree
 from workflows.minecraft_project.tree_store import TreeStore, acceptance_requirements, digest, validate_tree
 from workflows.minecraft_project.acceptance import evaluate
 from workflows.minecraft_project.planning.run_context import progress_facts, scoped_reads
@@ -69,6 +69,21 @@ def retain_contract_node(store: TreeStore, node: Node) -> None:
 
 
 class TaskGraphTests(unittest.TestCase):
+    def test_reject_persistent_starting_block_before_world_work(self) -> None:
+        cell = Point(x=69, y=68, z=-1)
+        proposed = tree()
+        leaf = proposed.nodes[1]
+        leaf.assumptions = [Condition(id="bush_present", description="Initial bush", kind="block",
+                                      names=["dead_bush"], position=cell)]
+        leaf.criteria = [Condition(id="harvested", description="Harvested bush", kind="block",
+                                   names=["air"], positions=[cell])]
+        with TemporaryDirectory() as directory:
+            store = TreeStore(Path(directory))
+            with self.assertRaisesRegex(ValueError, "bush_present.*harvested"):
+                store.check_revision(proposed)
+            leaf.assumptions.clear()
+            store.check_revision(proposed)
+
     def test_original_repair_cannot_drop_or_rename_stable_children(self):
         from workflows.minecraft_project.planning.proposals import revision_candidate
         capture = json.loads((ROOT / "test_data/captures/alpha/project-stable-child-rejection.json").read_text(encoding="utf-8"))

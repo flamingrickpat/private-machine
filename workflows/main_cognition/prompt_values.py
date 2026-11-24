@@ -41,30 +41,6 @@ class AnticipationTemplateValues:
 
 
 @dataclass(frozen=True, slots=True)
-class CognitionStoryTemplateValues:
-    character_card: Content | str
-    shards: Content | str
-    feeling: Content | str
-    situational_guidance: Content | str
-    new: Content | str
-
-    def field_value(self, name: str) -> Content | str | int | float:
-        match name:
-            case "character_card":
-                return self.character_card
-            case "shards":
-                return self.shards
-            case "feeling":
-                return self.feeling
-            case "situational_guidance":
-                return self.situational_guidance
-            case "new":
-                return self.new
-            case _:
-                raise KeyError(f"Unknown CognitionStoryTemplateValues field: {name}")
-
-
-@dataclass(frozen=True, slots=True)
 class AppraisalTemplateValues:
     interval_review: Content | str
     state_summary: Content | str

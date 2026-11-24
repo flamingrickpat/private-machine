@@ -238,14 +238,20 @@ class Interaction(CognitiveWorkflow):
         assert isinstance(self.last_environment, MemoryBashEnvironment)
         view = self.last_environment.ghost_view
         assert view is not None, "Ordinary interaction requires its frozen memory view."
+        owner = self.main_cognition.capability_owner
+        orientation = owner.snapshot().runtime_orientation if owner else ""
+        available = self.main_cognition.available_workflow_options()
         with self.ghost.lock:
             base = build_input_request(self.ghost, view, batch, run_id=self.invocation_id or "")
+            base.cycle.runtime_orientation = orientation
             previous = base.cycle.previous_state
             if previous is None:
                 raise ValueError("Ordinary interaction requires an accepted main cycle.")
+            from workflows.main_cognition.phases.intake import refresh_workspace_tails
+            refresh_workspace_tails(previous.workspace, base.cycle)
             source_ids = [item.knoxel_id for item in base.cycle.stimuli]
             base.cycle.early_triage = self.cognitive_control.triage_result(source_ids)
-            base.cycle.available_workflows = self.main_cognition.available_workflow_options()
+            base.cycle.available_workflows = available
             base.cycle.capabilities = list(self.ghost.ghost_config.supported_capabilities)
             partner = base.cycle.stimuli[0].entity_id
             base.cycle.managed_runs = self.main_cognition.partner_managed_runs(partner, view.get(source_ids[0]).scope)
@@ -332,7 +338,7 @@ class Interaction(CognitiveWorkflow):
                     shards=request_shards(request.previous_state.workspace, dispatch.group, partner,
                                           {key: shard_label(key, request) for key in (SELF_SHARD, dispatch.group, partner) if key is not None}),
                     gwt_tick=receipt.dependencies.guidance_tick,
-                    presentation=dispatch.presentation, workspace=request.state_summary,
+                    presentation=dispatch.presentation, workspace="\n".join((request.runtime_orientation, request.state_summary)),
                     action_origin="interaction", interaction_selection_id=receipt.selection_id,
                     interaction_dependencies=receipt.dependencies, entity_contexts=list(receipt.dependencies.entity_contexts))
                 action = batch.create(ActionSchemaRecord(content=dispatch.content, action_type=ActionType(dispatch.action_type),

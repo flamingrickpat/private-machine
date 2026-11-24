@@ -116,7 +116,7 @@ class BodyLeases:
             finally:
                 lock.close()
 
-    def token(self, endpoint: str, owner: str) -> BodyEpoch:
+    def token(self, endpoint: str, owner: str) -> BodyLeaseEvidence:
         """Return this process's active token, or reject a stale owner."""
         with self._lock:
             token = self._tokens.get(body_key(endpoint))

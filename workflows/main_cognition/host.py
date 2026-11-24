@@ -102,7 +102,6 @@ from pm.constants import (
     WORKSPACE_TAIL_CANDIDATES,
 )
 from pm.llm.stage_model import LazyStageModel
-from pm.context_render.budget import RequiredContextTooLarge
 from pm.host.mcp_listeners import McpServerDescriptor
 from workflows.main_cognition.retrieval_query import QueryRewrite, QueryRewriter
 from pm.llm.concurrency import InferenceRole, inference_role
@@ -458,8 +457,7 @@ class MainCogLoop(CognitiveWorkflow):
         """Retry rejected model formats and revision conflicts without speech.
 
         A concurrent commit can invalidate the cycle's proposal. Each retry
-        opens a new view and keeps the original causes. Three failed attempts
-        raise the conflict, so contention cannot silently discard user input.
+        opens a new view and keeps the original causes until acceptance or cancellation.
         Exhausted format repairs retain a diagnostic and retry the same batch
         after a delay that doubles from CYCLE_RETRY_DELAY_SECONDS up to
         CYCLE_RETRY_MAX_DELAY_SECONDS. A completion that the provider failed,
@@ -479,7 +477,7 @@ class MainCogLoop(CognitiveWorkflow):
                     return
                 super().handle_batch(batch)
                 return
-            except (ModelFormatError, ModelError, RequiredContextTooLarge) as error:
+            except (ModelFormatError, ModelError) as error:
                 diagnostic = {"invocation_id": self.invocation_id, "error_type": type(error).__name__,
                               "reason": str(error), "traceback": traceback.format_exc()}
                 path = self.runtime_root / "kernel" / self.invocation_id / "model-output-rejection.json"
@@ -488,8 +486,6 @@ class MainCogLoop(CognitiveWorkflow):
                 self.bus.put(new_envelope(self.module_id, "telemetry", "cycle.rejected",
                     batch[0].correlation_id if batch else "",
                     {key: value for key, value in diagnostic.items() if key != "traceback"}))
-                if isinstance(error, RequiredContextTooLarge):
-                    return
                 # No report reached publication. Retain the original input and
                 # its event records while the next invocation reads fresh state.
                 # A failed parallel call sets run_stop to join its siblings.
@@ -501,14 +497,20 @@ class MainCogLoop(CognitiveWorkflow):
                     return
                 delay = min(delay * 2, CYCLE_RETRY_MAX_DELAY_SECONDS)
             except GhostConflict as error:
+                if self._active_batch_committed:
+                    raise
                 attempt += 1
+                path = self.runtime_root / "kernel" / self.invocation_id / "commit-conflict.json"
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(json.dumps({"attempt": attempt, "source_ids": list(self._stimulus_ids),
+                    "reason": str(error), "traceback": traceback.format_exc()}, indent=2), encoding="utf-8")
                 self.bus.put(new_envelope(self.module_id, "telemetry", "cycle.conflict",
                     batch[0].correlation_id if batch else "",
                     {"attempt": attempt, "reason": str(error)}))
                 if self.stop_event.is_set() or self.run_stop.is_set():
                     return
-                if attempt == 3:
-                    raise
+                if attempt > 1 and self.stop_event.wait(delay):
+                    return
 
     def available_workflow_options(self) -> list[WorkflowOption]:
         if self.workflow_catalogue_owner is None:
@@ -540,7 +542,8 @@ class MainCogLoop(CognitiveWorkflow):
         accepted intentions, and critical epoch before asking for admission.
         """
         catalogue = self.workflow_catalogue_owner
-        if (catalogue is None or dispatch.action_type != ActionType.ToolCallAndReply.value
+        expected = ActionType.ToolCall if dispatch.workflow_name == "assistant" else ActionType.ToolCallAndReply
+        if (catalogue is None or dispatch.action_type != expected.value
                 or dispatch.status != "dispatched" or not dispatch.correlation_id
                 or dispatch.presentation.mode != "candid" or dispatch.depends_on or dispatch.requires_completed):
             return False
@@ -720,6 +723,11 @@ class MainCogLoop(CognitiveWorkflow):
         # features that produced it come from the same committed ticks.
         with self.ghost.lock:
             history = features_to_history(self.ghost.all_features, self.ghost.all_codelet_percepts)
+        source_scopes = {item.scope for item in sources}
+        world = max((item for item in memory_view.all_knoxels.values() if isinstance(item, Feature)
+                     and item.feature_type == FeatureType.WorldEvent and item.scope in source_scopes
+                     and item.metadata.get("origin") == "minecraft.world"),
+                    key=lambda item: (item.timestamp_world_begin, item.id), default=None)
         capabilities = self.capability_owner.snapshot() if self.capability_owner is not None else None
         public = build_public_context(self.ghost, ActionRequest(stimuli=stimuli), capabilities=capabilities)
         user_entity_id = self.ghost.get_entity_id(self.ghost.get_user_name())
@@ -755,6 +763,8 @@ class MainCogLoop(CognitiveWorkflow):
         extra = [*narrative_ids, *workspace_ids, *(key for stream in streams for key in stream.record_ids),
                  *(int(item.id) for item in active_intentions(memory_view)[:8]),
                  *(item.record_id for item in open_expectations)]
+        if world is not None:
+            extra.append(world.id)
         records, recent_dialogue = self._record_views(memory_view, sources, matches, previous, extra)
         add_entity_context_records(memory_view, records, situational_guidance)
         if previous is not None:
@@ -827,6 +837,10 @@ class MainCogLoop(CognitiveWorkflow):
             reflection_guidance=guidance,
             wait_default_seconds=control.config.wait_seconds if control is not None else 1800,
             post_reply_seconds=control.config.post_reply_seconds if control is not None else 0.0,
+            latest_body_observation_id=world.id if world else None,
+            latest_body_observation=(f"Last observed at {world.timestamp_world_begin} [source {world.id}]: {world.content[:1200]}"
+                                     if world else ""),
+            runtime_orientation=capabilities.runtime_orientation if capabilities else "",
             capabilities=_capabilities(self.ghost),
             available_workflows=self.available_workflow_options(),
             public_context=public,
@@ -1019,6 +1033,7 @@ class MainCogLoop(CognitiveWorkflow):
                 source_kind=SourceKind.Workflow,
                 metadata={
                     "origin": "workflow.event",
+                    "correlation_id": envelope.correlation_id,
                     "run_id": run_id,
                     "event": state,
                     "artifact_path": artifact,
@@ -1267,7 +1282,7 @@ class MainCogLoop(CognitiveWorkflow):
                 shards=request_shards(work.state.workspace, dispatch.group, partner,
                                       {key: shard_label(key, request) for key in (SELF_SHARD, dispatch.group, partner) if key is not None},
                                       hidden=experience.hidden_for(dispatch.group)),
-                presentation=presentation, workspace=experience.text_for(dispatch.group),
+                presentation=presentation, workspace="\n".join((request.runtime_orientation, experience.text_for(dispatch.group))),
                 affect=work.affect.felt, regulation=work.affect.regulation,
                 task_receipt=terminal_reply.task_receipt if terminal_reply is not None else None,
                 action_origin="task_reply" if terminal_reply is not None else "main",

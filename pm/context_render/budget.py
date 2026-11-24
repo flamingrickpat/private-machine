@@ -12,6 +12,22 @@ from pm.context_render.turns import Content, Text, Turn
 from pm.constants import PROMPT_IMAGE_TOKENS
 
 
+def evidence_excerpt(text: str, retained_characters: int) -> str:
+    """Render a marked excerpt of one source, keeping the opening and most recent text.
+
+    Callers select the source and keep its identity separately. This is a display
+    representation of evidence. It must never be used to shorten instructions,
+    schemas, executable tool arguments or the original stored record.
+    """
+    if len(text) <= retained_characters:
+        return text
+    first = retained_characters // 2
+    last = retained_characters - first
+    omitted = len(text) - retained_characters
+    ending = text[-last:] if last else ""
+    return f"{text[:first]}\n[{omitted} source characters omitted]\n{ending}"
+
+
 class RequiredContextTooLarge(ValueError):
     """Required instructions and evidence cannot fit the configured input ceiling."""
 

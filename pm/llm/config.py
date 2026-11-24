@@ -58,6 +58,8 @@ class Connection(BaseModel):
     # costs minutes of wall clock and holds an admission slot the whole time.
     # ``None`` disables the cap. Hidden reasoning has its own smaller budget.
     completion_token_limit: StrictInt | None = Field(default=8192, gt=0)
+    retry_completion_token_limit: StrictInt | None = Field(default=None, gt=0,
+        description="Largest completion to request after repeated output truncation, subject to serving headroom.")
 
     max_concurrent_requests: StrictInt = Field(default=8,
         description="Shared endpoint request slots. Values <=0 or >=9999 mean unlimited.")
@@ -117,6 +119,7 @@ class ConnectionConfig(Connection):
                           context_window=self.context_window, context_input_fraction=self.context_input_fraction,
                           override_context=self.override_context,
                           completion_token_limit=self.completion_token_limit,
+                          retry_completion_token_limit=self.retry_completion_token_limit,
                           max_concurrent_requests=self.max_concurrent_requests,
                           request_timeout_seconds=self.request_timeout_seconds)
 

@@ -16,7 +16,7 @@ from typing import Literal, Self
 from workflows.public_speech.task_receipts import TaskReceipt, read_optional_task_receipt
 
 from pydantic import (
-    BaseModel, ConfigDict, Field, JsonValue, SerializerFunctionWrapHandler, ValidationInfo, model_serializer, model_validator, field_validator,
+    AliasChoices, AliasPath, BaseModel, ConfigDict, Field, JsonValue, SerializerFunctionWrapHandler, ValidationInfo, model_serializer, model_validator, field_validator,
 )
 
 from pm.constants import CODELET_BUDGET_DEFAULT, CODELET_BUDGET_MAX, DECISION_VARIANTS, EXPECTATION_COUNT
@@ -69,6 +69,11 @@ class ActionArguments(BaseModel):
 
     operation: str = ""
     run_id: str = ""
+    related_run_id: str = ""
+    expected_epoch: int | None = None
+    yield_body: bool = False
+    change_source_id: int | None = None
+    change_reason: str = ""
     workflow_name: str = ""
     instructions: str = ""
     instruction: str = ""
@@ -282,6 +287,7 @@ class TriageItem(BaseModel):
     relevance: float = 0.0
     reasoning: str = ""
     evidence_ids: list[int] = Field(default_factory=list[int])
+    body_operation: Literal['stop', 'status', 'resume', 'yield'] | None = None
     workflow_task: WorkflowTaskRequest | None = None
 
 
@@ -293,6 +299,8 @@ class TriageCheck(BaseModel):
     stimulus_ids: tuple[int, ...]
     shown_evidence_ids: frozenset[int]
     workflow_task_names: frozenset[str] = frozenset()
+    classify_body_operation: bool = False
+    shown_inputs: dict[int, str] = Field(default_factory=dict[int, str])  # pm-lint: allow PM004 -- rendered utterances by source ID
     original_inputs: dict[int, str] = Field(default_factory=dict[int, str])  # pm-lint: allow PM004 -- original utterances indexed by source knoxel ID
 
 
@@ -321,6 +329,10 @@ class TriageResult(BaseModel):
             if len(actual_ids) != len(set(actual_ids)) or set(actual_ids) != set(expected_ids):
                 raise ValueError(f"Classify exactly these event IDs once each: {expected_ids}.")
             for item in self.items:
+                if info.context.classify_body_operation and "body_operation" not in item.model_fields_set:
+                    raise ValueError(f"Add body_operation inside items for knoxel_id {item.knoxel_id}: status, stop, resume, yield, or null.")
+                if item.body_operation and item.workflow_task:
+                    raise ValueError("An existing body operation and a new workflow task cannot share a triage item.")
                 unknown_sources = sorted(set(item.evidence_ids) - info.context.shown_evidence_ids)
                 if unknown_sources:
                     raise ValueError(f"Evidence IDs {unknown_sources} were not shown. Cite actual source IDs or use an empty evidence_ids list.")
@@ -330,8 +342,9 @@ class TriageResult(BaseModel):
                 if item.category == "Critical" or task.workflow_name not in info.context.workflow_task_names:
                     raise ValueError("Set workflow_task to null for Critical inputs or unavailable workflows.")
                 original = info.context.original_inputs[item.knoxel_id]
+                shown = info.context.shown_inputs.get(item.knoxel_id, original)
                 for clause in task.constraints:
-                    if not clause.strip() or clause not in original:
+                    if not clause.strip() or clause not in original or clause not in shown:
                         raise ValueError(f"Workflow task constraint {clause!r} must quote the current input exactly.")
         return self
 
@@ -1004,6 +1017,11 @@ class RouteCheck(BaseModel):
     """The validation context of one route answer: the available workflow names."""
 
     workflow_names: list[str] = Field(default_factory=list[str])
+    visible_run_ids: frozenset[str] = frozenset()
+    updatable_run_ids: frozenset[str] = frozenset()
+    pending_revision_run_ids: frozenset[str] = frozenset()
+    partner_sources: frozenset[int] = frozenset()
+    change_sources: frozenset[int] = frozenset()
 
 
 class RouteChoice(BaseModel):
@@ -1035,6 +1053,8 @@ class RouteAnswer(RouteChoice):
 
     model_config = ConfigDict(extra="forbid")
 
+    parallel_inquiry: str = Field(default="", description="Independent private assistant inquiry to perform alongside this managed task.")
+
     @model_validator(mode="after")
     def _known(self, info: ValidationInfo) -> Self:
         if self.action_type not in ACTION_TYPES:
@@ -1042,6 +1062,32 @@ class RouteAnswer(RouteChoice):
         check = info.context if info.context is not None else RouteCheck()
         if not isinstance(check, RouteCheck):
             raise TypeError("Route validation requires RouteCheck.")
+        args = self.arguments
+        if args.related_run_id and (self.workflow_name not in {"assistant", "tool_call"}
+                                    or args.related_run_id not in check.visible_run_ids):
+            raise ValueError("A related tool inquiry needs a run ID from the supplied receipts.")
+        if self.workflow_name == "self_management" and args.operation not in {
+                "start", "update", "status", "list", "terminate", "answer", "resume"}:
+            raise ValueError("Choose a named self-management operation.")
+        if self.action_type not in QUIET_ACTIONS and (args.operation == "update" or
+                (args.run_id and not args.operation and self.workflow_name != "self_management")):
+            if args.run_id not in check.updatable_run_ids:
+                raise ValueError("The target run must be open for instruction changes.")
+            if args.change_source_id not in check.change_sources or not args.change_reason.strip():
+                raise ValueError("An update needs a current change_source_id and a concrete change_reason. "
+                                 "If the goal is unchanged, let the worker continue.")
+            if args.run_id in check.pending_revision_run_ids and args.change_source_id not in check.partner_sources:
+                raise ValueError("The worker has not consumed its last revision. Let it reach its boundary "
+                                 "unless a new partner instruction supersedes that revision.")
+            if not (args.instructions.strip() or args.instruction.strip()):
+                raise ValueError("Supply the revised task, retaining the original site and unaffected requirements.")
+        if self.workflow_name == "assistant" and self.action_type != "ToolCall":
+            raise ValueError("The assistant action is private and requires ToolCall.")
+        if self.parallel_inquiry and ("assistant" not in check.workflow_names or self.workflow_name == "assistant"
+                                     or self.action_type not in {"ToolCall", "ToolCallAndReply"}):
+            raise ValueError("A parallel inquiry requires an available assistant and an independent task.")
+        if self.parallel_inquiry and args.run_id and args.run_id not in check.visible_run_ids:
+            raise ValueError("A parallel inquiry can refer only to a worker in the supplied receipts.")
         allowed = check.workflow_names
         if self.action_type not in QUIET_ACTIONS and self.workflow_name not in allowed:
             raise ValueError(f"workflow_name {self.workflow_name!r} is not available. "
@@ -1178,6 +1224,12 @@ class ManagedRunView(BaseModel):
     state: str | None = None
     instructions: str | None = None
     parent_correlation: str | None = None
+    singleton_key: str = ""
+    original_instructions: str = Field(default="", validation_alias=AliasChoices("original_instructions",
+        AliasPath("events", 0, "message", "receipt", "instructions"), AliasPath("arguments", "instructions")))
+    revision: int = 0
+    applied_revision: int = 0
+    updates_open: bool = True
 
 
 class GoalRecordView(BaseModel):

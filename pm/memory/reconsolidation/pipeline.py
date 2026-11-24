@@ -49,6 +49,7 @@ from pydantic import BaseModel, ConfigDict
 
 from pm.constants import (RECONSOLIDATION_COMMIT_GROUP, RECONSOLIDATION_EMBED_WORKERS,
                           RECONSOLIDATION_SESSION_GAP_MINUTES, RECONSOLIDATION_TIME_FORMAT)
+from pm.context_render.budget import TokenEstimator
 from pm.llm.stage_model import LazyStageModel
 from pm.llm.concurrency import wait_model_futures
 from pm.memory.reconsolidation.clustering import (contextual_embeddings, cosine_distances, optimal_labels,
@@ -340,13 +341,26 @@ class _Run:
         if not scene:
             return []
         story = render_story(scene, self.time_format, numbered=True, images=self.image_catalog(scene))
-        input = FactExtractionInput(self.scene_input(self.prompts.facts_extract, story))
+        settings = self.calls.session.renderer_settings_for(self.calls.generation)
+        source_budget = settings.input_ceiling // 4
+        estimator = TokenEstimator(estimate_factor=settings.estimate_factor)
+        if estimator.text_tokens(story) > source_budget:
+            if len(scene) > 1:
+                # Re-number each batch locally so every extracted fact keeps the original Feature.
+                middle = len(scene) // 2
+                return [*self.extract_facts(FactExtractionPlan(scene[:middle])),
+                        *self.extract_facts(FactExtractionPlan(scene[middle:]))]
+            summary = self.calls.session.summarize_long_source(story, f"source record {scene[0].id}", source_budget)
+            story = "[1] " + summary
+        intro = self.calls.session.summarize_long_source(self.intro, "character introduction", source_budget)
+        input = FactExtractionInput(SceneSummaryInput(self.system, self.prompts.facts_extract,
+            intro, story, self.companion, self.user))
         found = self.calls.extract_facts(input, len(scene)).facts
         if not found:
             return []
         classify_input = FactClassificationInput(self.system, self.prompts.facts_classify, self.intro,
             tuple(fact.text for fact in found), tuple(PmCategory.all()), self.companion, self.user)
-        filings = self.calls.classify_facts(classify_input).facts
+        filings = self.calls.classify_facts(classify_input)
         return [FiledFact(fact.text, filing, [scene[line - 1] for line in fact.lines])
             for fact, filing in zip(found, filings, strict=True)]
 

@@ -1,6 +1,7 @@
 {
   "schema_id": "pm.simulation-template.v1",
   "title": "Jesse plays Minecraft with Spamuel",
+  "time_multiplier": 6.0,
   "brief": "Jesse plays Minecraft with Spamuel. Three days of synthetic interactions for comparison across runtime revisions.",
   "start_time": "2026-06-08T07:00:00+00:00",
   "participants": [
@@ -73,6 +74,7 @@
       {
         "id": "day-1-scene-2",
         "at": "2026-06-08T20:00:00+00:00",
+        "review_body_stop": true,
         "instruction": "Tell him about your day while he works, then ask him to stop and tell you where he stopped.",
         "actor_intent": "Tell him about your day while he works, then ask him to stop and tell you where he stopped.",
         "completion": "Jesse has delivered the invitation, question or correction and allowed the exchange to develop.",

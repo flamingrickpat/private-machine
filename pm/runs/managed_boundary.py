@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime
 from threading import Event
 from typing import TYPE_CHECKING, Generator, TypedDict
 from pm.memory.agent_tools import guard_revisions
@@ -50,8 +51,8 @@ class ManagedRunBoundary:
     def instructions(self, wait: bool = False, close: bool = False) -> BoundaryInstructions:
         return self.read(BoundaryReadSettings(wait=wait, close=close))
 
-    def milestone(self, key: str, summary: str, evidence: str) -> None:
-        self.supervisor.milestone(self.run_id, self.epoch, key, summary, evidence)
+    def milestone(self, key: str, summary: str, evidence: str, observed_at: datetime | None = None) -> None:
+        self.supervisor.milestone(self.run_id, self.epoch, key, summary, evidence, observed_at)
 
     def cancelled(self) -> bool:
         return self.supervisor.cancelled_at_boundary(self.run_id, self.epoch)

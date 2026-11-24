@@ -23,10 +23,10 @@ from __future__ import annotations
 from pm.context_render.correction import render_regeneration_feedback
 
 from pathlib import Path
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pm.context_render.prompt import RenderSettings, RenderedPrompt, EvidenceDecision, require_rendered_prompt, RendererCapture, RendererInput
 from pm.records.media import RecordImage
-from pm.context_render.budget import RequiredContextTooLarge, TokenEstimator
+from pm.context_render.budget import evidence_excerpt, StoryTokenEstimator
 from pm.context_render.images import ImageCatalog, resolve_media
 from collections.abc import Sequence
 from typing import Literal, TypedDict
@@ -81,6 +81,7 @@ class SpeechReview(BaseModel):
     spoken_text: str | None = None
     findings: list[ReviewFinding] = Field(default_factory=list[ReviewFinding])
     raw: str = ""
+    reviewed_evidence_ids: tuple[int, ...] = ()
 
 
 def select_spoken_text(candidate: str, review: SpeechReview) -> str:
@@ -259,7 +260,7 @@ def render_speech_review(input: SpeechReviewRenderInput, settings: RenderSetting
         feedback = render_regeneration_feedback("speech review", input.problem, settings)
         feedback_turns = (Turn(Role.User, feedback.text),)
         settings = settings.without_correction_reserve()
-    estimator = TokenEstimator(estimate_factor=settings.estimate_factor)
+    estimator = StoryTokenEstimator(estimate_factor=settings.estimate_factor)
     selected_context = input.context.model_copy()
     selected_context.evidence = []
     selected_context.memories = []
@@ -293,6 +294,29 @@ def render_speech_review(input: SpeechReviewRenderInput, settings: RenderSetting
         selected_context.selected_action = ""
         groups.remove("selected action")
         turns = render_review_turns(input, selected_context, conversation, feedback_turns, images)
+    retained_receipt = settings.input_ceiling
+    original_receipts = input.receipts
+    while estimator.estimate(turns) > settings.input_ceiling and retained_receipt:
+        retained_receipt //= 2
+        if input.context.task_receipt is not None:
+            selected_context.task_receipt = input.context.task_receipt.prompt_excerpt(retained_receipt)
+        receipts = tuple(ToolEvidence(item.name, item.executed, evidence_excerpt(item.result_text, retained_receipt),
+            evidence_excerpt(item.error, retained_receipt), item.observed_at, item.source) for item in original_receipts)
+        input = replace(input, receipts=receipts)
+        turns = render_review_turns(input, selected_context, conversation, feedback_turns, images)
+    retained = max((len(turn.text) for turn in conversation), default=0)
+    while retained and estimator.estimate(turns) > settings.input_ceiling:
+        retained //= 2
+        reduced: list[DialogueTurn] = []
+        for turn in conversation:
+            excerpt = turn.model_copy()
+            excerpt.text = evidence_excerpt(turn.text, retained)
+            reduced.append(excerpt)
+        turns = render_review_turns(input, selected_context, tuple(reduced), feedback_turns, images)
+        if estimator.estimate(turns) <= settings.input_ceiling or retained == 0:
+            conversation = tuple(reduced)
+            groups.append("dialogue excerpt")
+            break
     require_rendered_prompt("speech review", turns, settings)
     terms = set(distinctive_terms(input.candidate))
     ranked: list[RankedReviewEvidence] = []
@@ -336,15 +360,13 @@ async def review_speech(complete: ModelSession, candidate: str, context: PublicC
     while True:
         input = SpeechReviewRenderInput(candidate, context, selected_prompts, tuple(conversation),
                                        tuple(receipts), problem, rejected_answer, images)
-        try:
-            with RendererCapture(complete.capture_settings("speech_review"), RendererInput("speech_review", input, complete.settings)) as capture:
-                rendered = render_speech_review(input, complete.settings)
-                capture.save_output(rendered)
-            raw = await complete.complete_async(rendered.turns, settings=GenerationSettings(temperature=REVIEW_TEMPERATURE, enable_thinking=False))
-        except RequiredContextTooLarge as error:
-            raise ModelFormatError(f"Speech review could not fit its required evidence. {error}") from error
+        with RendererCapture(complete.capture_settings("speech_review"), RendererInput("speech_review", input, complete.settings)) as capture:
+            rendered = render_speech_review(input, complete.settings)
+            capture.save_output(rendered)
+        raw = await complete.complete_async(rendered.turns, settings=GenerationSettings(temperature=REVIEW_TEMPERATURE, enable_thinking=False))
         try:
             result = parse_review(raw)
+            result.reviewed_evidence_ids = rendered.visible_source_ids
             select_spoken_text(candidate, result)
             return result
         except (JsonOutputError, ValidationError, ValueError) as error:

@@ -11,7 +11,7 @@ from pm.records.enums import EntityClass, FeatureType
 from pm.context_render.budget import RequiredContextTooLarge, TokenEstimator
 from pm.context_render.prompt import RenderSettings
 from pm.context_render.turns import Role, Turn
-from workflows.dialogue_story.context import select_story_prompt
+from workflows.dialogue_story.context import StoryRenderInput, render_story, select_story_prompt
 from workflows.dialogue_story.schemas import StoryRequest
 from workflows.dialogue_story.steps import build_story_messages, load_prompts
 from workflows.public_speech.public_context import DialogueTurn, EvidenceItem, PublicContext, ToolEvidence
@@ -54,6 +54,24 @@ class StoryContextBudgetTests(unittest.TestCase):
         self.assertNotIn(weak.text, text)
         self.assertLessEqual(fitted.selection.estimated_tokens, request.input_budget_tokens)
         self.assertEqual(len(request.public_context.evidence), 3)
+
+    def test_trimmed_pins_leave_the_review_contract_at_supported_windows(self) -> None:
+        large_pin = EvidenceItem(knoxel_id=91, text="older stone observation " * 22000, lane="facts")
+        small_pin = EvidenceItem(knoxel_id=92, text="The block Jesse requested was blue.", lane="facts")
+        story_request = self.request([large_pin, small_pin])
+        story_request.required_evidence_ids = (91, 92)
+        prompts = load_prompts()
+        for window in (32000, 86000):
+            with self.subTest(window=window):
+                settings = RenderSettings(context_window=window, input_fraction=0.8, reserved_output_tokens=8192)
+                packet = StoryRenderInput(story_request, prompts, problem="Return spoken words only.")
+                prompt = render_story(packet, settings)
+                self.assertEqual(prompt.required_source_ids, (92,))
+                self.assertIn(20, prompt.visible_source_ids)
+                self.assertNotIn(91, prompt.visible_source_ids)
+                self.assertLessEqual(prompt.estimated_tokens, prompt.input_ceiling)
+                self.assertEqual(render_story(packet, settings), prompt)
+                self.assertEqual(story_request.required_evidence_ids, (91, 92))
 
     def test_required_overflow_remains_an_error(self) -> None:
         request = self.request([])

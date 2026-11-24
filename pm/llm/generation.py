@@ -75,6 +75,11 @@ class GenerationSettings(BaseModel):
         return tokens
 
     def with_tools(self, tools: tuple[ToolSchema, ...]) -> GenerationSettings:
+        return self.for_request(tools=tools)
+
+    def for_request(self, *, tools: tuple[ToolSchema, ...] | None = None, disable_reasoning: bool = False,
+                    output_tokens: int | None = None) -> GenerationSettings:
+        """Carry the sampler and schema into a tool turn or a retry with revised output controls."""
         return GenerationSettings(
             temperature=self.temperature,
             top_p=self.top_p,
@@ -83,17 +88,17 @@ class GenerationSettings(BaseModel):
             frequency_penalty=self.frequency_penalty,
             presence_penalty=self.presence_penalty,
             repetition_penalty=self.repetition_penalty,
-            max_tokens=self.max_tokens,
-            max_completion_tokens=self.max_completion_tokens,
-            enable_thinking=self.enable_thinking,
-            reasoning=self.reasoning,
-            reasoning_budget=self.reasoning_budget,
-            reasoning_tokens=self.reasoning_tokens,
-            reasoning_budget_tokens=self.reasoning_budget_tokens,
-            reasoning_effort=self.reasoning_effort,
-            tools=tools,
+            max_tokens=self.max_tokens if output_tokens is None else output_tokens,
+            max_completion_tokens=self.max_completion_tokens if output_tokens is None else None,
+            enable_thinking=None if disable_reasoning else self.enable_thinking,
+            reasoning=ReasoningOptions(enabled=False) if disable_reasoning else self.reasoning,
+            reasoning_budget=None if disable_reasoning else self.reasoning_budget,
+            reasoning_tokens=None if disable_reasoning else self.reasoning_tokens,
+            reasoning_budget_tokens=None if disable_reasoning else self.reasoning_budget_tokens,
+            reasoning_effort=None if disable_reasoning else self.reasoning_effort,
+            tools=self.tools if tools is None else tools,
             response_format=self.response_format,
-            chat_template_kwargs=self.chat_template_kwargs,
+            chat_template_kwargs=None if disable_reasoning else self.chat_template_kwargs,
             provider=self.provider,
             stop=self.stop,
             tool_choice=self.tool_choice,

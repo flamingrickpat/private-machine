@@ -25,8 +25,10 @@ from __future__ import annotations
 
 from dataclasses import replace
 from uuid import uuid4
-from pm.context_render.prompt import RenderSettings, RendererCaptureSettings, RendererCapture, RendererInput
-from workflows.main_cognition.rendering import CognitionShardInput, CognitionStoryInput, render_cognition_story, cognition_story_turns, render_cognition_guidance
+from pm.context_render.shards import select_shards, shard_prompt_turns
+from pm.context_render.budget import TokenEstimator
+from pm.context_render.prompt import RenderSettings, RendererCaptureSettings, RendererCapture, RendererInput, require_rendered_prompt
+from workflows.main_cognition.rendering import CognitionStoryInput, render_cognition_story, shard_prompt, render_cognition_guidance
 
 from pm.context_render.story import (
     RecordView, shard_block_text, shard_name, story_entity_names, story_shards,
@@ -161,19 +163,20 @@ class StoryPrefix:
         self.entity = story_entities(work) if group is None else (
             shard_label(group, request) if group.kind == "entity" else request.user_name)
         hidden = set(work.experience.hidden_for(group))
-        shards = shown_shards(work, group)
         new_ids = [record_id for item in groups for record_id in item.stimulus_ids] if group is not None else [
             item.knoxel_id for item in request.stimuli]
         system = self.fill(self.prompts.system_prompt).strip()
+        if request.runtime_orientation:
+            system += "\n\n" + request.runtime_orientation
+        if request.latest_body_observation:
+            system += "\n" + request.latest_body_observation
         target_id = int(group.ref) if group is not None and group.kind == "entity" else request.user_entity_id
         situations = request.situational_guidance
         if group is not None:
             situations = [situation for situation in situations
                           if situation.partner is not None and situation.partner.entity_id == target_id]
-        shard_inputs = tuple(CognitionShardInput(shard.key, shard_label(shard.key, request),
-            tuple(shard.item_ids()), tuple(record_id for record_id in shard.tail_ids if record_id not in hidden),
-            {item.record_id: item.activation_at_entry for item in shard.items},
-            frozenset(item.record_id for item in shard.items if item.required_by == "entity_context")) for shard in shards)
+        shard_inputs = select_shards(work.state.workspace, [item.key for item in groups], hidden_tail=hidden,
+            user_id=request.user_entity_id or 0, user_name=request.user_name, entity_names=request.entity_names)
         record_ids = set(new_ids)
         for shard in shard_inputs:
             record_ids.update(shard.item_ids)
@@ -194,8 +197,15 @@ class StoryPrefix:
             guidance = render_cognition_guidance(situations, settings)
             prefix_input = replace(prefix_input, guidance=guidance, situations=())
         self.shared_input: CognitionStoryInput = prefix_input
-        rendered = render_cognition_story(prefix_input, settings)
-        self.prefix_record_ids: frozenset[int] = frozenset(item.record_id for item in rendered.evidence if item.included)
+        self.prefix_record_ids: frozenset[int]
+        if select_context:
+            rendered = render_cognition_story(prefix_input, settings)
+            self.prefix_record_ids = frozenset(item.record_id for item in rendered.evidence if item.included)
+        else:
+            # Triage measures each exact candidate set and owns its evidence receipt.
+            self.prefix_record_ids = frozenset(prefix_input.records) - prefix_input.new_ids
+            turns = shard_prompt_turns(shard_prompt(prefix_input), self.prefix_record_ids)
+            rendered = require_rendered_prompt(prefix_input.operation, turns, settings)
         self.turns = list(rendered.turns)
         self.story_text = rendered.raw_text
         self.targets: dict[str, ShardKey] = {"self": SELF_SHARD}
@@ -210,13 +220,17 @@ class StoryPrefix:
     def ask_with_shared_evidence(self, instruction: str) -> list[Turn]:
         """Keep the selected prefix records and resolve images across the prefix and instruction together."""
         input = replace(self.shared_input, instruction=instruction)
-        return list(cognition_story_turns(input, self.prefix_record_ids))
+        turns = shard_prompt_turns(shard_prompt(input), self.prefix_record_ids)
+        estimator = TokenEstimator(estimate_factor=self.settings.estimate_factor)
+        if estimator.estimate(turns) <= self.settings.input_ceiling:
+            return list(turns)
+        return list(render_cognition_story(input, self.settings).turns)
 
     def ask(self, instruction: str) -> list[Turn]:
         """Return the prefix and then ``instruction`` as the last user turn."""
         if not self.select_context:
             input = replace(self.shared_input, instruction=instruction.strip())
-            return list(cognition_story_turns(input, frozenset(input.records) - input.new_ids))
+            return list(shard_prompt_turns(shard_prompt(input), self.prefix_record_ids))
         input = replace(self.render_input, instruction=instruction.strip(), optional_ceiling=self.settings.input_ceiling - 1500)
         settings = self.settings
         if self.capture_settings is None:

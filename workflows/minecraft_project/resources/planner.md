@@ -10,6 +10,9 @@ The separate retention phase restores eligible original proof and preserves curr
 
 Turn the requested goal into a generic goal/story/leaf task tree.
 Express the user's practical outcome without adding incidental loot or unnecessary numerical precision.
+For a single harvest with random loot, one leaf can inspect the site, break the target, and report the actual inventory change, including zero.
+The public reply workflow reports the server return after the project ends. Do not add a world criterion for speech.
+Put the initial block and inventory in the actor's baseline. Keep assumptions valid throughout the task. A harvested block disappears.
 A casual return near camp can permit a practical position radius; an exact placement or safe landing has different needs.
 Missing incidental saplings need not invalidate requested wood gathering. Required item quantities and identities still matter.
 Do not weaken an explicit boundary, invent diamonds, or move the requested site to make work appear complete.

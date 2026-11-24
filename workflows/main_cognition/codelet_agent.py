@@ -19,8 +19,7 @@ as follows:
 
 Invalid final JSON receives repair turns without another tool session.
 An uninspected cited id or a session deadline starts a
-fresh session with the reason in its prompt, up to
-``CODELET_AGENT_ATTEMPTS`` sessions, and then raises ``ModelFormatError``. The host retries the whole cycle after that. Provider
+fresh read-only session with the latest reason until cancellation. Provider
 and cancellation errors propagate.
 
 Sessions of one run take turns. They share the in-memory Bash machine of
@@ -29,6 +28,7 @@ the run, and that machine is not documented as safe for parallel shells.
 from __future__ import annotations
 
 import json
+import logging
 import threading
 from dataclasses import replace, dataclass, field
 from pathlib import Path
@@ -38,7 +38,7 @@ from fastmcp import FastMCP
 from pm_workflows.drivers import PmCoderDriver
 from pm_workflows.python_role import RoleContext
 
-from pm.constants import CODELET_AGENT_ATTEMPTS, CODELET_AGENT_TIMEOUT_SECONDS
+from pm.constants import CODELET_AGENT_TIMEOUT_SECONDS
 from pm.host.mcp_listeners import serve_services
 from pm.llm.multimodal import ImageAttachment, agent_images
 from pm.llm.prompt_log import log_directory
@@ -46,12 +46,12 @@ from pm.memory.agent_tools import MemoryReadSession, MemoryToolConfig, MemoryVie
 from pm.memory.bash_view import MemoryBashEnvironment
 from pm.memory.store import MemoryStore
 from pm.records.media import IMAGE_TAG, RecordImage
+from pm.context_render.budget import TokenEstimator, evidence_excerpt
 from pm.context_render.images import ImageCatalog
 from pm.context_render.prompt import RenderSettings, RenderedPrompt, RendererCapture, RendererInput, require_rendered_prompt
 from pm.context_render.turns import Role, Turn, Content, Media, MediaKind
 
 from workflows.main_cognition.csm_view import record_view
-from pm.llm.structured import ModelFormatError
 from workflows.main_cognition.schemas import AgentCodeletAnswer, AgentCodeletJob
 
 if TYPE_CHECKING:
@@ -93,17 +93,50 @@ def prompt_images(input: CodeletAgentRenderInput) -> list[ImageAttachment]:
 
 
 def render_codelet_agent(input: CodeletAgentRenderInput, settings: RenderSettings) -> RenderedPrompt:
-    turns = [Turn(Role.System, input.skill), Turn(Role.User, prompt_text(input))]
-    for index, image in enumerate(prompt_images(input)):
-        turns.append(Turn(Role.User, Content(Media(MediaKind.Image, image.media_type, data=image.data, name=f"codelet-image-{index}"))))
-    return require_rendered_prompt("native codelet initial prompt", tuple(turns), settings)
+    estimator = TokenEstimator(estimate_factor=settings.estimate_factor)
+    job = input.job.model_copy()
+    selected = replace(input, job=job)
+    text = prompt_text(selected)
+    turns = [Turn(Role.System, input.skill), Turn(Role.User, text)]
+    visible_ids = tuple(job.view_ids)
+    if estimator.estimate(turns) > settings.input_ceiling:
+        job.view = "Use mind_view to read the complete current view with its record IDs."
+        visible_ids = ()
+        retained = settings.input_ceiling
+        while True:
+            job.story = evidence_excerpt(input.job.story, retained)
+            job.instruction = evidence_excerpt(input.job.instruction, retained)
+            job.retrieval_plan = [evidence_excerpt("\n".join(input.job.retrieval_plan), retained)]
+            selected = replace(selected, problems=tuple(evidence_excerpt(item, retained) for item in input.problems))
+            turns[1] = Turn(Role.User, prompt_text(selected))
+            if estimator.estimate(turns) <= settings.input_ceiling or retained == 0:
+                break
+            retained //= 2
+    for index, image in enumerate(prompt_images(selected)):
+        turn = Turn(Role.User, Content(Media(MediaKind.Image, image.media_type, data=image.data, name=f"codelet-image-{index}")))
+        if estimator.estimate([*turns, turn]) <= settings.input_ceiling:
+            turns.append(turn)
+    prompt = require_rendered_prompt("native codelet initial prompt", tuple(turns), settings)
+    return replace(prompt, visible_source_ids=visible_ids)
 
 
-@dataclass(frozen=True, slots=True)
+def fitted_codelet_images(prompt: RenderedPrompt) -> list[ImageAttachment]:
+    images: list[ImageAttachment] = []
+    for turn in prompt.turns[2:]:
+        for part in turn.content.parts:
+            if not isinstance(part, Media) or part.kind != MediaKind.Image or part.data is None:
+                raise ValueError("The fitted codelet attachment must be an image with captured bytes.")
+            images.append(ImageAttachment(part.data, part.mime_type))
+    return images
+
+
+@dataclass(slots=True)
 class CodeletMindView:
     text: str
+    inspected: bool = False
 
     def read(self) -> str:
+        self.inspected = True
         return self.text
 
 
@@ -130,7 +163,13 @@ class CodeletAgent:
             raise RuntimeError("Agent codelets need workflow models for their pm-coder sessions.")
         problems: list[str] = []
         with self.turn:
-            for attempt in range(1, CODELET_AGENT_ATTEMPTS + 1):
+            attempt = 0
+            while True:
+                runtime.check_cancelled()
+                attempt += 1
+                if problems:
+                    logging.getLogger(__name__).warning("Codelet %s retry %d: %s", job.codelet, attempt, problems[-1])
+                    problems = problems[-1:]
                 memory = MemoryReadSession(MemoryToolConfig(self.ghost, MemoryView(self.ids, self.scopes),
                     semantic=self.embeddings is not None, lexical=True, graph=True,
                     embeddings=self.embeddings, cancel=self.cancel))
@@ -162,7 +201,7 @@ class CodeletAgent:
                         result = driver.run_session(
                             run_id=f"{context.task_id}-{job.codelet}", attempt=attempt, skill=str(SKILL),
                             prompt=rendered.turns[1].content.text, work_dir=context.workspace,
-                            images=prompt_images(render_input),
+                            images=fitted_codelet_images(rendered),
                             runtime=replace(runtime, agent_model=replace(model, enable_thinking=True),
                                             mcp_servers=servers),
                             mcp_config=config,
@@ -173,8 +212,10 @@ class CodeletAgent:
                     runtime.check_cancelled()
                     from pm.llm.structured import repair_agent_result
                     answer = repair_agent_result(result, AgentCodeletAnswer, model,
-                        instruction=prompt_text(render_input), cancel=self.cancel)
-                    permitted = set(memory.accessed) | set(job.view_ids) | set(job.known_ids)
+                        instruction=rendered.turns[1].content.text, cancel=self.cancel)
+                    permitted = set(memory.accessed) | set(rendered.visible_source_ids)
+                    if mind_view.inspected:
+                        permitted.update(job.view_ids)
                     uninspected = sorted(set(answer.evidence_ids) - permitted)
                     if uninspected:
                         problems.append(f"attempt {attempt}: evidence_ids {uninspected} were neither in the mind "
@@ -186,7 +227,6 @@ class CodeletAgent:
                     completed.records = views
                     completed.session_ref = result.session_ref
                     return completed
-        raise ModelFormatError(f"Agent codelet {job.codelet} gave no valid answer: {'; '.join(problems)}")
 
 
 

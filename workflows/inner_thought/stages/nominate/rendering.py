@@ -54,7 +54,7 @@ class NominationRenderInput:
 def render_nomination(request: InnerRequest, prompts: NominationPrompts, settings: RenderSettings,
                       correction: str = "") -> RenderedPrompt:
     operations = "\n".join(f"{operation.name}: {operation.description}" for operation in OPERATIONS.values())
-    required = prompts.user_template.format(request=private_frame(request), operations=operations,
+    required = prompts.user_template.format(request=private_frame(request, settings), operations=operations,
         schema=json.dumps(NominationBatch.model_json_schema(), ensure_ascii=False))
     return select_private_evidence(PrivatePromptInput("private nomination",
         prompts.system_prompt.format(companion_name=request.companion_name), required,

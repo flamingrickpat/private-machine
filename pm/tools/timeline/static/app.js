@@ -290,6 +290,19 @@ function renderSidebar(run, page) {
         h("div", { class: "tiny mono" }, `attempt ${failure.attempt || "?"}`),
         h("div", { class: "tiny" }, short(failure.error || failure.cleanup_error || JSON.stringify(failure), 500))))));
   }
+  for (const stop of page.report?.minecraft_stop_reviews || []) {
+    const seconds = (value) => value == null ? "missing" : value.toFixed(1) + " s";
+    const position = stop.observed_position;
+    side.append(h("div", {class: "pad"}, h("h2", {}, "Minecraft stop"),
+      h("div", {}, stop.delivery_id || stop.stage_id),
+      h("div", {}, "Worker acknowledgment: " + seconds(stop.worker_ack_seconds)),
+      h("div", {}, "Public acknowledgment: " + seconds(stop.public_ack_seconds)),
+      h("div", {}, "Exact answer: " + seconds(stop.answer_seconds)),
+      h("div", {}, position ? `Observed position: ${position.x}, ${position.y}, ${position.z}` : "Position evidence missing"),
+      h("div", {}, "Observation age at answer: " + seconds(stop.observation_age_seconds)),
+      h("div", {}, "Subsequent world change: " + (stop.later_world_change ?? "unknown")),
+      h("div", {}, stop.public_answer || "Public answer evidence missing")));
+  }
   if (Object.keys(page.facts).length) {
     side.append(h("div", { class: "pad" }, h("h2", {}, "Facts"),
       ...Object.entries(page.facts).map(([id, value]) => h("div", { class: "card" },

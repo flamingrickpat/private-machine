@@ -26,7 +26,7 @@ from pm.llm.generation import GenerationSettings
 
 from pm.llm.activation import ChatClient, ChatResult, ModelActivation
 from pm.constants import CYCLE_RETRY_DELAY_SECONDS, CYCLE_RETRY_MAX_DELAY_SECONDS
-from pm.llm.http_client import RetryableCompletionError, cancellable
+from pm.llm.http_client import RetryableCompletionError, TruncatedCompletionError, cancellable
 from pm.llm.config import Connection
 from pm.llm.completion import Completion
 from pm.context_render.prompt import RendererCaptureOptions
@@ -40,18 +40,37 @@ async def complete_chat_with_retry(
     settings: GenerationSettings,
     cancel: Event | None = None,
 ) -> ChatResult:
-    """Resample unusable output with the same prompt, schema, and output allowance.
+    """Resample unusable output with the original prompt, tools and schema.
 
     The provider retains a separate prompt receipt for each sample. The delay
     holds no inference slot. Only a complete result reaches the caller.
     """
     attempt = 1
+    consecutive_truncations = 0
+    reasoning_truncations = 0
     delay_seconds = CYCLE_RETRY_DELAY_SECONDS
     logger = logging.getLogger(__name__)
     while True:
         try:
             return await client.complete(messages, settings=settings, cancel=cancel)
         except RetryableCompletionError as error:
+            if isinstance(error, TruncatedCompletionError):
+                consecutive_truncations += 1
+                reasoning_truncations = reasoning_truncations + 1 if error.reasoning_dominated else 0
+                if reasoning_truncations == 2 and not client.connection.require_reasoning:
+                    settings = settings.for_request(disable_reasoning=True)
+                    logger.warning("Two reasoning-heavy truncations; retrying this request with thinking disabled.")
+                elif consecutive_truncations >= 2:
+                    maximum = client.connection.retry_completion_token_limit
+                    current = settings.output_allowance(client.connection.completion_token_limit)
+                    if maximum is not None and maximum > current and error.output_headroom is not None:
+                        expanded = min(maximum, error.output_headroom, current * 2)
+                        if expanded > current:
+                            settings = settings.for_request(output_tokens=expanded)
+                            logger.warning("Truncated answer; retry output allowance increased from %s to %s.", current, expanded)
+            else:
+                consecutive_truncations = 0
+                reasoning_truncations = 0
             logger.warning("Model completion retry attempt=%s delay_seconds=%g error_type=%s reason=%s",
                            attempt, delay_seconds, type(error).__name__, error)
             await cancellable(asyncio.sleep(delay_seconds), cancel)
@@ -89,17 +108,8 @@ class LazyStageModel:
         self._lock = Lock()
         self._client: ChatClient | None = None
 
-    async def _preflight(self, messages: Sequence[TurnInput], cancel: Event | None, settings: GenerationSettings) -> None:
-        from pm.llm.context_window import measure_context
-        from pm.context_render.budget import RequiredContextTooLarge
-        measurement = await measure_context(self.connection, messages, cancel if cancel is not None else Event(),
-            live_test=self.live_test, settings=settings)
-        if measurement["input_tokens"] > measurement["input_budget_tokens"]:
-            raise RequiredContextTooLarge(f"Rendered prompt estimate {measurement['input_tokens']} exceeds input ceiling {measurement['input_budget_tokens']}.")
-
     async def complete_chat_async(self, messages: Sequence[TurnInput], settings: GenerationSettings = GenerationSettings(),
                                   cancel: Event | None = None) -> ChatResult:
-        await self._preflight(messages, cancel, settings)
         client = await self.ensure_client_async(cancel=cancel)
         return await complete_chat_with_retry(client, messages, settings, cancel)
 

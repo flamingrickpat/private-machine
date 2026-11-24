@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import math
 from dataclasses import dataclass
 from itertools import combinations
@@ -15,8 +16,9 @@ from threading import Event
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
+from pydantic import BaseModel, ConfigDict, JsonValue
 
-from pm.llm.http_client import JsonClient, ModelError, cancellable, EndpointRetry
+from pm.llm.http_client import JsonClient, ModelError, ModelRequestRejected, cancellable, EndpointRetry
 from pm.llm.config import Connection, EmbeddingConfig
 from pm.llm.workflow_sessions import serving_context
 from pm.records.media import alt_text_view, image_ids, media_lookup
@@ -230,20 +232,31 @@ async def fit_embedding_text(connection: Connection, text: str, cancel: Event | 
             await retry.wait(error)
 
 
-def parse_embedding_response(response: dict, config: EmbeddingConfig) -> list[float]:
-    """Validate provider output once, including its explicit response alias."""
-    try:
-        if len(response["data"]) != 1 or response["data"][0]["index"] != 0:
-            raise ValueError("Expected exactly one embedding.")
-        vector = valid_vector(response["data"][0]["embedding"], config.dimensions)
-        allowed_models = {config.model}
-        if config.response_model is not None:
-            allowed_models.add(config.response_model)
-        if response["model"] not in allowed_models:
+class EmbeddingRow(BaseModel):
+    model_config = ConfigDict(strict=True)
+    index: int
+    embedding: list[float]
+
+
+class EmbeddingResponse(BaseModel):
+    model: str
+    data: list[EmbeddingRow]
+
+    def ordered_vectors(self, count: int, config: EmbeddingConfig) -> list[list[float]]:
+        if self.model not in (config.model, config.response_model):
             raise ValueError("Unexpected embedding model.")
-    except (KeyError, TypeError, ValueError):
-        raise ModelError("The embedding service returned incompatible vector data.") from None
-    return vector
+        rows = {row.index: row for row in self.data}
+        if len(self.data) != count or set(rows) != set(range(count)):
+            raise ValueError("The embedding response contains incomplete or duplicate indices.")
+        return [valid_vector(rows[index].embedding, config.dimensions) for index in range(count)]
+
+
+def parse_embedding_response(response: dict[str, JsonValue], config: EmbeddingConfig) -> list[float]:
+    """Read a single provider vector and validate its configured model alias."""
+    try:
+        return EmbeddingResponse.model_validate(response).ordered_vectors(1, config)[0]
+    except ValueError as error:
+        raise ModelError("The embedding service returned incompatible vector data.") from error
 
 
 @dataclass
@@ -281,22 +294,38 @@ class EmbeddingService:
             if lookup is not None:
                 await lookup.complete_alt_text(ids, cancel=cancel)
             texts = [embedding_text(text) for text in texts]
-        inputs = []
+        inputs: list[str] = []
         for text in texts:
             if len(text.encode("utf-8")) > _SHORT_TEXT_BYTES:
                 text, _ = await fit_embedding_text(self.client.connection, text, cancel,
                                                    live_test=self.client.live_test)
             inputs.append(text)
-        response = await self.client.request("POST", "embeddings", payload={
-            "model": self.client.connection.model, "input": inputs[0] if len(inputs) == 1 else inputs,
-            "encoding_format": "float",
-        }, cancel=cancel)
-        rows = sorted(response["data"], key=lambda row: row["index"])
-        if [row["index"] for row in rows] != list(range(len(inputs))):
-            raise ModelError("The embedding service returned an incomplete batch.")
-        vectors = [parse_embedding_response({"model": response["model"], "data": [{**row, "index": 0}]}, self.config)
-                   for row in rows]
-        self.last_response_model = response["model"]
+        try:
+            return await self.request_vectors(inputs, cancel)
+        except ModelRequestRejected as error:
+            if error.status_code != 400 or len(inputs) == 1:
+                raise
+            # An OpenRouter backend rejected a valid multi-input request during a body
+            # milestone. Each embedding is independent. Keep every input in order.
+            logging.getLogger(__name__).warning("Embedding batch of %d rejected (HTTP 400). Sending each input separately.", len(inputs))
+            vectors: list[list[float]] = []
+            for text in inputs:
+                vectors.extend(await self.request_vectors([text], cancel))
+            return vectors
+
+    async def request_vectors(self, inputs: list[str], cancel: Event | None) -> list[list[float]]:
+        """Send fitted texts and validate the provider's batch indices and dimensions."""
+        batch: list[JsonValue] = list(inputs)
+        payload: dict[str, JsonValue] = {  # pm-lint: allow PM004 -- embedding provider wire payload
+            "model": self.client.connection.model, "input": inputs[0] if len(inputs) == 1 else batch,
+            "encoding_format": "float"}
+        response = await self.client.request("POST", "embeddings", payload=payload, cancel=cancel)
+        try:
+            parsed = EmbeddingResponse.model_validate(response)
+            vectors = parsed.ordered_vectors(len(inputs), self.config)
+        except ValueError as error:
+            raise ModelError("The embedding service returned incompatible vector data.") from error
+        self.last_response_model = parsed.model
         return vectors
 
     async def smoke_test(self) -> dict[str, float]:

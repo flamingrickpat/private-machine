@@ -173,7 +173,7 @@ def _run_boundary_check(context: RoleContext) -> dict[str, Any]:
     from workflows.minecraft_body.gateway import BodyGateway
     runtime = require_minecraft_runtime(context.runtime)
     endpoint = runtime.minecraft_transport.settings.endpoint
-    gateway = BodyGateway(endpoint, context.task_id, environment, runtime)
+    gateway = BodyGateway(endpoint, runtime.body_lease.owner, environment, runtime)
     initial = runtime.instructions()
     request.goal = initial["instruction"] or request.goal or request.instruction
     context.runtime.check_cancelled()
@@ -264,8 +264,9 @@ def run(context: RoleContext) -> dict[str, Any]:
             try:
                 return _run_boundary_check(context)
             finally:
-                token = BODY_LEASES.token(runtime.minecraft_transport.settings.endpoint, context.task_id)
-                runtime.minecraft_transport.release(token)
+                if runtime.body_lease.ownership is None:
+                    token = BODY_LEASES.token(runtime.minecraft_transport.settings.endpoint, runtime.body_lease.owner)
+                    runtime.minecraft_transport.release(token)
     from workflows.minecraft.specialist_session import run_specialist_session
     return run_specialist_session(context)
 

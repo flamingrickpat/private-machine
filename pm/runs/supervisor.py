@@ -34,6 +34,7 @@ import threading
 from dataclasses import dataclass
 import asyncio
 from concurrent.futures import CancelledError as FutureCancelledError
+from datetime import datetime, timezone
 import uuid
 from pathlib import Path
 from typing import Any, Callable, Mapping, TypedDict
@@ -157,6 +158,10 @@ class ManagedRunSupervisor:
                     if receipt.artifact_path != row["artifact_path"]:
                         receipt.parked_state = {**saved, "runtime_root": str(self.runtime_root.resolve())}
                         self._persist(receipt)
+                reservation = self.workflows[receipt.workflow_name].reservation
+                if reservation is not None:
+                    reservation.reserve(run_id)
+                    reservation.activate(run_id)
                 self._pending[run_id] = {"question_id": receipt.question_id, "resume_phase": receipt.resume_phase,
                                          "environment": self._environment(receipt)}
 
@@ -221,7 +226,7 @@ class ManagedRunSupervisor:
                     return self.get(receipt["run_id"])
         return None
 
-    def _persist(self, receipt: ManagedRunReceipt) -> dict:
+    def _persist(self, receipt: ManagedRunReceipt) -> ManagedRunData:
         """Commit MemoryStore, then mirror control for other processes.
 
         The file mutex rejects a stale control write. A crash between commits
@@ -251,7 +256,7 @@ class ManagedRunSupervisor:
                 if lock is not None:
                     lock.close()
 
-    def _commit_receipt(self, receipt: ManagedRunReceipt) -> dict:
+    def _commit_receipt(self, receipt: ManagedRunReceipt) -> ManagedRunData:
         """Retry a MemoryStore revision conflict once without launching external work."""
         with self._lock:
             if receipt.authority_record_id is None and receipt.action_id:
@@ -356,8 +361,8 @@ class ManagedRunSupervisor:
         instructions: str = "",
         artifact_path: str = "",
         run_id: str | None = None,
-        arguments: dict | None = None,
-    ) -> dict:
+        arguments: dict[str, JsonValue] | None = None,  # pm-lint: allow PM004 -- workflow arguments at the managed-run wire boundary
+    ) -> ManagedRunData:
         """Persist the accepted identity, then launch one worker.
 
         A repeated action ID returns the original receipt. An unknown workflow
@@ -368,7 +373,7 @@ class ManagedRunSupervisor:
         with self._lock:
             existing = self._find_by_action(action_id)
             if existing is not None:
-                return existing
+                return ManagedRunReceipt.from_dict(existing).to_dict()
             if workflow_name not in self.workflows:
                 receipt = ManagedRunReceipt(
                     run_id=run_id or uuid.uuid4().hex,
@@ -388,19 +393,24 @@ class ManagedRunSupervisor:
             run_id = run_id or uuid.uuid4().hex
             singleton_key = self._singleton_key(workflow_name)
             owner = self._singleton_owner(workflow_name)
-            if owner is not None:
-                detail = (f"Workflow {workflow_name} is already in use by run {owner['run_id']} "
-                          f"({owner['workflow_name']}). This start did not launch a worker. "
+            resource = self.workflows[workflow_name].reservation
+            physical_owner = resource.owner() if resource is not None else None
+            occupied_by = owner["run_id"] if owner is not None else physical_owner
+            if occupied_by:
+                owner_workflow = owner["workflow_name"] if owner is not None else "Minecraft body"
+                owner_state = owner["state"] if owner is not None else "busy"
+                detail = (f"Workflow {workflow_name} is already in use by run {occupied_by} "
+                          f"({owner_workflow}). This start did not launch a worker. "
                           "Choose whether to wait, update that run, or terminate it.")
                 receipt = ManagedRunReceipt(run_id=run_id, action_id=action_id,
                     workflow_name=workflow_name, parent_correlation=parent_correlation,
                     state="failed", latest_event=detail, artifact_path="",
                     instructions=instructions, arguments=dict(arguments or {}),
                     created_at=self.clock(), updated_at=self.clock(),
-                    singleton_key=singleton_key, blocked_by_run_id=owner["run_id"])
+                    singleton_key=singleton_key, blocked_by_run_id=occupied_by)
                 self._persist(receipt)
-                self._emit(run_id, "start_rejected", fields=RunEventFields(reason="singleton_busy", detail=detail, singleton_key=singleton_key, blocked_by_run_id=owner["run_id"], owner_workflow=owner["workflow_name"], owner_state=owner["state"]))
-                return self.get(run_id)
+                self._emit(run_id, "start_rejected", fields=RunEventFields(reason="singleton_busy", detail=detail, singleton_key=singleton_key, blocked_by_run_id=occupied_by, owner_workflow=owner_workflow, owner_state=owner_state))
+                return self.status(run_id)
             if not artifact_path:
                 artifact_path = str(self.task_root / run_id)
             receipt = ManagedRunReceipt(
@@ -420,7 +430,7 @@ class ManagedRunSupervisor:
             )
             persisted = self._persist(receipt)
             self._launch(receipt, resume=False, payload=None)
-            return persisted
+            return self.status(run_id) if self.workflows[workflow_name].reservation is not None else persisted
 
     def _launch(self, receipt: ManagedRunReceipt, *, resume: bool, payload: dict[str, Any] | None) -> None:
         """Hold the worker fence, then start one worker thread. A stopping app cancels."""
@@ -432,6 +442,17 @@ class ManagedRunSupervisor:
                 self._worker_locks[receipt.run_id] = ProcessLock(Path(receipt.artifact_path) / "worker.lock").acquire()
             except BodyBusy as error:
                 raise ManagedRunError("Another process owns this managed worker.") from error
+        resource = self.workflows[receipt.workflow_name].reservation
+        if resource is not None:
+            try:
+                resource.reserve(receipt.run_id)
+            except BodyBusy as error:
+                self._transition(receipt.run_id, state="failed", latest_event=str(error))
+                pending_lock = self._worker_locks.pop(receipt.run_id, None)
+                if pending_lock is not None:
+                    pending_lock.close()
+                self._emit(receipt.run_id, "start_rejected", fields=RunEventFields(reason="resource_busy", detail=str(error)))
+                return
         # Install the worker's cancellation signal before the thread starts, so
         # a stop signal is never lost between launch and registration.
         self._cancels.setdefault(receipt.run_id, threading.Event())
@@ -463,11 +484,16 @@ class ManagedRunSupervisor:
         cancel = self._cancels[receipt.run_id]
         try:
             if not resume:
-                self._transition(receipt.run_id, state="running", latest_event="workflow started", changes=RunTransitionChanges(question_id=""))
+                with self._lock:
+                    if cancel.is_set():
+                        return
+                    self._transition(receipt.run_id, state="running", latest_event="workflow started", changes=RunTransitionChanges(question_id=""))
                 started_receipt = receipt.to_dict()
                 started_receipt["events"] = []
                 self._emit(receipt.run_id, "started", fields=RunEventFields(receipt=started_receipt))
             spec = self.workflows[receipt.workflow_name]
+            if spec.reservation is not None:
+                spec.reservation.activate(receipt.run_id)
             environment = self._environment(receipt)
             if payload is None:
                 payload = self._request_payload(receipt)
@@ -557,12 +583,17 @@ class ManagedRunSupervisor:
                 return
             self._notify_terminal(receipt.run_id)
         finally:
-            with self._lock:
-                # An answer can hand the worker fence to the next thread before this one exits.
-                if self._threads[receipt.run_id] is threading.current_thread():
-                    lock = self._worker_locks.pop(receipt.run_id, None)
-                    if lock is not None:
-                        lock.close()
+            try:
+                resource = self.workflows[receipt.workflow_name].reservation
+                if resource is not None and self.get(receipt.run_id)["state"] != "waiting_for_input":
+                    resource.finish(receipt.run_id, cancel.is_set(), Path(receipt.artifact_path))
+            finally:
+                with self._lock:
+                    # An answer can hand the worker fence to the next thread before this one exits.
+                    if self._threads[receipt.run_id] is threading.current_thread():
+                        lock = self._worker_locks.pop(receipt.run_id, None)
+                        if lock is not None:
+                            lock.close()
 
     # ----------------------------------------------------------- terminal
 
@@ -644,12 +675,11 @@ class ManagedRunSupervisor:
                 saved = {"runtime_root": str(self.runtime_root.resolve()),
                          "kernel_state": capture_kernel(self._run_root(receipt), spec.namespace or receipt.workflow_name, run_id),
                          "environment": capture_tree(Path(receipt.artifact_path))}
-                with self._lock:
-                    self._pending[run_id] = {
-                        "question_id": result.question_id,
-                        "resume_phase": result.resume_phase,
-                        "environment": environment,
-                    }
+                self._pending[run_id] = {
+                    "question_id": result.question_id,
+                    "resume_phase": result.resume_phase,
+                    "environment": environment,
+                }
                 self._transition(run_id, state="waiting_for_input", latest_event=f"waiting for answer: {result.question}", changes=RunTransitionChanges(question_id=str(result.question_id or ""), resume_phase=str(result.resume_phase or ""), parked_state=TypeAdapter[dict[str, JsonValue]](dict[str, JsonValue]).validate_python(saved)))
                 self._emit(run_id, "waiting_for_input", fields=RunEventFields(question_id=result.question_id, question=result.question))
                 parked = ManagedRunReceipt.from_dict(self.get(run_id))
@@ -706,7 +736,7 @@ class ManagedRunSupervisor:
                 row["published"] = True
                 self._persist(current)
 
-    def milestone(self, run_id: str, epoch: int, key: str, summary: str, evidence: str) -> None:
+    def milestone(self, run_id: str, epoch: int, key: str, summary: str, evidence: str, observed_at: datetime | None = None) -> None:
         """Publish one retained attempt boundary to cognition with stable identity.
 
         Repeated delivery keeps the original event. Stale workers cannot publish
@@ -721,7 +751,7 @@ class ManagedRunSupervisor:
             identity = f"{run_id}:{epoch}:{len(current.events) + 1}"
             message: dict[str, JsonValue] = {
                 "run_id": run_id, "event": "gameplay_progress", "event_id": identity,
-                "execution_epoch": epoch, "milestone_key": key, "detail": summary, "evidence": evidence}
+                "execution_epoch": epoch, "observed_at": (observed_at or datetime.now(timezone.utc)).isoformat(), "milestone_key": key, "detail": summary, "evidence": evidence}
             current.events.append({"message": message, "published": False})
             self._persist(current)
         # The sink can commit Ghost memory. Keep that commit outside this lock
@@ -739,9 +769,9 @@ class ManagedRunSupervisor:
 
     # -------------------------------------------------------- operations
 
-    def status(self, run_id: str) -> dict:
+    def status(self, run_id: str) -> ManagedRunData:
         """Return the latest durable receipt of one run."""
-        return self.get(run_id)
+        return ManagedRunReceipt.from_dict(self.get(run_id)).to_dict()
 
     def update(self, run_id: str, instructions: str, *, request_id: str = "") -> dict:
         """Queue one instruction revision. Duplicate request IDs are idempotent."""
@@ -757,6 +787,11 @@ class ManagedRunSupervisor:
                 raise ManagedRunError(f"Run {run_id!r} passed its final instruction boundary.")
             if not instructions.strip():
                 raise ManagedRunError("An update needs nonempty instruction text.")
+            if current.state != "waiting_for_input" and instructions.strip() == current.instructions.strip():
+                if request_id:
+                    current.request_ids.append(request_id)
+                    return self._persist(current)
+                return current.to_dict()
             current.instructions = instructions
             current.revision += 1
             current.latest_event = f"instruction revision {current.revision} queued"
@@ -842,7 +877,8 @@ class ManagedRunSupervisor:
             if request_id and request_id in current.resume_requests:
                 return current.to_dict()
             spec = self.workflows.get(current.workflow_name)
-            if spec is None or not spec.resumable:
+            retained_dispatch = spec is not None and spec.dispatch_reservation is not None and spec.dispatch_reservation.owner() == run_id
+            if spec is None or not (spec.resumable or retained_dispatch):
                 raise ManagedRunError("Explicit recovery is available only for body workflows.")
             if current.state not in {"interrupted", "cancelled", "failed"}:
                 raise ManagedRunError(f"Run {run_id!r} is {current.state} and cannot resume.")
@@ -860,6 +896,12 @@ class ManagedRunSupervisor:
             except BodyBusy as error:
                 raise ManagedRunError("Another process owns this managed worker.") from error
             try:
+                resource = spec.reservation or spec.dispatch_reservation
+                if resource is not None:
+                    try:
+                        resource.authorize_resume(run_id)
+                    except BodyBusy as error:
+                        raise ManagedRunError(str(error)) from error
                 current.interrupted_from = current.state
                 current.singleton_key = self._singleton_key(current.workflow_name)
                 current.state, current.updates_open = "accepted", True
@@ -914,7 +956,7 @@ class ManagedRunSupervisor:
         self._emit(run_id, "answered", fields=RunEventFields(question_id=current.question_id))
         return receipt
 
-    def terminate(self, run_id: str, *, request_id: str = "") -> dict:
+    def terminate(self, run_id: str, *, request_id: str = "", expected_epoch: int | None = None) -> dict:
         """Cancel through the owned signal and retain a stable request ID.
 
         Replaying an acknowledged cancel must not cancel a later resumed epoch.
@@ -924,6 +966,8 @@ class ManagedRunSupervisor:
             current = ManagedRunReceipt.from_dict(self.get(run_id))
             if request_id and request_id in current.request_ids:
                 return current.to_dict()
+            if expected_epoch is not None and current.execution_epoch != expected_epoch:
+                raise ManagedRunError(f"Run {run_id} has changed epoch since the stop request.")
             if request_id:
                 current.request_ids.append(request_id)
             if current.state not in ACTIVE_STATES:
@@ -935,6 +979,9 @@ class ManagedRunSupervisor:
             self._updates.notify_all()
             receipt = self._transition(run_id, state="cancelled", latest_event="terminated by request", changes=RunTransitionChanges(request_ids=current.request_ids))
             self._emit(run_id, "terminated")
+            resource = self.workflows[current.workflow_name].reservation
+            if resource is not None and current.state == "waiting_for_input" and run_id not in self._worker_locks:
+                resource.finish(run_id, True, Path(current.artifact_path))
             return receipt
 
     def join(self, run_id: str, timeout: float | None = None) -> None:
@@ -980,4 +1027,8 @@ class ManagedRunSupervisor:
             if receipt["state"] in ACTIVE_STATES:
                 self._transition(run_id, state="interrupted", latest_event="application stopped before a terminal outcome")
         self.join_all()
+        for run_id, row in self.receipts().items():
+            spec = self.workflows.get(row["workflow_name"])
+            if spec is not None and spec.reservation is not None:
+                spec.reservation.finish(run_id, False, Path(row["artifact_path"]))
 

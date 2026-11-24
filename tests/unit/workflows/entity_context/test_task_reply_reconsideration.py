@@ -19,9 +19,11 @@ from pydantic import BaseModel, JsonValue, TypeAdapter
 
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope
+from pm.llm.activation import ModelActivation
+from pm.llm.config import load_config, resolve_connection
+from pm.llm.stage_model import LazyStageModel
 from pm.memory.bash_view import MemoryBashTarget
 from pm.memory.store import MemoryStore
-from pm.memory.store_tools import build_tools
 from pm.records.cycle_records import StimulusGroup
 from pm.records.cycle_state import CycleState, PersonaConfig
 from pm.records.enums import ActionType, EntityClass
@@ -30,7 +32,7 @@ from pm.records.memory_records import ActionSchemaRecord, Entity, Feature
 from pm.runs.run_receipt import ManagedRunReceipt
 from pm.runs.supervisor import ManagedRunSupervisor
 from workflows.main_cognition.entity_updates import EntityActionMetadata
-from workflows.main_cognition.host import MainCogLoop
+from workflows.main_cognition.host import MainCognitionOptions, MainCogLoop
 from workflows.main_cognition.dispatch_recovery import replay_intents
 from workflows.main_cognition.schemas import ActionRequest, PendingDispatch, Stimulus
 from workflows.public_speech.publication import commit_public_reply, exchange_record
@@ -63,9 +65,10 @@ class TaskReplyReconsiderationTests(unittest.TestCase):
         return MainCogLoop("main_cog", Application(bus, []), None,
             ghost=store, working_target=MemoryBashTarget(store),
             workflow=ROOT / "workflows/main_cognition/main_cognition.workflow.md",
-            tools_factory=build_tools, runtime_root=runtime_root, consolidator=Consolidator(store))
+            stage_model=LazyStageModel(resolve_connection(load_config(ROOT / "config.example.yaml")), ModelActivation()),
+            options=MainCognitionOptions(), runtime_root=runtime_root, consolidator=Consolidator(store))
 
-    def test_cancelled_task_reply_and_reconsideration_survive_clean_restart(self) -> None:
+    def test_clean_restart_closes_work_and_raw_snapshot_preserves_reconsideration(self) -> None:
         with TemporaryDirectory() as directory:
             runtime_root = Path(directory)
             path = runtime_root / "ghost.pickle"
@@ -129,7 +132,12 @@ class TaskReplyReconsiderationTests(unittest.TestCase):
             self.assertEqual(len(markers), 1)
             marker = markers[0]
             self.assertEqual(EntityActionMetadata.model_validate(marker.metadata).entity_action_reconsideration.request, request)
-            restored = MemoryStore.from_checkpoint(path)
+            store.save()
+            clean = MemoryStore.from_checkpoint(path)
+            self.assertEqual(clean.get_knoxel_by_id(source.id).metadata["exchange_status"], "resolved")
+            # Raw inspection reproduces the pending operation at save time. A normal
+            # companion restart explicitly closes outstanding work.
+            restored = MemoryStore.from_checkpoint(path, raw=True)
             self.assertIsInstance(restored.snapshot({request.knoxel_id}).get(request.knoxel_id), ActionSchemaRecord)
             saved_marker = restored.snapshot({marker.id}).get(marker.id)
             self.assertIsInstance(saved_marker, Feature)
@@ -174,7 +182,8 @@ class TaskReplyReconsiderationTests(unittest.TestCase):
             replacement_batch.set_gwt(GwtTurnRecord(tick_id=replacement_batch.tick_id,
                 stimulus_ids=[marker.id], knoxel_ids=[marker.id, replacement.id]), replacement_state)
             restored.commit(replacement_batch)
-            final_store = MemoryStore.from_checkpoint(path)
+            restored.save()
+            final_store = MemoryStore.from_checkpoint(path, raw=True)
             final_bus = BusSystem()
             reports: list[Envelope] = []
 

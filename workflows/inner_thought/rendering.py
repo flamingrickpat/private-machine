@@ -20,7 +20,7 @@ def inspection(evidence: PrivateInspection | None) -> str:
         return "(no implementation evidence was supplied for this cycle)"
     if evidence.status != "ok":
         return f"(inspection unavailable: {evidence.reason})"
-    lines: list[str] = []
+    lines: list[str] = [evidence.runtime_orientation] if evidence.runtime_orientation else []
     overlay = evidence.capability_overlay
     for item in overlay.capabilities:
         lines.append(f"- capability={item.name} state={item.state} summary={item.summary!r}")

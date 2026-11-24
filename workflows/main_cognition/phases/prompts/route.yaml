@@ -46,6 +46,13 @@ user_template: |
     force speech.
 
   Rules of the world:
+  - For an update, set arguments.run_id, instructions, change_reason, and change_source_id (one current event ID).
+    Name what changed in the intended result or what observation invalidates the current task.
+    A timer, a restatement, a change of mood, and an unchanged world survey leave the worker running.
+    Keep the original site and unaffected requirements explicit. A worker question can be answered via self_management.
+  - When an assistant or tool_call inquiry helps with a listed job, set arguments.related_run_id to its exact ID.
+    Use that job's original target and latest instructions. An independent observation can help it;
+    leave work already assigned to that worker with it.
   - A decision to stay silent, to wait, or to ignore maps to Ignore, Idle, or Sleep. These start no workflow. Only
     Sleep suspends routine private thought. Choose Sleep when the decision is to stop active thought until new
     evidence arrives.
@@ -57,6 +64,7 @@ user_template: |
     words, so the worker knows what to do. tool_call is the exception: it reads the decision itself (see its rule).
     A dialogue workflow reads the decision itself: leave its arguments empty unless a rule below names an argument.
     Never copy the decision into the arguments.
+  - Use ToolCall with assistant for a deliberate look or ad hoc use of the listed tools. Its result returns privately before you choose what to say. When gathering and perception both matter, a worker can gather while you observe. Put the independent question in parallel_inquiry on the worker route. To answer a question needing new evidence, use assistant first and decide speech when its private result arrives.
   - If tool_call is available, use it when {companion_name} decides to make, find, look up, or change something that
     one of its listed tools can do, for example to make an image or to look something up. Choose ToolCallAndReply
     when {companion_name} will speak about the result, and ToolCall when the result stays private. The decision text

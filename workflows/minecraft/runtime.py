@@ -8,6 +8,7 @@ from typing import Generator
 from pm_workflows.runtime import WorkflowRuntime
 from pm.runs.role_runtime import PMWorkflowRuntime
 from pm.runs.managed_boundary import BoundaryReadSettings, BoundaryInstructions
+from workflows.minecraft_body.ownership import BodyOwnership
 from workflows.minecraft_body.mcp_client import MinecraftTransport
 from workflows.minecraft_body.lease import BODY_LEASES, BodyLeaseEvidence
 
@@ -16,9 +17,13 @@ from workflows.minecraft_body.lease import BODY_LEASES, BodyLeaseEvidence
 class MinecraftBodyLease:
     endpoint: str
     owner: str
+    ownership: BodyOwnership | None = None
 
     @contextmanager
     def acquire(self) -> Generator[BodyLeaseEvidence, None, None]:
+        if self.ownership is not None:
+            yield BODY_LEASES.token(self.endpoint, self.owner)
+            return
         with BODY_LEASES.acquire(self.endpoint, self.owner) as token:
             yield token
 

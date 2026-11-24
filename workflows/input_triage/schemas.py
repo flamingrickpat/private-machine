@@ -63,10 +63,17 @@ class InputTriageAnswer(TriageResult):
     entity_extraction: EntityExtractionDraft
 
 
+class BodyRunTarget(BaseModel):
+    run_id: str
+    execution_epoch: int
+    state: str
+
+
 class InputTriageRequest(BaseModel):
     """A lightweight cycle view without retrieval, embeddings, or appraisal."""
 
     model_config = ConfigDict(extra="forbid")
+    body_target: BodyRunTarget | None = None
     cycle: CycleRequest
     source_fingerprints: dict[int, str]
     guidance_tick: int | None
@@ -86,6 +93,7 @@ class EarlyTriageAssessment(BaseModel):
     source_ids: list[int] = Field(min_length=1)
     source_fingerprints: dict[int, str]
     guidance_tick: int | None
+    body_target: BodyRunTarget | None = None
     result: TriageResult
     evidence: TriageEvidence
     reconsideration_epoch: int = Field(default=0, ge=0)

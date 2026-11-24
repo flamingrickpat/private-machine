@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import unittest
 
-from pm.context_render.budget import ContextBudget, RequiredContextTooLarge
+from pm.context_render.budget import ContextBudget
 from pm.records.workspace import ShardKey
 from workflows.main_cognition.cycle_work import CycleRequest
 from workflows.main_cognition.phases.intake import start
@@ -49,13 +49,15 @@ class TriageBudgetTests(unittest.TestCase):
         self.assertNotIn("The old character story keeps going.", text)
         self.assertLessEqual(budget.estimate(prompt.turns), budget.input_ceiling)
 
-    def test_a_single_irreducible_input_is_rejected_before_model_io(self) -> None:
+    def test_a_single_oversized_input_keeps_its_identity_and_fits(self) -> None:
         utterance = "An indivisible oversized event. " * 7000
         input_record = RecordView(record_id=11, record_class="Feature", kind="Feature",
                                   feature_type="Dialogue", source="Jesse", content=utterance)
         work = start(CycleRequest(companion_name="Spamuel", user_name="Jesse",
             stimuli=[Stimulus(knoxel_id=11, source="user_input", text=utterance)],
             records={11: input_record}))
-        with self.assertRaisesRegex(RequiredContextTooLarge, "compact triage"):
-            fit_prompt(work, ContextBudget(context_window=32000), prompts=phase_prompts("triage"),
-                       story_prompts=phase_prompts("story"))
+        budget = ContextBudget(context_window=32000)
+        result = fit_prompt(work, budget, prompts=phase_prompts("triage"), story_prompts=phase_prompts("story"))
+        self.assertEqual(set(result.selection.source_ids), {work.request.stimuli[0].knoxel_id})
+        self.assertLessEqual(budget.estimate(result.turns), budget.input_ceiling)
+        self.assertIn("source characters omitted", result.turns[-1].content.text)

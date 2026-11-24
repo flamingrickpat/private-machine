@@ -20,17 +20,31 @@ The registry normalizes a trailing slash.
 A second session receives `BodyBusy` before it sends a world call.
 The original owner retains the lease until external cleanup finishes.
 
-The W8 production boundary check also uses this lease.
-The public Assistant exposes only `minecraft_observe`, which reads numeric body state.
-It grants no direct body mutations.
-Actor and Assistant calls share a per-command lock beneath the session lease.
-The direct read waits for the current command and then makes its single observation call.
-It does not take the actor's mutation lease or resend a busy observation.
-Any later direct mutation must acquire the same lease.
-Horizon scans rotate the camera and therefore require ownership.
-Tool names outside the explicit read set also require ownership.
+A Minecraft project reserves the endpoint when the supervisor admits the run.
+Planning, specialist work, independent verification, and a wait for input share that reservation.
+The configured Minecraft MCP suite opens a scoped listener for each pm-coder session.
+The listener checks ownership at dispatch, including calls from sessions that were already open.
+The first body call reserves the endpoint for that session.
+A busy reply names the run holding the body. Other configured suites remain usable.
+Claim, release, connection changes, and epoch selection belong to the host.
 
-A12 adds [durable body leases](body-leases.md), server epochs, and [explicit interruption recovery](body-recovery.md).
+Each full observation replaces the body integration's dated snapshot, including observations with unchanged values.
+A new life replaces the previous life. A reported death invalidates the preceding position and vitals.
+Prompt construction and progress inquiries read the snapshot from memory.
+The public assistant can also request an explicit observation through the command lock.
+The steward combines the current assignment and last verified milestone with the dated body reading.
+The inquiry returns to cognition with its exchange correlation.
+
+An explicit stop recognized by input triage targets the observed worker epoch.
+The worker retains its journal. The stop receipt records the final read after the command has settled.
+The paused run keeps priority over new body actions until Jesse resumes it or releases the body.
+A waiting project can yield the body to another task. Explicit resumption uses the same run ID and a new execution epoch.
+After an owner process dies, startup checks the server for a command in progress, stops it, and observes the body.
+The recovery receipt retains unresolved command outcomes alongside fresh observations of their target cells.
+The acknowledgement and the answer about the stopped position return to the same exchange.
+The simulation review displays elapsed wall time and missing evidence for the stop scene.
+
+See [body leases](body-leases.md) and [explicit interruption recovery](body-recovery.md).
 The server retains its epoch and rejects stale commands after ownership changes.
 Use one configured endpoint per avatar and one shared local lease directory.
 

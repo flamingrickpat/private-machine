@@ -11,7 +11,7 @@ import unittest
 import httpx
 
 from pm.llm.http_client import rejected_message_protocol
-from workflows.dialogue_assistant.steps import validate_public_speech
+from workflows.public_speech.speech_text import validate_public_speech
 
 
 class MessageProtocolTests(unittest.TestCase):
@@ -29,3 +29,8 @@ class MessageProtocolTests(unittest.TestCase):
         captured = (Path(__file__).resolve().parents[4] / "test_data/captures/alpha/a10-assistant-tool-markup.txt").read_text()
         with self.assertRaisesRegex(ValueError, "tool protocol"):
             validate_public_speech(captured)
+
+    def test_deepseek_minecraft_markup_is_rejected_with_or_without_a_preamble(self) -> None:
+        for prefix in ("", "I'll check.\n"):
+            with self.subTest(prefix=prefix), self.assertRaisesRegex(ValueError, "tool protocol"):
+                validate_public_speech(prefix + '<｜DSML｜ calls>\n<｜DSML｜ invoke name="minecraft">')

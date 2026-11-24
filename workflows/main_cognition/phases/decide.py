@@ -40,7 +40,8 @@ from pydantic import BaseModel
 from pm_workflows.python_role import RoleContext
 
 from pm.constants import DECISION_VARIANTS
-from pm.context_render.turns import Role, Turn, format_content
+from pm.context_render.shards import fit_shard_instruction
+from pm.context_render.turns import Turn
 from concurrent.futures import ThreadPoolExecutor
 from contextvars import copy_context
 from pm.llm.concurrency import wait_model_futures
@@ -142,9 +143,10 @@ def render_goals(work: CycleWork) -> str:
     return "\n".join(f"- {goal}" for goal in goals) or "(nothing in particular)"
 
 
-def build_messages(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix, group: StimulusGroup) -> list[Turn]:
+def build_messages(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix, group: StimulusGroup,
+                   *, exchange_instruction: str = "") -> list[Turn]:
     """Return the shared story prefix and then the decision instruction for one group as the last turn."""
-    instruction = format_content(prefix.fill(prompts.user_template), DecisionTemplateValues(
+    values = DecisionTemplateValues(
         part=group_part(work, prompts, prefix, group),
         stimuli=group_stimuli(work, group),
         affect=work.affect.felt or work.state_summary or "(no feeling recorded)",
@@ -153,7 +155,13 @@ def build_messages(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix, 
         impulses=group_percepts(work, group),
         goals=render_goals(work),
         managed_runs=render_managed_runs(work.request.managed_runs),
-        variants=DECISION_VARIANTS)).text
+        variants=DECISION_VARIANTS)
+    template = prefix.fill(prompts.user_template)
+    if exchange_instruction:
+        template += "\n\n" + exchange_instruction
+    instruction = fit_shard_instruction(template, values,
+        frozenset({"stimuli", "affect", "experience", "impulses", "goals", "managed_runs"}),
+        work.request.images, prefix.settings)
     return prefix.ask(instruction)
 
 
@@ -174,16 +182,19 @@ def inhibit_decision(context: RoleContext, work: CycleWork, proposal: DecisionAn
     situations = [situation for situation in work.request.situational_guidance
                   if situation.partner is not None and situation.partner.entity_id == target_id]
     situation_text = render_cognition_guidance(situations, role_model(context.runtime).render_settings())
-    instruction = format_content(selected_prompts.check_template, InhibitionTemplateValues(
+    values = InhibitionTemplateValues(
         companion_name=work.request.companion_name,
         character=work.request.character_card or "(character not supplied)",
-        situation=situation_text or "Partner availability and earlier delivery are unknown.",
+        situation="\n".join((work.request.runtime_orientation, situation_text or "Partner availability and earlier delivery are unknown.")),
         stimuli=render_story(work.records, group.stimulus_ids, with_id=True) or "(nothing new)",
         proposals="\n".join(proposal.variants),
-        managed_runs=render_managed_runs(work.request.managed_runs) if work.request.managed_runs else "(none)"))
-    messages = [Turn(Role.System, "Judge whether to inhibit a proposed action using attributed current evidence. "
-                     "Do not write a new action, a reply, or a story continuation."),
-                Turn(Role.User, instruction)]
+        managed_runs=render_managed_runs(work.request.managed_runs) if work.request.managed_runs else "(none)")
+    prefix = StoryPrefix(work, group=group.key, settings=role_model(context.runtime).render_settings(),
+                         capture_settings=role_model(context.runtime).capture_settings("inhibition"))
+    instruction = fit_shard_instruction(selected_prompts.check_template, values,
+        frozenset({"character", "situation", "stimuli", "proposals", "managed_runs"}),
+        work.request.images, prefix.settings)
+    messages = prefix.ask(instruction)
     assessment = complete(context, messages, InhibitionAssessment)
     result = DecisionInhibition(verdict=assessment.verdict, reason=assessment.reason)
     if assessment.verdict is not InhibitionVerdict.SILENCE and assessment.reminds_partner_about_unanswered_question:

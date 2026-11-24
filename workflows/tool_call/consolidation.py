@@ -94,10 +94,14 @@ def tool_call_outcome(run_id: str, report_text: str, root: Path) -> Feature:
     if agent is not None and agent.quality_assessment:
         lines.append(f"Own judgment of the result: {agent.quality_assessment}")
     if agent is not None:
-        lines += [f"Observed: {item}" for item in agent.observations]
+        lines += [f"Worker-reported observation: {item}" for item in agent.observations]
         lines += [f"Uncertain: {item}" for item in agent.uncertainty]
     if report.tool_calls:
         lines.append("Tools used: " + ", ".join(dict.fromkeys(f"{call.server}.{call.tool}" for call in report.tool_calls)))
+        lines.extend(f"Server return [{call.call_id}] {call.tool}: {call.returned_facts}"
+                     for call in report.tool_calls if call.returned_facts)
+    if report.related_run_id:
+        lines.append("Related task: " + report.related_run_id)
     for item in report.artifacts:
         where = item.claim.path or item.claim.uri
         lines.append(f"Artifact {where}: {item.reason}")

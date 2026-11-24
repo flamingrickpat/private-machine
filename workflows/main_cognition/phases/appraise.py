@@ -64,7 +64,7 @@ from workflows.main_cognition.story_prefix import StoryPrefix
 
 def render_triage(work: CycleWork) -> str:
     """Render each triage item with its reasoning and the matching stimulus text."""
-    stimuli = {item.knoxel_id: item.text for item in work.request.stimuli}
+    stimuli = {item.knoxel_id: work.prompt_summaries.get(item.knoxel_id, item.text) for item in work.request.stimuli}
     lines: list[str] = []
     for item in work.triage.items:
         lines.append(
