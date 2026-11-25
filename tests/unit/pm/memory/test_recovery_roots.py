@@ -52,6 +52,7 @@ class RecoveryRootTests(unittest.TestCase):
         batch.preserve_on_recovery()
         receipt = batch.create(Feature(content="Accepted immediate update", feature_type=FeatureType.StateUpdate))
         self.store.commit(batch)
+        self.store.save()
         restored = MemoryStore.from_checkpoint(self.path)
         restored_view = restored.snapshot(capture=False)
         restored_history = restored.causal_history
@@ -63,6 +64,7 @@ class RecoveryRootTests(unittest.TestCase):
         follow_up.depend_on_commits(restored_view.commit_ids)
         follow_up.preserve_on_recovery()
         restored.commit(follow_up)
+        restored.save()
         self.assertIn("second-after-import", MemoryStore.from_checkpoint(self.path).snapshot(capture=False).commit_ids)
 
     def test_default_restart_retains_roots_without_promoting_unrelated_branches(self) -> None:
@@ -74,6 +76,7 @@ class RecoveryRootTests(unittest.TestCase):
         receipt = self.root("control-receipt", "The input requires reconsideration", (source.id,))
         projection = self.store.recovery_snapshot(capture=False)
         counters = (self.store.current_knoxel_id, self.store.current_tick_id, self.store._reserved_tick_id)
+        self.store.save()
         clean = MemoryStore.from_checkpoint(self.path)
         raw = MemoryStore.from_checkpoint(self.path, raw=True)
         self.assertEqual(set(clean.snapshot().all_knoxels), {source.id, receipt.id})
@@ -140,6 +143,7 @@ class RecoveryRootTests(unittest.TestCase):
             self.assertIn(source.id, environment.visible_knoxels)
             self.assertNotIn(draft.id, environment.visible_knoxels)
             receipt = self.root("read-receipt", "A receipt over accepted context", (source.id,))
+        self.store.save()
         clean = MemoryStore.from_checkpoint(self.path)
         self.assertIn(receipt.id, clean.snapshot().all_knoxels)
         self.assertNotIn(draft.id, clean.snapshot().all_knoxels)

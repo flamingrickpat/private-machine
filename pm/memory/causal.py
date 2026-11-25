@@ -6,9 +6,24 @@ action can add results only when its inputs belong to accepted history.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
+
+
+def public_acknowledgement_id(reply_id: int) -> str:
+    """Return the stable commit ID of delivery for a public reply."""
+    return f"public-ack:{reply_id}"
+
+
+@dataclass(frozen=True, slots=True)
+class PublishedReply:
+    """Link the utterance to the receipt that it reached public delivery."""
+
+    reply_id: int
+    publication_commit_id: str
+    acknowledgement_commit_id: str
 
 
 class Transaction(BaseModel):
@@ -69,6 +84,24 @@ class CausalHistory(BaseModel):
         super().__setstate__(state)
         self.__dict__.setdefault("baseline_commit_ids", ())
 
+    def published_replies(self) -> list[PublishedReply]:
+        """Read delivery evidence from the same receipts used by existing checkpoints."""
+        replies: list[PublishedReply] = []
+        for receipt in self.transactions.values():
+            reply_id = receipt.authority_record_id
+            if reply_id is None or receipt.authority is None:
+                continue
+            logical_id = receipt.manifest.get("logical_commit_id", receipt.commit_id)
+            if logical_id != public_acknowledgement_id(reply_id):
+                continue
+            publication = self.transactions[receipt.authority]
+            if publication.manifest.get("kind") != "public_reply":
+                continue
+            if reply_id not in publication.created_ids or receipt.lifecycle[reply_id]["publication_status"] != "published":
+                raise ValueError(f"Invalid public delivery receipt {receipt.commit_id!r} for record {reply_id}.")
+            replies.append(PublishedReply(reply_id, publication.commit_id, receipt.commit_id))
+        return replies
+
     def accepted(self) -> set[str]:
         """Compute accepted transactions or raise for a broken causal graph.
 
@@ -93,14 +126,23 @@ class CausalHistory(BaseModel):
                 if parent is None or parent.sequence >= transaction.sequence:
                     raise ValueError(f"Invalid causal dependency {dependency!r} in {transaction.commit_id!r}.")
 
+        publications = self.published_replies()
+        published_by_ack = {item.acknowledgement_commit_id: item.publication_commit_id
+                            for item in publications}
+        expanded: set[str] = set()
+
         def admit(commit_id: str) -> None:
             pending = [commit_id]
             while pending:
                 key = pending.pop()
-                if key in accepted:
+                if key in expanded:
                     continue
+                expanded.add(key)
                 transaction = self.transactions[key]
                 accepted.add(key)
+                if key in published_by_ack:
+                    accepted.add(published_by_ack[key])
+                    continue
                 pending.extend(transaction.dependencies)
                 if transaction.authority is not None:
                     pending.append(transaction.authority)
@@ -116,6 +158,11 @@ class CausalHistory(BaseModel):
         for transaction in self.transactions.values():
             if transaction.consolidations:
                 admit(transaction.commit_id)
+        # Public delivery proves the utterance happened. It does not admit
+        # the unfinished private work that the original draft could see.
+        for publication in publications:
+            accepted.add(publication.acknowledgement_commit_id)
+            accepted.add(publication.publication_commit_id)
         # Main admission can release an older result. The ordered pass then
         # releases its descendants without recursion or a fixed depth limit.
         for transaction in sorted(self.transactions.values(), key=lambda item: item.sequence):

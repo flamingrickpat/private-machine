@@ -334,14 +334,27 @@ class MemoryStore(RecordIndex):
         with self.lock:
             data = self.checkpoint_data()
             accepted = self.causal_history.accepted()
-            history = self.causal_history.model_copy(update={
-                "transactions": {key: value for key, value in self.causal_history.transactions.items() if key in accepted}})
-            ids = set(history.baseline_ids)
-            ticks = set(history.baseline_ticks)
-            for item in history.transactions.values():
+            transactions = {key: value for key, value in self.causal_history.transactions.items() if key in accepted}
+            ids = set(self.causal_history.baseline_ids)
+            ticks = set(self.causal_history.baseline_ticks)
+            for item in transactions.values():
                 ids.update(item.created_ids)
                 if item.manifest.get("gwt"):
                     ticks.add(item.tick_id)
+            # The raw source still keeps every generation input. A clean
+            # export can only refer to records and commits it contains.
+            public_commits = {item.publication_commit_id for item in self.causal_history.published_replies()}
+            for key in public_commits:
+                publication = transactions[key]
+                discarded_authority = publication.authority is not None and publication.authority not in accepted
+                transactions[key] = publication.model_copy(update={  # pm-lint: allow PM005 -- Pydantic field update on a typed transaction
+                    "input_ids": tuple(record_id for record_id in publication.input_ids if record_id in ids),
+                    "dependencies": tuple(dependency for dependency in publication.dependencies if dependency in accepted),
+                    "authority": None if discarded_authority else publication.authority,
+                    "authority_record_id": None if discarded_authority else publication.authority_record_id,
+                    "lifecycle": {record_id: fields for record_id, fields in publication.lifecycle.items() if record_id in ids},
+                })
+            history = self.causal_history.model_copy(update={"transactions": transactions})
             data = data.model_copy(update={
                 "state": self.state({key: self._history[key] for key in ids},
                                     [cycle for cycle in self._raw_cycles if cycle.tick_id in ticks]),
@@ -359,6 +372,7 @@ class MemoryStore(RecordIndex):
         """Project ledger records without changing the live store or raw payloads."""
         history = self.causal_history
         history.producers()
+        public_commits = {item.publication_commit_id for item in history.published_replies()}
         records = {key: self._history[key] for key in history.baseline_ids}
         heads = set(records)
         ticks = set(history.baseline_ticks)
@@ -366,7 +380,8 @@ class MemoryStore(RecordIndex):
         for transaction in history.transactions.values():
             if transaction.commit_id not in accepted:
                 continue
-            if not set(transaction.input_ids).issubset(records):
+            is_published = transaction.commit_id in public_commits
+            if not is_published and not set(transaction.input_ids).issubset(records):
                 raise ValueError(f"Missing causal input in {transaction.commit_id!r}.")
             for record_id in transaction.created_ids:
                 records[record_id] = self._history[record_id]
@@ -374,6 +389,8 @@ class MemoryStore(RecordIndex):
             heads.update(transaction.created_ids)
             heads.difference_update(transaction.tombstone_ids)
             for key, fields in transaction.lifecycle.items():
+                if is_published and key not in records:
+                    continue
                 lifecycle.setdefault(key, {}).update(fields)
             if transaction.main or transaction.manifest.get("gwt"):
                 ticks.add(transaction.tick_id)
@@ -842,10 +859,18 @@ class MemoryStore(RecordIndex):
             missing = inputs - set(self._visible_history) - set(self._all_knoxels)
             if missing:
                 raise ValueError(f"Causal inputs are outside the live view: {sorted(missing)}")
-            dependencies = {producers[key] for key in inputs if key in producers}
             if not batch._input_commits.issubset(self._live_transactions):
                 raise ValueError("A transaction dependency is outside the live view.")
-            dependencies.update(batch._input_commits)
+            # A later read of a delivered utterance depends on the witnessed
+            # speech. A direct read of any other output of its producer still
+            # depends on the producer and its generation inputs.
+            observed_publications: dict[str, str] = {}  # pm-lint: allow PM004 -- acknowledgement commit IDs by publication commit ID
+            for item in self.causal_history.published_replies():
+                if item.acknowledgement_commit_id in self._live_transactions:
+                    observed_publications[item.publication_commit_id] = item.acknowledgement_commit_id
+                    producers[item.reply_id] = item.acknowledgement_commit_id
+            dependencies = {producers[key] for key in inputs if key in producers}
+            dependencies.update(observed_publications.get(key, key) for key in batch._input_commits)
             authority = producers.get(batch._authority)
             baseline_authority = batch._authority in self.causal_history.baseline_ids
             if batch._authority is not None and authority is None and not baseline_authority:

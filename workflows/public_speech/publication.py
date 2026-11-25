@@ -1,7 +1,7 @@
 """Durable public utterances and exchange resolution in the canonical MemoryStore.
 
-Commit precedes bus publication. A restart replays unacknowledged utterances.
-Delivery can repeat after a crash. Consumers deduplicate by the utterance ID.
+Commit precedes bus publication. A saved delivery receipt keeps the exact
+utterance in accepted recovery. Consumers deduplicate by utterance ID.
 """
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict
 
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope, new_id
+from pm.memory.causal import public_acknowledgement_id
 from pm.records.memory_records import Feature
 from pm.records.base import Provenance, RecordBase, RecordScope
 from pm.records.enums import FeatureType, InterlocusType, SourceKind
@@ -219,7 +220,7 @@ def acknowledge_reply(ghost: MemoryStore, reply_id: int) -> None:
         reply = ghost.snapshot({reply_id}).get(reply_id) if reply_id in ghost.revisions else None
         if reply is None or reply.metadata.get("publication_status") != "pending":
             return
-        batch = ghost.begin_batch(f"public-ack:{reply_id}")
+        batch = ghost.begin_batch(public_acknowledgement_id(reply_id))
         batch.depend_on([reply_id], authority=reply_id)
         batch.set_lifecycle(reply_id, publication_status="published")
         ghost.commit(batch)

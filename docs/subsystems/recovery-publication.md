@@ -3,11 +3,18 @@
 Ghost owns accepted actions, exchanges, and managed receipts in memory.
 Completed main cycles write an atomic checkpoint before releasing actions.
 Ordinary input, reply, and task commits do not each write the whole Ghost.
+A normal stop saves a checkpoint before it waits on active work.
+After the work finishes, PM saves the final state.
 A crash can therefore lose recent messages. The previous checkpoint remains consistent.
 
 ## Restart behavior
 
 Normal loading opens accepted history and discards executable leftovers.
+If a checkpoint contains a public reply and its delivery receipt, normal loading keeps the reply.
+It also keeps the exchange resolution for user messages present in accepted history.
+The original generation evidence remains available in the raw checkpoint.
+Private inputs still follow the usual causal admission rules.
+
 Pending user exchanges become resolved with a discarded-on-restart receipt.
 Undelivered publications are discarded. Pending actions and parked workers are cancelled.
 The application does not redispatch old inputs, replay old replies, or restore a partly executed cognitive cycle.

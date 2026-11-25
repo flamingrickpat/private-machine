@@ -13,12 +13,15 @@ import threading
 import logging
 import time
 from abc import ABC, abstractmethod
-from typing import Callable
+from typing import Callable, TYPE_CHECKING
 
 from pm.bus.bus import BusSystem, Mailbox
 from pm.bus.envelopes import Envelope, new_id
 from pm.host.diagnostics import join_thread
 from pm import vclock
+
+if TYPE_CHECKING:
+    from pm.memory.store import MemoryStore
 
 logger = logging.getLogger(__name__)
 
@@ -191,6 +194,7 @@ class Application:
     def __init__(self, bus: BusSystem, modules: list[BusModule], *,
                  clock: vclock.SystemClock | None = None) -> None:
         self.bus = bus
+        self.ghost: MemoryStore | None = None
         self.profiler: CognitionProfiler | None = None
         self.capability_overlay: CapabilityOverlay | None = None
         self.modules = modules
@@ -240,8 +244,15 @@ class Application:
             self._drain_thread.start()
 
     def _drain(self) -> None:
-        """Wait for stable quiescence, persist parked work, then stop threads."""
+        """Checkpoint before waiting on active work, then save the completed drain."""
         try:
+            if self.shutdown_event.is_set():
+                return
+            ghost = self.ghost
+            if ghost is not None and ghost.checkpoint is not None and not self.idle():
+                logger.info("Saving checkpoint before draining active work")
+                ghost.save()
+                logger.info("Checkpoint saved. Waiting for active work to finish")
             quiet_since = None
             while not self.shutdown_event.is_set():
                 if self.idle():
@@ -251,7 +262,6 @@ class Application:
                             persist = getattr(module, "save_parked", None)
                             if persist is not None:
                                 persist()
-                        ghost = getattr(self, "ghost", None)
                         if ghost is not None:
                             ghost.save()
                         self.drained.set()

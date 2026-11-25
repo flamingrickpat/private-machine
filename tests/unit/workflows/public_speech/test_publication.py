@@ -18,8 +18,9 @@ from workflows.public_speech.user_input import UserInputProxy
 from workflows.public_speech.dependencies import InteractionContextChanged
 from pm.memory.store import MemoryStore
 from pm.records.cycle_state import PersonaConfig
-from pm.records.memory_records import ActionSchemaRecord, Feature
-from pm.records.enums import ActionType, FeatureType
+from pm.records.global_workspace import GwtTurnRecord
+from pm.records.memory_records import ActionSchemaRecord, Entity, Feature
+from pm.records.enums import ActionType, EntityClass, FeatureType, InterlocusType
 from workflows.public_speech.publication import acknowledge_reply, commit_public_reply, exchange_record
 from workflows.public_speech.reply_recovery import ReplyRecovery, task_evidence
 from pm.runs.supervisor import ManagedRunSupervisor
@@ -144,6 +145,59 @@ class PublicationTests(unittest.TestCase):
             recovery.resume()
             self.assertEqual(len(replies.events), 1)
             self.assertFalse(restored.get_knoxel_by_id(reply_id).metadata["factual_promotion"])
+
+    def test_delivered_reply_reopens_without_its_provisional_generation_inputs(self) -> None:
+        checkpoint = Path(self.tmp.name) / "ghost.pickle"
+        self.ghost.checkpoint = checkpoint
+        persona = self.ghost.begin_batch("persona")
+        persona.create(Entity(content="Jesse", aliases=[], entity_class=EntityClass.Human))
+        persona.create(Entity(content="Spamuel", aliases=[], entity_class=EntityClass.Agent))
+        self.ghost.commit(persona)
+        self.ghost.accept_import()
+
+        correlation = self.proxy.submit("Good morning, Spamuel.")
+        source = exchange_record(self.ghost, correlation)
+        assert source is not None
+        choice = self.ghost.begin_batch("accepted-choice")
+        choice.preserve_on_recovery()
+        action = choice.create(ActionSchemaRecord(content="Return Jesse's greeting.", action_type=ActionType.Reply))
+        self.ghost.commit(choice)
+        draft = self.ghost.store_knoxel(Feature(content="A provisional private concern.",
+            feature_type=FeatureType.StateUpdate, interlocus=InterlocusType.PrivateInternal))
+        context = build_public_context(self.ghost, ActionRequest(knoxel_id=action.id, stimuli=[Stimulus(knoxel_id=source.id)]))
+        self.assertIn(draft.id, context.input_record_ids)
+        reply_id = commit_public_reply(self.ghost, "Good morning, Jesse.", correlation, commit_id="greeting",
+                                       action_id=action.id, context=context)
+        assert reply_id is not None
+        self.ghost.save()
+        self.assertIsNone(MemoryStore.from_checkpoint(checkpoint).get_knoxel_by_id(reply_id))
+
+        acknowledge_reply(self.ghost, reply_id)
+        self.ghost.save()
+        reopened = MemoryStore.from_checkpoint(checkpoint)
+        reply = reopened.get_knoxel_by_id(reply_id)
+        assert reply is not None
+        self.assertEqual(reply.content, "Good morning, Jesse.")
+        self.assertEqual(reply.metadata["publication_status"], "published")
+        self.assertFalse(reply.metadata["factual_promotion"])
+        exchange = exchange_record(reopened, correlation)
+        assert exchange is not None
+        self.assertEqual(exchange.metadata["public_reply_id"], reply_id)
+        self.assertIsNone(reopened.get_knoxel_by_id(draft.id))
+        self.assertIsNotNone(MemoryStore.from_checkpoint(checkpoint, raw=True).get_knoxel_by_id(draft.id))
+
+        main = reopened.begin_batch("next-cycle", new_tick=True)
+        main.depend_on([reply_id])
+        main.depend_on_commits(reopened.snapshot(capture=False).commit_ids)
+        main.set_gwt(GwtTurnRecord(tick_id=main.tick_id, slot_id="main", knoxel_ids=[reply_id]))
+        reopened.commit(main)
+        reopened.save()
+        self.assertIsNone(MemoryStore.from_checkpoint(checkpoint).get_knoxel_by_id(draft.id))
+
+        cleaned = reopened.export_clean(Path(self.tmp.name) / "clean.pickle")
+        cleaned_store = MemoryStore.from_checkpoint(cleaned)
+        self.assertIsNotNone(cleaned_store.get_knoxel_by_id(reply_id))
+        self.assertIsNone(cleaned_store.get_knoxel_by_id(draft.id))
 
     def test_deception_requires_a_prior_purpose_and_retained_facts(self):
         correlation = self.proxy.submit("The factual codeword is copper lantern.")

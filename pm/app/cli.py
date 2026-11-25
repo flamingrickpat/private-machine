@@ -231,8 +231,9 @@ def _run_session(plan: LaunchPlan, *, assembly: TerminalAssembly) -> int:
 
     Shutdown signals modules and workers, closes the web chat, and joins work.
     A clean stop records a shutdown event.
-    Every accepted commit already saved the checkpoint, so Ctrl+C loses no
-    accepted state. A cycle that has not committed is not accepted state.
+    A normal stop checkpoints active state before a long drain. It saves
+    again after draining. Individual commits usually stay in memory until
+    a checkpoint boundary.
     """
     app = build_from_plan(plan, assembly=assembly)
     print(assembly.BANNER if plan.cognition == "dummy" else assembly.REAL_BANNER, flush=True)
