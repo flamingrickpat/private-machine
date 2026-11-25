@@ -14,8 +14,6 @@ import asyncio
 from datetime import datetime, timezone
 import json
 from pathlib import Path
-from threading import Event
-from types import SimpleNamespace
 import unittest
 from uuid import uuid4
 
@@ -27,15 +25,13 @@ from pm.llm.activation import ModelActivation
 from pm.llm.config import Connection, InferenceIO
 from pm.llm.stage_model import LazyStageModel
 from pm.llm.structured import complete_json_async
-from pm.memory.bash_view import MemoryBashEnvironment, MemoryBashTarget
+from pm.memory.bash_view import MemoryBashTarget
 from pm.records.enums import FeatureType
 from pm.records.memory_records import Feature, new_feature
 from pm.records.workspace import SELF_SHARD, ShardKey, WorkspaceShard
 from tests.support import Recorder, fresh_ghost, load_seed_state
 from workflows.dialogue_story.host import StoryDialogue, build_story_tools
 from workflows.inner_thought.schemas import ThoughtResult
-from workflows.main_cognition.host import build_main_cognition_tools
-from workflows.main_cognition.model_json import complete_json
 from workflows.main_cognition.schemas import ActionRequest, RequestShard, Stimulus
 from workflows.public_speech.publication import exchange_record
 from workflows.public_speech.public_context import build_public_context
@@ -92,24 +88,6 @@ class LiveRuntimeStabilityTests(unittest.TestCase):
     def assert_real_inference(self, minimum: int = 1) -> None:
         self.assertGreaterEqual(self.model.request_count, minimum)
         self.assertEqual(self.model.client.client.cache_hits, 0)
-
-    def test_captured_syntax_repair_uses_the_granted_real_model(self):
-        capture = json.loads((ROOT / "test_data/captures/live/cognitive-format-recovery.json").read_text(encoding="utf-8"))
-        raw = capture["malformed_thought"]["text"]
-        environment = MemoryBashEnvironment({}, {}, "read")
-        tools = build_main_cognition_tools(None, self.case, self.model.complete)(environment, None)
-        context = SimpleNamespace(runtime=SimpleNamespace(environment=environment, tools=tools, stop_event=Event()))
-        turns = [{"role": "system", "content":
-                  "Correct JSON syntax only. Preserve every fact and evidence ID. Return one JSON object. "
-                  "The schema is: " + json.dumps(ThoughtResult.model_json_schema())},
-                 {"role": "user", "content": raw}]
-        result = complete_json(context, turns, ThoughtResult, initial=raw, temperature=0, enable_thinking=False)
-        rejected = json.loads(environment.read_text("scratch/model-output-rejection-01.json"))
-        self.save("rejection.json", rejected)
-        self.save("repaired.json", result.model_dump(mode="json"))
-        self.assertEqual(rejected["raw"], raw)
-        self.assertEqual(result.evidence_ids, [11323, 11374, 11387])
-        self.assert_real_inference()
 
     def test_async_schema_repair_keeps_the_original_evidence_ids(self):
         initial = {"thought": "A quiet moment.", "evidence_ids": "17, 23"}

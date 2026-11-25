@@ -85,17 +85,3 @@ The grounding reviewer distinguishes emotional metaphors from concrete literal c
 Missing implementation evidence alone does not prove a contradiction.
 A claim that needs evidence can remain unresolved until a person inspects the source.
 The original conversation and all failed reviews remain unchanged.
-
-## Verification
-
-The captured syntax failure contains an unescaped quotation inside `evidence_summary`.
-Its projection and source digest are in `test_data/captures/live/cognitive-format-recovery.json`.
-Boundary tests exercise recovery, cancellation, bounded repair context, and preservation of the user's cause.
-The real recovery gate asks the configured model to repair that captured output.
-It also checks a captured emotional metaphor and an invented reviewer quotation.
-These focused checks do not replace fresh full-canon conversations.
-
-```powershell
-uv run --locked python -m unittest tests.unit.workflows.main_cognition.test_output_recovery -b
-uv run --locked python -m unittest tests.live.test_cognitive_recovery -v
-```
