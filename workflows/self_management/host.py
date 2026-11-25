@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, Any
 from pydantic import JsonValue
 from pathlib import Path
 from workflows.steward.gate import Steward
-from workflows.minecraft_body.lease import BODY_LEASES
 from pm.runs.run_receipt import ManagedRunError
 
 from pm.runs.management_api import build_management_tools
@@ -77,7 +76,7 @@ class SelfManagement(CognitiveWorkflow):
                                           receipt=dict(receipt))
             body = self.steward.body
             if operation == "terminate":
-                token = BODY_LEASES.token(body.endpoint, run_id) if body and BODY_LEASES.owner(body.endpoint) == run_id else None
+                token = body.leases.token(body.endpoint, run_id) if body and body.leases.owner(body.endpoint) == run_id else None
                 expected = selected.arguments.expected_epoch
                 artifact = Path(receipt["artifact_path"])
                 epoch = token.epoch if token else None

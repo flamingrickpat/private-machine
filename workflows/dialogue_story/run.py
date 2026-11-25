@@ -12,7 +12,7 @@ exact three messages without contacting a model.
 """
 from __future__ import annotations
 
-from pm.utils.operating_system import OperatingSystem
+from pm.app.operator_config import default_config_path
 from pm import vclock
 
 import argparse
@@ -58,14 +58,6 @@ class TrialSummary(BaseModel):
     rubric_version: str
 
 
-def _config_path() -> str:
-    if OperatingSystem.environment.get("PM_MODEL_CONFIG"):
-        return OperatingSystem.environment["PM_MODEL_CONFIG"]
-    if Path("config.local.yaml").is_file():
-        return "config.local.yaml"
-    return "config.example.yaml"
-
-
 def _run_root(runtime_root: Path) -> Path:
     stamp = vclock.now_aware().strftime("%Y%m%dT%H%M%SZ")
     return Path(runtime_root) / "w4" / f"{stamp}-{uuid4().hex[:8]}"
@@ -80,7 +72,7 @@ def _plan_request(ghost: MemoryStore, embedding: EmbeddingService,
 def command_show(args: argparse.Namespace) -> int:
     """Print the exact Story messages without any model call."""
     ghost = MemoryStore.from_yaml(args.seed)
-    config = load_config(_config_path())
+    config = load_config(default_config_path())
     embedding = EmbeddingService(config.embedding, live_test=True)
     session = engine.build_story_session(ChatClient(resolve_connection(config), ModelActivation(), live_test=True), Event())
     request = _plan_request(ghost, embedding, engine.load_situation(args.situation), session.render_settings())
@@ -94,7 +86,7 @@ def command_show(args: argparse.Namespace) -> int:
 
 def command_accept(args: argparse.Namespace) -> int:
     """Generate, evaluate, and commit one accepted Story reply."""
-    config = load_config(_config_path())
+    config = load_config(default_config_path())
     owner = ModelActivation()
     default = resolve_connection(config)
     asyncio.run(owner.activate(default, live_test=args.live_test))
@@ -143,7 +135,7 @@ def command_accept(args: argparse.Namespace) -> int:
 
 def command_trials(args: argparse.Namespace) -> int:
     """Generate several independent candidates and retain each evaluated report."""
-    config = load_config(_config_path())
+    config = load_config(default_config_path())
     owner = ModelActivation()
     default = resolve_connection(config)
     asyncio.run(owner.activate(default, live_test=args.live_test))

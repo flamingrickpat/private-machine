@@ -24,10 +24,10 @@ Related: [model connections](../models.md), [character home](character-import.md
 `--home` selects the agent home. No additional folder configuration is necessary.
 Without `--home`, the terminal uses its selected runtime root for diagnostics and checkpoints.
 Console workers use their instance root as the home.
-`PM_CACHE_DIR` changes the single shared cache root for tests or another deployment.
-A configured persona log directory takes precedence over `PM_PROMPT_LOG_DIR`.
+`inference_io.cache_directory` selects the completion cache.
+`inference_io.prompt_log_directory` overrides the persona prompt directory.
 Standalone tools can use that environment variable when they have no owning home.
-`PM_PROMPT_LOG=0` disables inference transcripts. It does not disable process diagnostics.
+`inference_io.prompt_log: false` disables inference transcripts. It does not disable process diagnostics.
 
 Embeddings live on the knoxels inside `ghost.pickle`. There is no embedding cache.
 The application accepts legacy JSON checkpoints and YAML seeds. It saves subsequent state with pickle.

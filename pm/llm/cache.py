@@ -28,8 +28,8 @@ _CONTEXT_FIELDS = {"evidence", "stimuli", "records", "candidates", "public_conte
 
 
 def cache_root() -> Path:
-    """Return the shared cache root. PM_CACHE_DIR overrides it for tests."""
-    return Path(OperatingSystem.environment.get("PM_CACHE_DIR", str(Path.home() / ".pm/private-machine/cache"))).expanduser()
+    """Return the default shared cache directory."""
+    return Path.home() / ".pm/private-machine/cache"
 
 
 def model_directory(model: str, root: Path | None = None) -> Path:
@@ -76,7 +76,7 @@ def normalize_timestamps(text: str) -> str:
     return text
 
 
-def completion_path(endpoint: str, payload: dict[str, JsonValue]) -> Path:
+def completion_path(endpoint: str, payload: dict[str, JsonValue], root: Path | None = None) -> Path:
     """Reserve the next response for this key. Ignore the sampling seed.
 
     Call once per logical request. Transport retries reuse the returned path.
@@ -94,7 +94,10 @@ def completion_path(endpoint: str, payload: dict[str, JsonValue]) -> Path:
         normalized["messages"].append({**message, "content": content})
     digest = hashlib.sha256(json.dumps({"endpoint": endpoint, "payload": normalized},
         sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
-    directory = model_directory(payload.get("model", "model"))
+    model = payload.get("model", "model")
+    if not isinstance(model, str):
+        raise ValueError("A completion cache key requires a model name.")
+    directory = model_directory(model, root)
     with _LOCK:
         key = str(directory / digest)
         count = _COUNTERS[key] = _COUNTERS.get(key, 0) + 1

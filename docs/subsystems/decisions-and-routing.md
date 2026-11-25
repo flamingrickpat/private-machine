@@ -17,8 +17,6 @@ The decision text goes to the target workflow unchanged. So the dialogue prompt 
 A19F steps 7 and 8 replaced the single action selection call, its planner-style intents, and the `ActionIntent` and `ActionSelectionResult` models.
 
 Parent: [cognitive pipeline](cognition.md).
-Plan: [A19F](../work_items/alpha-plan/work-items/a19f.md), sections "Prompt frame" and "Stimulus groups and actions".
-Decision: D28 in the [decision register](../work_items/alpha-plan/decision-register.md).
 Related: [structures, attention, and the workspace](workspace.md), [story speech](story-speech.md), [wait for a stimulus](inference-wait.md).
 
 ## Flow

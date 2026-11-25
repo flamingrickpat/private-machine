@@ -19,7 +19,7 @@ You need a character home folder with a `ghost.json` checkpoint.
 1. Start the app with the home folder and your model settings:
 
     ```powershell
-    uv run --locked python main.py --home <home> --config config.alpha.openrouter.yaml
+    uv run --locked python main.py --home <home> --config config.yaml
     ```
 
 2. Open the URL that the app prints, for example `Web chat: http://127.0.0.1:8770/`.

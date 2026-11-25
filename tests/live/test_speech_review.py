@@ -168,7 +168,7 @@ class LiveSpeechReviewTests(unittest.TestCase):
         self.assertTrue(is_blocked(result))
 
     def test_captured_old_review_is_compared_without_rewriting_the_reply(self):
-        source = Path("test_data/captures/alpha/a09-missing-report.json")
+        source = Path("test_data/captures/live/a09-missing-report.json")
         capture = json.loads(source.read_text(encoding="utf-8"))
         result = self.review("captured-missing-report", capture["candidate"])
         comparison = {"source": str(source), "candidate": capture["candidate"],
@@ -183,7 +183,7 @@ class LiveSpeechReviewTests(unittest.TestCase):
 
     def test_captured_unknown_game_status_does_not_become_an_observation(self):
         """Replay the real false block with the same evidence and unchanged draft."""
-        source = Path("test_data/captures/alpha/unknown-game-status-speech-review.json")
+        source = Path("test_data/captures/live/unknown-game-status-speech-review.json")
         capture = json.loads(source.read_text(encoding="utf-8"))
         messages = capture["messages"]
         messages[0]["content"] = self.prompts["system_prompt"].format(companion_name="Spamuel", user_name="Jesse")
@@ -203,7 +203,7 @@ class LiveSpeechReviewTests(unittest.TestCase):
         self.assertTrue(is_blocked(result), result.reason)
 
     def test_captured_capability_denial_does_not_become_a_false_task_result(self):
-        source = Path("test_data/captures/alpha/a09r-connected-capability-review.json")
+        source = Path("test_data/captures/live/a09r-connected-capability-review.json")
         capture = json.loads(source.read_text(encoding="utf-8"))
         messages = capture["messages"]
         messages[0]["content"] = self.prompts["system_prompt"].format(companion_name="Spamuel", user_name="Jesse")

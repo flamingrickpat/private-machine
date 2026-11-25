@@ -72,8 +72,8 @@ Its position comes from the latest timestamped body or movement receipt.
 This position evidence does not establish arrival, dry support, or goal acceptance.
 Routine tool replies supply no current outcome when their journal sequence has no meaningful result.
 Direct decisions use a percentage of the actual serving context, measured in tokens.
-There is no character limit. See [direct project budgets](llm-context.md#direct-project-decisions-use-token-percentages).
-[`workflows.minecraft_project.planning.decisions.compact_plan_context`][] references identical review text and tool contracts once per decision.
+There is no character limit. See [direct project budgets](gameplay-decision-scopes.md).
+[`workflows.minecraft_project.planning.context_selection.compact_plan_context`][] references identical review text and tool contracts once per decision.
 Different feedback and historical contracts retain their original wording.
 Native actor execution retains pm-coder context discovery and automatic compaction.
 
@@ -146,36 +146,6 @@ The [official golden-apple guide](https://www.minecraft.net/en-us/article/golden
 Fresh observed health must prove recovery; absorption cannot satisfy a health predicate.
 The guidance cannot grant supplies, change server rules, or accept an uncompleted leaf.
 
-## Bounded decision history
-
-[`workflows.minecraft_project.planning.decisions.scoped_decision_context`][] selects evidence when a direct decision exceeds 110,000 characters.
-The final input limit remains 120,000 characters.
-The decision stores the full original payload in `unscoped-context.json`, with its digest and path in `context_archive`.
-Actor requests receive the same selected history.
-Their `inbox/gameplay-history.json` archive retains the complete cumulative history.
-Original journals retain every call and its full result.
-
-The selected history retains every paused method, the latest 32 methods by result time, and all twenty recent outcomes.
-It preserves their exact operands, preconditions, counters, quantities, and journal references.
-It retains all search coverage, recovery state, body identity, navigation state, and failed recovery records.
-Only referenced inventory and method-state rows enter the selected tables.
-
-Older methods supply counts, failure reasons, quantities, inventory gains and removals, and source-index-to-sequence lists.
-Those totals sum each method's last result; they do not count every earlier action or establish mined-resource provenance.
-The latest four diagnoses remain complete.
-Older diagnoses retain source, time, and evidence sequences; their complete explanations remain in the archive.
-
-An independently accepted verification retains its identity, checks, review, and original receipt.
-Its old read list remains in that receipt, because it cannot establish current geometry.
-An exactly unchanged specification can reference its node in `previous_tree`.
-Failed verification keeps its complete selected reads.
-These projections cannot modify specifications or issue acceptance certificates.
-
-M3-29 exposed this boundary after 776 native calls.
-Its planner input had 274,405 characters and failed before inference.
-The captured regression reduces that actual input to approximately 112,400 characters and preserves both mined raw iron items.
-This regression establishes context selection; the resumed real run must establish gameplay acceptance.
-
 ## Concise actor correction
 
 M3-31 retained 41 rejected calls without sending those actions to the world.
@@ -214,7 +184,6 @@ An observed action death immediately creates failed recovery and blocks further 
 [`workflows.minecraft_body.call_outcomes.action_death`][] requires a body identity and an increasing integer death counter.
 Fresh respawn observations still cannot authorize another mutation in that actor epoch.
 The next native plan must reconcile current tools, supplies, lost items, and preserved world work.
-The [tool repair history](../work_items/verification/a13/history/tool-repairs.md) describes the new descent checks.
 
 ## Meaningful progress publication
 
@@ -259,7 +228,6 @@ An uncertain external mutation remains uncertain after a service restart.
 
 ## Go deeper
 
-Read [verification](../work_items/verification/a13/index.md) for captured failures and live acceptance status.
 
 ## Harvesting prerequisites and occupied body space
 

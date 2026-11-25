@@ -99,7 +99,7 @@ Phase 4 removed every runtime violation:
 | Violation today | Removal in Phase 4 |
 | --- | --- |
 | `managed_runs` names `minecraft` and `minecraft_project` and injects a persona for them. | Done: `WorkflowSpec.resumable` and `WorkflowSpec.request_context`. |
-| `managed_runs` imports `workflows.public_context`. | Done: `workflows.minecraft.host.persona_context`. |
+| `managed_runs` imports `workflows.public_context`. | Done: `workflows.minecraft.host.MinecraftContextOwner.capture`. |
 | `reply_recovery` imports Minecraft verifiers per report schema. | Open. The test allowlist holds these two imports. |
 | `operator_services` and the console worker hold Minecraft endpoint defaults. | Done: `workflows/minecraft_body/operator_hooks.py`. |
 | `pm/console/worker.py` imports `workflows.companion.build_app`. | Done: `pm/console/assembly.py` loads it by name. |

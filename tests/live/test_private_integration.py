@@ -23,6 +23,7 @@ import unittest
 from urllib.parse import urlsplit
 from uuid import uuid4
 
+from tests.live.configuration import live_model_config
 from pm.llm.activation import ModelActivation
 from pm.llm.config import load_config, resolve_connection
 from pm.llm.mcp_config import ToolCallConfig
@@ -31,7 +32,6 @@ from pm.llm.workflow_sessions import WorkflowModels
 from pm.memory.store import MemoryStore
 from pm.records.enums import FeatureType
 from pm.records.memory_records import ActionSchemaRecord
-from pm.utils.operating_system import OperatingSystem
 from tests.replay.situations import private_dwelling
 from tests.support import ManualClock
 from workflows.companion import build_app
@@ -88,19 +88,18 @@ class _Gate:
         self.clock = ManualClock()
         self.store: MemoryStore = private_dwelling(
             datetime.now(timezone.utc).replace(tzinfo=None), self.out / "ghost.pickle").store
-        config = load_config(ROOT / "config.yaml")
+        config_path = live_model_config(ROOT / "config.yaml", self.out)
+        config = load_config(config_path)
         connection = resolve_connection(config)
         if (urlsplit(connection.base_url).hostname != "openrouter.ai" or connection.startup_script is not None
                 or urlsplit(config.embedding.base_url).hostname != "openrouter.ai"):
             raise ValueError("NOT RUN — this gate requires OpenRouter chat and embeddings.")
         self.model = LazyStageModel(connection, ModelActivation(), live_test=True)
         workflow_models = WorkflowModels(config, ModelActivation(), live_test=True)
-        OperatingSystem.environment["PM_COMPLETION_CACHE"] = "0"
-        OperatingSystem.environment["PM_PROMPT_LOG_DIR"] = str(self.out / "prompts")
         self.events = []
         self.app = build_app(None, self.out / "runtime", ghost=self.store, clock=self.clock,
             cognition="real", stage_model=self.model, workflow_models=workflow_models,
-            config_path=str(ROOT / "config.yaml"), thought_period=3600,
+            config_path=str(config_path), thought_period=3600,
             record_lifecycle=False, enable_minecraft=False, world_poll_seconds=None,
             tool_call=ToolCallConfig(), emit_reply=lambda text: self.write("replies.jsonl", {"text": text}))
         self.app.bus.subscribe("integration_evidence", lambda envelope: True, self._observe)

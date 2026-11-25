@@ -11,7 +11,7 @@ Stopped intervals produce no observations.
 Parent: [cooperative survival](cooperative-survival.md).
 Owner: [`workflows.minecraft_body.world_events.WorldEvents`][].
 Assembly: [`workflows.companion.build_app`][].
-Transport: [`workflows.minecraft_body.mcp_client.build_minecraft_tools`][].
+Transport: [`workflows.minecraft_body.mcp_client.MinecraftTransport`][].
 
 ## Activation and exact inputs
 
@@ -22,7 +22,6 @@ Dummy cognition does not enable it.
 A poll period must be positive; a silence interval cannot be negative.
 
 The endpoint is `minecraft.mcp_url` in the model configuration.
-`MINECRAFT_MCP_URL` remains a test override.
 Without a `minecraft` section, the module does not start.
 Each poll calls only `minecraft_observe` with `include_image=false`.
 The read shares the cross-process command lock with actor calls.
@@ -82,5 +81,3 @@ Actor effects remain governed by their own cancellation and uncertain-outcome ru
 3. Follow that ID into the accepted workspace and its action records.
 4. Follow any dispatch into the managed-run receipt and original actor journal.
 5. Read current inventory or exact world cells before claiming useful progress.
-
-The [A14 verification record](../work_items/verification/a14-cooperation.md) separates these boundaries from behavioral and human acceptance.

@@ -11,8 +11,6 @@ A19F step 5 replaced the A16 pathway signals.
 The chains are the old-generation data, kept without change of content.
 
 Parent: [codelets and attention competition](codelets.md).
-Plan: [A19F](../work_items/alpha-plan/work-items/a19f.md), section "Pathways".
-Earlier evidence: [A16 verification](../work_items/verification/a16-codelets.md). It describes the removed pathway signals.
 
 ## Data
 

@@ -13,7 +13,6 @@ No command requires a 24-hour run.
 Parent: [development loop](../workflows/development.md).
 Design: [review boundaries](cognitive-review-boundaries.md).
 Maintenance: [add scenarios](cognitive-evaluation-authoring.md).
-Results: [A18B verification](../work_items/verification/a18b-cognitive-evaluation.md).
 Recovery: [malformed output and unresolved judgments](cognitive-output-recovery.md).
 
 ## Choose the evidence you need
@@ -34,7 +33,7 @@ During alpha and beta, run selected fresh cases after a relevant runtime change.
 ## Run the checks
 
 Use a new output directory for every inference run.
-The default configuration is `config.alpha.openrouter.yaml`.
+The default configuration is `config.yaml`.
 `--config` selects another complete configuration.
 
 ```powershell
@@ -60,7 +59,7 @@ All normal cases complete before edge cases start.
 The permitted range is one through four workers.
 Parallel execution retains each case's original seed offset and full suite denominator.
 Each case owns a new process and a separate full-canon store.
-Cases share the configured cache root. `PM_CACHE_DIR` can isolate the complete gate from the normal deployment.
+The gate uses the cache and prompt-log settings in its selected YAML.
 `CASE/model-config.yaml` preserves model settings, credential references, and old cache read paths.
 Read [runtime files and recovery](runtime-files.md) for the cache layout.
 Source-relative startup scripts and the read-only legacy cache keep their original resolved paths.

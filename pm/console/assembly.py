@@ -10,7 +10,7 @@ from types import ModuleType
 
 #: The assembly whose ``build_app`` each console worker runs.
 DEFAULT_ASSEMBLY = "workflows.companion"
-#: The module with ``prepare_environment(values)`` and async ``probes(values)``.
+#: The module with async ``probes(configuration)``.
 DEFAULT_OPERATOR_HOOKS = "workflows.minecraft_body.operator_hooks"
 
 

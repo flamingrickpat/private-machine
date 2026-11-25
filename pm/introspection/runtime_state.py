@@ -34,7 +34,7 @@ def machine_identity() -> MachineIdentity:
         found = OperatingSystem.run_text([utility, "--query-gpu=name", "--format=csv,noheader"], hidden=True)
         if found.returncode == 0:
             gpu = ", ".join(found.stdout.splitlines())
-    return MachineIdentity(platform.node(), OperatingSystem.environment.get("PROCESSOR_IDENTIFIER") or platform.machine(),
+    return MachineIdentity(platform.node(), platform.processor() or platform.machine(),
                            int(ram.stdout.strip()), gpu, revision)
 
 

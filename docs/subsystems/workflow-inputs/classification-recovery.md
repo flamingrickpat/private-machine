@@ -8,8 +8,6 @@ Direct calls reject oversized context without clipping.
 Agent compaction retains the original request and summarizes accumulated execution.
 
 Parent: [classification](classification.md).
-Evidence: [A04 verification](../../work_items/verification/a04-classification.md).
-Policy: [model selection](../../work_items/alpha-plan/model-policy.md).
 
 ## Limits and direct calls
 

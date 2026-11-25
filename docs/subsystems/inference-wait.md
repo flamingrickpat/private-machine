@@ -10,8 +10,6 @@ The controller checks deadlines without a model call.
 Full A18C acceptance remains incomplete.
 
 Parent: [private loop](private-loop.md).
-Work item: [A18C](../work_items/alpha-plan/work-items/a18c.md).
-Evidence: [verification](../work_items/verification/a18c-control.md).
 Runtime: [`workflows.cognitive_control.host.CognitiveControl`][].
 
 ## Action semantics
@@ -146,13 +144,9 @@ The [authoring guide](cognitive-evaluation-authoring.md) describes this runtime 
 An ordinary quiet cycle is not proof of a deliberate wait.
 A bounded private episode now owns continuation outside the wait path.
 It closes on a step, time, or stalled-progress limit and parks the concern for review.
-The [remaining design](../work_items/alpha-plan/deliberate-control.md) describes what is still pending.
 
 ## Run the focused real gate
 
-```powershell
-uv run --locked python dev/work_items/alpha_a18c_wait_gate.py --config config.alpha.openrouter.yaml --out .runtime/a18c/NEW-RUN
-```
 
 Use a fresh output directory.
 The gate imports the full Spamuel seed and uses real configured inference.

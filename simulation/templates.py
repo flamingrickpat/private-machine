@@ -222,7 +222,6 @@ def main() -> int:
         return 0
     from pm.utils.operating_system import OperatingSystem
     OperatingSystem.install_child_cleanup()
-    OperatingSystem.environment["PM_COMPLETION_CACHE"] = "0"
     # Resolve source homes relative to the template, not the caller's shell.
     for participant in template.participants:
         participant.home = str((args.template.resolve().parent / Path(participant.home).expanduser()).resolve())

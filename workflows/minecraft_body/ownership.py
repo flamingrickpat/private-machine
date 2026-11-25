@@ -14,7 +14,7 @@ from workflows.minecraft_body.spatial import WorldPosition
 
 from pm.host.durable_files import BodyBusy, atomic_json
 from pm.runs.errors import TaskServiceError
-from workflows.minecraft_body.lease import BODY_LEASES, BodyLeaseEvidence
+from workflows.minecraft_body.lease import BodyLeaseEvidence
 from workflows.minecraft_body.mcp_client import MinecraftToolReply, MinecraftTransport
 from workflows.minecraft_body.world_text import BodyReading, WorldObservation, StopObservation
 
@@ -53,17 +53,18 @@ class PausedTask(BaseModel):
 class BodyOwnership:
     def __init__(self, transport: MinecraftTransport, shutdown: Event | None = None) -> None:
         self.transport = transport
+        self.leases = transport.leases
         self.shutdown = shutdown if shutdown is not None else Event()
         self.endpoint = transport.settings.endpoint
         self.lock = RLock()
         self.reservation: ReservedBody | None = None
         self.resume_authorization: str | None = None
-        self.recovery_path = BODY_LEASES.path(self.endpoint, ".recovery.json")
-        self.pause_path = BODY_LEASES.path(self.endpoint, ".paused.json")
+        self.recovery_path = self.leases.path(self.endpoint, ".recovery.json")
+        self.pause_path = self.leases.path(self.endpoint, ".paused.json")
 
     def reconcile_at_startup(self, task_root: Path) -> None:
-        path = BODY_LEASES.path(self.endpoint, ".json")
-        if BODY_LEASES.owner(self.endpoint) is not None:
+        path = self.leases.path(self.endpoint, ".json")
+        if self.leases.owner(self.endpoint) is not None:
             return
         record = self.recovery_path if self.recovery_path.is_file() else path
         if not record.is_file():
@@ -71,7 +72,7 @@ class BodyOwnership:
         previous = BodyLeaseEvidence.model_validate_json(record.read_bytes())
         if not previous.active:
             return
-        with BODY_LEASES.acquire(self.endpoint, previous.owner) as replacement:
+        with self.leases.acquire(self.endpoint, previous.owner) as replacement:
             # A second restart must still reconcile the original command if this recovery fails.
             atomic_json(self.recovery_path, previous.model_dump())
             status = self.transport.call("minecraft_status", {})
@@ -97,7 +98,7 @@ class BodyOwnership:
             self.recovery_path.unlink()
 
     def owner(self) -> str | None:
-        active = BODY_LEASES.owner(self.endpoint)
+        active = self.leases.owner(self.endpoint)
         if active is not None:
             return active
         paused = self.paused_task()
@@ -111,7 +112,7 @@ class BodyOwnership:
 
     def retain_for_resume(self, run_id: str, epoch: int, artifact: Path, execution_epoch: int) -> None:
         with self.lock:
-            token = BODY_LEASES.token(self.endpoint, run_id)
+            token = self.leases.token(self.endpoint, run_id)
             if token.epoch != epoch:
                 raise BodyBusy("The body epoch changed before its stop could be admitted.")
             paused = PausedTask(run_id=run_id, epoch=epoch)
@@ -148,7 +149,7 @@ class BodyOwnership:
                 return
             scope = ExitStack()
             try:
-                lease = scope.enter_context(BODY_LEASES.acquire(self.endpoint, run_id))
+                lease = scope.enter_context(self.leases.acquire(self.endpoint, run_id))
             except BodyBusy as error:
                 raise BodyBusy(f"Minecraft body is busy with {self.owner()}. Check status, wait or terminate that run.") from error
             try:
@@ -283,7 +284,7 @@ class BodyOwnership:
                 raise TaskServiceError(f"Body epoch {epoch} ended without confirmed stop evidence.")
             self.activate(run_id)
             self.interrupt_command(run_id, slot.lease)
-            with BODY_LEASES.command(self.endpoint):
+            with self.leases.command(self.endpoint):
                 acknowledged = datetime.now(timezone.utc)
                 reconciliation = self.inspect_uncertain_effects(artifact, slot.lease)
                 final = self.read_for_reconciliation("minecraft_observe", {"include_image": False}, slot.lease)

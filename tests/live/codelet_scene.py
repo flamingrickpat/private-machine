@@ -27,7 +27,6 @@ from pm.llm.workflow_sessions import WorkflowModels
 from pm.memory.store import MemoryStore
 from pm.records.codelet_records import CodeletPercept
 from pm.records.global_workspace import GwtTurnRecord
-from pm.utils.operating_system import OperatingSystem
 from workflows.companion import build_app
 from workflows.main_cognition.codelet_registry import DEFAULT_DEFINITIONS, LoadedDefinitions, load_definitions
 from workflows.public_speech.publication import exchange_record
@@ -97,26 +96,13 @@ def read_percepts(store: MemoryStore, turn: GwtTurnRecord, catalog: LoadedDefini
 @contextmanager
 def scene_runtime(clock: vclock.VirtualClock, prompt_directory: Path) -> Iterator[None]:
     """Give the application and its threads one clock and prompt directory for their lifetime."""
-    environment = OperatingSystem.environment
     previous_clock = vclock.active()
-    previous_log = environment.get("PM_PROMPT_LOG_DIR")
-    previous_cache = environment.get("PM_COMPLETION_CACHE")
     try:
         vclock.install(clock)
-        environment["PM_PROMPT_LOG_DIR"] = str(prompt_directory)
-        environment["PM_COMPLETION_CACHE"] = "0"
         with log_scope(prompt_directory):
             yield
     finally:
         vclock.install(previous_clock)
-        if previous_log is None:
-            environment.pop("PM_PROMPT_LOG_DIR", None)
-        else:
-            environment["PM_PROMPT_LOG_DIR"] = previous_log
-        if previous_cache is None:
-            environment.pop("PM_COMPLETION_CACHE", None)
-        else:
-            environment["PM_COMPLETION_CACHE"] = previous_cache
 
 
 def run_scene(scene: str, config: Path, source: Path, catalog: Path) -> Path:

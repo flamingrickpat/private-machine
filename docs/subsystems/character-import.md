@@ -25,8 +25,8 @@ Related: [experience consolidation](memory-consolidation.md), [structures, atten
 
 ```powershell
 uv run --locked python -m pm.app.character_cli init --home homes/ava --companion-name Ava --user-name Bob --card card.md --personality personality.json
-uv run --locked python -m pm.app.character_cli import --home homes/ava --csv chat.csv --config config.alpha.openrouter.yaml
-uv run --locked python main.py --home homes/ava --config config.alpha.openrouter.yaml
+uv run --locked python -m pm.app.character_cli import --home homes/ava --csv chat.csv --config config.yaml
+uv run --locked python main.py --home homes/ava --config config.yaml
 ```
 
 `init` refuses a folder that exists and is not empty.
@@ -173,7 +173,7 @@ The code fills the names from the persona.
 Times in the prompts use `RECONSOLIDATION_TIME_FORMAT` (`Friday, 01 May 2026, 20:10`), not the persona format.
 In the first real run, the numeric format `01.05.26` became "January 5" in a summary.
 Each answer is one JSON object. Pydantic validates it.
-Invalid answers receive repair turns until context space runs out, through the [shared runtime repair loop](../models.md#completion-replay-and-output-repair).
+Invalid answers receive repair turns until context space runs out, through the [shared runtime repair loop][pm.llm.structured.complete_json].
 Narratives must contain 50 to 6,000 characters. Length errors receive the same repair turns.
 A provider failure (`ModelError`) repeats the call (at most three times).
 Transport errors and HTTP 429/5xx retry inside `JsonClient`.

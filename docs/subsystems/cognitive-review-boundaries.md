@@ -102,7 +102,7 @@ Each proofreader receives one source string only, not an accumulated list of rej
 Reviewer reasoning allows 768 tokens per call; Jesse uses reasoning disabled.
 Longer evidence needs explicit scene windows and coverage rules. Do not force it into a larger prompt.
 Visible answers have no new output-token cap.
-Transport uses the shared [cancellable wait policy](../models.md#activation-and-cancellation).
+Transport uses the shared [cancellable wait policy](../models.md).
 Temporary transport, rate-limit, and server failures wait for recovery or cancellation.
 Retries repeat a failed HTTP request; they do not request a better judgment.
 Provider-filtered partial output is a separate error, not an accepted judgment or a quota retry.

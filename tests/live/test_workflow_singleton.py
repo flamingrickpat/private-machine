@@ -16,8 +16,9 @@ from uuid import uuid4
 
 import yaml
 
+from pm.app.operator_config import default_config_path
 from pm.utils.operating_system import OperatingSystem
-from dev.tools.alpha_snapshot import capture
+from dev.tools.capture_runtime import capture
 from dev.work_items.a18b.runner import case_config
 from dev.work_items.conversation_review import SEED, start_minecraft
 from dev.work_items.shared.evidence import save_json
@@ -40,24 +41,14 @@ class LiveWorkflowSingletonTests(unittest.TestCase):
                    'human_review': 'pending', 'started_at': datetime.now(timezone.utc).isoformat()}
         try:
             with ExitStack() as cleanup:
-                previous = {key: OperatingSystem.environment.get(key) for key in ['MINECRAFT_MCP_URL', 'PM_PROMPT_LOG_DIR']}
-                def restore() -> None:
-                    for key, value in previous.items():
-                        if value is None:
-                            OperatingSystem.environment.pop(key, None)
-                        else:
-                            OperatingSystem.environment[key] = value
-                cleanup.callback(restore)
                 (out / 'source').mkdir()
                 save_json(out / 'origin.json', capture(REPO_ROOT, out / 'source'))
-                config = case_config(REPO_ROOT / 'config.alpha.openrouter.yaml', out)
                 stack = start_minecraft(out, False)
                 cleanup.callback(stack.stop)
-                OperatingSystem.environment['MINECRAFT_MCP_URL'] = stack.mcp_url
-                OperatingSystem.environment['PM_PROMPT_LOG_DIR'] = str(out / 'llm-logs')
+                config = case_config(Path(default_config_path()), out, stack.mcp_url)
                 from workflows.companion import build_app
                 from workflows.minecraft_body.lease import BODY_LEASES
-                from workflows.minecraft_body.mcp_client import build_minecraft_tools
+                from workflows.minecraft_body.mcp_client import MinecraftTransport, MinecraftTransportSettings
                 ghost = MemoryStore.from_yaml(SEED, checkpoint=out / 'ghost.pickle')
                 receipt['seed_records'] = len(ghost.all_knoxels)
                 self.assertEqual(receipt['seed_records'], 11202)
@@ -129,7 +120,7 @@ class LiveWorkflowSingletonTests(unittest.TestCase):
                 second = next(row for row in app.supervisor.receipts().values() if row['action_id'] == 'fresh-read')
                 wait_for(lambda: app.supervisor.get(second['run_id'])['state'] in {'completed', 'failed'})
                 self.assertEqual(app.supervisor.get(second['run_id'])['state'], 'completed')
-                final = build_minecraft_tools(stack.mcp_url)['minecraft_call']('minecraft_observe', {'include_image': False})
+                final = MinecraftTransport(MinecraftTransportSettings(endpoint=stack.mcp_url), None).call('minecraft_observe', {'include_image': False})
                 self.assertTrue(final['ok'])
                 save_json(out / 'final-world.json', final)
                 save_json(out / 'managed-receipts.json', app.supervisor.receipts())

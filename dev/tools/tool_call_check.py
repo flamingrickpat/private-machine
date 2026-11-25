@@ -7,7 +7,7 @@ runs no cognition cycle, so the run has a ``launch`` context, not a pinned
 source action. The model configuration file is not changed: the MCP server
 comes from the command line.
 
-    uv run --locked python dev/tools/tool_call_check.py --config config.alpha.openrouter.yaml \\
+    uv run --locked python dev/tools/tool_call_check.py --config config.yaml \\
         --mcp demo=http://127.0.0.1:9881/mcp --instruction "roll a 20-sided die and make a red test image"
 
 The output folder holds ``summary.json`` with the receipt, the report, and
@@ -20,7 +20,6 @@ import json
 import time
 from pathlib import Path
 
-from pm.utils.operating_system import OperatingSystem
 from pm.llm.activation import ModelActivation
 from pm.llm.config import load_config
 from pm.llm.mcp_config import ToolCallConfig
@@ -44,10 +43,13 @@ def main() -> None:
     args = parser.parse_args()
     out = (args.out / time.strftime("run-%Y%m%d-%H%M%S")).resolve()
     out.mkdir(parents=True)
-    OperatingSystem.environment.setdefault("PM_PROMPT_LOG_DIR", str(out / "llm_logs"))
+    from simulation.source import SimulationConfigOverrides, copy_simulation_config
+    private_config = out / "model-config.yaml"
+    copy_simulation_config(Path(args.config), private_config,
+                           SimulationConfigOverrides(prompt_directory=out / "llm_logs"))
     servers = [dict(zip(("name", "url"), item.split("=", 1))) for item in args.mcp]
     tool_call = ToolCallConfig.model_validate({"mcp_servers": servers})
-    config = load_config(args.config)
+    config = load_config(private_config)
     store = MemoryStore.from_yaml(SEED, checkpoint=out / "ghost.pickle")
     consolidator = Consolidator(store, unix_timestamps=True)
     consolidations = []

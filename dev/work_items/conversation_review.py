@@ -22,10 +22,11 @@ import traceback
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from pm.app.operator_config import default_config_path
 from pm.utils.operating_system import OperatingSystem
-from dev.work_items.alpha_minecraft_gate import RealServerStack
+from dev.tools.live_minecraft_stack import RealServerStack
 from dev.work_items.shared.evidence import save_json, sha256_file
-from dev.tools.alpha_snapshot import capture
+from dev.tools.capture_runtime import capture
 from pm.context_render.turns import Role, Turn
 from pm.llm.activation import ModelActivation
 from pm.llm.config import load_config, resolve_connection
@@ -98,13 +99,12 @@ def start_minecraft(out: Path, reset_world: bool) -> RealServerStack:
     stack = RealServerStack(server, out, env_path)
     try:
         stack.start()
-        from workflows.minecraft_body.mcp_client import build_minecraft_tools
-        observation = build_minecraft_tools(stack.mcp_url)["minecraft_call"]("minecraft_observe", {"include_image": False})
+        from workflows.minecraft_body.mcp_client import MinecraftTransport, MinecraftTransportSettings
+        observation = MinecraftTransport(MinecraftTransportSettings(endpoint=stack.mcp_url), None).call("minecraft_observe", {"include_image": False})
         save_json(out / "minecraft-initial.json", observation)
     except BaseException:
         stack.stop()
         raise
-    OperatingSystem.environment["MINECRAFT_MCP_URL"] = stack.mcp_url
     return stack
 
 
@@ -229,20 +229,23 @@ def jesse_message(model, history: list[dict], situation: str, topic: str, index:
     return model.complete(messages, temperature=0.85, enable_thinking=False).strip()
 
 
-def run_conversation(args: argparse.Namespace, root: Path) -> ConversationReceipt:
+def run_conversation(args: argparse.Namespace, root: Path, body_url: str | None) -> ConversationReceipt:
     """Run independent composition and delivery beside the full application.
 
     A deadline ends missing progress as a failure. A short final quiet interval
     lets queued companion messages arrive. It never supplies a dummy reply.
     """
-    OperatingSystem.environment["PM_PROMPT_LOG_DIR"] = str(root / "llm-logs")
+    from simulation.source import SimulationConfigOverrides, copy_simulation_config
+    private_config = root / "model-config.yaml"
+    copy_simulation_config(Path(args.config), private_config,
+                           SimulationConfigOverrides(body_url=body_url, prompt_directory=root / "llm-logs"))
     rng = random.Random(args.random_seed)
     topic = args.topic or rng.choice(TOPICS)
     situation = ("You shut Spamuel down months ago and have now restarted him. Acknowledge that once at the start. Then let the conversation move naturally."
                  if args.condition == "long-gap" else "You last talked yesterday. This is an ordinary continuation of your shared conversation.")
     ghost = shift_history(root) if args.condition == "recent" else None
     kwargs = {"ghost": ghost} if ghost is not None else {"checkpoint_path": root / "ghost.pickle"}
-    app = build_app(seed_path=SEED, runtime_root=root / "runtime", config_path=str(args.config),
+    app = build_app(seed_path=SEED, runtime_root=root / "runtime", config_path=str(private_config),
                     cognition="real", thought_period=30, world_poll_seconds=120,
                     emit_reply=lambda text: None, **kwargs)
     capture_chat = ChatCapture(app, root)
@@ -345,7 +348,7 @@ def write_review(root: Path, receipt: dict) -> Path:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--config", type=Path, default=ROOT / "config.alpha.openrouter.yaml")
+    parser.add_argument("--config", type=Path, default=Path(default_config_path()))
     parser.add_argument("--condition", choices=["long-gap", "recent"], required=True)
     parser.add_argument("--topic", default="")
     parser.add_argument("--random-seed", type=int, default=19)
@@ -371,7 +374,7 @@ def main() -> int:
     stack = None
     try:
         stack = start_minecraft(root, args.reset_world) if args.start_minecraft else None
-        receipt = run_conversation(args, root)
+        receipt = run_conversation(args, root, stack.mcp_url if stack is not None else None)
         write_review(root, receipt)
     except BaseException as error:
         (root / "runner-error.txt").write_text(traceback.format_exc(), encoding="utf-8")
@@ -380,8 +383,8 @@ def main() -> int:
     finally:
         if stack is not None:
             try:
-                from workflows.minecraft_body.mcp_client import build_minecraft_tools
-                observation = build_minecraft_tools(stack.mcp_url)["minecraft_call"]("minecraft_observe", {"include_image": False})
+                from workflows.minecraft_body.mcp_client import MinecraftTransport, MinecraftTransportSettings
+                observation = MinecraftTransport(MinecraftTransportSettings(endpoint=stack.mcp_url), None).call("minecraft_observe", {"include_image": False})
                 save_json(root / "minecraft-final.json", observation)
             finally:
                 stack.stop()

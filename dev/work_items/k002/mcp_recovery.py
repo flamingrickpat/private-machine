@@ -104,7 +104,6 @@ async def exercise(evidence: Path, dependency: Path) -> None:
     connection = resolve_connection(config)
     if connection.base_url != "https://openrouter.ai/api/v1":
         raise ValueError("This check requires the owner's real OpenRouter endpoint.")
-    OperatingSystem.environment["PM_COMPLETION_CACHE"] = "0"
     store = MemoryStore.from_checkpoint(Path.home() / ".pm/private-machine/spamuel-simulation-a/ghost.pickle")
     public = [row for row in store.all_features if row.feature_type == FeatureType.Dialogue
               and row.interlocus == InterlocusType.Public and row.source == "Jesse"]

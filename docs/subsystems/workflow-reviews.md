@@ -9,7 +9,6 @@ The shared runtime helper classifies the judgment; it does not perform work or c
 Parent: [workflow runtime](../runtime.md).
 Current caller: [Minecraft projects](minecraft-tasks.md).
 Planning interface: [draft sessions](draft-sessions.md).
-Observed failure and repair: [A14 evidence](../work_items/verification/a14-cooperation.md).
 
 ## Passing judgments
 

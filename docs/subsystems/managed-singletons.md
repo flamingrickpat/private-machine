@@ -86,6 +86,5 @@ Programming errors and failures to record an outcome still reach the application
 
 ## Evidence
 
-The boundary tests replay [captured overlapping starts](../work_items/verification/a18b-singleton.md) through real local kernels and locks.
 The separate real-service gate uses the full canon, the real Minecraft server, and one real cognitive cycle.
 Neither control-boundary success nor a model's chosen action establishes complete A18B acceptance.

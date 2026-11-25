@@ -8,9 +8,7 @@ A02 does not add a decision entry to PM's model activation configuration.
 The live runner verifies the service and tests an independently owned failure process.
 
 Parent: [optional typed decisions](index.md).
-Measured results: [A02 verification](../../work_items/verification/a02-decisions.md).
 Model limitations: [quality observations](quality.md).
-Historical deployment: [A01 commands](../../work_items/alpha-plan/baseline/commands.md).
 
 ## Verified deployment
 
@@ -66,7 +64,6 @@ No holdout labels enter this demonstration.
 
 ```powershell
 uv sync --locked
-uv run --locked python dev/work_items/alpha_decision_gate.py --out .runtime/alpha/a02-repeat/decisions
 ```
 
 The output directory must be new.

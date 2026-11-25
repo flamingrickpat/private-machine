@@ -81,10 +81,8 @@ class PMProcess:
         self.endpoint_file.unlink(missing_ok=True)
         self.failure_file.unlink(missing_ok=True)
         self._log = (self.endpoint_file.parent / f"{self.id}-process.log").open("ab")
-        from pm.llm.env_file import env_file_path
         environment = dict(OperatingSystem.environment)
         environment.update(PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
-        environment.setdefault("PM_ENV_FILE", str(env_file_path().resolve()))
         self.process = OperatingSystem.start_logged_process(
             [OperatingSystem.python_executable(), "-m", "simulation.participant", "--home", str(self.home), "--config", self.config,
              "--ready-file", str(self.endpoint_file.resolve())], cwd=self.source_root,

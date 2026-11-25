@@ -9,7 +9,6 @@ never rejects a reply sentence by sentence. The review reports an unsupported
 label, and the label stays visible. It does not create a new feeling.
 
 Parent: [public dialogue](public-dialogue.md).
-Design: [the private ontology](../work_items/alpha-plan/ontology.md).
 Record schema: [`pm.records.cognitive_records.OntologyTermRecord`][] and
 [`pm.records.cognitive_records.OntologyBindingRecord`][].
 Observer: [`workflows.public_speech.ontology.observe_ontology`][][].

@@ -6,27 +6,8 @@ import mkdocs_gen_files
 nav = mkdocs_gen_files.Nav()
 roots = [Path("pm"), Path("workflows"), Path("simulation")]
 paths = [p for root in roots for p in root.rglob("*.py")]
-paths += [Path("main.py")]
-paths += [Path("dev/work_items/alpha_input_gate.py"), Path("dev/work_items/alpha_classification_gate.py"), Path("dev/work_items/alpha_pm_classification_gate.py")]
-paths += [Path("dev/work_items/alpha_a08_memory_gate.py"), Path("dev/tools/alpha_memory_index.py")]
-paths += [Path("dev/work_items/alpha_a09_dialogue_gate.py")]
-paths += [Path("dev/work_items/alpha_a09_public_gate.py")]
-paths += [Path("dev/tools/compile_minecraft_skill.py"), Path("dev/work_items/alpha_a10_minecraft_gate.py")]
-paths += [Path("dev/work_items/alpha_a11_minecraft_gate.py")]
-paths += [Path("dev/work_items/alpha_a12_recovery_gate.py")]
-paths += [Path("dev/work_items/alpha_a12_publication_gate.py")]
-paths += [Path("dev/work_items/alpha_a13_minecraft_gate.py")]
-paths += [Path("dev/work_items/alpha_a13_failure_gate.py")]
-paths += [Path("dev/work_items/alpha_a13_lifecycle_gate.py")]
-paths += [Path("dev/work_items/alpha_a14_cooperation_gate.py")]
-paths += [Path("dev/work_items/alpha_a14_draft_gate.py")]
-paths += [Path("dev/work_items/alpha_a14b_memory_gate.py")]
-paths += [Path("dev/work_items/alpha_a14_dialogue_gate.py")]
+paths += [Path("main.py"), Path("dev/tools/compile_minecraft_skill.py")]
 paths += list(Path("dev/work_items/a18b").glob("*.py"))
-paths += [Path("dev/work_items/alpha_a18c_wait_gate.py")]
-paths += [Path("dev/work_items/alpha_a19_reflection_gate.py")]
-paths += [Path("dev/work_items/alpha_a19_review.py")]
-paths += [Path("dev/work_items/alpha_a19f_groups_gate.py")]
 paths += [Path("dev/kanban/server.py"), Path("dev/work_items/k002/recovery.py")]
 for path in sorted(paths):
     if "tests" in path.parts or any(part.startswith("_") for part in path.parts):

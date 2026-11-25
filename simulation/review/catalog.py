@@ -5,9 +5,9 @@ and ``registration.json`` under the capture's own folder, and refuses a differen
 payload for an ID that already exists. Owner feedback lives in a separate
 ``feedback.json`` beside it, so a mutable note can never alter captured evidence.
 
-Owns: the capture registry and the legacy registration list. Does not own: bundle
-construction (``simulation.review.cognitive_trace``) or record presentation
-(``pm.introspection.record_format``).
+Owns the capture registry. Bundle
+construction lives in ``simulation.review.cognitive_trace``. Record presentation
+lives in ``pm.introspection.record_format``.
 """
 from __future__ import annotations
 
@@ -24,9 +24,6 @@ from pm.paths import REPO_ROOT
 from simulation.personas import DEFAULT_RUNS
 
 
-LEGACY_REGISTRY = Path(__file__).with_name("legacy-registry.json")
-
-
 def identifier(value: str) -> str:
     """Require a portable capture ID without path separators."""
     if not re.fullmatch(r"[A-Za-z0-9_-]+", value):
@@ -35,18 +32,8 @@ def identifier(value: str) -> str:
 
 
 def captures(root: Path = DEFAULT_RUNS) -> list[dict[str, JsonValue]]:
-    """List current captures and preserved legacy registrations.
-
-    Each row is one registration receipt plus ``available`` (whether the capture
-    file exists in this checkout) and ``legacy`` (it is registered by the
-    preserved list rather than a folder). Legacy rows stay listed when their file
-    is gone, because the registration itself is owner evidence.
-    """
+    """List the registration receipts under the selected run data root."""
     rows: list[dict[str, JsonValue]] = []
-    if LEGACY_REGISTRY.exists():
-        legacy = json.loads(LEGACY_REGISTRY.read_text(encoding="utf-8"))
-        rows.extend({**item, "legacy": True, "available": (REPO_ROOT / item["path"]).is_file()}
-                    for item in legacy.get("bundles", []))
     for path in sorted((root / "reviews").glob("*/registration.json")):
         rows.append({**json.loads(path.read_text(encoding="utf-8")), "available": True, "legacy": False})
     return rows
@@ -82,7 +69,7 @@ def register(bundle: dict[str, JsonValue], *, root: Path = DEFAULT_RUNS) -> str:
 
 
 def load_capture(capture_id: str, *, root: Path = DEFAULT_RUNS) -> dict[str, JsonValue]:
-    """Read one registered capture. Missing legacy files remain unavailable."""
+    """Read one registered capture or raise if the ID is unavailable."""
     identifier(capture_id)
     row = next((item for item in reversed(captures(root)) if item["id"] == capture_id), None)
     if row is None or not row["available"]:

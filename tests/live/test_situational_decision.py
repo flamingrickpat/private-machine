@@ -16,6 +16,7 @@ from uuid import uuid4
 
 from pm_workflows.runtime import WorkflowRuntime
 
+from tests.live.configuration import live_model_config
 from pm.context_render.story import record_view
 from pm.llm.activation import ModelActivation
 from pm.llm.config import load_config, resolve_connection
@@ -54,18 +55,16 @@ def add_dialogue(store: MemoryStore, speaker: str, partner_id: int, text: str, m
 
 class LiveSituationalDecisionTests(unittest.TestCase):
     def test_partner_absence_and_return_change_decision_for_human_and_ai(self) -> None:
-        config = load_config(ROOT / "config.yaml")
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid4().hex[:8]
+        out = ROOT / ".runtime/beta-situation" / stamp
+        out.mkdir(parents=True)
+        config_path = live_model_config(ROOT / "config.yaml", out)
+        config = load_config(config_path)
         connection = resolve_connection(config)
         if urlsplit(connection.base_url).hostname != "openrouter.ai" or connection.startup_script is not None:
             raise ValueError("This gate requires config.yaml to select OpenRouter without a local startup script.")
         if urlsplit(config.embedding.base_url).hostname != "openrouter.ai":
             raise ValueError("This gate requires OpenRouter embeddings too.")
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid4().hex[:8]
-        out = ROOT / ".runtime/beta-situation" / stamp
-        out.mkdir(parents=True)
-        OperatingSystem.environment["PM_COMPLETION_CACHE"] = "0"
-        OperatingSystem.environment["PM_PROMPT_LOG"] = "1"
-        OperatingSystem.environment["PM_PROMPT_LOG_DIR"] = str(out / "prompts")
         model = LazyStageModel(connection, ModelActivation(), live_test=True)
         embeddings = EmbeddingService(config.embedding)
         revision = OperatingSystem.output_text(["git", "rev-parse", "HEAD"], cwd=ROOT).strip()

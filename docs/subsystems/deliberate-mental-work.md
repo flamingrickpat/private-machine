@@ -176,4 +176,3 @@ That is the current step contract of every inquiry. Letting each step propose th
 - Not verified in a real run: the default first operation `memory_search`, main attention accepting graph focus advice, an accepted wait holding admission, and Critical displacement of a deliberate episode.
 
 The <a href="../../dev/work_items/beta-b05.md">B05 engineering record</a> holds the results and their limits.
-The earlier agent session was verified by `dev/work_items/alpha_a18c_mental_gate.py`; see the [A18C evidence](../work_items/verification/a18c-control.md). That gate tested code that no longer exists.

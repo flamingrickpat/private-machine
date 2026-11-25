@@ -19,6 +19,7 @@ from simulation.baseline import BaselineCampaign, Scenario
 from simulation.baseline_minecraft import MinecraftSetup
 from simulation.local_world import LocalWorld, Settings, SetupError
 from simulation.personas import CANON, DEFAULT_RUNS, canon_home, write_home
+from simulation.source import SimulationConfigOverrides, copy_simulation_config
 
 
 class Installation(Settings):
@@ -45,13 +46,7 @@ def model_settings(source: Path, destination: Path) -> None:
         settings.embedding.resolve()
     except (ValueError, KeyError) as error:
         raise SetupError(f"Invalid model endpoint settings in {source}. Check the chat, embedding and API key settings.") from error
-    # Preserve original key references and provider-specific fields in the on-disk model schema.
-    document = yaml.safe_load(source.read_text(encoding="utf-8-sig"))
-    document["profile_cognition"] = True
-    for name, connection in settings.chat.items():
-        if connection.startup_script is not None:
-            document["chat"][name]["startup_script"] = str(connection.startup_script)
-    destination.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+    copy_simulation_config(source, destination, SimulationConfigOverrides(profile=True))
 
 
 def prepare_seed(checkpoint: Path | None, destination: Path) -> Path:

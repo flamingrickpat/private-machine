@@ -169,7 +169,6 @@ def _run_boundary_check(context: RoleContext) -> dict[str, Any]:
     request = MinecraftRequest.model_validate({key: value for key, value in payload.items()
                                              if not key.startswith("_public_")})
     prompts = load_prompts()
-    from workflows.minecraft_body.lease import BODY_LEASES
     from workflows.minecraft_body.gateway import BodyGateway
     runtime = require_minecraft_runtime(context.runtime)
     endpoint = runtime.minecraft_transport.settings.endpoint
@@ -258,14 +257,13 @@ def run(context: RoleContext) -> dict[str, Any]:
     # Existing explicit actions and wait fixtures retain their narrow contract.
     narrow = payload.get("mode") == "boundary_check" or payload.get("action_tool") or payload.get("wait_for_cancel") or payload.get("wait_for_update")
     if narrow:
-        from workflows.minecraft_body.lease import BODY_LEASES
         runtime = require_minecraft_runtime(context.runtime)
         with runtime.body_lease.acquire():
             try:
                 return _run_boundary_check(context)
             finally:
                 if runtime.body_lease.ownership is None:
-                    token = BODY_LEASES.token(runtime.minecraft_transport.settings.endpoint, runtime.body_lease.owner)
+                    token = runtime.minecraft_transport.leases.token(runtime.minecraft_transport.settings.endpoint, runtime.body_lease.owner)
                     runtime.minecraft_transport.release(token)
     from workflows.minecraft.specialist_session import run_specialist_session
     return run_specialist_session(context)

@@ -17,6 +17,7 @@ from threading import Lock
 
 import yaml
 
+from pm.app.operator_config import default_config_path
 from pm.utils.operating_system import OperatingSystem
 from dev.work_items.a18b.identity import save_review_origin, save_suite, saved_suite
 from dev.work_items.a18b.policy import Fact, PublicMessage, ReviewCriterion, ReviewPacket, Scenario, score_case, score_suite
@@ -309,7 +310,7 @@ def main() -> int:
     """Run a command. A selected subset always reports incomplete suite coverage."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=["list", "calibrate", "calibrate-worker", "run", "run-case", "review-case", "review-capture", "score", "show", "review-saved"])
-    parser.add_argument("--config", type=Path, default=ROOT / "config.alpha.openrouter.yaml")
+    parser.add_argument("--config", type=Path, default=Path(default_config_path()))
     parser.add_argument("--out", type=Path)
     parser.add_argument("--case", action="append", default=[])
     parser.add_argument("--source", type=Path)
@@ -363,7 +364,8 @@ def main() -> int:
     if args.command == "review-case":
         if len(args.case) != 1:
             parser.error("review-case requires exactly one --case.")
-        OperatingSystem.environment["PM_PROMPT_LOG_DIR"] = str(args.out.parent / "review-llm-logs")
+        from pm.llm.prompt_log import configure_root
+        configure_root(args.out.parent / "review-llm-logs")
         save_review_origin(args.out)
         with worker_cancellation(args.out, suite.review_timeout_seconds) as cancel:
             review_case(args.out, choices[args.case[0]], suite, model(args.config), cancel=cancel)
@@ -384,7 +386,8 @@ def main() -> int:
         "source_run": str(args.source.resolve()) if args.source is not None else None,
         "source_origin_sha256": sha256_file(args.source / "run-origin.json") if args.command == "review-saved" else None,
         "started_at": datetime.now(timezone.utc).isoformat(), "command": sys.argv})
-    OperatingSystem.environment["PM_PROMPT_LOG_DIR"] = str(out / "review-llm-logs")
+    from pm.llm.prompt_log import configure_root
+    configure_root(out / "review-llm-logs")
     if args.command == "calibrate":
         with (out / "calibration.log").open("w", encoding="utf-8") as log:
             worker = run_worker([sys.executable, "-m", "dev.work_items.a18b", "calibrate-worker",

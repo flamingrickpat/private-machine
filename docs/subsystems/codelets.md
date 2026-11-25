@@ -17,10 +17,7 @@ After the codelets, the structure builders bind the CSM items, and attention mov
 See [structures, attention, and the workspace](workspace.md).
 
 Parent: [cognitive pipeline](cognition.md).
-Plan: [A19F](../work_items/alpha-plan/work-items/a19f.md), sections "Codelets", "Prompt frame", and "Current situational model".
-Decisions: D25 and D26 in the [decision register](../work_items/alpha-plan/decision-register.md).
 Related: [structures, attention, and the workspace](workspace.md), [codelet pathways](codelet-pathways.md), [emotional dynamics](emotional-dynamics.md).
-Earlier evidence: [A15 verification](../work_items/verification/a15-codelets.md), [A16 verification](../work_items/verification/a16-codelets.md). These records describe the removed catalogue.
 
 ## Where codelets run in the cycle
 
@@ -263,7 +260,7 @@ The commit replaces it with the real tick in the CSM, the registry, and the work
 
 ## Inspect a real cycle
 
-1. In the prompt logs (`PM_PROMPT_LOG_DIR`), search for “act as a selector” to find the candidate names and ratings. For a chain, the next two kinds of calls produce the prose recommendation and convert it into typed percepts.
+1. In the prompt logs , search for “act as a selector” to find the candidate names and ratings. For a chain, the next two kinds of calls produce the prose recommendation and convert it into typed percepts.
 2. Agent sessions keep their transcripts under `llm-logs/agents/<run>-<codelet>_<attempt>/`.
 3. In the checkpoint, read the last cycle state: `csm.items` with endorsers and `codelets.codelets` with the runtime state.
 4. Read the `CodeletPercept` records of the tick and the `trace` of the turn record.

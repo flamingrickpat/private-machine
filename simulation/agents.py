@@ -170,8 +170,10 @@ class Agents:
                  *, settings: SimulationAgentSettings = SimulationAgentSettings()) -> None:
         configuration = load_config(config)
         self.capture_options = settings.renderer_capture if settings.renderer_capture is not None else configuration.renderer_capture
-        self.model: LazyStageModel = LazyStageModel(resolve_connection(configuration, preset=settings.preset),
-            ModelActivation(), capture_options=self.capture_options)
+        connection = resolve_connection(configuration, preset=settings.preset)
+        io = connection.io.model_copy(update={"completion_cache": False})
+        connection = connection.model_copy(update={"io": io})
+        self.model: LazyStageModel = LazyStageModel(connection, ModelActivation(), capture_options=self.capture_options)
         self.evidence: Path = evidence
         self.cancel: threading.Event | None = cancel
         self.config_path: str = config

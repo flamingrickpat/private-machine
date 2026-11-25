@@ -40,7 +40,6 @@ Reading map: ``_managed_workflows`` (managed run specifications),
 from __future__ import annotations
 
 
-from pm.utils.operating_system import OperatingSystem
 from pm import vclock
 
 from datetime import datetime
@@ -73,7 +72,7 @@ from pm.runs.workflow_module import PROJECT_ROOT, CognitiveWorkflow, WorkflowMod
 from pm.app.operator_config import default_config_path
 from pm.paths import REPO_ROOT
 from workflows.cognitive_control.schemas import ControlConfig
-from pm.llm.mcp_config import ToolCallConfig
+from pm.llm.mcp_config import MinecraftConfig, ToolCallConfig
 
 if TYPE_CHECKING:
     from workflows.minecraft_body.mcp_client import MinecraftTransport
@@ -109,6 +108,7 @@ def _managed_workflows(
     *,
     enable_minecraft: bool = True,
     shutdown: Event | None = None,
+    minecraft_config: MinecraftConfig | None = None,
 ) -> dict[str, WorkflowSpec]:
     """Return the managed workflow specifications, keyed by workflow name.
 
@@ -133,7 +133,7 @@ def _managed_workflows(
     from workflows.minecraft.host import build_minecraft_module_tools, MinecraftContextOwner, ProjectMemoryOwner
     from workflows.minecraft_body.ownership import BodyOwnership
     from workflows.minecraft_body.lease import body_key
-    body_runtime = build_minecraft_module_tools(stage_model, mcp_url=minecraft_endpoint)
+    body_runtime = build_minecraft_module_tools(stage_model, mcp_url=minecraft_endpoint, configuration=minecraft_config)
     body_suite = next((server for server in tool_call.mcp_servers if server.name == "minecraft"), None) if tool_call else None
     if body_suite is not None and minecraft_endpoint and body_key(body_suite.url) != body_key(minecraft_endpoint):
         raise ValueError("tool_call.minecraft and minecraft.mcp_url must name the same body.")
@@ -350,21 +350,6 @@ def _cognition_modules(
     return CognitionModules(main_cog, dialogue, None, None, inner_thought, None)
 
 
-def _minecraft_endpoint(loaded: ModelConfig) -> str | None:
-    """Return the Minecraft body endpoint for this run, or None for no body.
-
-    The ``minecraft`` section of the model configuration is the normal source,
-    so a real session needs no environment variable. ``MINECRAFT_MCP_URL``
-    stays a test override: the real gates and the live tests start their own
-    server on a random port and name it. A character with no body omits the
-    section and gets no world poll and no body tools.
-    """
-    override = OperatingSystem.environment.get("MINECRAFT_MCP_URL")
-    if override:
-        return override
-    return loaded.minecraft.mcp_url if loaded.minecraft is not None else None
-
-
 def build_app(
     seed_path: str | Path | None,
     runtime_root: str | Path,
@@ -457,7 +442,8 @@ def build_app(
 
     consolidator = Consolidator(ghost, clock=app.clock)
     context_embeddings = None
-    minecraft_endpoint = None
+    minecraft_endpoint: str | None = None
+    minecraft_config: MinecraftConfig | None = None
     probe_timeout_seconds: float | None = None
     if cognition == "real":
         from pm.llm.config import load_config
@@ -473,11 +459,13 @@ def build_app(
         if cognitive_control_config is None:
             cognitive_control_config = loaded.cognitive_control
         probe_timeout_seconds = loaded.minecraft.probe_timeout_seconds if loaded.minecraft is not None else None
-        minecraft_endpoint = _minecraft_endpoint(loaded) if enable_minecraft else None
+        if enable_minecraft and loaded.minecraft is not None:
+            minecraft_config = loaded.minecraft
+            minecraft_endpoint = minecraft_config.mcp_url
         if enable_minecraft and minecraft_endpoint is None and tool_call is not None:
             minecraft_endpoint = next((server.url for server in tool_call.mcp_servers if server.name == "minecraft"), None)
     specs = _managed_workflows(stage_model, context_embeddings, ghost, tool_call, minecraft_endpoint,
-                               enable_minecraft=enable_minecraft, shutdown=app.shutdown_event)
+                               enable_minecraft=enable_minecraft, shutdown=app.shutdown_event, minecraft_config=minecraft_config)
     from workflows.minecraft.host import MinecraftRuntimeOwner
     body_runtime = next((spec.runtime_owner for spec in specs.values()
                          if isinstance(spec.runtime_owner, MinecraftRuntimeOwner)), None)
@@ -666,7 +654,6 @@ def build_app(
         app.cognitive_control = control
         if world_poll_seconds is not None and minecraft_endpoint is not None:
             from workflows.minecraft_body.world_events import WorldEvents
-            from workflows.minecraft_body.lease import BODY_LEASES
             endpoint = minecraft_endpoint
             assert body_transport is not None
             transport = body_transport
@@ -676,7 +663,7 @@ def build_app(
                 # claim the mutation lease or bypass an in-flight action.
                 from pm_workflows.runtime import WorkflowTerminated
                 try:
-                    with BODY_LEASES.command(endpoint, cancel=world_events.stop_event):
+                    with transport.leases.command(endpoint, cancel=world_events.stop_event):
                         return transport.call("minecraft_observe", {"include_image": False})
                 except WorkflowTerminated:
                     return {"ok": False, "cancelled": True}

@@ -48,12 +48,6 @@ class CodeletGroundingTests(unittest.TestCase):
         self.catalog: Path = self.output / "codelets.yaml"
         catalog_yaml = yaml_util.safe_dump(only_desire.model_dump(mode="json"), sort_keys=False)  # pm-lint: allow PM007 -- registry configuration file
         self.catalog.write_text(catalog_yaml, encoding="utf-8")
-        environment = OperatingSystem.environment
-        if "PM_COMPLETION_CACHE" in environment:
-            self.addCleanup(environment.__setitem__, "PM_COMPLETION_CACHE", environment["PM_COMPLETION_CACHE"])
-        else:
-            self.addCleanup(environment.pop, "PM_COMPLETION_CACHE")
-        environment["PM_COMPLETION_CACHE"] = "0"
 
     def examine(self, scene: str, card: str, message: str) -> CodeletsResult:
         """Force the same shipped codelet to run once, including when the selector rates it zero."""

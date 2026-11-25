@@ -10,20 +10,15 @@ companion its own MCP servers through its own config file. Example::
         - name: image_gen
           url: http://127.0.0.1:9877/mcp
           headers:
-            Authorization: Bearer ${IMAGE_MCP_TOKEN}
+            Authorization: Bearer your-local-token
           request_timeout_seconds: 600
 
-A header value can name environment variables as ``${NAME}``. The process
-environment wins; the git-ignored ``.env`` file is the fallback, as for the
-model credentials (:mod:`pm.llm.env_file`). A missing variable raises
-:class:`McpConfigError`; no anonymous request replaces it.
-
-Parsing reads no environment and opens no connection. Credentials are
-resolved only by :meth:`McpServerConfig.resolved_headers`.
+Keep literal credential headers in the ignored local YAML file.
 """
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -63,27 +58,12 @@ class McpServerConfig(BaseModel):
             raise ValueError("An MCP server needs an HTTP or HTTPS URL.")
         return value
 
-    def header_variables(self) -> list[str]:
-        """Return the environment variable names that the headers reference, in order."""
-        return [name for value in self.headers.values() for name in ENV_REFERENCE.findall(value)]
-
     def resolved_headers(self) -> dict[str, str]:
-        """Return the headers with every ``${NAME}`` replaced by its value.
-
-        Raises McpConfigError when a variable has no value in the process
-        environment or in ``.env``. The result holds credentials: keep it in
-        memory and out of reports.
-        """
-        from pm.llm.env_file import credential
-
-        def value(match: re.Match) -> str:
-            found = credential(match.group(1))
-            if not found:
-                raise McpConfigError(f"MCP server {self.name!r}: set the header environment variable "
-                                     f"{match.group(1)} or add it to .env.")
-            return found
-
-        return {key: ENV_REFERENCE.sub(value, text) for key, text in self.headers.items()}
+        """Return literal headers. Reject old environment references before discovery."""
+        for value in self.headers.values():
+            if ENV_REFERENCE.search(value):
+                raise McpConfigError(f"MCP server {self.name!r}: set literal headers in your local model YAML.")
+        return self.headers.copy()
 
 
 class ToolCallConfig(BaseModel):
@@ -110,8 +90,8 @@ class ToolCallConfig(BaseModel):
             raise ValueError("Each MCP server needs a unique name.")
         return self
 
-    def check_environment(self) -> None:
-        """Resolve every header reference once. A missing variable raises McpConfigError."""
+    def validate_headers(self) -> None:
+        """Reject any old environment reference before opening a connection."""
         for server in self.mcp_servers:
             server.resolved_headers()
 
@@ -135,6 +115,8 @@ class MinecraftConfig(BaseModel):
     mcp_url: str = Field(min_length=1)
     request_timeout_seconds: int = Field(default=MINECRAFT_REQUEST_SECONDS, gt=0, strict=True)
     probe_timeout_seconds: float = Field(default=5.0, gt=0, le=120)
+    lease_directory: Path | None = Field(default=None,
+        description="Shared lease registry for clients of this body. Null uses the Windows local application data directory.")
 
     @field_validator("mcp_url")
     @classmethod

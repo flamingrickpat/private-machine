@@ -7,6 +7,7 @@ Empty nominations and unselected concerns remain actual outcomes, not passes.
 """
 from __future__ import annotations
 
+from tests.live.configuration import live_model_config
 from pm.host.application import Application
 
 from dataclasses import dataclass
@@ -205,18 +206,15 @@ class LivePrivateInquiryTests(unittest.TestCase):
     """Sample separate nomination, attention, connected thought, and finding integration."""
 
     def test_connected_generation_discrimination_and_finding(self) -> None:
-        config = load_config(ROOT / "config.yaml")
-        connection = resolve_connection(config)
-        if urlsplit(connection.base_url).hostname != "openrouter.ai" or connection.startup_script is not None:
-            raise ValueError("NOT RUN — this gate requires configured OpenRouter chat without a local startup script.")
         out = ROOT / ".runtime/beta-b05/live" / (
             datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid4().hex[:8])
         out.mkdir(parents=True)
         print(f"B05 bounded private inquiry evidence: {out}", flush=True)
-        old_environment = {key: OperatingSystem.environment.get(key)
-                           for key in ("PM_COMPLETION_CACHE", "PM_PROMPT_LOG_DIR")}
-        OperatingSystem.environment["PM_COMPLETION_CACHE"] = "0"
-        OperatingSystem.environment["PM_PROMPT_LOG_DIR"] = str(out / "prompts")
+        config_path = live_model_config(ROOT / "config.yaml", out)
+        config = load_config(config_path)
+        connection = resolve_connection(config)
+        if urlsplit(connection.base_url).hostname != "openrouter.ai" or connection.startup_script is not None:
+            raise ValueError("NOT RUN — this gate requires configured OpenRouter chat without a local startup script.")
         previous_clock = vclock.active()
         clock = vclock.VirtualClock(datetime(2026, 11, 12, 20, 0, tzinfo=timezone.utc))
         vclock.install(clock)
@@ -358,11 +356,6 @@ class LivePrivateInquiryTests(unittest.TestCase):
             module.stop_event.set()
             module.cancel_run()
             vclock.install(previous_clock)
-            for key, old_value in old_environment.items():
-                if old_value is None:
-                    OperatingSystem.environment.pop(key, None)
-                else:
-                    OperatingSystem.environment[key] = old_value
             self.assertEqual(hashlib.sha256(RETAINED_CHECKPOINT.read_bytes()).hexdigest(), fixture.original_checkpoint_hash,
                              "The retained original checkpoint changed during this copied-fixture gate.")
 

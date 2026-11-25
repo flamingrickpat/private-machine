@@ -12,8 +12,6 @@ Programming and filesystem errors still reach application error handling.
 It supplies evidence for generic reasoning about the partner's ability to receive and respond.
 
 Parent: [cognition](cognition.md).
-Related: [experienced memory](experienced-memory.md), [publication and recovery](public-publication.md), [the private ontology](private-ontology.md), and [A09 verification](../work_items/verification/a09-public-dialogue.md).
-Design: [private ontology](../work_items/alpha-plan/ontology.md).
 
 ## Context and entry points
 
@@ -182,8 +180,6 @@ Python decides the block from the model's explicit `false_task_result` flag, so 
 A chosen lie, a tease, an exaggeration, or a metaphor is not a false task result.
 The accepted reply records `review.reason` beside its durable utterance and in the published reply.
 The A09 claim-by-claim review and its grounding recovery were removed on 2026-10-13.
-The [A09 verification](../work_items/verification/a09-public-dialogue.md) keeps their historical evidence.
-[A09R](../work_items/verification/a09r-private-ontology.md) replaced the weighted hallucination policy with this review.
 
 ## Model-output failures
 
@@ -206,7 +202,7 @@ Its reviews can therefore repair invalid JSON or speech spans without a missing-
 Assistant stores completed tool receipts before requesting more model output.
 An empty Assistant result cannot cause those tools to run again.
 
-[`PublicDialogue.defer_reply`][workflows.public_speech.public_dialogue.PublicDialogue.defer_reply] handles only declared model-output exhaustion:
+[Reply recovery][workflows.public_speech.reply_recovery.ReplyRecovery] handles only declared model-output exhaustion:
 
 - [`ProviderCompletionError`][pm.llm.http_client.ProviderCompletionError]: the provider failed or filtered generation. Partial text never reaches publication.
 - [`SpeechOutputError`][workflows.public_speech.speech_text.SpeechOutputError]: the speech workflow exhausted its usable-output attempts.
@@ -237,7 +233,6 @@ They keep their prompts under their own fresh `.runtime/stability/` directory.
 
 ## Inspect a real exchange
 
-Run the [A09 console gate](../work_items/verification/a09-public-dialogue.md).
 Read the correlated public request and the workflow report.
 For Story, read `attempts` and `speech_review`: the attempt holds the draft and its one review.
 Inspect the public Feature's `review_reason`, `review_judgment`, `factual_promotion`, `action_schema_id`, and presentation attribution.

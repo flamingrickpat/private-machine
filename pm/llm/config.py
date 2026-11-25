@@ -1,12 +1,10 @@
 """Resolve model config without network calls or process changes.
 
-Invalid external config raises ValueError with redacted input. Code errors
-keep their tracebacks. Resolving a credential reads its environment reference
-once, then the git-ignored repository ``.env`` (``pm.llm.env_file``). Resolved connections never select a backend through global environment.
+Invalid configuration raises ValueError with redacted input. The selected YAML
+owns endpoint, credential, cache, and prompt logging settings.
 """
 from __future__ import annotations
 
-import os
 from enum import StrEnum
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -25,6 +23,18 @@ class LlmPreset(StrEnum):
 
     Default = "Default"
     UnitTestEvaluator = "UnitTestEvaluator"
+
+
+class InferenceIO(BaseModel):
+    """Local completion replay and prompt evidence settings for a model request."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    completion_cache: bool = Field(default=True, description="Replay matching completions from disk.")
+    cache_directory: Path = Field(default=Path("~/.pm/private-machine/cache"))
+    prompt_log: bool = Field(default=True, description="Write request and response evidence.")
+    prompt_log_directory: Path | None = Field(default=None,
+        description="Override the persona prompt directory. Paths are relative to this YAML.")
 
 
 class Connection(BaseModel):
@@ -46,6 +56,7 @@ class Connection(BaseModel):
         description="Force reasoning on for endpoints that reject requests with reasoning disabled.")
     api_key: SecretStr = SecretStr("")
     startup_script: Path | None = None
+    io: InferenceIO = Field(default_factory=InferenceIO, exclude=True)
     # Remote services can omit serving limits. This optional bound applies
     # to workflow classification, native agents, and direct project decisions.
     context_window: StrictInt | None = Field(default=None, gt=0)
@@ -84,36 +95,17 @@ class Connection(BaseModel):
 
 
 class ConnectionConfig(Connection):
-    """One configured chat connection whose credential may be unresolved.
-
-    ``api_key`` holds a literal secret; ``api_key_env`` names the environment
-    variable to read at resolution time. Setting both is an error.
-    """
+    """An endpoint as written in YAML."""
 
     api_key: SecretStr | None = None
-    api_key_env: str | None = None
-
-    @model_validator(mode="after")
-    def one_credential_source(self) -> "ConnectionConfig":
-        if self.api_key is not None and self.api_key_env is not None:
-            raise ValueError("Specify api_key or api_key_env, not both.")
-        return self
+    api_key_env: str | None = Field(default=None, exclude=True)
 
     def resolve(self) -> Connection:
-        """Return the connection with its credential resolved.
-
-        Raises ValueError when the named variable has no value; no anonymous
-        request replaces the missing credential.
-        """
-        key = self.api_key or SecretStr("")
+        """Resolve one configured endpoint to a complete request connection."""
         if self.api_key_env is not None:
-            # The process environment wins; the git-ignored .env is the fallback.
-            from pm.llm.env_file import credential
-            value = credential(self.api_key_env)
-            if not value:
-                raise ValueError(f"Set the credential environment variable {self.api_key_env} or add it to .env.")
-            key = SecretStr(value)
-        return Connection(base_url=self.base_url, model=self.model, api_key=key, startup_script=self.startup_script,
+            raise ValueError(f"Move {self.api_key_env} into api_key in your local model YAML.")
+        key = self.api_key or SecretStr("")
+        return Connection(base_url=self.base_url, model=self.model, api_key=key, startup_script=self.startup_script, io=self.io,
                           disable_threading=self.disable_threading, provider=self.provider,
                           require_reasoning=self.require_reasoning,
                           context_window=self.context_window, context_input_fraction=self.context_input_fraction,
@@ -165,6 +157,7 @@ class ModelConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
 
+    inference_io: InferenceIO = Field(default_factory=InferenceIO)
     chat: dict[LlmPreset, ConnectionConfig]
     embedding: EmbeddingConfig
     tool_call: ToolCallConfig = Field(default_factory=ToolCallConfig)
@@ -203,10 +196,22 @@ def load_config(path: str | Path) -> ModelConfig:
     except yaml.YAMLError:
         raise ValueError("The model config contains invalid YAML. Check the local file.") from None
     config = ModelConfig.model_validate(data)
+    cache_directory = (path.parent / config.inference_io.cache_directory.expanduser()).resolve()
+    prompt_directory = config.inference_io.prompt_log_directory
+    if prompt_directory is not None:
+        prompt_directory = (path.parent / prompt_directory.expanduser()).resolve()
+    config.inference_io = config.inference_io.model_copy(update={
+        "cache_directory": cache_directory, "prompt_log_directory": prompt_directory,
+    })
     for preset, connection in config.chat.items():
-        if connection.startup_script is not None:
-            script = connection.startup_script.expanduser()
-            config.chat[preset] = connection.model_copy(update={"startup_script": (path.parent / script).resolve()})
+        script = connection.startup_script
+        if script is not None:
+            script = (path.parent / script.expanduser()).resolve()
+        config.chat[preset] = connection.model_copy(update={"startup_script": script, "io": config.inference_io})
+    config.embedding = config.embedding.model_copy(update={"io": config.inference_io})
+    if config.minecraft is not None and config.minecraft.lease_directory is not None:
+        lease_directory = (path.parent / config.minecraft.lease_directory.expanduser()).resolve()
+        config.minecraft = config.minecraft.model_copy(update={"lease_directory": lease_directory})
     return config
 
 

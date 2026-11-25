@@ -17,6 +17,7 @@ import unittest
 from urllib.parse import urlsplit
 from uuid import uuid4
 
+from tests.live.configuration import live_model_config
 from pm.bus.envelopes import Envelope
 from pm.llm.activation import ModelActivation
 from pm.llm.config import load_config, resolve_connection
@@ -27,7 +28,6 @@ from pm.memory.store import MemoryStore
 from pm.records.copying import pickle_copy
 from pm.records.cycle_state import CycleStateModel
 from pm.records.base import RecordBase
-from pm.utils.operating_system import OperatingSystem
 from tests.live.test_critical_preemption import ObservedEvent, PromptAttempt
 from workflows.companion import build_app
 from workflows.interaction.records import interaction_receipts
@@ -43,17 +43,16 @@ class LiveAsyncInteractionTests(unittest.TestCase):
     """Use actual kernels and provider receipts, without simulation rating agents."""
 
     def test_two_ordinary_inputs_respond_before_background_main_acceptance(self) -> None:
-        config = load_config(ROOT / "config.yaml")
-        connection = resolve_connection(config)
-        if (urlsplit(connection.base_url).hostname != "openrouter.ai" or connection.startup_script is not None
-                or urlsplit(config.embedding.base_url).hostname != "openrouter.ai"):
-            raise ValueError("This gate requires OpenRouter chat/embeddings and no local startup script.")
         out = ROOT / ".runtime/beta-b03/live" / (
             datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid4().hex[:8])
         out.mkdir(parents=True)
         print(f"Async interaction evidence: {out}", flush=True)
-        OperatingSystem.environment["PM_COMPLETION_CACHE"] = "0"
-        OperatingSystem.environment["PM_PROMPT_LOG_DIR"] = str(out / "prompts")
+        config_path = live_model_config(ROOT / "config.yaml", out)
+        config = load_config(config_path)
+        connection = resolve_connection(config)
+        if (urlsplit(connection.base_url).hostname != "openrouter.ai" or connection.startup_script is not None
+                or urlsplit(config.embedding.base_url).hostname != "openrouter.ai"):
+            raise ValueError("This gate requires OpenRouter chat/embeddings and no local startup script.")
         canonical = MemoryStore.from_yaml(ROOT / "test_data/personas/spamuel/canon.yaml")
         identities: list[RecordBase] = [pickle_copy(record) for record in canonical.all_entities
                                        if record.content in {canonical.get_user_name(), canonical.get_companion_name()}]
@@ -82,7 +81,7 @@ class LiveAsyncInteractionTests(unittest.TestCase):
                 print(f"OBSERVED {envelope.topic}: {envelope.correlation_id}", flush=True)
 
         app = build_app(None, out, ghost=store, cognition="real", stage_model=model,
-            workflow_models=workflow_models, config_path=str(ROOT / "config.yaml"), thought_period=3600,
+            workflow_models=workflow_models, config_path=str(config_path), thought_period=3600,
             record_lifecycle=False, enable_minecraft=False, world_poll_seconds=None,
             tool_call=ToolCallConfig(), emit_reply=lambda text: print(f"PUBLIC: {text}", flush=True))
         app.bus.subscribe("b03_evidence", lambda envelope: envelope.topic in {

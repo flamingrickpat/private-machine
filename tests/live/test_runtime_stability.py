@@ -17,7 +17,6 @@ from pathlib import Path
 from threading import Event
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
 from uuid import uuid4
 
 from pm.utils.operating_system import OperatingSystem
@@ -25,7 +24,7 @@ from pm.bus.bus import BusSystem
 from pm.bus.envelopes import new_envelope
 from pm.context_render.turns import Role, Turn
 from pm.llm.activation import ModelActivation
-from pm.llm.config import Connection
+from pm.llm.config import Connection, InferenceIO
 from pm.llm.stage_model import LazyStageModel
 from pm.llm.structured import complete_json_async
 from pm.memory.bash_view import MemoryBashEnvironment, MemoryBashTarget
@@ -52,11 +51,8 @@ class LiveRuntimeStabilityTests(unittest.TestCase):
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid4().hex[:8]
         cls.out = Path(OperatingSystem.environment.get("PM_STABILITY_EVIDENCE", ROOT / ".runtime/stability" / stamp))
         cls.out.mkdir(parents=True, exist_ok=False)
-        cls.enterClassContext(patch.dict(OperatingSystem.environment, {
-            "PM_COMPLETION_CACHE": "0", "PM_PROMPT_LOG": "1",
-            "PM_PROMPT_LOG_DIR": str(cls.out / "prompts"),
-        }))
         cls.connection = Connection(
+            io=InferenceIO(completion_cache=False, prompt_log_directory=cls.out / "prompts"),
             base_url=OperatingSystem.environment.get("PM_STABILITY_LLM_URL", "http://127.0.0.1:8080/v1"),
             model=OperatingSystem.environment.get("PM_STABILITY_LLM_MODEL", "qwen"),
         )
@@ -98,7 +94,7 @@ class LiveRuntimeStabilityTests(unittest.TestCase):
         self.assertEqual(self.model.client.client.cache_hits, 0)
 
     def test_captured_syntax_repair_uses_the_granted_real_model(self):
-        capture = json.loads((ROOT / "test_data/captures/alpha/cognitive-format-recovery.json").read_text(encoding="utf-8"))
+        capture = json.loads((ROOT / "test_data/captures/live/cognitive-format-recovery.json").read_text(encoding="utf-8"))
         raw = capture["malformed_thought"]["text"]
         environment = MemoryBashEnvironment({}, {}, "read")
         tools = build_main_cognition_tools(None, self.case, self.model.complete)(environment, None)

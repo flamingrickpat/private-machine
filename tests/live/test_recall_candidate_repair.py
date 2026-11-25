@@ -27,6 +27,7 @@ from threading import Event
 import unittest
 from uuid import uuid4
 
+from tests.live.configuration import live_model_config
 from pm.constants import Sampler
 from pm.context_render.turns import Role, Turn, format_content
 from pm.llm.activation import ModelActivation
@@ -98,22 +99,14 @@ class LiveRecallCandidateRepairTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         default = "config.local.yaml" if Path("config.local.yaml").is_file() else "config.example.yaml"
-        cls.config_path = OperatingSystem.environment.get("PM_MODEL_CONFIG", default)
-        cls.connection = resolve_connection(load_config(cls.config_path))
-        cls.owner = ModelActivation()
-        asyncio.run(cls.owner.activate(cls.connection, live_test=True))
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid4().hex[:8]
         cls.out = ROOT / ".runtime/recall-candidate-repair" / stamp
         cls.out.mkdir(parents=True)
-        cls.previous_log = OperatingSystem.environment.get("PM_PROMPT_LOG_DIR")
-        OperatingSystem.environment["PM_PROMPT_LOG_DIR"] = str(cls.out / "llm-logs")
-
-    @classmethod
-    def tearDownClass(cls) -> None:
-        if cls.previous_log is None:
-            OperatingSystem.environment.pop("PM_PROMPT_LOG_DIR", None)
-        else:
-            OperatingSystem.environment["PM_PROMPT_LOG_DIR"] = cls.previous_log
+        selected = Path(OperatingSystem.environment.get("PM_MODEL_CONFIG", default))
+        cls.config_path = str(live_model_config(selected, cls.out, "llm-logs"))
+        cls.connection = resolve_connection(load_config(cls.config_path))
+        cls.owner = ModelActivation()
+        asyncio.run(cls.owner.activate(cls.connection, live_test=True))
 
     def test_a_copied_story_id_is_rejected_and_repaired_into_the_candidates(self) -> None:
         # A candidate body cites the story id, exactly as a real attributed

@@ -9,8 +9,7 @@ Pydantic model back.
 The layers, in the order one call passes through them:
 
 1. :mod:`pm.llm.config` resolves the configured chat and embedding connections
-   without a network call. A credential is read from the process environment or
-   the git-ignored ``.env`` (:mod:`pm.llm.env_file`).
+   without a network call. Credentials come from the selected local YAML file.
 2. :class:`pm.llm.activation.ModelActivation` owns which model this process
    admits calls for. Activation runs a finite startup script, waits until the
    endpoint serves the configured alias, and records the discovery metadata

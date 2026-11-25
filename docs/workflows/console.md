@@ -11,11 +11,17 @@ Design: [operator service](../subsystems/console.md).
 
 ## Start the service
 
-1. Open PowerShell in the repository root.
+1. Install Git, uv, and Node.js 20 or newer. Open PowerShell in the repository root.
 2. Run the console command.
 
 ```powershell
-uv run --locked python -m pm.console.server
+uv sync --locked
+if (-not (Test-Path ../pm-minecraft)) {
+    git clone https://github.com/flamingrickpat/pm-minecraft.git ../pm-minecraft
+}
+& ../pm-minecraft/setup.ps1
+if (-not (Test-Path config.yaml)) { Copy-Item config.example.yaml config.yaml }
+& ./.venv/Scripts/python.exe -m pm.console.server
 ```
 
 3. Open `http://127.0.0.1:8090`.

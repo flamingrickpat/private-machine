@@ -18,7 +18,8 @@ from workflows.minecraft.persona import MinecraftPersona
 from threading import Event
 from typing import TYPE_CHECKING
 from pydantic import BaseModel
-from pm.utils.operating_system import OperatingSystem
+from pm.llm.mcp_config import MinecraftConfig
+from workflows.minecraft_body.lease import BODY_LEASES, BodyLeases
 from pm.llm.stage_model import LazyStageModel
 from pm.runs.role_runtime import PMWorkflowRuntime
 from workflows.minecraft_body.mcp_client import DEFAULT_MCP_URL, MinecraftTransport, MinecraftTransportSettings
@@ -47,14 +48,23 @@ class MinecraftRuntimeOwner:
             model_session=runtime.model_session, embedding_service=runtime.embedding_service,
             managed_boundary=runtime.managed_boundary, tool_call_config=runtime.tool_call_config,
             memory_store=runtime.memory_store, memory_context=runtime.memory_context,
-            minecraft_transport=self.transport, body_lease=MinecraftBodyLease(self.transport.settings.endpoint, run_id, self.ownership),
+            minecraft_transport=self.transport, body_lease=MinecraftBodyLease(self.transport.settings.endpoint, run_id, self.ownership, self.transport.leases),
             project_audit=self.project_audit, evidence_sources=self.evidence_sources.copy())
 
 
 def build_minecraft_module_tools(plan_model: LazyStageModel | None = None,
-                                 mcp_url: str | None = None) -> MinecraftRuntimeOwner:
-    url = mcp_url or OperatingSystem.environment.get("MINECRAFT_MCP_URL", DEFAULT_MCP_URL)
-    return MinecraftRuntimeOwner(MinecraftTransport(MinecraftTransportSettings(endpoint=url), plan_model))
+                                 mcp_url: str | None = None, *,
+                                 configuration: MinecraftConfig | None = None) -> MinecraftRuntimeOwner:
+    """Build the transport and registry for this configured body."""
+    if configuration is None:
+        settings = MinecraftTransportSettings(endpoint=mcp_url or DEFAULT_MCP_URL)
+        leases = BODY_LEASES
+    else:
+        settings = MinecraftTransportSettings(endpoint=configuration.mcp_url,
+                                              request_timeout_seconds=configuration.request_timeout_seconds)
+        directory = configuration.lease_directory
+        leases = BodyLeases(directory) if directory is not None else BODY_LEASES
+    return MinecraftRuntimeOwner(MinecraftTransport(settings, plan_model, leases=leases))
 
 
 @dataclass(frozen=True, slots=True)

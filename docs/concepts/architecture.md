@@ -1,88 +1,51 @@
 # System map
 
-## Summary
+PM gives a companion a persistent viewpoint. It keeps track of what happened,
+what matters now, and what the companion intends to do. These are computational
+models of cognition.
 
-The system has three distinct lifetimes: application modules, workflow runs, and the typed phases of one run.
-Ghost owns shared state within one instance.
-The console owns worker processes and trace files.
+## Data
 
-Parent: [manual](../index.md).
-
-## Control and data flow
-
-```text
-Browser -> HTTP service -> worker commands
-                                   |
-                    UserInputProxy -> private bus mailboxes
-                                         |
-                                    MainCogLoop
-                                         |
-      intake -> triage -> appraise -> retrieve -> codelets
-                                         |
-      structures -> attention -> experience -> goals -> decide -> route
-                                         |
-                              accepted Ghost commit
-                                         |
-                  Story / Assistant / SelfManagement
-                      |                         |
-                public reply               managed worker
-                      |                         |
-                   browser                receipts -> cognition
-
-All accepted records -> instance checkpoint
-Runtime evidence -> events.jsonl -> browser graph and details
+```mermaid
+flowchart LR
+    A["Chat or world event"] --> B["Stimulus"]
+    B --> C["Triage"]
+    D["Memory records"] --> E["Selected evidence and workspace"]
+    C --> E
+    E --> F["Reply or action request"]
+    F --> G["Public output or tool outcome"]
+    G --> D
 ```
 
-The arrows describe causality.
-They do not imply that all work runs on one thread.
-The phases of one cycle run inline inside the cognitive module, in one workflow run.
-Managed tasks can overlap dialogue.
+[Memory](../subsystems/experienced-memory.md) stores events and experiences.
+[Context planning](../subsystems/context-planning.md) prepares evidence for a prompt.
 
-## Ownership
+## Execution
 
-| Owner | State | Boundary |
-| --- | --- | --- |
-| HTTP service | Instance definitions, process handles, event cursor | [`pm.console.server.Console`][] |
-| Worker | Application, trace hooks, pending exchange | [`pm.console.worker.run`][] |
-| Application | Module lifecycle and first error | [`pm.host.application.Application`][] |
-| Bus | Subscriptions and serialized fan-out | [`pm.bus.bus.BusSystem`][] |
-| Bus module | Private inbox and active invocation | [`pm.host.application.BusModule`][] |
-| Memory store | Records, revisions, GWT, receipts | [`pm.memory.store.MemoryStore`][] |
-| Kernel runner | One workflow invocation and artifacts | [`pm.runs.workflow_runner.WorkflowRunner`][] |
-| Supervisor | Managed-run lifecycle | [`pm.runs.supervisor.ManagedRunSupervisor`][] |
-| Assembly | Which bus modules run and how they are wired | [`workflows.companion.build_app`][] |
+```mermaid
+flowchart LR
+    A["Triage this input"] -->|"Consequential"| B["Main cognition"]
+    A -->|"Routine exchange"| C["Ordinary interaction"]
+    B --> D["Action request"]
+    C --> E["Public dialogue"]
+    D --> E
+    D --> F["Managed workflow"]
+```
 
-## Code layout
+The bus passes messages to the modules that own them.
+[Input triage][workflows.input_triage.host.InputTriage] judges the new event.
+[Ordinary interaction](../subsystems/ordinary-interaction.md) can select a local reply.
+[Main cognition](../subsystems/cognition.md) can revise the workspace and release
+[managed work](../subsystems/managed-work.md).
 
-The runtime in `pm/` provides APIs and entry points. It never imports `workflows/`.
-All companion behavior lives in `workflows/`.
+## Evidence
 
-| Folder | Content |
-| --- | --- |
-| `pm/bus/` | Envelopes and the bus. |
-| `pm/host/` | Bus modules, the application, host folders, MCP listeners, durable files, cancellation. |
-| `pm/context_render/` | Context selection interfaces, compact rendering, and neutral text and media turns. |
-| `pm/llm/` | LLM configuration, provider encoding, typed completions, HTTP client, activation, context window, stage model, workflow sessions. |
-| `pm/records/` | The record schema, mental state, and cycle state. |
-| `pm/memory/` | The memory store, snapshots, write batches, retrieval, embeddings, checkpoints. |
-| `pm/runs/` | Workflow-backed bus modules, the kernel runner, and the managed-run supervisor. |
-| `pm/app/`, `pm/console/` | The terminal CLI and the operator console. |
-| `workflows/<name>/` | One workflow: manifest, `steps.py`, prompts, schemas, and `host.py`. |
-| `workflows/public_speech/`, `workflows/minecraft_body/` | Libraries that several workflows share. |
-| `workflows/companion.py` | The assembly. |
+```mermaid
+flowchart LR
+    A["Accepted memory and cycle IDs"] --> D["Debugger"]
+    B["Workflow receipts and prompt logs"] --> D
+    C["Profiler spans and chat"] --> D
+```
 
-`tests/unit/test_architecture.py` enforces these import directions.
-The [structural refactor](../work_items/refactor/index.md) explains the layout and three walkthroughs.
-The [glossary](glossary.md) defines the terms.
-
-## Traps
-
-Separate instances do not share accepted memory.
-Separate chat sessions within one instance do share accepted memory.
-Bus delivery has no durable replay mechanism.
-The console trace records observation, not a transaction log for bus recovery.
-
-## Go deeper
-
-Read [one exchange](../workflows/exchange.md), [cognition](../subsystems/cognition.md), and [operator service](../subsystems/console.md).
-
+Use the [overnight Spamuel recording](../workflows/spamuel-baseline.md) to see
+how a visible reply connects to prompts and workflow decisions.

@@ -11,7 +11,6 @@ from pm.runs.role_runtime import PMWorkflowRuntime
 
 from pm_workflows.python_role import RoleContext
 
-from workflows.minecraft_body.lease import BODY_LEASES
 from workflows.minecraft_project.schemas import Node
 from workflows.minecraft_project.tree_store import TreeStore, digest, validate_tree
 from workflows.minecraft_project.evidence_selection import dependency_scope, protect_accepted_specifications, scoped_history
@@ -31,7 +30,9 @@ def plan(context: RoleContext, store: TreeStore) -> ProjectPhaseResult:
     store.state.pop("planning_memory_revisions", None)
     current = require_minecraft_runtime(context.runtime).instructions()
     goal = current["instruction"] or req.goal or req.instruction
-    with BODY_LEASES.command(require_minecraft_runtime(context.runtime).minecraft_transport.settings.endpoint, context.runtime.stop_event):
+    body_runtime = require_minecraft_runtime(context.runtime)
+    transport = body_runtime.minecraft_transport
+    with transport.leases.command(transport.settings.endpoint, body_runtime.stop_event):
         observation_started_at = time.time()
         observation = require_minecraft_runtime(context.runtime).minecraft_transport.call("minecraft_observe", {"include_image": False})
         server_info = require_minecraft_runtime(context.runtime).minecraft_transport.call("minecraft_info", {})

@@ -38,5 +38,4 @@ Candidate rules:
 
 ## Notes
 
-Read the [generalization ladder](../alpha-plan/index.md#generalization-ladder).
 A20 records the rule baselines for this step.

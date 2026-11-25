@@ -35,24 +35,18 @@ def load_suite(path: Path = HERE / "scenarios.yaml") -> Suite:
     return Suite.model_validate(yaml.safe_load(path.read_text(encoding="utf-8")))
 
 
-def case_config(source: Path, root: Path) -> Path:
-    """Capture effective model settings while retaining the shared cache root.
-
-    Model settings and credential references stay unchanged. Relative startup
-    scripts and the read-only legacy cache retain their resolved source paths.
-    The effective configuration stays under ignored runtime evidence.
-    """
+def case_config(source: Path, root: Path, body_url: str | None = None) -> Path:
+    """Capture private model settings for a fresh live case."""
     from pm.llm.config import load_config
-    resolved = load_config(source)
-    data = yaml.safe_load(source.read_text(encoding="utf-8"))
-    for preset, connection in resolved.chat.items():
-        if connection.startup_script is not None:
-            data["chat"][preset.value]["startup_script"] = str(connection.startup_script)
+    from simulation.source import SimulationConfigOverrides, copy_simulation_config
+
     path = root / "model-config.yaml"
-    path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+    overrides = SimulationConfigOverrides(body_url=body_url, prompt_directory=root / "llm-logs")
+    copy_simulation_config(source, path, overrides)
+    resolved = load_config(path)
     save_json(root / "effective-config-origin.json", {"source_sha256": sha256_file(source),
         "effective_sha256": sha256_file(path), "embedding_model": resolved.embedding.model,
-        "scope": "Model settings and the shared cache root stay unchanged; source-relative paths are resolved."})
+        "scope": "Fresh completions and case-specific prompt logs."})
     return path
 
 
@@ -324,12 +318,8 @@ def run_case(scenario: Scenario, suite: Suite, config: Path, root: Path, seed: i
         raise ValueError("Live case evidence belongs under .runtime.")
     if suite.cadence_policy != "normal_wait_v1":
         raise ValueError("Legacy generation requires its original checkout. Do not relabel its cadence.")
-    if not scenario.minecraft:
-        OperatingSystem.environment["MINECRAFT_MCP_URL"] = "http://127.0.0.1:1/mcp"
-    OperatingSystem.environment["PM_PROMPT_LOG_DIR"] = str(root / "llm-logs")
-    # Set the case environment before importing bindings that read it.
     from dev.work_items.conversation_review import ChatCapture, SEED, shift_history, start_minecraft
-    from dev.tools.alpha_snapshot import capture
+    from dev.tools.capture_runtime import capture
     from pm.llm.activation import ModelActivation
     from pm.llm.config import load_config, resolve_connection
     from pm.llm.stage_model import LazyStageModel
@@ -346,7 +336,6 @@ def run_case(scenario: Scenario, suite: Suite, config: Path, root: Path, seed: i
         "installed_packages": {name: {"version": metadata.version(name),
             "direct_url": json.loads(metadata.distribution(name).read_text("direct_url.json"))}
             for name in ("pm-coder", "pm-workflows")}})
-    config = case_config(config, root)
     app, stack = None, None
     started = time.monotonic()
     rng = random.Random(seed)
@@ -385,9 +374,9 @@ def run_case(scenario: Scenario, suite: Suite, config: Path, root: Path, seed: i
             raise AcceptedPause(pause)
 
     def observe_world(label):
-        from workflows.minecraft_body.mcp_client import build_minecraft_tools
+        from workflows.minecraft_body.mcp_client import MinecraftTransport, MinecraftTransportSettings
         requested_at = now()
-        response = build_minecraft_tools(stack.mcp_url)["minecraft_call"]("minecraft_observe", {"include_image": False})
+        response = MinecraftTransport(MinecraftTransportSettings(endpoint=stack.mcp_url), None).call("minecraft_observe", {"include_image": False})
         observed_at = now()
         # Keep the fixture's initial read. This timed read supplies the fact.
         name = "initial-live" if label == "initial" else label
@@ -434,6 +423,7 @@ def run_case(scenario: Scenario, suite: Suite, config: Path, root: Path, seed: i
     try:
         wait(0)
         stack = start_minecraft(root, True) if scenario.minecraft else None
+        config = case_config(config, root, stack.mcp_url if stack is not None else None)
         if stack is not None:
             observe_world("initial")
         pending_facts.extend(capability_facts(scenario, now()))

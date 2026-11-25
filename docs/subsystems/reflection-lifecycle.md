@@ -110,7 +110,6 @@ Restart reads the stored lifecycle and never invents a successful outcome.
 The gate introduces an explicit mistaken interpretation as a fixture.
 Its receipt distinguishes that fixture from a model-produced baseline failure.
 Its later choices establish application consumption, with public delivery and human quality outside its scope.
-The [live-evidence page](../work_items/verification/a19/live-evidence.md) gives exact commands and evaluation recovery steps.
 
 ## Code links
 

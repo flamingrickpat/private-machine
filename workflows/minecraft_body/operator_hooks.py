@@ -1,42 +1,24 @@
-"""Operator-console hooks of the Minecraft body: endpoint defaults and health probes.
-
-The console loads this module by name, so the runtime holds no Minecraft
-endpoint knowledge.
-"""
+"""Probe the configured Minecraft body for the operator console."""
 from __future__ import annotations
 
-from pm.utils.operating_system import OperatingSystem
 import asyncio
-import socket
+import time
+
+from pm.app.operator_config import ConnectionRow
+from pm.llm.config import ModelConfig
+from workflows.minecraft_body.mcp_client import probe_body
 
 
-def prepare_environment(environment: dict) -> None:
-    """Export the MCP endpoint before the assembly builds its tools."""
-    OperatingSystem.environment.setdefault("MINECRAFT_MCP_URL", environment.get("MINECRAFT_MCP_URL") or
-                          f"http://127.0.0.1:{environment.get('PM_MC_MCP_PORT', '6767')}/mcp")
-
-
-async def probes(values: dict[str, str]) -> list[dict[str, object]]:
-    """Probe MCP tool discovery and the Minecraft server TCP port."""
-    rows: list[dict[str, object]] = []
-    mcp = values.get("MINECRAFT_MCP_URL") or f"http://127.0.0.1:{values.get('PM_MC_MCP_PORT', '6767')}/mcp"
+async def probes(configuration: ModelConfig) -> list[ConnectionRow]:
+    """Ask the enabled Minecraft MCP endpoint for its tools."""
+    body = configuration.minecraft
+    if body is None:
+        return []
+    started = time.perf_counter()
     try:
-        from fastmcp import Client
-        async def discover() -> list[str]:
-            """Return the tool names that the MCP endpoint advertises."""
-            async with Client(mcp) as client:
-                return [t.name for t in await client.list_tools()]
-        tools = await asyncio.wait_for(discover(), timeout=5)
-        rows.append({"name": "Minecraft MCP", "endpoint": mcp, "state": "ready", "tools": tools})
-    except Exception as exc:
-        rows.append({"name": "Minecraft MCP", "endpoint": mcp, "state": "not ready", "error_type": type(exc).__name__})
-    host, port = values.get("PM_MINECRAFT_HOST", "127.0.0.1"), int(values.get("PM_MINECRAFT_PORT", "12345"))
-    def tcp_probe() -> str:
-        """Return whether the game server accepts a TCP connection."""
-        try:
-            with socket.create_connection((host, port), timeout=3):
-                return "TCP reachable"
-        except OSError:
-            return "unreachable"
-    rows.append({"name": "Minecraft server", "endpoint": f"{host}:{port}", "state": await asyncio.to_thread(tcp_probe)})
-    return rows
+        await asyncio.to_thread(probe_body, body.mcp_url, timeout_seconds=body.probe_timeout_seconds)
+        state = "reachable"
+    except Exception as error:
+        state = type(error).__name__
+    return [ConnectionRow(name="Minecraft MCP", endpoint=body.mcp_url, model="",
+                          state=state, seconds=round(time.perf_counter() - started, 3))]

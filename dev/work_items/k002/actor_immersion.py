@@ -40,7 +40,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     connection = resolve_connection(load_config(args.config))
     if connection.base_url != "https://openrouter.ai/api/v1":
         raise ValueError("This acceptance check requires the owner's OpenRouter endpoint.")
-    OperatingSystem.environment["PM_COMPLETION_CACHE"] = "0"
     args.evidence.mkdir(parents=True, exist_ok=False)
     profile = load_profile(args.home)
     agents = Agents(args.config, args.evidence)

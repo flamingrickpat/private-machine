@@ -107,7 +107,7 @@ Load pickle files only from trusted character homes.
 [`pm.memory.checkpoint.JsonCheckpointSerializer`][] remains available for explicit JSON export and legacy imports.
 The application prefers `ghost.pickle` and accepts an older `ghost.json` when no pickle exists.
 Future saves use pickle. YAML remains an import format.
-Read [inference settings](subsystems/inference-settings.md#checkpoint-serialization) for the persistence boundary.
+Read [inference settings](subsystems/runtime-files.md) for the persistence boundary.
 Mental-state arrays remain unchanged.
 The source YAML remains a separate, unchanged seed.
 Fresh YAML imports retain source hashes and explicit background provenance.

@@ -5,6 +5,7 @@ It uses the primary Spamuel seed with synthetic incoming test events.
 """
 from __future__ import annotations
 
+from tests.live.configuration import live_model_config
 from pm.host.application import Application
 
 from datetime import datetime, timezone
@@ -21,7 +22,6 @@ from pm.llm.config import load_config, resolve_connection
 from pm.llm.stage_model import LazyStageModel
 from pm.memory.bash_view import MemoryBashTarget
 from pm.memory.store import MemoryStore
-from pm.utils.operating_system import OperatingSystem
 from workflows.cognitive_control.host import CognitiveControl
 from workflows.input_triage.host import InputTriage
 from workflows.main_cognition.host import build_main_cognition_tools
@@ -36,16 +36,15 @@ class LiveInputTriageTests(unittest.TestCase):
     """Require actual contextual model classification and retained evidence."""
 
     def test_ordinary_input_and_consequential_correction(self) -> None:
-        config = load_config(ROOT / "config.yaml")
-        connection = resolve_connection(config)
-        if urlsplit(connection.base_url).hostname != "openrouter.ai" or connection.startup_script is not None:
-            raise ValueError("This gate requires OpenRouter without a local model startup script.")
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid4().hex[:8]
         out = ROOT / ".runtime/beta-input-triage" / stamp
         out.mkdir(parents=True)
         print(f"Early-triage evidence: {out}", flush=True)
-        OperatingSystem.environment["PM_COMPLETION_CACHE"] = "0"
-        OperatingSystem.environment["PM_PROMPT_LOG_DIR"] = str(out / "prompts")
+        config_path = live_model_config(ROOT / "config.yaml", out)
+        config = load_config(config_path)
+        connection = resolve_connection(config)
+        if urlsplit(connection.base_url).hostname != "openrouter.ai" or connection.startup_script is not None:
+            raise ValueError("This gate requires OpenRouter without a local model startup script.")
         model = LazyStageModel(connection, ModelActivation(), live_test=True)
         store = MemoryStore.from_yaml(ROOT / "test_data/personas/spamuel/canon.yaml", checkpoint=out / "ghost.pickle")
         bus = BusSystem()

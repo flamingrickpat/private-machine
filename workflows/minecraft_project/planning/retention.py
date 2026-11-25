@@ -6,7 +6,6 @@ from pm.runs.managed_boundary import BoundaryReadSettings
 
 from pm_workflows.python_role import RoleContext
 
-from workflows.minecraft_body.lease import BODY_LEASES
 from workflows.minecraft_project.schemas import RetentionChoice
 from workflows.minecraft_project.tree_store import TreeStore
 from workflows.minecraft_project.evidence_selection import retention_operation, retention_tree
@@ -21,7 +20,9 @@ def retain(context: RoleContext, store: TreeStore, observation: dict | None = No
     if not store.state["revision"] or not store.acceptance_candidates():
         return ProjectPhaseResult(status="unchanged", summary="No historical specification restoration is pending.")
     if observation is None:
-        with BODY_LEASES.command(require_minecraft_runtime(context.runtime).minecraft_transport.settings.endpoint, context.runtime.stop_event):
+        body_runtime = require_minecraft_runtime(context.runtime)
+        transport = body_runtime.minecraft_transport
+        with transport.leases.command(transport.settings.endpoint, body_runtime.stop_event):
             reply = require_minecraft_runtime(context.runtime).minecraft_transport.call("minecraft_observe", {"include_image": False})
         if not reply["ok"]:
             return ProjectPhaseResult(status="waiting", summary="Historical restoration needs an identified current body observation.")

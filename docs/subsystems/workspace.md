@@ -16,8 +16,6 @@ A codelet percept that enters a shard becomes causal: its feeling change enters 
 A19F step 6 replaced the A15 attention competition, its nominations, and the `AttentionRecord` per nomination.
 
 Parent: [cognitive pipeline](cognition.md).
-Plan: [A19F](../work_items/alpha-plan/work-items/a19f.md), sections "Structures", "Global workspace and shards", "Deliberate focus", and "Departures from the base references".
-Decision: D24 in the [decision register](../work_items/alpha-plan/decision-register.md).
 Related: [codelets](codelets.md), [emotional dynamics](emotional-dynamics.md), [deliberate mental work](deliberate-mental-work.md).
 
 ## Where the phases run

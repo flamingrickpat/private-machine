@@ -54,14 +54,14 @@ def body_key(endpoint: str) -> str:
 class BodyLeases:
     """Share leases across threads, application instances, and local processes.
 
-    All clients must use the same registry. PM_BODY_LEASE_ROOT selects it.
+    All clients of one body must use the same registry directory.
     The default registry survives workspace and worker replacement.
     The MCP server separately fences an already dispatched remote call.
     """
 
     def __init__(self, root: Path | None = None) -> None:
         base = Path(OperatingSystem.environment.get("LOCALAPPDATA", str(Path.home() / ".local/share")))
-        self.root = Path(root or OperatingSystem.environment.get("PM_BODY_LEASE_ROOT", base / "pm-next-v2/body-leases"))
+        self.root = root if root is not None else base / "pm-next-v2/body-leases"
         self._lock = threading.RLock()
         self._tokens: dict[str, BodyLeaseEvidence] = {}
 

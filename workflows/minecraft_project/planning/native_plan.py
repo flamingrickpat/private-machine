@@ -15,7 +15,6 @@ from pm.runs.draft_session import run_draft_session
 from pm.runs.role_runtime import PMWorkflowRuntime
 from pm.memory.agent_tools import MemoryReadSession, MemoryTraceFile
 from workflows.minecraft_body.gateway import READ_TOOLS
-from workflows.minecraft_body.lease import BODY_LEASES
 from workflows.minecraft_project.evidence_selection import catalog, read_source
 from pm_workflows.python_role import RoleContext
 from workflows.minecraft_project.schemas import EvidenceRead, PlanProposal
@@ -63,7 +62,9 @@ class NativePlanningTools:
         if request.tool not in READ_TOOLS:
             raise ValueError("Planning requires a read-only tool. Read world_contracts for its exact schema.")
         runtime = self.boundary.runtime
-        with BODY_LEASES.command(require_minecraft_runtime(runtime).minecraft_transport.settings.endpoint, runtime.stop_event):
+        body_runtime = require_minecraft_runtime(runtime)
+        transport = body_runtime.minecraft_transport
+        with transport.leases.command(transport.settings.endpoint, body_runtime.stop_event):
             reply = require_minecraft_runtime(runtime).minecraft_transport.call(request.tool, request.arguments)
         self.boundary.check_current()
         wire = TypeAdapter[dict[str, JsonValue]](dict[str, JsonValue]).validate_python(reply)

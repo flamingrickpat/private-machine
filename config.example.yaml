@@ -1,7 +1,11 @@
-# Copy to config.local.yaml for machine-specific paths or literal credentials.
-# The existing Qwen launcher loops forever. Do not put that script here directly.
+# Set endpoint URLs and model IDs for your installation. Keep literal keys in local copies.
+# minecraft: null disables the body. For a body, set mcp_url, request_timeout_seconds, and probe_timeout_seconds.
+inference_io:
+  completion_cache: true
+  cache_directory: ~/.pm/private-machine/cache
+  prompt_log: true
+  prompt_log_directory: null
 ghost_backups: false
-
 chat:
   Default:
     disable_threading: false
@@ -11,9 +15,13 @@ chat:
     override_context: 65536
     base_url: http://127.0.0.1:8080/v1
     model: qwen
-    api_key: ""
-    startup_script: ""
+    api_key: ''
+    startup_script: null
     context_input_fraction: 0.85
+    provider: null
+    context_window: null
+    completion_token_limit: 8192
+    retry_completion_token_limit: null
   UnitTestEvaluator:
     disable_threading: false
     require_reasoning: false
@@ -22,39 +30,64 @@ chat:
     override_context: 65536
     base_url: http://127.0.0.1:8080/v1
     model: qwen
-    api_key: ""
-    startup_script: ""
+    api_key: ''
+    startup_script: null
     context_input_fraction: 0.85
+    provider: null
+    context_window: null
+    completion_token_limit: 8192
+    retry_completion_token_limit: null
 embedding:
   base_url: http://127.0.0.1:8081/v1
   model: qwen3-embedding-0.6b
-  api_key: ""
+  api_key: ''
   dimensions: 1024
-# Optional MCP tools of the companion (docs/workflows/tool-call.md). Without servers, the
-# tool_call workflow is not registered. ${NAME} in a header reads the environment or .env.
-# tool_call:
-#   mcp_servers:
-#     - name: image_gen
-#       url: http://127.0.0.1:9877/mcp
-#       headers:
-#         Authorization: Bearer ${IMAGE_MCP_TOKEN}
-# The Minecraft body of this character (docs/subsystems/body-leases.md). Without this section the
-# companion has no body: no world poll, no live inventory read, and no Minecraft route. With it the
-# assembly asks the endpoint once at startup and exits when nothing answers, so a wrong URL fails
-# before the first cycle instead of ending every Minecraft task unverified.
+  disable_threading: false
+  provider: null
+  require_reasoning: false
+  startup_script: null
+  context_window: null
+  context_input_fraction: 0.8
+  override_context: null
+  completion_token_limit: 8192
+  retry_completion_token_limit: null
+  max_concurrent_requests: 8
+  request_timeout_seconds: null
+  response_model: null
+thought_delay: 60
+profile_cognition: false
+tool_call:
+  model_connection: Default
+  timeout_seconds: 1800
+  gwt_turn_limit: 8
+  mcp_servers: []
+minecraft: null
+renderer_capture:
+  directory: .runtime/renderer-captures
+  capture_input: false
+  capture_output: false
+cognitive_control:
+  wait_seconds: 1800
+  maximum_wait_seconds: 86400
+  post_reply_seconds: 600
+  focus_seconds: 900
+  maximum_focus_bias: 0.35
+  episode_steps: 6
+  episode_seconds: 600
+  stalled_steps: 2
+  parked_seconds: 900
+  mental_timeout_seconds: 600
+
+# Optional Minecraft body. Replace minecraft: null with this section.
 # minecraft:
 #   mcp_url: http://127.0.0.1:6767/mcp
 #   request_timeout_seconds: 660
-#   probe_timeout_seconds: 5
+#   probe_timeout_seconds: 5.0
+#   lease_directory: null
 
-# Operator limits for deliberate mental control (docs/subsystems/inference-wait.md).
-# Empty means the defaults. post_reply_seconds is the quiet window after a spoken reply:
-# she waits that long for an answer before her next thought cycle. Zero disables it.
-# cognitive_control:
-#   post_reply_seconds: 600
-#   wait_seconds: 1800
-
-thought_delay: 60
-
-# Record workflow timing beside this character home.
-profile_cognition: false
+# Optional MCP servers. Set this list under tool_call.
+# mcp_servers:
+# - name: example
+#   url: http://127.0.0.1:9877/mcp
+#   headers: {}
+#   request_timeout_seconds: 600

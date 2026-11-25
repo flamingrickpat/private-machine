@@ -126,7 +126,6 @@ Restoring one participant alone cannot reverse speech already accepted by anothe
 
 ## Reference basis
 
-The curated [cognitive source guide](../alpha-plan/cognitive-sources.md) identifies the introspection ontology paper.
 Physical PDF pages 3, 6, and 9 distinguish communication, information flow, state transitions, and derivation.
 Those passages support explicit inputs, outputs, and causal links.
 They do not establish runtime correctness. Execution receipts provide that evidence.

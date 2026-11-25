@@ -5,6 +5,7 @@ or a model service. Real inference must finish the checkpoint's approved reply.
 """
 from __future__ import annotations
 
+from pm.app.operator_config import default_config_path
 from pm.utils.operating_system import OperatingSystem
 import argparse
 from datetime import datetime, timezone
@@ -66,7 +67,7 @@ def run(args: RecoveryOptions) -> RecoveryReceipt:
     first_id = initial.current_knoxel_id + 1
     first_tick = initial.current_tick_id
     cursor = event_cursor(initial)
-    process = PMProcess("recovery", home.root, source["config"], args.out / "endpoint.json", source_root=Path(source["source"]))
+    process = PMProcess("recovery", home.root, str(source.config), args.out / "endpoint.json", source_root=source.source)
     process.launch(args.clock)
     process.listen(cursor)
     progress("waiting_for_approved_reply", action_ids=selected, original_tick=first_tick)
@@ -113,7 +114,7 @@ def run(args: RecoveryOptions) -> RecoveryReceipt:
     if clean.current_tick_id != first_tick:
         raise AssertionError("The forced interruption unexpectedly admitted a new main cycle.")
     progress("restart", reply=event, excluded_input_id=latest.id)
-    restarted = PMProcess("reopened", home.root, source["config"], args.out / "reopened-endpoint.json", source_root=Path(source["source"]))
+    restarted = PMProcess("reopened", home.root, str(source.config), args.out / "reopened-endpoint.json", source_root=source.source)
     restarted.launch(args.clock)
     restarted.state()
     reopened = MemoryStore.from_checkpoint(home.ghost_pickle)
@@ -137,7 +138,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--home", type=Path, required=True)
     parser.add_argument("--snapshot", type=Path, required=True)
-    parser.add_argument("--config", type=Path, default=Path("config.alpha.example.yaml"))
+    parser.add_argument("--config", type=Path, default=Path(default_config_path()))
     parser.add_argument("--clock", required=True)
     parser.add_argument("--out", type=Path, required=True)
     parsed = parser.parse_args()

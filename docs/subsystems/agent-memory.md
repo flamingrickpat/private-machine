@@ -8,7 +8,6 @@ The workflow chooses the view and decision policy.
 The runtime supplies stable snapshots, graph pages, embedding coverage, cancellation, and source revision guards.
 
 Parent: [workflow runtime](../runtime.md).
-Related: [draft sessions](draft-sessions.md), [experienced memory](experienced-memory.md), and [A14B evidence](../work_items/verification/a14b-agent-memory.md).
 
 ## Construction and callers
 
@@ -85,7 +84,6 @@ Original statements, corrections, speculation, companion speech, and old world o
 ## Managed ownership and operation
 
 The [managed memory lifecycle](agent-memory-lifecycle.md) explains the enabled planner view, commit guards, cancellation, restart, and diagnosis.
-The [small comparison gate](../work_items/verification/a14b-agent-memory.md) measures source use, practical choices, and tool overhead.
 It does not establish house completion, public reply latency, or human immersion.
 
 ## Central record rendering

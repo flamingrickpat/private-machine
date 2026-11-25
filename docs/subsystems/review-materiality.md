@@ -10,7 +10,6 @@ Python does not define an error percentage or a universal distance tolerance.
 
 Parent: [workflow review modes](workflow-reviews.md).
 Related: [public dialogue](public-dialogue.md), [blinded review](cognitive-review-boundaries.md), and [Minecraft evidence](minecraft-task-evidence.md).
-Evidence: [materiality verification](../work_items/verification/a18b-review-materiality.md).
 
 ## Classifications
 

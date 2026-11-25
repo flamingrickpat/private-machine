@@ -546,7 +546,6 @@ The assembled application's private host uses graph execution instead.
 It invents no branches, missing judgments, active computation time, or offline activity.
 The old episode's acknowledgment, parking, and generation rules remain legacy semantics rather than graph resumption authority.
 
-The original loop and its earlier live evidence remain in the [A17 verification](../work_items/verification/a17-private-loop.md).
 Those results do not verify connected graph generation or the unfinished lifecycle migration.
 
 ## Felt-state channels

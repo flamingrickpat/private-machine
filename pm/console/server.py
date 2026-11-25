@@ -336,12 +336,16 @@ def serve(root: Path, port: int = 8090) -> None:
                     OperatingSystem.open_source_file(path)
                     return self.respond({"opened": str(path)})
                 if self.path == "/api/connections":
-                    from pm.app.operator_config import connection_status
+                    from pm.app.operator_config import connection_status, default_config_path
                     from pm.console.assembly import DEFAULT_OPERATOR_HOOKS, load
+                    from pm.llm.config import load_config
                     instance = console.instances[command["instance"]]
+                    path = Path(instance.settings.get("config") or default_config_path()).resolve()
+                    configuration = load_config(path)
                     hooks = load(instance.settings.get("operator_hooks") or DEFAULT_OPERATOR_HOOKS)
-                    return self.respond(asyncio.run(connection_status(instance.settings.get("config") or None,
-                                                                      probes=hooks.probes)))
+                    report = asyncio.run(connection_status(configuration, path))
+                    report.connections.extend(asyncio.run(hooks.probes(configuration)))
+                    return self.respond(report.model_dump(mode="json"))  # pm-lint: allow PM007 -- HTTP response serialization
                 if self.path == "/api/deploy":
                     return self.respond(console.deploy(command))
                 instance = console.instances[command.pop("instance")]

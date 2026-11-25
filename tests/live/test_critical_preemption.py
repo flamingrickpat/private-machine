@@ -20,6 +20,7 @@ import traceback
 
 from pydantic import BaseModel, JsonValue
 
+from tests.live.configuration import live_model_config
 from pm.bus.envelopes import Envelope
 from pm.llm.activation import ModelActivation
 from pm.llm.config import load_config, resolve_connection
@@ -30,7 +31,6 @@ from pm.memory.store import MemoryStore
 from pm.records.copying import pickle_copy
 from pm.records.cycle_state import CycleStateModel
 from pm.records.memory_records import Entity
-from pm.utils.operating_system import OperatingSystem
 from workflows.companion import build_app
 
 
@@ -59,17 +59,16 @@ class LiveCriticalPreemptionTests(unittest.TestCase):
     """Exercise cancellation, conserved causes, accepted state, and real speech."""
 
     def test_old_calculation_and_public_draft_defer_to_critical_input(self) -> None:
-        config = load_config(ROOT / "config.yaml")
-        connection = resolve_connection(config)
-        if (urlsplit(connection.base_url).hostname != "openrouter.ai" or connection.startup_script is not None
-                or urlsplit(config.embedding.base_url).hostname != "openrouter.ai"):
-            raise ValueError("This gate requires OpenRouter chat/embeddings and no local startup script.")
         out = ROOT / ".runtime/beta-critical-preemption" / (
             datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid4().hex[:8])
         out.mkdir(parents=True)
         print(f"Critical-preemption evidence: {out}", flush=True)
-        OperatingSystem.environment["PM_COMPLETION_CACHE"] = "0"
-        OperatingSystem.environment["PM_PROMPT_LOG_DIR"] = str(out / "prompts")
+        config_path = live_model_config(ROOT / "config.yaml", out)
+        config = load_config(config_path)
+        connection = resolve_connection(config)
+        if (urlsplit(connection.base_url).hostname != "openrouter.ai" or connection.startup_script is not None
+                or urlsplit(config.embedding.base_url).hostname != "openrouter.ai"):
+            raise ValueError("This gate requires OpenRouter chat/embeddings and no local startup script.")
         canonical = MemoryStore.from_yaml(ROOT / "test_data/personas/spamuel/canon.yaml")
         identities = [pickle_copy(record) for record in canonical.all_entities
                       if record.content in {canonical.get_user_name(), canonical.get_companion_name()}]
@@ -102,7 +101,7 @@ class LiveCriticalPreemptionTests(unittest.TestCase):
 
         app = build_app(None, out, ghost=store, cognition="real", stage_model=model,
                         workflow_models=workflow_models,
-                        config_path=str(ROOT / "config.yaml"), thought_period=3600,
+                        config_path=str(config_path), thought_period=3600,
                         record_lifecycle=False, enable_minecraft=False, world_poll_seconds=None,
                         tool_call=ToolCallConfig(), emit_reply=lambda text: print(f"PUBLIC: {text}", flush=True))
         app.bus.subscribe("gate_evidence", lambda envelope: envelope.topic in {

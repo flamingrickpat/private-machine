@@ -55,7 +55,6 @@ The members are every record that the state or the turn names ([`cycle_record_id
 Pass `previous`, the cycle state before the tick, to fill `mental_state_before`.
 `decoded_vectors` names the axes of each mental-state vector of a member ([`decode_vector`][pm.introspection.record_packages.decode_vector]), for example the mini-appraisal of a codelet percept.
 `entity_names` maps the id of each entity shard to its entity name.
-`dev/work_items/alpha_a19f_review.py` builds the A19F review package from these captures: one chat package and one cycle package for each main tick, all from one snapshot.
 
 [`pm.introspection.record_packages.dump_package`][] writes the detached package as UTF-8 JSON.
 The caller owns the destination and exposes it for review after the write returns.

@@ -13,7 +13,7 @@ from pm_workflows.runtime import WorkflowRuntime
 from pm.runs.role_runtime import PMWorkflowRuntime
 from pm.host.cognition_profiler import SpanEvidence, SpanKind
 from workflows.minecraft.runtime import MinecraftWorkflowRuntime, require_minecraft_runtime
-from pm.runs.managed_boundary import BoundaryReadSettings
+from pm.runs.managed_boundary import BoundaryInstructions, BoundaryReadSettings
 from dataclasses import dataclass
 from pm_workflows.working_target import WorkingEnvironment
 
@@ -22,7 +22,7 @@ from fastmcp.tools import Tool, ToolResult
 from jsonschema.validators import validator_for
 from pydantic import ConfigDict, Field, JsonValue
 
-from workflows.minecraft_body.lease import BodyEpoch, BODY_LEASES, StaleEpoch
+from workflows.minecraft_body.lease import BodyEpoch, StaleEpoch
 from workflows.minecraft_body.call_outcomes import GameplayEvidence
 from workflows.minecraft_body.journal import read_actor_journal
 
@@ -100,6 +100,10 @@ def argument_errors(schema: dict, arguments: dict) -> list[dict]:
             for error in validator.iter_errors(arguments)]
 
 
+class ActorBoundary(BoundaryInstructions):
+    body_owner: str | None
+
+
 class BodyGateway:
     """Serialize actions, retain receipts, and apply instructions before dispatch.
 
@@ -140,19 +144,20 @@ class BodyGateway:
         self.sequence = max((row.get("seq", 0) for row in self.previous), default=0)
         self.revision = runtime.instructions()["revision"]
 
-    def boundary(self) -> dict:
+    def boundary(self) -> ActorBoundary:
         """Return the current instruction and revision without a world call."""
         self.runtime.check_cancelled()
         current = self.runtime.instructions()
         self.revision = current["revision"]
-        return {**current, "body_owner": BODY_LEASES.owner(self.endpoint)}
+        return ActorBoundary(instruction=current["instruction"], revision=current["revision"],
+                             body_owner=self.transport.leases.owner(self.endpoint))
 
     def call(self, name: str, arguments: dict, *, close: bool = False) -> dict:
         """Reject overlapping actor plans and wait for a direct read boundary."""
         if not self._lock.acquire(blocking=False):
             raise RuntimeError("Another actor call is still active.")
         try:
-            with BODY_LEASES.command(self.endpoint, self.runtime.stop_event):
+            with self.transport.leases.command(self.endpoint, self.runtime.stop_event):
                 profiler = self.runtime.profiler
                 if profiler is None:
                     return self._dispatch(name, arguments, close=close)
@@ -182,9 +187,9 @@ class BodyGateway:
         if name.startswith("minecraft_body_") or name in {"minecraft_connect", "minecraft_disconnect", "minecraft_execute_typescript", "minecraft_suicide"}:
             raise PermissionError("Body control belongs to the host.")
         if self.token is not None:
-            BODY_LEASES.validate(self.endpoint, self.token)
-        elif BODY_LEASES.owner(self.endpoint) == self.owner:
-            self.token = BODY_LEASES.token(self.endpoint, self.owner)
+            self.transport.leases.validate(self.endpoint, self.token)
+        elif self.transport.leases.owner(self.endpoint) == self.owner:
+            self.token = self.transport.leases.token(self.endpoint, self.owner)
             claim = self.transport.claim(self.token)
             if not claim["ok"]:
                 raise StaleEpoch("The Minecraft server refused this execution epoch.")

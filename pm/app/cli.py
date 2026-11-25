@@ -108,7 +108,7 @@ def build_parser(default_seed: Path) -> argparse.ArgumentParser:
     parser.add_argument("--runtime-root", default=None, help="Runtime root. Default: ./.runtime, or <home>/runtime")
     parser.add_argument("--cognition", choices=["real", "dummy"], default="real",
                         help="Real model-backed cognition, or the labeled dummy fixture.")
-    parser.add_argument("--config", default=None, help="Model config path. Default: PM_MODEL_CONFIG or config.local.yaml")
+    parser.add_argument("--config", default=None, help="Model YAML. Default: config.local.yaml, config.yaml, or config.example.yaml")
     persistence = parser.add_mutually_exclusive_group()
     persistence.add_argument("--home", type=Path, help="Character home folder. Loads and saves <home>/ghost.pickle.")
     persistence.add_argument("--checkpoint", type=Path, help="Accepted Ghost checkpoint. Default: <runtime-root>/ghost.pickle")
@@ -214,8 +214,10 @@ def main(argv: Sequence[str] | None = None, *, assembly: TerminalAssembly) -> in
     OperatingSystem.install_child_cleanup()
     try:
         from pm.llm.prompt_log import backfill_cache_logs
-        if plan.home is None:
-            backfill_cache_logs()
+        if plan.home is None and plan.cognition == "real":
+            from pm.app.operator_config import default_config_path
+            from pm.llm.config import load_config
+            backfill_cache_logs(load_config(plan.config or default_config_path()).inference_io)
         return _run_session(plan, assembly=assembly)
     except BaseException:
         logging.getLogger(__name__).exception("Terminal session stopped with an error")

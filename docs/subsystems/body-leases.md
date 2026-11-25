@@ -17,7 +17,7 @@ It removes a trailing slash and normalizes `localhost` and `::1` to `127.0.0.1`.
 The request's `body_id` remains a label.
 Use one configured endpoint per avatar.
 
-`PM_BODY_LEASE_ROOT` selects the shared registry.
+`minecraft.lease_directory` selects the shared registry.
 The Windows default is `%LOCALAPPDATA%/pm-next-v2/body-leases`.
 The other-host default is `~/.local/share/pm-next-v2/body-leases`.
 All cooperating PM processes must use this same directory.
@@ -81,7 +81,7 @@ It cannot silently reuse an earlier token.
 The live transport remains `http://127.0.0.1:6767/mcp`.
 The body HTTP service remains on port 6768 and the viewer remains on port 6769.
 Deploy the tested pm-minecraft checkout before enabling A12 clients.
-[`workflows.minecraft_body.mcp_client.build_minecraft_tools`][] carries the fenced capabilities on the granted transport closure.
+[`workflows.minecraft_body.mcp_client.MinecraftTransport`][] carries the fenced capabilities on the granted transport closure.
 The root dependency lock does not install pm-minecraft; its separate process uses that repository's own interpreter and checkout.
 
 The root client and native actor use a 660-second request timeout.
@@ -93,4 +93,3 @@ The repaired loader retains transport headers, environment expansion, discovery,
 The protocol assumes trusted local clients and one active MCP service per avatar.
 Epoch tokens provide stale-command fencing, rather than an authentication boundary.
 The gate serializes effects; it does not roll them back.
-Read [A12 verification](../work_items/verification/a12-body-recovery.md) for captured real-server evidence.

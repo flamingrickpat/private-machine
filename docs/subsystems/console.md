@@ -76,12 +76,6 @@ Read [memory experiments](../workflows/memory.md), [evidence](../concepts/eviden
 
 ## Endpoint configuration
 
-[`pm.app.operator_config.operator_config`][] reads the project model configuration.
-It reads embedding overrides from `PM_ENV_FILE`, the repository `.env`, or the legacy `../pm_next/.env`.
-An existing credential environment variable takes precedence over a legacy file credential.
-The service never includes credentials in connection reports.
-
-The instance model configuration selects the MCP endpoint in its `minecraft` section.
-`MINECRAFT_MCP_URL` remains a test override.
-`PM_MC_MCP_PORT` selects a legacy probe port.
-`PM_MINECRAFT_HOST` and `PM_MINECRAFT_PORT` select the TCP probe target.
+The console reads the selected [model YAML](../models.md) for both chat and embeddings.
+Its [connection probe][pm.app.operator_config.connection_status] reports endpoint health.
+The `minecraft` section enables MCP discovery for the configured body.

@@ -4,12 +4,10 @@
 
 The private loop can record a prediction, change attention advice or a subjective belief, and inspect later choices.
 Each experiment retains its original prediction, source revisions, failures, and reversal history.
-The engineering implementation is in progress under [A19](../work_items/alpha-plan/work-items/a19.md).
 The complete behavioral acceptance and M6 review remain pending.
 
 Parent: [private loop](private-loop.md).
 Related: [implementation inspection](introspection.md), [deliberate mental work](deliberate-mental-work.md), and [experiment lifecycle](reflection-lifecycle.md).
-Evidence: [A19 verification](../work_items/verification/a19-reflection.md).
 
 ## Trigger and execution
 

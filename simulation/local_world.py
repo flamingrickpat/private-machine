@@ -92,8 +92,8 @@ def seed_file(example: str, destination: Path) -> None:
 
 
 def executable(value: str, field_name: str, config: Path) -> Path:
-    expanded = os.path.expandvars(value)
-    resolved = Path(shutil.which(expanded) or REPO_ROOT / expanded)
+    selected = Path(value).expanduser()
+    resolved = Path(shutil.which(str(selected)) or REPO_ROOT / selected)
     if not resolved.is_file():
         raise SetupError(f"Missing {field_name} executable: {resolved}. Set {field_name} in {config}.")
     return resolved.resolve()

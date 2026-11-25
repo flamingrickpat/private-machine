@@ -12,8 +12,8 @@ Related: [private thought](private-loop.md), [review boundaries](cognitive-revie
 
 ## Stage proposals
 
-[`workflows.main_cognition.model_json.complete_json`][] validates syntax and the stage schema within the same repair loop.
-It delegates to the [shared runtime repair loop](../models.md#completion-replay-and-output-repair).
+[`workflows.main_cognition.phases.model.complete`][] validates syntax and the stage schema within the same repair loop.
+It delegates to the [shared runtime repair loop][pm.llm.structured.complete_json].
 Local syntax repair needs no extra model call when the result satisfies the stage schema.
 Between history resets, each repair retains the original task, rejected answers, and their validation errors.
 After nine consecutive rejections, the loop restores the original prompt and resets the attempt count.
@@ -30,7 +30,7 @@ The model request logs also retain the actual inference calls.
 No stage report exists until validation succeeds.
 The stage owns no accepted state or external action, so repair repeats no committed effect.
 
-When repair history exhausts the input budget, [`workflows.main_cognition.model_json.ModelFormatError`][] identifies model format exhaustion.
+When repair history exhausts the input budget, [`pm.llm.structured.ModelFormatError`][] identifies model format exhaustion.
 `RepeatedRejectionError` is a `ModelFormatError` and takes the same path.
 The private loop discards that cycle and emits `thought.rejected` telemetry.
 Its diagnostic remains beside the parent kernel artifacts.
@@ -89,7 +89,7 @@ The original conversation and all failed reviews remain unchanged.
 ## Verification
 
 The captured syntax failure contains an unescaped quotation inside `evidence_summary`.
-Its projection and source digest are in `test_data/captures/alpha/cognitive-format-recovery.json`.
+Its projection and source digest are in `test_data/captures/live/cognitive-format-recovery.json`.
 Boundary tests exercise recovery, cancellation, bounded repair context, and preservation of the user's cause.
 The real recovery gate asks the configured model to repair that captured output.
 It also checks a captured emotional metaphor and an invented reviewer quotation.
@@ -99,5 +99,3 @@ These focused checks do not replace fresh full-canon conversations.
 uv run --locked python -m unittest tests.unit.workflows.main_cognition.test_output_recovery -b
 uv run --locked python -m unittest tests.live.test_cognitive_recovery -v
 ```
-
-Fresh results, pending review items, and retained failures belong in the [A18B verification record](../work_items/verification/a18b-cognitive-evaluation.md).

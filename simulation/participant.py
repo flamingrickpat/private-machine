@@ -15,9 +15,7 @@ fixed replies; the package overview is in ``simulation/__init__.py``.
 A participant may hold one Minecraft body. ``/control/start`` names its MCP
 endpoint, and this process writes that endpoint into its own model configuration
 before the application starts, so the body section is typed and validated like
-any other operator configuration. It also binds ``MINECRAFT_MCP_URL`` in this
-process, because the read-only capability and hook modules resolve the body
-endpoint from the process environment. The body works on demand: the simulation
+any other operator configuration. The body works on demand: the simulation
 advances a virtual clock between scenes while a Minecraft server keeps real
 time, so a world poll on the virtual clock would fire hundreds of times inside
 one scene advance. Body workflows therefore read the world when they run.
@@ -197,28 +195,11 @@ class Participant:
                 base_url = self._text_option(body, "base_url")
                 minecraft_mcp_url = self._text_option(body, "minecraft_mcp_url")
                 if base_url is not None or minecraft_mcp_url is not None:
-                    from pm.utils import yaml_util
-                    config = yaml_util.safe_load(Path(self.config).read_text(encoding="utf-8"))
-                    if base_url is not None:
-                        config["chat"]["Default"]["base_url"] = base_url.rstrip("/")
-                    if minecraft_mcp_url is not None:
-                        # One body endpoint for this participant. The model
-                        # configuration is the normal source for it, so the rest
-                        # of the application reads one typed section.
-                        config.setdefault("minecraft", {})["mcp_url"] = minecraft_mcp_url
-                        for server in config.get("tool_call", {}).get("mcp_servers", []):
-                            if server["name"] == "minecraft":
-                                server["url"] = minecraft_mcp_url
+                    from simulation.source import SimulationConfigOverrides, copy_simulation_config
                     selected = self.home / "runtime" / "model-config.yaml"
-                    selected.parent.mkdir(parents=True, exist_ok=True)
-                    selected.write_text(yaml_util.safe_dump(config), encoding="utf-8")
+                    overrides = SimulationConfigOverrides(model_url=base_url, body_url=minecraft_mcp_url)
+                    copy_simulation_config(Path(self.config), selected, overrides)
                     self.config = str(selected)
-                if minecraft_mcp_url is not None:
-                    # The read-only capability and hook modules resolve the body
-                    # endpoint from this process environment, which is the one
-                    # per-process binding they all already read. The typed
-                    # ``minecraft`` section above stays the application's source.
-                    OperatingSystem.environment["MINECRAFT_MCP_URL"] = minecraft_mcp_url
                 self.minecraft_mcp_url = minecraft_mcp_url
                 self.starting = True
                 threading.Thread(target=self._start, args=(body,), name="participant-start", daemon=False).start()

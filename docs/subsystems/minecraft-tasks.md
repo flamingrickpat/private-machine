@@ -9,7 +9,6 @@ Independent observations establish acceptance and release prerequisites.
 Specifications, attempts, and verification receipts remain separate.
 
 Parent: [managed work](managed-work.md).
-Related: [sustained actor](minecraft-actor.md), [task evidence](minecraft-task-evidence.md), and [A11 verification](../work_items/verification/a11-minecraft-projects.md).
 Gameplay failures use [retained method history and recovery priority](gameplay-recovery.md).
 Planning edits use [tool-backed draft sessions](draft-sessions.md).
 Plan and result judgments use [workflow review modes](workflow-reviews.md), with flexible review by default.
@@ -65,7 +64,7 @@ The executable manifest declares every progress, completion, replanning, waiting
 The planner edits a private draft through a native agent session with scoped MCP tools.
 Its context tool returns a rendered overview instead of the complete retained tree and method history.
 It reads exact tasks and historical evidence through separate tools.
-See [shared object rendering](llm-context.md#shared-object-rendering) for the rules and archive boundary.
+See [shared object rendering](llm-context.md) for the rules and archive boundary.
 The reviewer uses a separate scoped normal-LLM call.
 The planner can return `survey` with explicit world-query operands.
 The survey phase reads those operands without an actor or world mutation.
@@ -133,7 +132,7 @@ Each decision retains that generation setting beside its exact messages.
 There is no output-token cap that could truncate a specification or verdict.
 Direct decisions receive one snapshot with a token budget derived from the actual serving context.
 `context_input_fraction` reserves response space; there is no character limit.
-See [context measurement](llm-context.md#direct-project-decisions-use-token-percentages).
+See [context measurement](gameplay-decision-scopes.md).
 Planner snapshots omit fields whose defaults the supplied schema defines.
 That tree representation restores the exact full specification through schema validation.
 Malformed model output stays intact as repair input; it cannot become an accepted tree.
@@ -146,7 +145,6 @@ The workflow kernel retains its existing 999-visit backstop for each cyclic phas
 The project adds no actor tool-call ceiling or fixed leaf count.
 
 `minecraft.mcp_url` in the model configuration selects the real MCP endpoint.
-`MINECRAFT_MCP_URL` remains a test override.
 Specialists receive the live tool schemas and existing compiled survival resources.
 The resource compiler also appends local specialist guidance from `workflows/minecraft/guidance/` when that file exists.
 The manifest records its path and hash separately from the unchanged upstream skill sources.
@@ -189,7 +187,6 @@ A11 persists plans and evidence but does not automatically resume interrupted wo
 The supervisor records an interrupted run after restart.
 The delivered [A12 recovery](body-recovery.md) provides explicit resume, shared ownership, epochs, and fresh observation.
 The [A13 implementation](gameplay-recovery.md) retains unsuccessful methods, local searches, and recovery across actor attempts.
-Its real acceptance remains [pending](../work_items/verification/a13/index.md).
 
 Callers can configure optional `minecraft_plan_constraints` and `minecraft_project_check` callbacks through the workflow tool factory and explicit role grants.
 The plan callback receives the proposed tree before the ordinary world survey and independent model review.
@@ -199,9 +196,7 @@ Its recorded errors require a concrete leaf change; existing certificates and wo
 Both callbacks return an `errors` list and cannot grant acceptance.
 The M3 runner saves a fresh manifest copy with each additional grant and records both manifest digests.
 Projects without these callbacks retain their existing generic behavior.
-The [M3 procedure](../work_items/verification/a13/m3-house-and-iron.md) describes the scenario contracts and original evidence checks.
 
 ## Go deeper
 
 Read [independent evidence](minecraft-task-evidence.md) for observation primitives and public claims.
-Read [verification](../work_items/verification/a11-minecraft-projects.md) for real commands, inspected results, and remaining limits.

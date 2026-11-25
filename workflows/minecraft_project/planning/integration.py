@@ -9,7 +9,6 @@ import json
 from pm.utils import yaml_util
 from pm_workflows.python_role import RoleContext
 
-from workflows.minecraft_body.lease import BODY_LEASES
 from workflows.minecraft_project.tree_store import TreeStore
 from workflows.minecraft_project.acceptance import evaluate, observe_conditions, verified_project
 from workflows.minecraft_project.planning.run_context import boundary, identity, request
@@ -57,7 +56,9 @@ def finish(context: RoleContext, store: TreeStore) -> ProjectPhaseResult:
         raise ValueError("The completed project failed retained-evidence recomputation.")
     if not req.plan_only:
         from workflows.minecraft.steps import build_world
-        with BODY_LEASES.command(require_minecraft_runtime(context.runtime).minecraft_transport.settings.endpoint, context.runtime.stop_event):
+        body_runtime = require_minecraft_runtime(context.runtime)
+        transport = body_runtime.minecraft_transport
+        with transport.leases.command(transport.settings.endpoint, body_runtime.stop_event):
             observation = require_minecraft_runtime(context.runtime).minecraft_transport.call("minecraft_observe", {"include_image": False})
         if not observation["ok"]:
             raise ValueError("The project has no usable final body observation.")

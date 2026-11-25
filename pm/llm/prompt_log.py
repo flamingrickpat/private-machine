@@ -12,7 +12,7 @@ Long lines wrap at 120 characters, so the file stays readable in a terminal or
 an editor. The log is a diagnostic record. It never changes a request and it
 never raises into the caller. A write failure becomes one warning on stderr.
 
-Set ``PM_PROMPT_LOG=0`` to disable the log. Set ``PM_PROMPT_LOG_DIR`` to use a
+Use ``inference_io.prompt_log`` to disable prompt logs. Use the YAML to select a
 different directory.
 """
 from __future__ import annotations
@@ -33,6 +33,7 @@ from contextvars import ContextVar
 from contextlib import contextmanager
 from typing import Protocol
 from pm.llm.cache import cache_root, model_directory
+from pm.llm.config import InferenceIO
 
 MAX_LINE = 120
 DEFAULT_DIR = Path.home() / ".pm" / "private-machine" / "cache"
@@ -99,25 +100,15 @@ def configure_root(path: Path | None) -> None:
     """Set the owning persona's prompt and agent directory before startup.
 
     Each process owns one persona. Completion caches remain separate from
-    these execution logs. None restores the ordinary environment default.
+    these execution logs. None restores the default cache directory.
     """
     global _PERSONA_ROOT
     _PERSONA_ROOT = Path(path) if path is not None else None
 
 
-def logging_enabled() -> bool:
-    """Return False only when the caller explicitly disables the log."""
-    return OperatingSystem.environment.get("PM_PROMPT_LOG", "1").strip().lower() not in {"0", "false", "off", "no"}
-
-
 def log_directory() -> Path:
-    """Return the directory for prompt files, honoring ``PM_PROMPT_LOG_DIR``."""
-    if _SCOPED_ROOT.get() is not None:
-        return _SCOPED_ROOT.get()
-    if _PERSONA_ROOT is not None:
-        return _PERSONA_ROOT
-    raw = OperatingSystem.environment.get("PM_PROMPT_LOG_DIR")
-    return Path(raw).expanduser() if raw else cache_root()
+    """Return the current invocation or persona evidence directory."""
+    return _SCOPED_ROOT.get() or _PERSONA_ROOT or cache_root()
 
 
 def wrap_text(text: str, *, width: int = MAX_LINE, indent: str = "") -> list[str]:
@@ -252,7 +243,7 @@ def _metadata(connection: LogTarget, generation: dict, response: dict | None, er
         lines.extend(wrap_text(raw_line, indent="  "))
     return lines
 
-__all__ = ["DEFAULT_DIR", "MAX_LINE", "log_directory", "logging_enabled", "wrap_text"]
+__all__ = ["DEFAULT_DIR", "MAX_LINE", "log_directory", "wrap_text"]
 
 
 def _event(path: Path, event: dict) -> None:
@@ -273,18 +264,19 @@ def _event(path: Path, event: dict) -> None:
 
 
 def start_prompt_log(*, connection: LogTarget, payload: dict[str, JsonValue] | None, route: str,
-                     request_count: int, directory: Path | None = None) -> Path | None:
+                     request_count: int, directory: Path | None = None,
+                     io: InferenceIO = InferenceIO()) -> Path | None:
     """Save the exact inference payload before external I/O. Return its log path.
 
     Chat and embedding attempts share this lifecycle. Retries get distinct IDs.
     Headers and credentials never enter the files. A write error prints a
     warning and returns None. No model request depends on logging success.
     """
-    if not logging_enabled() or route not in {"chat/completions", "embeddings"}:
+    if not io.prompt_log or route not in {"chat/completions", "embeddings"}:
         return None
-    default = model_directory(connection.model, cache_root() / "embeddings" if route == "embeddings" else cache_root())
-    target = directory or (log_directory() if _PERSONA_ROOT is not None or _SCOPED_ROOT.get() is not None
-                           or OperatingSystem.environment.get("PM_PROMPT_LOG_DIR") else default)
+    root = io.cache_directory.expanduser()
+    default = model_directory(connection.model, root / "embeddings" if route == "embeddings" else root)
+    target = directory or _SCOPED_ROOT.get() or io.prompt_log_directory or _PERSONA_ROOT or default
     path = target / f"{uuid.uuid4().hex}.md"
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -388,16 +380,16 @@ def finish_prompt_log(path: Path | None, *, response: dict[str, JsonValue] | Non
 __all__ += ["start_prompt_log", "finish_prompt_log"]
 
 
-def backfill_cache_logs() -> None:
+def backfill_cache_logs(io: InferenceIO = InferenceIO()) -> None:
     """Add missing Markdown files to existing cache JSON without model calls.
 
     Old responses can lack the original request and timing data. These fields
     remain unknown. Existing transcripts and JSON bytes stay unchanged.
     """
     import logging
-    if not logging_enabled():
+    if not io.prompt_log:
         return
-    for path in cache_root().rglob("*.json"):
+    for path in io.cache_directory.expanduser().rglob("*.json"):
         target = path.with_suffix(".md")
         if target.exists():
             continue

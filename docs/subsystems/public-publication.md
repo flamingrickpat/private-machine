@@ -8,7 +8,6 @@ Publication follows that commit.
 Checkpoint restart can replay an unacknowledged utterance or dispatch a selected terminal task reply.
 
 Parent: [public dialogue](public-dialogue.md).
-Related: [operator service](console.md), [managed work](managed-work.md), and [A09 verification](../work_items/verification/a09-public-dialogue.md).
 Accepted companion actions use [live delivery and clean restart](recovery-publication.md).
 
 ## Input and durable ownership
@@ -150,7 +149,7 @@ The report retains expected and actual hexadecimal bytes, SHA-256, and verificat
 A changed file or extra newline invalidates task verification.
 A workflow can also declare `reply_evidence` in its specification.
 [`ReplyRecovery`][workflows.public_speech.reply_recovery.ReplyRecovery] adds its fields to the reply evidence.
-For `tool_call`, [`reply_evidence`][workflows.tool_call.report.reply_evidence] reads the report again and checks the bytes of each reported local file.
+For `tool_call`, [`read_reply_evidence`][workflows.tool_call.report.read_reply_evidence] reads the report again and checks the bytes of each reported local file.
 `task_verified` stays false. See the [tool goal guide](../workflows/tool-call.md).
 The control worker always lacks that independent note verification.
 Internal note defects propagate to the application error handler. Structured model extraction repairs malformed samples at its own boundary.
@@ -161,7 +160,7 @@ Cancellation propagates to the worker, and unexpected logic errors keep their tr
 Context selection can only use IDs from the current memory candidate list.
 The retrieve phase passes that list to the answer schema as `RecallValidationContext`, so a copied ID becomes a schema violation inside `pm.llm.structured.complete_json`.
 The repair loop sends the model the broken ID and the marker to copy, then asks again.
-It has no attempt limit; each rejection is logged with its attempt number, and the prompt log under `PM_PROMPT_LOG_DIR` keeps every rejected answer.
+It has no attempt limit; each rejection is logged with its attempt number, and the prompt log under `inference_io.prompt_log_directory` keeps every rejected answer.
 Because the rule is part of the schema, no later check can end the cycle over one ID.
 The prompt itself keeps the selectable ID distinct, in the `candidate_id=` marker of a memory, so the repair loop stays rare rather than permanent. See [`memory_candidate_text`][workflows.main_cognition.rendering.memory_candidate_text].
 This procedure does not rewrite public prose or optimize a quality score.
@@ -206,5 +205,3 @@ The in-memory bus still has no durable message queue.
 Checkpoint markers provide recovery for the documented public boundary.
 Other queued prerequisites remain A12 work.
 The second private conscious loop remains A17 work.
-
-Go deeper: [A09 verification](../work_items/verification/a09-public-dialogue.md) and [Ghost state](../ghost.md).

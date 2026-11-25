@@ -13,6 +13,7 @@ import sys
 import unittest
 from uuid import uuid4
 
+from pm.app.operator_config import default_config_path
 from pm.utils.operating_system import OperatingSystem
 from dev.work_items.a18b.runner import load_suite
 
@@ -99,7 +100,7 @@ def invoke(command: str, *extra: str) -> tuple[subprocess.CompletedProcess, Path
     parent = ROOT / ".runtime" / "live" / "a18b" / name
     parent.mkdir(parents=True)
     out = parent / command
-    config = OperatingSystem.environment.get("PM_MODEL_CONFIG", str(ROOT / "config.alpha.openrouter.yaml"))
+    config = OperatingSystem.environment.get("PM_MODEL_CONFIG", str(Path(default_config_path())))
     with (parent / "command.log").open("w", encoding="utf-8") as log:
         result = OperatingSystem.run_binary(
             [sys.executable, "-m", "dev.work_items.a18b", command,

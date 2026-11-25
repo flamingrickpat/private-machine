@@ -6,6 +6,7 @@ it does not establish character quality or full-cycle action selection.
 """
 from __future__ import annotations
 
+from tests.live.configuration import live_model_config
 from pm.host.application import Application
 
 from dataclasses import dataclass
@@ -69,18 +70,17 @@ class LiveEntityContextTests(unittest.TestCase):
     """Exercise real generated reports, corrections, freshness, peers, and reload."""
 
     def test_four_immediate_entity_updates_and_clean_restart(self) -> None:
-        config = load_config(ROOT / "config.yaml")
+        out = ROOT / ".runtime/beta-b04/live" / (
+            datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid4().hex[:8])
+        out.mkdir(parents=True)
+        print(f"B04 four-message live evidence: {out}", flush=True)
+        config_path = live_model_config(ROOT / "config.yaml", out)
+        config = load_config(config_path)
         connection = resolve_connection(config)
         if (urlsplit(connection.base_url).hostname != "openrouter.ai"
                 or connection.startup_script is not None
                 or urlsplit(config.embedding.base_url).hostname != "openrouter.ai"):
             raise ValueError("NOT RUN — this gate requires OpenRouter chat/embeddings without startup scripts.")
-        out = ROOT / ".runtime/beta-b04/live" / (
-            datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid4().hex[:8])
-        out.mkdir(parents=True)
-        print(f"B04 four-message live evidence: {out}", flush=True)
-        OperatingSystem.environment["PM_COMPLETION_CACHE"] = "0"
-        OperatingSystem.environment["PM_PROMPT_LOG_DIR"] = str(out / "prompts")
         canonical = MemoryStore.from_yaml(ROOT / "test_data/personas/spamuel/canon.yaml")
         identities: list[RecordBase] = [pickle_copy(record) for record in canonical.all_entities
                       if record.content in {canonical.get_user_name(), canonical.get_companion_name()}]

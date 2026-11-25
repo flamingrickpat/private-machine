@@ -8,7 +8,6 @@ import time
 
 from pm_workflows.python_role import RoleContext
 
-from workflows.minecraft_body.lease import BODY_LEASES
 from workflows.minecraft_project.schemas import Condition
 from workflows.minecraft_project.tree_store import TreeStore
 from workflows.minecraft_project.acceptance import observe_conditions
@@ -47,7 +46,9 @@ def recipe_reads(context: RoleContext, patterns: list[str]) -> list[dict]:
     for pattern in patterns:
         context.runtime.check_cancelled()
         arguments = {"pattern": pattern}
-        with BODY_LEASES.command(require_minecraft_runtime(context.runtime).minecraft_transport.settings.endpoint, context.runtime.stop_event):
+        body_runtime = require_minecraft_runtime(context.runtime)
+        transport = body_runtime.minecraft_transport
+        with transport.leases.command(transport.settings.endpoint, body_runtime.stop_event):
             observed = require_minecraft_runtime(context.runtime).minecraft_transport.call("minecraft_recipe_search", arguments)
         reads.append({"tool": "minecraft_recipe_search", "arguments": arguments,
                       "time": time.time(), "ok": observed["ok"], "result": observed["result"]})

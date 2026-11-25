@@ -10,6 +10,8 @@ from types import SimpleNamespace
 import unittest
 from uuid import uuid4
 
+from tests.live.configuration import live_model_config
+from pm.app.operator_config import default_config_path
 from pm.utils.operating_system import OperatingSystem
 from dev.work_items.a18b.cli import model
 from dev.work_items.a18b.policy import Fact, PublicMessage, ReviewCriterion, ReviewPacket
@@ -21,26 +23,18 @@ from workflows.inner_thought.schemas import ThoughtResult
 from workflows.main_cognition.model_json import complete_json
 
 ROOT = Path(__file__).resolve().parents[2]
-CAPTURE = ROOT / "test_data/captures/alpha/cognitive-format-recovery.json"
+CAPTURE = ROOT / "test_data/captures/live/cognitive-format-recovery.json"
 
 
 class LiveCognitiveRecoveryTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.capture = json.loads(CAPTURE.read_text(encoding="utf-8"))
-        cls.model = model(Path(OperatingSystem.environment.get("PM_MODEL_CONFIG", ROOT / "config.alpha.openrouter.yaml")))
         name = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid4().hex[:8]
         cls.out = ROOT / ".runtime/a18b-current/checks" / ("real-recovery-" + name)
         cls.out.mkdir(parents=True)
-        cls.previous_log = OperatingSystem.environment.get("PM_PROMPT_LOG_DIR")
-        OperatingSystem.environment["PM_PROMPT_LOG_DIR"] = str(cls.out / "llm-logs")
-
-    @classmethod
-    def tearDownClass(cls) -> None:
-        if cls.previous_log is None:
-            OperatingSystem.environment.pop("PM_PROMPT_LOG_DIR", None)
-        else:
-            OperatingSystem.environment["PM_PROMPT_LOG_DIR"] = cls.previous_log
+        selected = Path(OperatingSystem.environment.get("PM_MODEL_CONFIG", default_config_path()))
+        cls.model = model(live_model_config(selected, cls.out, "llm-logs"))
 
     def test_real_model_repairs_the_captured_unescaped_quote(self):
         raw = self.capture["malformed_thought"]["text"]

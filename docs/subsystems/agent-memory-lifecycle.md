@@ -8,7 +8,6 @@ Source revisions guard its local commit.
 Cancellation and session closure stop pending retrieval without cancelling later work in the enclosing run.
 
 Parent: [direct agent memory](agent-memory.md).
-Related: [draft sessions](draft-sessions.md), [managed work](managed-work.md), and [A14B evidence](../work_items/verification/a14b-agent-memory.md).
 
 ## Workflow grant and group identity
 
@@ -66,6 +65,3 @@ Old grants cannot authorize another group.
 2. Inspect the cited original records and their current revisions.
 3. Use `memory_refresh` through the current group.
 4. Reconsider the affected draft before another attempt.
-
-The [verification record](../work_items/verification/a14b-agent-memory.md) distinguishes engineering checks, actual model decisions, and pending world execution.
-The [K001 memory check](../work_items/verification/k001-memory-sessions.md) records the reported session leak and its repair.

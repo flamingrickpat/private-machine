@@ -30,7 +30,7 @@ tool_call:
     - name: image_gen          # unique; also the tool prefix in the session
       url: http://127.0.0.1:9877/mcp
       headers:
-        Authorization: Bearer ${IMAGE_MCP_TOKEN}
+        Authorization: Bearer your-local-token
       request_timeout_seconds: 600
 ```
 
@@ -41,12 +41,10 @@ tool_call:
 | `gwt_turn_limit` | `8` | The number of recent GWT turns in the session context |
 | `mcp_servers[].name` | required | A unique name. It is the tool prefix, for example `image_gen_paint` |
 | `mcp_servers[].url` | required | An HTTP or HTTPS MCP endpoint |
-| `mcp_servers[].headers` | `{}` | HTTP headers. `${NAME}` refers to an environment variable |
+| `mcp_servers[].headers` | `{}` | Literal HTTP headers from your local YAML |
 | `mcp_servers[].request_timeout_seconds` | `600` | The deadline of one tool request, in seconds |
 
-A header variable comes from the process environment first and from the ignored `.env` file second.
-If a variable has no value, the application start stops with `McpConfigError`.
-No request goes out without the header.
+Keep credential headers in your ignored local YAML.
 
 Without servers, the application does not register `tool_call`.
 Routing then never offers it, so the companion cannot claim a tool that it does not have.
@@ -66,7 +64,7 @@ Only HTTP MCP servers are supported. A stdio MCP needs an HTTP adapter.
 
 Self-management stores the action record id in the run arguments (`_public_action_schema_id`).
 That record holds the frozen action request of the cycle that chose the action.
-At launch, [`capture_context`][workflows.tool_call.host.capture_context] reads that record through the `dispatch_context` hook of the specification.
+At launch, The tool workflow reads that record when it prepares the managed request.
 The context then holds the decision, its stimuli, its correlation, the cycle tick, the feeling, and the workspace shard story of that cycle.
 The GWT turns end at that cycle.
 A run without a source action, for example an operator start, gets the newest context at launch.
@@ -125,7 +123,7 @@ A repeated terminal hook or a restart therefore creates no second record.
 
 The terminal event carries the report summary as its detail, so a private `ToolCall` result reaches cognition in words.
 For `ToolCallAndReply`, [`ReplyRecovery`][workflows.public_speech.reply_recovery.ReplyRecovery] builds the reply request.
-[`reply_evidence`][workflows.tool_call.report.reply_evidence] reads the report again and checks the bytes of every reported file.
+[`read_reply_evidence`][workflows.tool_call.report.read_reply_evidence] reads the report again and checks the bytes of every reported file.
 The reply can name a local file truthfully when its bytes did not change.
 `task_verified` stays false: unchanged bytes do not prove the content or the quality of an image.
 
@@ -145,7 +143,7 @@ A changed instruction during the session makes the result `uncertain`.
 ```powershell
 uv run --locked python dev/tools/demo_mcp.py --port 9881
 $env:PYTHONPATH = "."
-uv run --locked python dev/tools/tool_call_check.py --config config.alpha.openrouter.yaml `
+uv run --locked python dev/tools/tool_call_check.py --config config.yaml `
     --mcp demo=http://127.0.0.1:9881/mcp --instruction "roll a 20-sided die and make a red test image"
 ```
 

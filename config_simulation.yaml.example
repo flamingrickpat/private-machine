@@ -6,3 +6,6 @@ mcp_checkout: ../pm-minecraft
 server_installation: ../minecraft-server-real
 # Campaign admission checks the provider key before paid inference.
 require_capped_openrouter_key: true
+
+# null uses the pacing from the scenario.
+time_multiplier: null

@@ -9,7 +9,6 @@ Prefer more useful situations over a longer mandatory duration.
 
 Parent: [cognitive evaluation](cognitive-evaluation.md).
 Contract: [review boundaries](cognitive-review-boundaries.md).
-Work item: [A18B](../work_items/alpha-plan/work-items/a18b.md).
 
 ## Start with an observable question
 

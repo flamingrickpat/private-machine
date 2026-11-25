@@ -30,7 +30,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from pm.bus.envelopes import Envelope
-from pm.console.assembly import DEFAULT_ASSEMBLY, DEFAULT_OPERATOR_HOOKS, load
+from pm.console.assembly import DEFAULT_ASSEMBLY, load
 from pm.host.application import BusModule
 from pm.memory.yaml_codec import RecordPayload
 from pm.runs.workflow_runner import WorkflowRequest, WorkflowResult, WorkflowRunner
@@ -54,8 +54,6 @@ def run(settings: InstanceSettings, root: Path) -> None:
     from pm.host.diagnostics import configure_logging
     configure_logging(root)
     OperatingSystem.install_child_cleanup()
-    from pm.llm.prompt_log import backfill_cache_logs
-    backfill_cache_logs()
     output = sys.stdout
     sys.stdout = sys.stderr  # Dependency output must not corrupt the event stream.
     lock = threading.Lock()
@@ -132,12 +130,15 @@ def run(settings: InstanceSettings, root: Path) -> None:
             raise
 
     ChatClient.complete = complete
-    from pm.app.operator_config import operator_config
-    model_config, environment, _ = operator_config(settings.get("config") or None)
-    load(settings.get("operator_hooks") or DEFAULT_OPERATOR_HOOKS).prepare_environment(environment)
+    from pm.app.operator_config import default_config_path
+    from pm.llm.config import load_config
+    from pm.llm.prompt_log import backfill_cache_logs
+    config_path = settings.get("config") or default_config_path()
+    model_config = load_config(config_path)
+    backfill_cache_logs(model_config.inference_io)
     build_app = load(settings.get("assembly") or DEFAULT_ASSEMBLY).build_app
     app = build_app(settings["seed"], root, checkpoint_path=root / "ghost.pickle",
-                    cognition=settings["cognition"], config_path=settings.get("config") or None,
+                    cognition=settings["cognition"], config_path=config_path,
                     emit_reply=lambda text: None)
     pending: dict[str, str] = {
         item.metadata["exchange_correlation"]: item.metadata.get("session", "recovered")

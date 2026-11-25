@@ -9,7 +9,6 @@ Historical acceptance results do not prove quality for a later revision.
 
 Parent: [manual](../index.md).
 Current structure: [system map](../concepts/architecture.md).
-Next delivery: [companion alpha implementation plan](alpha-plan/index.md).
 
 ## Recover the original documents
 

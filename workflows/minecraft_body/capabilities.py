@@ -127,7 +127,11 @@ class CapabilitySnapshotOwner:
         tools = self.supervisor.workflows.get("tool_call")
         if tools and name in tools.reserved_suites and self.endpoint:
             spec = self.supervisor.workflows.get("minecraft_project")
-            owner = spec.reservation.owner() if spec and spec.reservation else BODY_LEASES.owner(self.endpoint)
+            if spec and spec.reservation:
+                owner = spec.reservation.owner()
+            else:
+                leases = self.transport.leases if self.transport is not None else BODY_LEASES
+                owner = leases.owner(self.endpoint)
             if owner:
                 return f"{name} busy with {owner} (status, wait, yield or terminate)"
         return f"{name} available"

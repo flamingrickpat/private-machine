@@ -13,7 +13,6 @@ tokenizer probes that do not go through :class:`JsonClient`.
 """
 from __future__ import annotations
 
-from pm.utils.operating_system import OperatingSystem
 import asyncio
 import secrets
 import sys
@@ -247,7 +246,7 @@ class JsonClient:
         started = time.monotonic()
         replayed = replay_response(cache_path) if cache_path is not None else None
         path = start_prompt_log(connection=self.connection, payload=payload, route=route,
-                                request_count=self.request_count) if method == "POST" else None
+                                request_count=self.request_count, io=self.connection.io) if method == "POST" else None
         logger = logging.getLogger(__name__)
         logger.info("Model request start route=%s model=%s cache_hit=%s",
                     route, self.connection.model, replayed is not None)
@@ -307,7 +306,7 @@ class JsonClient:
             headers["Authorization"] = f"Bearer {key}"
         cache_path: Path | None = None
         chat = method == "POST" and route == "chat/completions"
-        cached_chat = chat and OperatingSystem.environment.get("PM_COMPLETION_CACHE", "1") != "0"
+        cached_chat = chat and self.connection.io.completion_cache and not self.live_test
         if chat:
             payload = {**(payload or {}), "seed": secrets.randbelow(2**31)}
             if urlsplit(self.connection.base_url).hostname == "openrouter.ai":
@@ -326,7 +325,7 @@ class JsonClient:
                                 max_concurrent_requests=self.connection.max_concurrent_requests).slot(cancel):
                             if cached_chat and cache_path is None:
                                 # Queue cancellation must not advance the response counter.
-                                cache_path = completion_path(self.connection.base_url, payload or {})
+                                cache_path = completion_path(self.connection.base_url, payload or {}, self.connection.io.cache_directory.expanduser())
                             response = await self._send(client, method, route, headers, payload, cancel, cache_path, transcript_path)
                     else:
                         response = await self._send(client, method, route, headers, payload, cancel, cache_path, transcript_path)

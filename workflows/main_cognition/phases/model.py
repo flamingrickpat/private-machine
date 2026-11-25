@@ -3,7 +3,7 @@
 Every phase calls the model through :func:`complete`. It uses the
 ``llm_complete`` tool that the host grants to the run, and the repair loop of
 :func:`workflows.main_cognition.model_json.complete_json`. The model tool
-writes each attempt to the prompt log (``PM_PROMPT_LOG_DIR``).
+writes each attempt to the configured prompt log.
 
 Some phases read private grounding context: the public-context snapshot that
 the host froze for this cycle. :func:`complete` inserts it as the second turn

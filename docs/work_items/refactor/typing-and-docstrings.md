@@ -6,7 +6,7 @@ This pass makes the existing code easier to read without changing companion beha
 It adds precise annotations, replaces anonymous internal dictionaries with named contracts, removes reflection where a real type exists, and rewrites module and function documentation to the manual's standard.
 
 Parent: [structural refactor](index.md).
-Code conventions: [development loop](../../workflows/development.md#typed-contracts).
+Code conventions: [development loop](../../workflows/development.md).
 
 ## Scope
 

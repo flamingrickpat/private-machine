@@ -31,7 +31,7 @@ from typing import Literal
 from uuid import uuid4
 from contextlib import closing
 
-from pydantic import BaseModel, JsonValue
+from pydantic import BaseModel, JsonValue, TypeAdapter
 
 from pm.host.durable_files import ProcessLock, atomic_json, runtime_status
 from pm.memory.checkpoint import read_checkpoint
@@ -73,7 +73,7 @@ def replied_after(rows: Sequence[Mapping[str, JsonValue]], delivery_id: str, sou
     return False
 from simulation.personas import fork_home
 from simulation.plans import ActorPacing, ScenarioPlan, SimulationTiming, facts_for_scene
-from simulation.source import freeze_source
+from simulation.source import FrozenSource, freeze_source
 from simulation.analysis import AnalysisSettings, analyze_run
 
 
@@ -638,18 +638,21 @@ class RunEngine:
             self.state["status"] = "starting"
             self.save()
             outcome: str = "failed"
+            source: FrozenSource | None = None
             try:
                 source = freeze_source(attempt / "source", Path(self.state["config"]))
+                selection = TypeAdapter(ParticipantSelection)
                 for item in self.state["participants"]:
-                    process = PMProcess(item["id"], Path(item["home"]), source["config"],
-                                        attempt / f"{item['id']}-endpoint.json", source_root=Path(source["source"]),
-                                        minecraft_mcp_url=participant_body_endpoint(item))
-                    self.processes[item["id"]] = process
+                    participant = selection.validate_python(item)
+                    process = PMProcess(participant.id, Path(participant.home), str(source.config),
+                                        attempt / f"{participant.id}-endpoint.json", source_root=source.source,
+                                        minecraft_mcp_url=participant.minecraft_mcp_url)
+                    self.processes[participant.id] = process
                     process.launch(self.state["clock"])
                     process.listen(item["cursor"])
                 self.state["status"] = "running"
                 self.save()
-                agents = Agents(source["config"], attempt, cancel=self.request)
+                agents = Agents(str(source.config), attempt, cancel=self.request)
                 while self.state["step_index"] < len(self.plan.steps) and not self.request.is_set():
                     try:
                         self._stage(agents)
@@ -682,8 +685,9 @@ class RunEngine:
             if self.state["status"] == "completed" and settings_path.exists():
                 settings = AnalysisSettings.model_validate_json(settings_path.read_text(encoding="utf-8"))
                 if settings.automatic:
+                    assert source is not None
                     try:
-                        analyze_run(self.root, source["config"])
+                        analyze_run(self.root, str(source.config))
                     except Exception as error:
                         # Rating failure stays visible and never reruns completed companion work.
                         atomic_json(self.root / "analysis-failure.json", {

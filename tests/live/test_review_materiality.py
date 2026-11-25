@@ -15,6 +15,7 @@ import threading
 import unittest
 from uuid import uuid4
 
+from pm.app.operator_config import default_config_path
 from pm.utils.operating_system import OperatingSystem
 from pm.llm.activation import ModelActivation
 from pm.llm.config import load_config, resolve_connection
@@ -24,7 +25,7 @@ from workflows.public_speech.public_context import DialogueTurn, build_public_co
 from workflows.public_speech.speech_review import is_blocked, review_speech
 
 ROOT = Path(__file__).resolve().parents[2]
-CAPTURE = ROOT / "test_data/captures/alpha/a18b-materiality-evidence.json"
+CAPTURE = ROOT / "test_data/captures/live/a18b-materiality-evidence.json"
 
 
 @unittest.skipUnless(OperatingSystem.environment.get("PM_REVIEW_MATERIALITY_LIVE") == "1", "Live reviewer gate is disabled.")
@@ -68,7 +69,7 @@ class ReviewMaterialityTests(unittest.TestCase):
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         out = ROOT / ".runtime/a18b-current/reviewer-materiality" / f"live-{stamp}-{uuid4().hex[:8]}"
         out.mkdir(parents=True)
-        config_path = OperatingSystem.environment.get("PM_MODEL_CONFIG", "config.alpha.openrouter.yaml")
+        config_path = OperatingSystem.environment.get("PM_MODEL_CONFIG", default_config_path())
         connection = resolve_connection(load_config(config_path))
         model = LazyStageModel(connection, ModelActivation())
         cancel = threading.Event()

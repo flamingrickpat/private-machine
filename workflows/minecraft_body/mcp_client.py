@@ -14,7 +14,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
 from typing import TypedDict
-from workflows.minecraft_body.lease import BodyEpoch
+from workflows.minecraft_body.lease import BodyEpoch, BODY_LEASES, BodyLeases
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 from mcp.types import ContentBlock, ImageContent
@@ -102,8 +102,10 @@ class BodyCallSettings(BaseModel):
 
 
 class MinecraftTransport:
-    def __init__(self, settings: MinecraftTransportSettings, model: LazyStageModel | None) -> None:
+    def __init__(self, settings: MinecraftTransportSettings, model: LazyStageModel | None,
+                 *, leases: BodyLeases = BODY_LEASES) -> None:
         self.settings = settings
+        self.leases: BodyLeases = leases
         self.planner = MinecraftPlanner(model)
         self.headers: dict[str, str] = {}
         self.read_lock = RLock()

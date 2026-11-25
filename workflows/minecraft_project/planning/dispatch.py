@@ -22,7 +22,6 @@ from pm.utils import yaml_util
 from pm_workflows.python_role import RoleContext
 from pydantic import ValidationError
 
-from workflows.minecraft_body.lease import BODY_LEASES
 from pm.host.cancellation import LinkedStopEvent
 from pm.runs.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
 from pm.host.folder_target import FolderEnvironment
@@ -78,7 +77,7 @@ def act(context: RoleContext, store: TreeStore) -> ProjectPhaseResult:
     parent_revision = store.state["instruction_revision"]
     child_boundary = runtime.managed_boundary.for_leaf(LeafBoundarySettings(node.instruction, parent_revision))
     endpoint = require_minecraft_runtime(runtime).minecraft_transport.settings.endpoint
-    lease = runtime.body_lease if runtime.body_lease.ownership is not None else MinecraftBodyLease(endpoint, child_id)
+    lease = runtime.body_lease if runtime.body_lease.ownership is not None else MinecraftBodyLease(endpoint, child_id, leases=runtime.minecraft_transport.leases)
     child_stop = LinkedStopEvent(runtime.stop_event)
     child_runtime = replace(runtime, environment=child_environment, stop_event=child_stop,
         managed_boundary=child_boundary, body_lease=lease)

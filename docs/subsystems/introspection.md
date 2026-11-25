@@ -15,9 +15,6 @@ It builds on the private thought loop from A17 and the scoped memory tools
 from A14B.
 
 Parent: [cognitive pipeline](cognition.md).
-Design: [self-model and reflection](../work_items/alpha-plan/reflection.md).
-Work item: [A18](../work_items/alpha-plan/work-items/a18.md).
-Evidence: [A18 verification](../work_items/verification/a18-self-model.md).
 Runtime: [`pm.introspection`][], [`workflows.introspection.snapshot`][].
 
 ## Where it runs

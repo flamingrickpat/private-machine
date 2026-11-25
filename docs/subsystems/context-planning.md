@@ -149,7 +149,7 @@ Permanent service errors and internal planning errors propagate; they do not pro
 Each invocation normalizes the supplied vectors for its lane calculations.
 It reuses these local calculations across lanes and budget rounds.
 The durable vector owner remains the knoxel. A later invocation reads the current record vector.
-Read [model connections](../models.md#embeddings-and-scoped-retrieval) for startup, FAISS, and persistence.
+Read [model connections](../models.md) for startup, FAISS, and persistence.
 
 ## Public context and commit guard
 

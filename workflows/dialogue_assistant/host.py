@@ -45,8 +45,7 @@ class AssistantMcpServices:
     async def observe_minecraft(self, include_image: bool = False) -> JsonValue:
         if self.transport is None:
             raise ToolExecutionError("No Minecraft body is configured for this character.")
-        from workflows.minecraft_body.lease import BODY_LEASES
-        with BODY_LEASES.command(self.transport.settings.endpoint):
+        with self.transport.leases.command(self.transport.settings.endpoint):
             result = await self.transport.call_async("minecraft_observe", {"include_image": False})
             if not result["ok"]:
                 raise ToolExecutionError(f"Minecraft observation failed: {result['result']}")

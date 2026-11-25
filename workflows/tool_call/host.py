@@ -154,7 +154,7 @@ def build_workflow_spec(config: ToolCallConfig, *, private: bool = False) -> Wor
     disabled, because an interrupted MCP call can leave external effects
     that a replay would repeat.
     """
-    config.check_environment()
+    config.validate_headers()
     selected = pickle_copy(config)
 
     return WorkflowSpec(

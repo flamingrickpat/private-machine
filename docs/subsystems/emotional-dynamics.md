@@ -159,7 +159,5 @@ Copy a `FullMentalState` as a model, not through its vector.
 
 ## Go deeper
 
-Read [A07 verification](../work_items/verification/a07-emotional-dynamics.md) for the older A07 checks.
 Read [accepted cognition state](cognition-state.md) for the commit boundary.
 Read [`workflows.main_cognition.affect`][] and [`pm.records.mental_state`][] for the exact functions.
-Read the [A19F plan](../work_items/alpha-plan/work-items/a19f.md) for the cycle that uses this state.

@@ -9,7 +9,6 @@ Its separate long-inspection workflow checks actual agent compaction.
 
 Parent: [workflow runtime](../runtime.md).
 Connections: [PM model sessions](../subsystems/workflow-inputs/pm-connections.md).
-Evidence: [A05 verification](../work_items/verification/a05-pm-classification.md).
 
 ## Trigger and results
 
@@ -59,7 +58,7 @@ from pm.llm.workflow_sessions import WorkflowModels
 from pm.runs.workflow_runner import WorkflowRequest, WorkflowRunner
 from pm.host.folder_target import FolderEnvironment
 
-models = WorkflowModels(load_config("config.alpha.example.yaml"), ModelActivation())
+models = WorkflowModels(load_config("config.yaml"), ModelActivation())
 runtime = WorkflowRuntime(FolderEnvironment(Path("your-test-workspace"), "bash"), Event(), {})
 runner = WorkflowRunner(
     Path("workflows/demo/classification/classification_demo.workflow.md"),
@@ -101,5 +100,3 @@ Use separate targets when retained report bytes matter.
 Journals and unique run IDs retain the previous results.
 Missing journal evidence raises a Python error; the publisher does not invent a result.
 Cancellation prevents report loading and public success delivery at the runner boundary.
-
-Run the complete [M1 gate](../work_items/verification/a05-pm-classification.md#reproduce-m1) for independently checked real evidence.

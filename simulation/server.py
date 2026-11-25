@@ -436,8 +436,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 parser.error("--openrouter-only requires OpenRouter for every model and no startup scripts.")
             if not connection.resolve().api_key.get_secret_value():
                 parser.error("--openrouter-only requires a credential for every model.")
-        OperatingSystem.environment["PM_COMPLETION_CACHE"] = "0"
-        print("OpenRouter only: chat, evaluation, embeddings; completion replay disabled.", flush=True)
+        print("OpenRouter only: chat, evaluation, embeddings.", flush=True)
     OperatingSystem.install_child_cleanup()
     application = Simulation(args.homes, args.data, args.config)
     server = ThreadingHTTPServer(("0.0.0.0", args.port), handler(application))

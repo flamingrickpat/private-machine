@@ -11,7 +11,6 @@ Human partnership ratings remain separate.
 Parent: [cognition](cognition.md).
 World input: [world events](world-events.md).
 Execution: [Minecraft projects](minecraft-tasks.md) and [specialists](minecraft-actor.md).
-Evidence: [A14 verification](../work_items/verification/a14-cooperation.md).
 
 ## From evidence to a choice
 
@@ -65,7 +64,7 @@ Action selection can start a specialist or a generic project through SelfManagem
 Standalone specialist completion currently supports the explicit `wood_return` contract.
 Other goals use `minecraft_project` for independent acceptance, including self-chosen mining or exploration.
 An empty standalone acceptance contract retains actual effects but cannot establish terminal completion.
-[`workflows.minecraft.host.persona_context`][] supplies accepted emotions and the relationship to the managed worker.
+[`workflows.minecraft.host.MinecraftContextOwner.capture`][] supplies accepted emotions and the relationship to the managed worker.
 The body lease and command lock still govern external calls.
 Game actor grants contain no fixture reset or RCON commands.
 
@@ -79,7 +78,6 @@ Progress for that request cannot start another game run while its worker remains
 The rejected dispatch receives an explicit receipt. Existing management controls can still update or cancel the worker.
 A new user input or a different request correlation can choose further work.
 Completion releases this request boundary.
-The [A13 gate review](../work_items/verification/a13/task-gate-review.md) records remaining generalization limits in this path.
 
 A direct Assistant inventory observation starts no managed task when a caller invokes it explicitly.
 Task journals and progress events enter [experienced memory](experienced-memory.md).
@@ -93,5 +91,4 @@ Then inspect actor results and fresh inventory or exact block reads.
 Compare public progress claims with the same dated evidence.
 Retain failed receipts until a new real run establishes a repair.
 
-The [A14 gate](../work_items/verification/a14-cooperation.md) retains full Spamuel history, the real world, and separate pending M4 ratings.
 Its machine checks do not rate helpfulness, interruption quality, or immersion.

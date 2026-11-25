@@ -1,392 +1,42 @@
-# Model connections and record embeddings
+# Configure models
 
-## Summary
+The chat model drives dialogue and cognition. The embedding model finds related
+memories. Keep the embedding model and dimensions consistent for an existing home.
 
-The model runtime provides connections, explicit activation, direct chat calls, and one embedding service.
-The terminal uses these connections for real dialogue and cognitive workflows.
-The [PM classification provider](subsystems/workflow-inputs/pm-connections.md) reuses chat presets with lazy activation and an explicit serving bound.
+1. Copy `config.example.yaml` to `config.yaml`.
+2. Set `base_url`, `model`, and `api_key` for both chat presets and embeddings.
+3. Set `embedding.dimensions` to the vector size returned by the endpoint.
+4. Use `--config` to select another file.
 
-The separate [typed decision client](subsystems/decisions/index.md) is available through pm-coder.
-A02 verifies its API without changing existing workflow model choices.
-Its [deployment guide](subsystems/decisions/operation.md) describes the independent decision endpoint.
-The alpha's [model policy](work_items/alpha-plan/model-policy.md) uses the normal LLM by default.
-The endpoint can be local or remote.
-The policy states the required capability class, not one server or one model.
+Keep keys and literal MCP headers in the ignored local YAML. Use an empty key
+for a local endpoint without authentication.
 
-Parent: [README](index.md).
-
-## Config
-
-The credential-free example is `config.example.yaml`.
-It contains `Default`, `UnitTestEvaluator`, and one `embedding` entry.
-Both chat presets initially use the same endpoint.
-Each chat entry accepts `max_concurrent_requests`, `request_timeout_seconds`, `override_context`, and `cognition_context_window`.
-The local DeepSeek settings use 8 slots, 99,999 seconds, and a 65,536-token context cap.
-Slot values at most zero or at least 9999 mean unlimited requests.
-Triage receives the next free slot before queued critical, interaction, or background calls.
-Dialogue fits its optional evidence to the configured context input fraction, normally 80%.
-These settings belong in YAML; they need no environment overrides.
-`cognition_context_window` defaults to 32,768 tokens and controls internal cognition's evidence window.
-It cannot increase the serving limit. Public dialogue keeps its separate serving-window budget.
-
-```yaml
-chat:
-  Default:
-    override_context: 65536
-    cognition_context_window: 32768
-    context_input_fraction: 0.85
-```
-
-Optional context combines 40% recency, 40% salience, and 20% randomness.
-Mechanisms that must inspect every candidate use complete [evaluation batches](subsystems/cognition.md#prompt-fitting-and-complete-evaluation).
-
-
-This is a shared-backend evaluation, not an independent neutral reviewer.
-
-The endpoint can be local or remote.
-A local server, vLLM, llama.cpp, or a hosted API is valid when it speaks the OpenAI API.
-The YAML file records the base URL and the model names.
-A process environment variable or a repository `.env` file supplies the credential.
-The process environment wins. The `.env` file is the fallback.
-
-A Windows environment variable and a repository `.env` file are both valid credential sources.
-Use the environment variable on one machine and the `.env` file on another.
-
-### Local models
-
-The example configuration uses chat on `http://127.0.0.1:8080/v1` and embeddings on `http://127.0.0.1:8081/v1`.
-Its aliases are `qwen` and `qwen3-embedding-0.6b`, with 1024 embedding dimensions.
-Set those values to match your servers.
-The example requires no remote API credential.
-Existing local configuration takes precedence unless you select a file explicitly.
-
-The embedding endpoint must serve a trained embedding model.
-A plain decoder checkpoint, or a conversion that drops the pooling head of an embedding model,
-returns vectors that point in one shared direction.
-Check a new endpoint before you point a character at it. See [the embedding probe](#check-an-embedding-endpoint).
-
-The embedding service validates dimensions, finite values, nonzero length, and the response model.
-A server with another response alias needs an explicit `response_model`.
-Historical invalid-vector receipts remain in [A08 verification](work_items/verification/a08-experienced-memory.md).
-These older receipts do not establish the current endpoint's behavior.
-
-### Local setup
-
-1. Copy `config.example.yaml` to `config.local.yaml` for local changes.
-2. Put the credential into the process environment, or into the git-ignored `.env` in the repository root.
-3. For a literal key instead, configure `api_key` in an ignored file.
-4. For a literal key, remove `api_key_env`.
-5. Start the configured chat endpoint before the live tests.
-6. Set `PM_MODEL_CONFIG` to select another complete config file for those tests.
-
-Credential resolution reads the process environment first, then the repository `.env`.
-[`pm.llm.env_file.credential`][] returns the value without writing it into `os.environ`.
-`PM_ENV_FILE` selects another file.
-The live tests use `config.local.yaml` when it exists. Otherwise, they use the example config.
-Library code receives a config path explicitly.
-Relative startup script paths resolve from that file's directory.
-Config parsing and connection resolution make no network requests.
-
-### Endpoint behavior and context window
-
-A hosted endpoint can have no `/props` route.
-OpenRouter supplies its selected model's `context_length` through the model catalog.
-For another endpoint without compatible discovery, set `context_window` in the preset.
-Context measurement then uses the labelled `tiktoken` estimate.
-The serving model must offer at least 128,000 tokens of context.
-Read the [model policy](work_items/alpha-plan/model-policy.md) for the capability requirement.
-
-Workflows switch thinking off with the neutral `enable_thinking: false` option.
-[`provider_generation`][pm.llm.activation.provider_generation] translates that option inside the LLM wrapper.
-Compatible local endpoints receive `chat_template_kwargs: {enable_thinking: false}`.
-OpenRouter receives `reasoning: {enabled: false}` without the local template field.
-An explicit `reasoning` field from the caller always wins.
-Other generation fields retain their caller-supplied values.
-
-A measured `qwen/qwen3.8-flash` request on 2026-10-13 returned 24 reasoning tokens with only `chat_template_kwargs`.
-The same request with `reasoning.enabled: false` returned 0 reasoning tokens.
-
-A hosted service may not report the served precision.
-A result from a hosted service therefore does not establish the behavior of a local quantized build of the same model.
-
-## Code ownership
-
-| File | Responsibility |
+| Setting | Effect |
 | --- | --- |
-| `pm/llm/config.py` | Config, presets, credential resolution, redaction |
-| `pm/llm/http_client.py` | Shared HTTP requests, retries, cancellation |
-| `pm/llm/activation.py` | Finite scripts, readiness, active calls, chat responses |
-| `pm/llm/workflow_sessions.py` | Lazy classification sessions, serving context, and redacted service receipts |
-| `pm/memory/embeddings.py` | Legacy reads, new cache writes, scoped preparation, cosine search |
+| `context_window` | Supplies a serving limit when the endpoint cannot report it. |
+| `override_context` | Caps the serving limit. |
+| `context_input_fraction` | Leaves room for framing and output. |
+| `inference_io.completion_cache` | Allows completion replay. Simulations request fresh completions. |
+| `inference_io.cache_directory` | Stores completion replay files. |
+| `inference_io.prompt_log` | Records chat and embedding evidence. |
+| `inference_io.prompt_log_directory` | Overrides the persona prompt directory. |
+| `minecraft` | Selects the body endpoint, timeouts, and lease directory. |
+| `tool_call.mcp_servers` | Lists the MCP servers the companion can discover. |
 
-These files contain no character policy or cognitive routing.
+Explicit `--config` takes priority. The terminal and console otherwise try
+`config.local.yaml`, then `config.yaml`, then `config.example.yaml`.
+Relative cache, log, lease, and startup script paths start at the YAML file.
 
-## Direct debugger path
+## Move an existing setup
 
-This example makes real requests without a shell module thread.
-Breakpoints inside `activate()` and `complete()` use the production path.
+Move the credential named by `api_key_env` into `api_key`. Remove
+`api_key_env` and replace each `${NAME}` MCP header with its literal value.
+Move embedding overrides into `embedding` and the body URL into `minecraft.mcp_url`.
+Set cache and log options under `inference_io`.
 
-```python
-import asyncio
-from pm.llm.config import load_config, resolve_connection
-from pm.llm.activation import ChatClient, ModelActivation
+Use the [overnight example](workflows/spamuel-baseline.md) to match the baseline.
 
-async def run_once():
-    config = load_config("config.alpha.example.yaml")
-    connection = resolve_connection(config, preset="Default")
-    owner = ModelActivation()
-    await owner.activate(connection, live_test=True)
-    client = ChatClient(connection, owner, live_test=True)
-    result = await client.complete([
-        {"role": "user", "content": "Reply with one short sentence."},
-    ])
-    print(result.choices[0].message.content)
-
-asyncio.run(run_once())
-```
-
-An explicit connection needs no config map:
-
-```python
-connection = resolve_connection(
-    base_url="http://127.0.0.1:8080/v1",
-    model="qwen",
-    api_key="",
-)
-```
-
-An omitted selection uses `Default` from the supplied config.
-Mixed startup forms and unknown preset names fail.
-Resolved connections retain their own credential value. They do not change the process environment.
-
-## Activation and cancellation
-
-An empty `startup_script` uses an existing endpoint.
-A configured `.ps1`, `.sh`, or `.py` script must start its server in the background and then exit.
-The activation owner checks the exit code and the advertised model alias.
-Scripts must manage only their designated processes.
-
-CAUTION: Do not configure `start38_uncensored_nvfp4_long.ps1` directly as an activation script.
-Its restart loop never exits. It needs a finite wrapper for automatic activation.
-The current setup uses the manually started server and leaves `startup_script` empty.
-The runtime does not change that launcher or automatically switch local models.
-
-All chat clients in one application share one `ModelActivation` owner.
-The owner rejects activation during an active call.
-Generation finishes before the evaluator activates.
-The owner cannot control unrelated programs that use the same endpoint.
-
-Calls accept a `threading.Event` named `cancel`.
-Cancellation stops supported HTTP waits, readiness waits, or the directly owned startup process.
-It does not claim to terminate detached server descendants.
-Windows startup processes use hidden windows.
-
-`request_timeout_seconds` sets the HTTP read, write, and pool timeout, including time queued inside a local server.
-A null value disables those timeouts. Connection establishment has a separate ten-second timeout.
-`completion_token_limit` bounds generated output independently.
-Production waits through connection failures, HTTP 429, and HTTP 5xx, with a 30-second pause before each retry.
-There is no production retry quota. Temporary unavailability must not become a cognitive failure.
-Cancellation interrupts request I/O, readiness, and retry pauses.
-Diagnostics can set an explicit `transient_retries` bound. Exhaustion then raises `ModelError` and preserves the failed attempts.
-`live_test=True` selects immediate failure for endpoint boundary tests.
-The A18B evaluator and Jesse actor use the normal production wait policy.
-A separate test deadline can stop a run as incomplete evidence; it does not establish a negative model judgment.
-Retries repeat inference, so a lost response can cause duplicate provider work or charges.
-They do not repeat tool execution or regenerate a valid low-scoring review.
-Permanent HTTP errors fail with credential-free messages.
-The shared completion client resamples truncated, empty, malformed, or failed generations.
-Each retry keeps the same prompt and output allowance. The delay starts at five seconds and increases to five minutes.
-The retry ends when the provider returns a usable completion or the caller cancels.
-The client surfaces a provider filter as [`pm.llm.http_client.ProviderCompletionError`][].
-An ordinary completed refusal remains a valid model response.
-The shared HTTP path uses [HTTPX timeout controls](https://www.python-httpx.org/advanced/timeouts/).
-
-A reasoning backend emits hidden reasoning tokens before the visible answer.
-The provider can count these tokens against the output allowance.
-Direct inner-thought calls disable thinking, including reflection.
-The shared [reasoning allowances](subsystems/inference-settings.md) remain available for other explicit callers.
-A cap sized for the visible answer alone can stop a JSON stage mid-object and report a stage output error.
-There is no generation deadline.
-The model stops when it is done.
-
-## Context handling
-
-Laya's decision-head budget does not apply to chat or pm-coder.
-Direct Python chat sends one supplied message list, while pm-coder owns accumulated execution history and automatic compaction.
-Read [Python chat and agent context](subsystems/llm-context.md) for the actual paths, live commands, and verified input boundaries.
-Quality takes priority over minimizing calls. Hard reasoning and review can use smaller, focused calls with explicit integration.
-This [prompt-scope rule](work_items/alpha-plan/model-policy.md#prompt-scope-and-decomposition) applies to all prompts, not only reviewers.
-
-## Embeddings and scoped retrieval
-
-Every knoxel stores its embedding in `RecordBase.embedding`.
-The application embeds missing records at startup and saves the complete typed state with pickle.
-There is no embedding cache directory, text hash lookup, or legacy vector cache reader.
-Old cache options in model files are accepted and ignored.
-Completion response caching remains a separate model feature.
-
-[`pm.memory.embeddings.EmbeddingService.record_embedding`][] reuses the vector on a record.
-An empty vector triggers inference and stores its result on that record.
-[`pm.memory.embeddings.EmbeddingService.embed`][] embeds temporary query text directly.
-Provider vectors must have the configured dimensions and finite, nonzero values.
-Image descriptions replace image tags before inference.
-
-[`pm.memory.vector_index.VectorIndex`][] owns an in-memory FAISS index.
-It normalizes its float32 index vectors and queries for cosine ranking.
-The original vectors remain on the records.
-Loading builds the index. Vector assignment updates it. Replacement removes the old indexed vector.
-Search returns only the caller's permitted record IDs.
-A lock protects native index searches and updates.
-The [FAISS metric guide](https://github.com/facebookresearch/faiss/wiki/MetricType-and-distances) describes this normalization.
-
-```python
-from pm.memory.embeddings import EmbeddingService
-
-service = EmbeddingService(config.embedding, live_test=True)
-records = ghost.snapshot(permitted_ids).all_knoxels
-plan = service.inspect_index(records)
-await service.prepare_index(records)
-results = await service.search("a shared memory", records, index=ghost.embedding_index)
-```
-
-Preparation embeds every missing record in batches of 32, with up to four concurrent requests.
-A provider error leaves completed vectors on their records and propagates.
-Retrieval can report a lexical fallback. Cancellation propagates through the shared HTTP client.
-The client retries temporary transport failures until cancellation. Permanent failures, including HTTP 401, raise `ModelError`.
-Read [memory ownership and persistence](ghost.md) for startup and restart behavior.
-
-### One text length follows the server
-
-Embedding text has no fixed character limit in the code.
-[`pm.memory.embeddings.EmbeddingService.embed`][] asks the server for its context size once, through `/props`.
-It then asks the server's own tokenizer, through `/tokenize`, whether one text fits, and clips the text at token
-boundaries when it does not. A clip records the original length, the used tokens, and the server context.
-The request keeps a margin below the advertised context, so the server's own control tokens also fit.
-The same request carries `truncate=true`, so a server that ignores the token budget cannot answer with an error.
-
-### Check an embedding endpoint
-
-Five fixed sentences test an endpoint. Two are paraphrases, and three are unrelated to each other.
-[`pm.memory.embeddings.embedding_quality_report`][] returns the mean similarity of the unrelated pairs, the
-similarity of the paraphrase pair, the gap between them, and the length of the mean unit vector.
-A working encoder keeps unrelated sentences far apart and puts paraphrases well above them.
-
-[`pm.memory.embeddings.EmbeddingService.smoke_test`][] applies that check and raises
-[`pm.memory.embeddings.EmbeddingQualityError`][] with the numbers when the endpoint fails.
-The application runs it before it embeds or re-embeds anything, so a bad endpoint stops the run instead of
-quietly filling memory with unusable vectors.
-
-On 2026-10-24 a live store showed why this check exists. Its serving file was a converted Gemma embedding
-checkpoint that carried no projection head, and the server overrode its declared mean pooling with last-token
-pooling. The store held 8,290 vectors, all 768 wide and unit length. Every pair of them scored between 0.898
-and 0.981. The situational model merge rule at 0.86 therefore merged every incoming record into the single
-item it already held, structure selection had one candidate, and attention could place only that one record in
-any shard. The store's mean unit vector measured 0.959 long: one shared direction held almost all the signal.
-The replacement Qwen3-Embedding endpoint scores 0.28 between unrelated sentences and 0.77 between paraphrases.
-
-`dev/tools/embedding_probe.py` checks an endpoint on its own, with no character and no session:
-
-```powershell
-uv run --locked python dev/tools/embedding_probe.py --url http://127.0.0.1:8081/v1 --model qwen3-embedding-0.6b --dimensions 1024
-```
-
-The tool reports the served model file, alias, quantization, build, and serving context, then prints `PASS` or
-`FAIL` with the same numbers the application checks. It exits nonzero on `FAIL`.
-
-### Re-embed after a model change
-
-Vectors from two models never share a space, and their widths usually differ.
-The `--embed` mode embeds the whole memory again and saves the result. It runs no cycle, no dialogue, and no
-workflow, and it refuses an inspector or an ephemeral run:
-
-```powershell
-uv run --locked python main.py --home <character-home> --config <model.yaml> --embed
-```
-
-The mode copies the checkpoint to a timestamped backup first, then clears every stored vector, embeds every
-record with the configured model, writes the new model name into `previous_emb_model`, and saves. The report
-prints the sampled mean similarity, the sampled maximum, and the share of pairs at or above the situational
-model merge threshold, before and after the change. A healthy store shows a small share. A degenerate store
-shows a share near one. See [workspace and the situational model](subsystems/workspace.md).
-
-## Tests
-
-### Foundation checks
-
-Run these direct tests without a model endpoint:
-
-```powershell
-uv run --locked python -m unittest tests.unit.pm.llm.test_config tests.unit.pm.memory.test_embeddings tests.unit.pm.memory.test_embedding_quality tests.unit.pm.app.test_embed_cli tests.unit.pm.llm.test_activation -v -b
-```
-
-These tests use the installed FAISS index, typed records, and real finite subprocesses.
-The cancellation tests do not substitute fake model responses.
-
-### Required live checks
-
-Run the model acceptance suite:
-
-```powershell
-uv run --locked python -m unittest tests.live.test_models -v -b
-```
-
-The suite requires the generation endpoint, evaluator endpoint, embedding credentials.
-Missing requirements fail. No test silently skips them.
-It performs generation, evaluation, embedding requests, FAISS retrieval, and a pickle restart that retains a Spamuel record vector.
-The retrieval check compares a Minecraft memory with unrelated chemistry text.
-Generation and evaluation run serially.
-Evidence stays under `.runtime/w1/<run-id>/`, outside Git.
-
-Run all current tests:
-
-```powershell
-uv run --locked python -m unittest discover -s tests -v -b
-```
-
-This command now includes the live tests.
-It includes live model, cognition, conversation, and Minecraft checks. Each suite needs its configured endpoints.
-
-## Related guides
-
-Read the [system map](concepts/architecture.md) and [development loop](workflows/development.md).
-
-## Completion replay and output repair
-
-Direct runtime chat uses `~/.pm/private-machine/cache/<modelname>/cache_comp_<hash>_<cnt>.json`.
-`PM_CACHE_DIR` selects another completion cache root.
-The key includes the endpoint, model, messages, tools, and generation controls. It excludes the sampling seed.
-Each uncached logical completion receives a random seed. Transport retries keep that seed and cache position.
-
-Each prompt hash has a thread-safe counter that starts at 1 in each process.
-Cache hits advance that counter too. Other prompts and embedding hits do not affect it.
-An invalid generated answer remains cached, so its repair sequence can replay too.
-The files contain complete wire responses and stay separate from prompt logs.
-
-Key normalization removes generated record timestamp prefixes and structured timestamp metadata.
-The actual prompt, memory, and logs retain their original values.
-Dates inside conversation text remain significant.
-Reordering inputs, changing tools, or changing prompt content can still cause a miss.
-A model alias is part of the key. Reusing an alias for different weights requires a separate cache root or cleared entries.
-
-Set `PM_COMPLETION_CACHE=0` for fresh direct completions during prompt comparisons.
-Embedding caching remains enabled. Cache hits do not establish that a model endpoint works.
-Native pm-coder sessions retain their own provider transport; the direct runtime cache does not intercept those sessions.
-
-[`pm.llm.structured.complete_json`][] and [`pm.llm.structured.complete_json_async`][] own generated JSON repair.
-Local syntax repair uses `json-repair` before validation and needs no extra model call when it succeeds.
-Each rejected answer adds an assistant turn and a user turn with its validation error.
-After nine consecutive rejections, repair starts again with the original messages and resets the attempt count.
-Each reset retains the validator, validation context, and cancellation event.
-Between resets, repair retains earlier turns while the model's input budget permits another attempt.
-If each batch fits the input budget, resets can continue until cancellation without a total attempt limit.
-One case stops earlier. When one identical validation problem rejects every answer of two consecutive nine-rejection conversations, repair raises [`pm.llm.structured.RepeatedRejectionError`][] instead of starting a third.
-The second conversation began from the original messages, so the model repeated the mistake and the same correction text failed again.
-That pattern points at the prompt or the validator message, not at sampling noise.
-The error is a `ModelFormatError`, so every caller that already reports model format exhaustion reports it too.
-The budget reserves output space. Context exhaustion raises `ModelFormatError` without accepting an invalid answer.
-Cancellation and programming errors propagate.
-
-[`pm.llm.structured.repair_agent_result`][] uses the same policy for an agent's final answer.
-A correction has no tools and does not repeat completed external actions.
-Valid final answers need no extra completion.
-Configuration, checkpoint, and protocol validation remain ordinary validation boundaries.
+- [Configuration loader][pm.llm.config.load_config]
+- [HTTP requests and replay][pm.llm.http_client.JsonClient]
+- [Embedding service][pm.memory.embeddings.EmbeddingService]
+- [Prompt logs](subsystems/prompt-log.md)

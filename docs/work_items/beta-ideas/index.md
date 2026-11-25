@@ -12,10 +12,8 @@ A note records what the user and the agent discussed.
 It also records what the next step might be.
 After A20, promote the useful notes into proper beta work items.
 Each note states its dependency, its rough scope, and its open questions.
-Bounded container-agent access now belongs to [alpha A19D](../alpha-plan/work-items/a19d.md).
 The broader host-access note retains the remaining beta scope.
 
-Parent: [alpha plan](../alpha-plan/index.md).
 Process: [work-item development](../process.md).
 
 ## Reading order

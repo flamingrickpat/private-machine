@@ -614,14 +614,12 @@ The research PDFs and TXT extracts are **base references**, not instructions to 
 - Text collection: `.runtime/research/a18c-20261017-013806/`.
 - `index.json` maps PDF filenames and page counts.
 - Original PDFs: `C:/source/pm/pm_next/documents/pdfs/`.
-- Curated guide: [cognitive sources](docs/work_items/alpha-plan/cognitive-sources.md).
 - Read original text for a claim that affects implementation; summaries do not replace primary source passages.
 - Consult PDF pages when diagrams or extraction gaps matter.
 - Label analogies and interpretations; do not fabricate scientific support.
 
 Dependency discipline:
 
-- Read [baseline receipts](docs/work_items/alpha-plan/baseline/receipts.md), [scenario matrix](docs/work_items/alpha-plan/baseline/scenarios.md), and [local commands](docs/work_items/alpha-plan/baseline/commands.md) when they govern a chosen change.
 - Record current repo revisions and installed package origins before changing dependencies.
 - Update affected constraints and locks to **tested** revisions, not arbitrary HEAD versions.
 - Verify installed distributions. A neighboring checkout does not prove what the runtime imports.

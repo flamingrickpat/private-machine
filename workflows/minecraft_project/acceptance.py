@@ -9,8 +9,8 @@ import math
 import time
 from pathlib import Path
 from pm_workflows.python_role import RoleContext
+from pydantic import JsonValue
 
-from workflows.minecraft_body.lease import BODY_LEASES
 from workflows.minecraft_project.schemas import Condition, Node
 from workflows.minecraft_project.tree_store import TreeStore
 
@@ -22,11 +22,12 @@ def observe_conditions(context: RoleContext, conditions: list[Condition]) -> lis
     movement or construction tools. Earlier achievements retain their original
     specification and attempt identity. Actor statements cannot supply proof.
     """
-    runtime = context.runtime
-    endpoint = require_minecraft_runtime(runtime).minecraft_transport.settings.endpoint
+    runtime = require_minecraft_runtime(context.runtime)
+    transport = runtime.minecraft_transport
+    endpoint = transport.settings.endpoint
     reads = []
-    with BODY_LEASES.command(endpoint, runtime.stop_event):
-        observation = require_minecraft_runtime(runtime).minecraft_transport.call("minecraft_observe", {"include_image": False})
+    with transport.leases.command(endpoint, runtime.stop_event):
+        observation = transport.call("minecraft_observe", {"include_image": False})
         observed_at = time.time()
     observed_dimension = observation["result"].get("player", {}).get("dimension") if observation["ok"] else None
     for condition in conditions:
@@ -50,13 +51,14 @@ def observe_conditions(context: RoleContext, conditions: list[Condition]) -> lis
             continue
         if condition.kind == "block" and condition.positions:
             for point in condition.positions:
-                arguments = {"position": point.model_dump(), "include_image": False}
-                with BODY_LEASES.command(endpoint, runtime.stop_event):
-                    reply = require_minecraft_runtime(runtime).minecraft_transport.call("minecraft_inspect_block", arguments)
+                point_arguments: dict[str, JsonValue] = {"position": point.model_dump(mode="json"), "include_image": False}
+                with transport.leases.command(endpoint, runtime.stop_event):
+                    reply = transport.call("minecraft_inspect_block", point_arguments)
                 reads.append({"criterion_id": condition.id, "tool": "minecraft_inspect_block", "arguments": arguments,
                               "result": reply["result"], "ok": reply["ok"], "time": time.time(),
                               "observed_dimension": observed_dimension})
             continue
+        arguments: dict[str, JsonValue]
         if condition.kind in {"inventory", "position", "alive", "food", "health"}:
             tool, arguments = "minecraft_observe", {"include_image": False}
         elif condition.kind == "block":
@@ -66,8 +68,8 @@ def observe_conditions(context: RoleContext, conditions: list[Condition]) -> lis
         if tool == "minecraft_observe" and observation is not None:
             reply = observation
         else:
-            with BODY_LEASES.command(endpoint, runtime.stop_event):
-                reply = require_minecraft_runtime(runtime).minecraft_transport.call(tool, arguments)
+            with transport.leases.command(endpoint, runtime.stop_event):
+                reply = transport.call(tool, arguments)
             if tool == "minecraft_observe":
                 observation = reply
         reads.append({"criterion_id": condition.id, "tool": tool, "arguments": arguments,
