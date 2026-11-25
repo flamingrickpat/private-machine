@@ -387,9 +387,8 @@ class BodyGateway:
         for schema in schemas:
             server.add_tool(GatewayTool(name=schema["name"], description=schema["description"],
                                       parameters=schema["parameters"], gateway=self))
-        if isinstance(self, SessionBodyGateway):
-            return server
-        server.add_tool(Tool.from_function(self.boundary, name="actor_instructions"))
+        if not isinstance(self, SessionBodyGateway):
+            server.add_tool(Tool.from_function(self.boundary, name="actor_instructions"))
         server.add_tool(Tool.from_function(self.diagnose, name="actor_diagnose"))
         return server
 
