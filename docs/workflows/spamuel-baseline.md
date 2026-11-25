@@ -86,5 +86,37 @@ if (-not (Test-Path $continuation)) {
 & ./.venv/Scripts/python.exe main.py --home $continuation --config config.yaml
 ```
 
-This starts a chat from Spamuel's final memory. The Minecraft world requires
-its own server and world files.
+This starts a new chat from Spamuel's final memory.
+
+## Restore prompts and the Minecraft world
+
+First extract the evidence ZIP and the checkpoint as described above. Then
+extract the prompt and world archive into that same baseline directory.
+
+```powershell
+git lfs pull --include=test_data/baselines/spamuel-overnight-logs-world.tar.zst
+if ($LASTEXITCODE -ne 0) { throw 'Git LFS download failed.' }
+New-Item -ItemType Directory -Force .runtime/spamuel-baseline | Out-Null
+tar -xf test_data/baselines/spamuel-overnight-logs-world.tar.zst -C .runtime/spamuel-baseline
+if ($LASTEXITCODE -ne 0) { throw 'Baseline extraction failed.' }
+```
+
+The debugger reads the attempt's prompt receipts under `runs/`. The saved
+world is under `minecraft/simulation-world`. Use a copy of that folder in a
+fresh [Fabric installation](simulation-minecraft-server.md). Put the
+archived mod settings under `config/`. Use the archived `server.properties`
+as a template and set a local RCON password.
+
+Keep the same offline player name, `spamuel_solo`, to load its saved inventory
+and position. Configure the companion's body URL for the new server.
+The same embedding model and vector size are needed to continue from memory.
+Keep your credentials in your local model YAML.
+
+The overnight run ended at 09:33 on November 25. It used pm-minecraft
+`6a12a4f`. The separate Oxygen check passed at 10:06 and the fix is
+`c8d3b39`. Use that revision for a continuation with the fix. The completed run
+is available for inspection. To continue, start a new session from the saved
+memory and world.
+
+See the archive's manifest under `test_data/baselines/` for exact mod hashes
+and runtime revisions. Install the listed software separately on the new PC.

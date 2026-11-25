@@ -1,0 +1,65 @@
+{
+  "run_id": "interrupt-overnight-20261124-jesse-spamuel-minecraft",
+  "completed_at": "2026-11-25T09:33:29+01:00",
+  "pm_source_revision": "a3d0dd5c45ee82011736f3cb6bb4488060a87ef4",
+  "pm_equivalent_runtime_revision": "c9dbd26",
+  "equivalent_paths": [
+    "pm",
+    "workflows",
+    "simulation",
+    "uv.lock",
+    "pyproject.toml"
+  ],
+  "runtime_dependencies": [
+    {
+      "name": "pm-coder",
+      "version": "0.10.4",
+      "commit": "c10cf728f8eeddf2d4a8db71abf93dc2757e3f6e"
+    },
+    {
+      "name": "pm-workflows",
+      "version": "0.7.3",
+      "commit": "3c2b7a1986542a04ef15019db91a1a5a750512b7"
+    },
+    {
+      "name": "websockets",
+      "version": "17.1",
+      "commit": null
+    }
+  ],
+  "model_template": "test_data/simulation/baseline-v1/spamuel-overnight-model.example.yaml",
+  "simulation_template": "test_data/simulation/baseline-v1/jesse-spamuel-minecraft.json",
+  "minecraft": {
+    "version": "1.19.4",
+    "fabric_loader": "0.19.3",
+    "seed": 798112,
+    "offline_player": "spamuel_solo",
+    "pm_minecraft_during_run": "6a12a4f197cd9ae7f3cfed08f16c191bce8969c4",
+    "pm_minecraft_with_oxygen_fix": "c8d3b39b165ac1429fccc211eac5ad54fecc40d0",
+    "mods_sha256": {
+      "agentic-babymode-0.6.0.jar": "2732ce6a582f094c0718e9fb47d21819a80bd3101347a39165aac98273e97968",
+      "fabric-api-0.87.2+1.19.4.jar": "a92650d48a9f672dc74e8b1eaefedb28dc83a13a80431215900181aa3a8675d8"
+    }
+  },
+  "prompt_files": {
+    "companion": 34189,
+    "scenario_controller": 309
+  },
+  "archives": {
+    "logs_and_world": {
+      "path": "test_data/baselines/spamuel-overnight-logs-world.tar.zst",
+      "bytes": 122203365,
+      "sha256": "4b2b35369d4498c393c013b2929fe88e0c401833d6abf20f6189c3725c13c2a6"
+    },
+    "checkpoint": {
+      "path": "test_data/baselines/spamuel-overnight-checkpoint.zip",
+      "bytes": 329902166,
+      "sha256": "e1bf57aa22161bc38e87c1cf70c5b03082fefa062ca9c6967e6954be200b0393"
+    },
+    "debugger_evidence": {
+      "path": "test_data/simulation/baseline-v1/spamuel-overnight-evidence.zip",
+      "bytes": 2414764,
+      "sha256": "2c323338f13a7bcaf9a9d9f21f094aaa02439c1f848a80157908ca562b263e5c"
+    }
+  }
+}

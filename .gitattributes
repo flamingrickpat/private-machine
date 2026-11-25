@@ -4,3 +4,4 @@ workflows/minecraft/guidance/* text eol=lf
 # The milestone spec is prose with intentional Markdown hard line breaks.
 docs/continuous-character-milestone.md -text whitespace=-blank-at-eol
 test_data/baselines/*.zip filter=lfs diff=lfs merge=lfs -text
+test_data/baselines/*.tar.zst filter=lfs diff=lfs merge=lfs -text

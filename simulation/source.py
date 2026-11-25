@@ -122,7 +122,7 @@ def freeze_source(destination: Path, config: Path) -> FrozenSource:
         if not raw:
             continue
         relative = Path(raw.decode("utf-8"))
-        if relative.suffix == ".zip" and relative.is_relative_to(Path("test_data")):
+        if relative.is_relative_to(Path("test_data")) and relative.name.endswith((".zip", ".tar.zst")):
             continue  # Baseline review archives are never participant source.
         source = REPO_ROOT / relative
         if not source.is_file() or source.resolve() == config_source:
