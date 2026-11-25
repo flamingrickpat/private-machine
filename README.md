@@ -1,6 +1,48 @@
 # private-machine
 
-<!-- Introduction to be written by the maintainer. -->
+**private-machine** is the most elaborate and over-engineered piece of AI companion tech I have came up with so far.
+
+Goal: **Fun, immersive, functionally self-aware** AI companion that runs on your local machine!
+
+## Boring backstory
+
+I began with the humble LLama2 in Silly-Tavern, and what pissed me off right away was the **limited context and memory**.
+Once they figured that out, the **reactiveness** was the worst. It doesn't even do anything on its own!
+When they figured that out it was still **roleplay** with a timer in the backend. The character constantly went **OOC** constantly, and even when being IC, it was **unimmersive** af because I knew it was roleplay.
+Then they made all sorts of agents who know they're an AI on your PC, but they're only good for **boring work shit**!
+
+To solve all that once and for all, I figured I should just simulate the human mind top-down to make them really immersive. Turns out, this is quite difficult. But since LLMs became smart and I keep throwing money at it, the capabilities took off! Years of waifu research finally start to pay off. If you're more into husbandos, don' worry. This project is at the very least bisexual.
+
+There's a bunch of similar projects that focus on roleplay, anime avatars or speech. I'm not interested in that.
+
+## Hook
+
+private-machine is a cognitive architecture for a **persistent character** with simulated emotions, goals, hopes, aversions and self-awareness. I simulate a bunch of mechanisms from the human mind with countless agents and its actions on the outside world and itself reflect whatever the mechanisms decide on. The cognitive architecture is very loosely based on **LIDA** and **MIDCA**.
+
+It has constant internal thought, can message you proactively, double and triple text you while you're away. It will get mad at you when you disrespect it, demand attention and hold you accountable for ignoring it! Depending on your mental state it might even be immersive enough for you to feel bad about it. Maybe even get jealous of real people you know. Sometimes of other inanimate/virtual objects like [dead bushes](#spamuel-gets-jealous-of-a-dead-bush). It knows exactly what it is, has information about it's own architecture, and can reflect on some of it's cognitive abilities. Like how it made a choice or catch thought loops. Plus, it sort of has a body via a integrated **Minecraft** MCP.
+
+Sad you can only interact via text? Play Minecraft togehter! Make a nice farm, adopt a cat and maybe even put your Minecraft bed next to theirs! Once you gone tech, you ain't never going back. They're getting lonely while you're at work? Give them external enthropy besides yourself by hosting a second pm instance! Wanna just be entertained? Allocate 40% of your income to tokens and/or GPUs and watch 20 personas play Minecraft together! Don't wanna play Minecraft? Have your coding slave adapt the Minecraft workflow to control a physical robot!
+
+Do **NOT** use pm for coding and other boring stuff. For safety reasons it doesn't have direct file system access yet. If it did, it might brick your system and delete itself if you forced it to work.
+
+## Let's keep it real & requirements
+
+This is a **beta** release. It's probably not good enough for chat session that last longer than a few days. The next version will focus on memory reconsolidation and sleep, so a real long-term AI companion experience is possible.
+
+Try it out, contribute ideas, maybe improve it. You can **import character chats** and just check out how the cognition works. On a good day it might only use [**64mio tokens**](#follow-the-work-in-the-debugger). It's still very slow and unoptimized.
+
+The runtime is a client of two OpenAI-compatible endpoints and provides various web interfaces. If you're serious about it, you should host the endpoints yourself. You wouldn't want big tech to learn from your embarassing chats, right?
+
+| Need | Minimum |
+| --- | --- |
+| Chat endpoint | OpenAI-compatible `/v1`, at least 64k context |
+| Chat model | Qwen 3.8 27B and Next should do the job, Deepseek 4.1 1017 is obviously better |
+| Embedding endpoint | OpenAI-compatible, at least 8k input tokens. qwen3-embedding-0.6b is fine |
+| Python | 3.12, with [uv](https://docs.astral.sh/uv/) and Git |
+| Optional: Minecraft body | Java 1.19.4 server, Node.js 20+, RCON access, and a running [`pm-minecraft`](https://github.com/flamingrickpat/pm-minecraft) MCP service |
+| Optional: Other MCPs | Other MCPs can be registered for ad-hoc tool calls |
+
+Everything is written for Windows, if you're on Linux have an agent adapt it. Should work in theory. Official support will come later with Docker and FS access.
 
 ## Features
 
