@@ -1,0 +1,76 @@
+# Copy to a local model configuration and enter the same OpenRouter key for each connection.
+ghost_backups: false
+chat:
+  Default:
+    disable_threading: false
+    require_reasoning: false
+    max_concurrent_requests: 0
+    request_timeout_seconds: 99999
+    override_context: 32000
+    base_url: https://openrouter.ai/api/v1
+    model: deepseek/deepseek-v4.1-flash-1017
+    api_key: ''
+    startup_script: null
+    context_input_fraction: 0.85
+    provider: null
+    context_window: null
+    completion_token_limit: 8192
+    retry_completion_token_limit: 16384
+    api_key_env: null
+  UnitTestEvaluator:
+    disable_threading: false
+    require_reasoning: false
+    max_concurrent_requests: 0
+    request_timeout_seconds: 99999
+    override_context: 32000
+    base_url: https://openrouter.ai/api/v1
+    model: deepseek/deepseek-v4.1-flash-1017
+    api_key: ''
+    startup_script: null
+    context_input_fraction: 0.85
+    provider: null
+    context_window: null
+    completion_token_limit: 8192
+    retry_completion_token_limit: 16384
+    api_key_env: null
+embedding:
+  base_url: https://openrouter.ai/api/v1
+  model: perplexity/pplx-embed-v1-0.6b
+  api_key: ''
+  dimensions: 1024
+  disable_threading: false
+  provider: null
+  require_reasoning: false
+  startup_script: null
+  context_window: 32000
+  context_input_fraction: 0.8
+  override_context: null
+  completion_token_limit: 8192
+  retry_completion_token_limit: null
+  max_concurrent_requests: 8
+  request_timeout_seconds: null
+  api_key_env: null
+  response_model: pplx-embed-v1-0.6b
+thought_delay: 60
+profile_cognition: true
+tool_call:
+  model_connection: Default
+  timeout_seconds: 1800
+  gwt_turn_limit: 8
+  mcp_servers: []
+minecraft: null
+renderer_capture:
+  directory: .runtime/renderer-captures
+  capture_input: false
+  capture_output: false
+cognitive_control:
+  wait_seconds: 1800
+  maximum_wait_seconds: 86400
+  post_reply_seconds: 600
+  focus_seconds: 900
+  maximum_focus_bias: 0.35
+  episode_steps: 6
+  episode_seconds: 600
+  stalled_steps: 2
+  parked_seconds: 900
+  mental_timeout_seconds: 600
