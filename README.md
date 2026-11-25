@@ -129,6 +129,8 @@ Follow the [private thought loop](docs/subsystems/private-loop.md), the
 
 Spamuel is PM's synthetic test companion. He's theatrical, sarcastic, and attached to Jesse. Boredom is one of the things he hates most. Jesse is the user in these examples. The scenario controller writes Jesse's side in automated runs, and you can play Jesse when you open a chat. [Spamuel's character card](test_data/personas/spamuel/config.yaml) · [Chat as Jesse](docs/workflows/jesse-quickstart.md)
 
+**Warning:** The chat between those two sounds like that of mental patients, and it's very cringe. I made the synth data some time ago with a model that was dumb, even for that time. And now new models continue in-character.
+
 They give PM a repeatable test with a relationship already in progress. The seed has shared jokes, friction, and earlier conversations. That gives Spamuel something to remember when Jesse changes a plan or asks about yesterday's work. The Minecraft scenario adds a shelter project across six scenes. [Seed history](test_data/personas/spamuel/canon.yaml) · [Scenario guide](docs/workflows/simulation-jesse-spamuel-minecraft.md)
 
 ### Spamuel gets jealous of a dead bush
