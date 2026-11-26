@@ -21,11 +21,13 @@ and verification remain in dev/work_items/beta-b04.md.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
-import json
 
-from pydantic import BaseModel, ConfigDict
+from pm.memory.entity_history import (
+    EntityModelState as EntityModelState, EntityReceiptMetadata as EntityReceiptMetadata,
+    EntityReceiptRecord as EntityReceiptRecord, family_key as family_key, model_state as model_state,
+    receipt_chain as receipt_chain,
+)
 
 from pm.memory.dependencies import source_fingerprint
 from pm.memory.evidence import EvidenceMetadata
@@ -42,97 +44,6 @@ from workflows.entity_context.schemas import (
     EntityContextClaim, EntityContextKey, EntityContextProposal,
     EntityContextReceipt, EntityUpdateResult,
 )
-
-
-class EntityReceiptMetadata(BaseModel):
-    """The validated entity-context portion of heterogeneous record metadata."""
-
-    model_config = ConfigDict(extra="ignore")
-    entity_context_family: str
-    entity_context_receipt: EntityContextReceipt
-
-
-@dataclass(frozen=True, slots=True)
-class EntityReceiptRecord:
-    """One accepted or staged receipt with its actual memory identity."""
-
-    record: Feature
-    receipt: EntityContextReceipt
-
-
-@dataclass(slots=True)
-class EntityModelState:
-    """Derived current claims and explicit challenges, never a second authority."""
-
-    receipts: list[EntityReceiptRecord]
-    claims: dict[str, EntityContextClaim]
-    challenged_claim_ids: set[str]
-
-
-def family_key(key: EntityContextKey) -> str:
-    """Return the stable metadata guard value for this exact family."""
-    serialized = json.dumps(key.model_dump(mode="json"), sort_keys=True, ensure_ascii=False)
-    return hashlib.sha256(serialized.encode()).hexdigest()
-
-
-def receipt_chain(view: Snapshot, key: EntityContextKey) -> list[EntityReceiptRecord]:
-    """Read one complete family chain and fail on forks or missing parents."""
-    expected_family = family_key(key)
-    records: dict[int, EntityReceiptRecord] = {}
-    for record in view.all_knoxels.values():
-        if record.metadata.get(ENTITY_CONTEXT_FAMILY) != expected_family:
-            continue
-        metadata = EntityReceiptMetadata.model_validate(record.metadata)
-        if (not isinstance(record, Feature) or record.feature_type != FeatureType.StateUpdate
-                or record.scope != key.scope or record.entity_id != key.subject_entity_id
-                or metadata.entity_context_receipt.proposal.key != key):
-            raise ValueError("An entity-context receipt contradicts its family identity.")
-        records[record.id] = EntityReceiptRecord(record, metadata.entity_context_receipt)
-    if not records:
-        return []
-    parent_ids = {item.receipt.proposal.parent_receipt_id for item in records.values()}
-    heads = [item for record_id, item in records.items() if record_id not in parent_ids]
-    if len(heads) != 1:
-        raise ValueError("An entity-context family must have exactly one receipt head.")
-    chain: list[EntityReceiptRecord] = []
-    visited: set[int] = set()
-    current = heads[0]
-    while True:
-        if current.record.id in visited:
-            raise ValueError("An entity-context receipt chain contains a cycle.")
-        visited.add(current.record.id)
-        chain.append(current)
-        parent_id = current.receipt.proposal.parent_receipt_id
-        if parent_id is None:
-            break
-        current = records[parent_id]
-    if len(visited) != len(records):
-        raise ValueError("An entity-context family contains a disconnected receipt.")
-    chain.reverse()
-    return chain
-
-
-def model_state(view: Snapshot, key: EntityContextKey) -> EntityModelState:
-    """Fold explicit corrections and challenges without rewriting old evidence."""
-    receipts = receipt_chain(view, key)
-    claims: dict[str, EntityContextClaim] = {}
-    challenged: set[str] = set()
-    known_ids: set[str] = set()
-    for item in receipts:
-        proposal = item.receipt.proposal
-        for claim_id in proposal.retract_claim_ids:
-            del claims[claim_id]
-            challenged.discard(claim_id)
-        for claim_id in proposal.challenge_claim_ids:
-            if claim_id not in claims:
-                raise ValueError("An entity challenge must name an active claim in its own family.")
-            challenged.add(claim_id)
-        for claim in proposal.claims:
-            if not claim.claim_id or claim.claim_id in known_ids:
-                raise ValueError("Accepted entity claims require unique owner-assigned identities.")
-            known_ids.add(claim.claim_id)
-            claims[claim.claim_id] = claim
-    return EntityModelState(receipts, claims, challenged)
 
 
 def active_claims(view: Snapshot, *, key: EntityContextKey) -> list[EntityContextClaim]:

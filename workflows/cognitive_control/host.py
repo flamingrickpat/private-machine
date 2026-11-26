@@ -15,6 +15,8 @@ from typing import TYPE_CHECKING, Any
 from pm.bus.envelopes import Envelope, new_envelope, new_id
 from pm.host.application import Application, BusModule
 from pm.memory.snapshot import GhostCancelled, GhostConflict
+from pm.memory.checkpoint import CommitReceipt
+from pm.memory.reconsolidation.coordination import ReconsolidationCoordinator
 from pm.llm.concurrency import InferenceAdmission, InferenceRole
 from pm.memory.dependencies import source_fingerprint
 from pm.memory.write_batch import WriteBatch
@@ -47,10 +49,12 @@ class CognitiveControl(BusModule):
     """
 
     def __init__(self, module_id: str, application: Application, tick_seconds: float | None,
-                 *, ghost: MemoryStore, config: ControlConfig | None = None) -> None:
+                 *, ghost: MemoryStore, config: ControlConfig | None = None,
+                 reconsolidation: ReconsolidationCoordinator | None = None) -> None:
         super().__init__(module_id, application, tick_seconds)
         self.ghost = ghost
         self.config = config or ControlConfig()
+        self.reconsolidation = reconsolidation or ReconsolidationCoordinator(ghost, application.clock)
         # Accepted cycles retain the generation across process stops. Without
         # this watermark, restart can discard a valid continuing episode.
         self.generation = max([0,
@@ -346,15 +350,49 @@ class CognitiveControl(BusModule):
         return envelope.topic == "workflow.event" and envelope.payload.get("event") in CognitiveControl.DEFERRED_EVENTS
 
     def _record(self) -> Feature | None:
-        return next((record for record in reversed(list(self.ghost.all_knoxels.values()))
-                     if isinstance(record, Feature)
-                     and record.metadata.get("control_kind") == "inference_wait"), None)
+        return next((record for record in reversed(self.ghost.all_features)
+                     if record.metadata.get("control_kind") == "inference_wait"), None)
 
     def waiting(self) -> bool:
         """Return whether a committed wait blocks routine inference."""
         with self.ghost.lock:
+            sleep = self.reconsolidation.sleep
+            if sleep is not None and sleep.ending:
+                return True
             record = self._record()
             return record is not None and record.metadata["status"] == "waiting"
+
+    def wake_before_input(self) -> None:
+        """Checkpoint the sleeping character before creating a new user stimulus."""
+        with self.ghost.lock:
+            if self.reconsolidation.sleep is None:
+                return
+            self.finish_memory_sleep("user.input")
+
+    def finish_memory_sleep(self, reason: str) -> None:
+        """Release the current memory wait after publishing its ready queue."""
+        with self.ghost.lock:
+            record = self._record()
+            sleep = self.reconsolidation.sleep
+            if sleep is None or record is None or record.metadata.get("memory_action_id") != sleep.action_record_id:
+                raise RuntimeError(f"Cannot finish memory sleep for {reason} without its committed wait.")
+            if sleep.ending and record.metadata["status"] == "awake":
+                # A prior save failed after the live wake committed. The next
+                # input must complete that same save before it can enter.
+                self.ghost.save()
+                self.reconsolidation.sleep = None
+                return
+            if record.metadata["status"] != "waiting":
+                raise RuntimeError(f"Memory sleep action {sleep.action_record_id} has unexpected state {record.metadata['status']}.")
+            self._wake(record, reason, timeout=False, now=self.application.clock.utc().replace(tzinfo=None))
+
+    def finish_memory_work_on_shutdown(self) -> None:
+        """Joined workers can no longer add units, so the final save is stable."""
+        with self.ghost.lock:
+            if self.reconsolidation.sleep is not None:
+                self.finish_memory_sleep("shutdown")
+            elif self.reconsolidation.publish_ready():
+                self.ghost.save()
 
     def paused_source_ids(self) -> set[int]:
         """Return sources handled by accepted waits, without completing exchanges.
@@ -381,19 +419,40 @@ class CognitiveControl(BusModule):
         classification exists. Only a Critical epoch change, an accepted wait,
         or a wake advances the generation that fences private work.
         """
-        if not self.is_external(envelope):
+        external = self.is_external(envelope)
+        memory_event = (envelope.topic == "workflow.event"
+                        and envelope.payload.get("workflow_name") == "memory_reconsolidation"
+                        and envelope.payload.get("event") in {"completed", "failed", "cancelled", "interrupted", "start_rejected"})
+        if not external and not memory_event:
             return
         woke = False
         with self.ghost.lock:
-            if envelope.id in self._seen_inputs:
+            memory_terminal = False
+            sleep = self.reconsolidation.sleep
+            if memory_event and sleep is not None:
+                run_id = envelope.payload["run_id"]
+                if not isinstance(run_id, str):
+                    raise ValueError(f"Memory workflow event {envelope.id} needs a managed run ID, received {run_id!r}.")
+                run = self.ghost.managed_runs[run_id]
+                if run["authority_record_id"] != sleep.action_record_id:
+                    return
+                memory_terminal = True
+            if not memory_terminal and not external:
+                return
+            completing_wake = sleep is not None and sleep.ending
+            if envelope.id in self._seen_inputs and not completing_wake:
                 return
             self._seen_inputs.add(envelope.id)
             self._pending_inputs.add(envelope.id)
             record = self._record()
-            if record is not None and record.metadata["status"] == "waiting":
-                self._wake(record, envelope.topic, timeout=False, now=self.application.clock.utc().replace(tzinfo=None))
+            reason = f"memory work {envelope.payload['event']}" if memory_terminal else envelope.topic
+            if completing_wake:
+                self.finish_memory_sleep(reason)
                 woke = True
-        if woke:
+            elif record is not None and record.metadata["status"] == "waiting":
+                self._wake(record, reason, timeout=False, now=self.application.clock.utc().replace(tzinfo=None))
+                woke = True
+        if woke or envelope.topic == "user.input":
             self._flush_deferred()
 
     def admit(self, envelopes: list[Envelope]) -> tuple[list[Envelope], int]:
@@ -431,7 +490,7 @@ class CognitiveControl(BusModule):
 
     def commit(self, batch: WriteBatch, wait: WaitRequest | None, generation: int,
                *, envelope_ids: set[str] | None = None, wake_ids: Sequence[int] = (),
-               private_generation: int | None = None, source_ids: Sequence[int] = ()) -> Any:
+               private_generation: int | None = None, source_ids: Sequence[int] = ()) -> CommitReceipt:
         """Commit cognition, wake acknowledgment, and a possible wait together.
 
         Newer input prevents a late Sleep from hiding that input. A private-only
@@ -441,6 +500,9 @@ class CognitiveControl(BusModule):
         armed = False
         handled = envelope_ids or set()
         with self.ghost.lock:
+            sleep = self.reconsolidation.sleep
+            if sleep is not None and sleep.ending:
+                self.finish_memory_sleep("pending wake checkpoint")
             if batch.commit_id in self.ghost.applied_commits:
                 return self.ghost.commit(batch)
             self.validate_cognition(source_ids)
@@ -458,6 +520,8 @@ class CognitiveControl(BusModule):
                                  and record.metadata.get("wake_status") == "pending"}
                 armed = (generation == self.generation and not (self._pending_inputs - handled)
                          and not (pending_wakes - set(wake_ids)))
+                if wait.memory_action_id is not None and (self.reconsolidation.closing or self._pending_triage - set(source_ids)):
+                    armed = False
                 paused_sources = set(source_ids)
                 if armed:
                     # A wait chosen after private thought also parks earlier
@@ -470,19 +534,24 @@ class CognitiveControl(BusModule):
                         if source.metadata.get("exchange_status") == "pending":
                             paused_sources.add(key)
                 now = self.application.clock.utc().replace(tzinfo=None)
-                seconds = min(wait.seconds, self.config.maximum_wait_seconds)
+                seconds = None if wait.memory_action_id is not None else min(wait.seconds, self.config.maximum_wait_seconds)
+                wake_at = (now + timedelta(seconds=seconds)).isoformat() if seconds is not None else None
                 new_feature(self.ghost, wait.reason, FeatureType.StateUpdate,
                     source=self.ghost.get_companion_name(), source_kind=SourceKind.Self,
                     interlocus=InterlocusType.PrivateInternal, changes=batch,
                     metadata={"control_kind": "inference_wait" if armed else "inference_wait_rejected",
                               "status": "waiting" if armed else "superseded",
-                              "wake_at": (now + timedelta(seconds=seconds)).isoformat(),
+                              "wake_at": wake_at, "memory_action_id": wait.memory_action_id,
                               "started_at": now.isoformat(), "seconds": seconds,
                               "reason": wait.reason, "generation": self.generation,
                               "source_event_ids": sorted(paused_sources)},
                     lineage=RecordLineage(episode_id=batch.commit_id, operation="inference_wait",
                                           parent_record_ids=list(source_ids), source_event_ids=sorted(paused_sources)))
             receipt = self.ghost.commit(batch)
+            if armed and wait is not None and wait.memory_action_id is not None:
+                self.reconsolidation.arm_sleep(wait.memory_action_id)
+            # The host saves immediately after this commit, under the same lock.
+            self.reconsolidation.publish_ready()
             accepted_critical = self._critical_sources.intersection(source_ids)
             if accepted_critical:
                 self._critical_sources.difference_update(accepted_critical)
@@ -530,7 +599,13 @@ class CognitiveControl(BusModule):
                 self._classification_changed.wait(0.05)
 
     def _wake(self, record: Feature, reason: str, *, timeout: bool, now: datetime) -> None:
-        batch = self.ghost.begin_batch("wake-" + new_id(), cancel=self.stop_event)
+        memory_action_id: int | None = record.metadata.get("memory_action_id")
+        if memory_action_id is not None:
+            self.reconsolidation.stop_sleep_preparation(memory_action_id)
+            self.reconsolidation.publish_ready()
+        batch = self.ghost.begin_batch("wake-" + new_id(), cancel=self.stop_event if memory_action_id is None else None)
+        if memory_action_id is not None:
+            batch.depend_on([record.id], authority=memory_action_id)
         accepted = batch.view().get(record.id).copy_for_edit()
         batch.set_lifecycle(accepted.id, status="awake", wake_reason=reason, woke_at=now.isoformat())
         if timeout:
@@ -546,6 +621,10 @@ class CognitiveControl(BusModule):
                     operation="cognition_wake", sequence=record.lineage.sequence + 1 if record.lineage else 0,
                     parent_record_ids=[record.id], source_event_ids=[record.id]))
         self.ghost.commit(batch)
+        if memory_action_id is not None:
+            self.generation += 1
+            self.ghost.save()
+            self.reconsolidation.sleep = None
 
     def _flush_deferred(self) -> None:
         """Re-publish evidence that a wait held, so the next cycle reads it.
@@ -556,7 +635,8 @@ class CognitiveControl(BusModule):
         record, so a stop before republish loses only the delivery: the record
         still reaches a later cycle through the shard tail of its group.
         """
-        held, self._deferred = self._deferred, []
+        with self.ghost.lock:
+            held, self._deferred = self._deferred, []
         for envelope in held:
             self.bus.put(new_envelope(envelope.source, envelope.kind, envelope.topic,
                                       envelope.correlation_id, dict(envelope.payload),
@@ -588,6 +668,7 @@ class CognitiveControl(BusModule):
             record = self._record()
             now = self.application.clock.utc().replace(tzinfo=None)
             if (record is not None and record.metadata["status"] == "waiting"
+                    and record.metadata.get("memory_action_id") is None
                     and now >= datetime.fromisoformat(record.metadata["wake_at"])):
                 self._wake(record, "timeout", timeout=True, now=now)
                 self.generation += 1

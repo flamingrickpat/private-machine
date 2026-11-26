@@ -2,10 +2,9 @@
 
 Two record kinds compete for the same space. A raw feature is the original
 event. A temporal summary is a consolidated block that covers a range of
-events. The result must cover every causal feature, from the first one to the
-last one. Each covered feature comes either from its own raw record, or from
-one summary whose time range contains it. The result can have no gap, and it
-cannot mix a summary with a raw record that the summary already covers.
+events. Each feature in an exact cover comes from its own record or from a
+summary whose recorded members account for the contiguous part it replaces.
+Time alone cannot establish that two simultaneous exchanges belong together.
 
 A dynamic-programming search solves this exactly. Each start index holds every
 legal way to continue the cover from that point. The search walks the start
@@ -24,10 +23,10 @@ from __future__ import annotations
 
 import logging
 import math
-from bisect import bisect_left, bisect_right
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from collections.abc import Mapping
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 from numpy.typing import NDArray
 
@@ -35,6 +34,7 @@ import numpy as np
 
 from pm.records.enums import ClusterType, FeatureType
 from pm.records.memory_records import Feature, MemoryClusterRecord
+from pm.memory.cluster_membership import ClusterMembership, is_episode_cluster
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ USE_NUMPY_BUDGET_SOLVER = True
 RATIO_SWEEP_STEPS = 97
 RATIO_SWEEP_DIVISOR = 96.0
 
-def _cosine_sim(left: list[float] | None, right: list[float]) -> float:
+def _cosine_sim(left: list[float] | None, right: list[float] | None) -> float:
     """Return the dot product of two vectors, or 0.0 when one is unusable.
 
     Stored vectors are already normalized, so the dot product is the cosine.
@@ -86,8 +86,8 @@ class _State:
 
 @dataclass(frozen=True)
 class _BudgetStates:
-    # Sparse, token-sorted states for one suffix index. Choice arrays are
-    # backpointers into candidates_by_start[index] and the next suffix token.
+    # Sparse states sorted by tokens above the minimum cover of this suffix.
+    # Choice arrays point to a candidate and the next suffix's extra spend.
     tokens: NDArray[np.int64]
     utilities: NDArray[np.float64]
     feature_tokens: NDArray[np.int64]
@@ -119,8 +119,18 @@ class TemporalHistoryItem(BaseModel):
     feature_type: FeatureType | None
     evidence_role: str = ""
     source_ids: tuple[int, ...] = ()
+    covered_feature_ids: tuple[int, ...] = Field(default=(),
+        description="Exact accounted feature IDs resolved from stored membership. Empty for unverified old captures.")
     relevance: float
     token_cost: int = Field(ge=0)
+
+    def __setstate__(
+        self, state: dict[str,  # pm-lint: allow PM004 -- Pydantic's external pickle-state mapping
+                          Any],  # pm-lint: allow PM002 -- pickle state holds mixed Pydantic internals from older captures
+    ) -> None:
+        """Accept Pydantic's pickle wire format from captures predating explicit coverage."""
+        state["__dict__"].setdefault("covered_feature_ids", ())
+        super().__setstate__(state)
 
 
 class TemporalHistoryInput(BaseModel):
@@ -157,7 +167,6 @@ class RequiredTemporalCoverageTooLarge(ValueError):
 class _TemporalGraph:
     features: list[TemporalHistoryItem]
     temporal_summaries: list[TemporalHistoryItem]
-    timestamps: list[datetime]
     feature_scores: list[float]
     feature_tokens: list[int]
     raw_total_tokens: int
@@ -206,7 +215,6 @@ def _build_temporal_graph(input: TemporalHistoryInput) -> _TemporalGraph:
         for item in input.items if item.kind == "feature")]
     temporal_summaries = [entry.item for entry in sorted(_SummaryHistoryOrder(item.started_at, item.ended_at,
         item.level, item.record_id, item) for item in input.items if item.kind == "summary")]
-    timestamps = [feature.started_at for feature in features]
     # Relevance is measured once up front. The rest of the algorithm only consumes
     # these scalar scores instead of doing any more embedding math.
     feature_scores = [
@@ -246,18 +254,23 @@ def _build_temporal_graph(input: TemporalHistoryInput) -> _TemporalGraph:
         )
 
     for summary in temporal_summaries:
-        # Snap the summary to the raw-feature timeline. If it covers no feature, it
-        # cannot help build a valid exact history cover.
-        start_index = bisect_left(timestamps, summary.started_at)
-        end_index = bisect_right(timestamps, summary.ended_at) - 1
-        if start_index > end_index:
+        # Work in this view's feature indices. A summary with interleaved
+        # members remains valid for retrieval, but cannot replace a timeline
+        # interval containing another event it never accounted for.
+        positions = {index_by_feature_id[key] for key in summary.covered_feature_ids if key in index_by_feature_id}
+        if not positions:
             continue
+        start_index = min(positions)
+        end_index = max(positions)
         span_length = end_index - start_index + 1
+        if len(positions) != span_length:
+            continue
         span_raw_tokens = cumulative_feature_tokens[end_index + 1] - cumulative_feature_tokens[start_index]
         span_mean_score = (cumulative_feature_scores[end_index + 1] - cumulative_feature_scores[start_index]) / span_length
         span_peak_score = max(feature_scores[start_index:end_index + 1])
         level_weight = min(float(summary.level), 6.0) / 6.0
-        summary_tokens = max(1, summary.token_cost)
+        # The enclosing Story prompt may already contain this exact record.
+        summary_tokens = summary.token_cost
         item_token_count[summary.record_id] = summary_tokens
         candidates_by_start[start_index].append(
             _Candidate(
@@ -282,14 +295,14 @@ def _build_temporal_graph(input: TemporalHistoryInput) -> _TemporalGraph:
     for candidates in candidates_by_start.values():
         for candidate in candidates:
             candidates_by_id[candidate.item.record_id] = candidate
-    return _TemporalGraph(features, temporal_summaries, timestamps, feature_scores, feature_tokens,
+    return _TemporalGraph(features, temporal_summaries, feature_scores, feature_tokens,
         raw_total_tokens, index_by_feature_id, item_token_count, candidates_by_start, candidates_by_id)
 
 
 @dataclass(frozen=True, slots=True, order=True)
 class OmissionPriority:
+    covered_weight_per_token: float
     relevance: float
-    negative_tokens: int
     position: int
     record_id: int
 
@@ -301,6 +314,7 @@ class TemporalCoverageProblem:
             raise ValueError("Temporal history requires unique source identities.")
         self.input = input
         self.graph = _build_temporal_graph(input)
+        self.minimum_suffix_tokens = [0] * (len(self.graph.features) + 1)
         self.minimum_state = self.compute_min_token_cover()
 
         priorities: list[OmissionPriority] = []
@@ -308,13 +322,16 @@ class TemporalCoverageProblem:
             candidate = self.graph.candidates_by_id[item.record_id]
             scores = self.graph.feature_scores[candidate.start_index:candidate.end_index + 1]
             relevance = 0.55 * sum(scores) / len(scores) + 0.45 * max(scores)
-            priorities.append(OmissionPriority(relevance, -candidate.tokens, position, item.record_id))
+            # A cheap calendar summary can retain hundreds of originals. Give
+            # each covered event a vote, then weight its span by focus relevance.
+            weight_per_token = len(scores) * (1 + relevance) / max(1, candidate.tokens)
+            priorities.append(OmissionPriority(weight_per_token, relevance, position, item.record_id))
         self.omission_order = tuple(sorted(priorities))
 
     def minimum_cover(self) -> TemporalCoverageSelection:
         if self.graph.features:
-            _validate_temporal_partition(self.minimum_state.items, self.graph.features, self.graph.temporal_summaries,
-                self.graph.candidates_by_start, require_temporal_history=True, require_contiguous_temporal_span=True)
+            _validate_temporal_partition(self.minimum_state.items, self.graph.features, self.graph.candidates_by_start,
+                require_temporal_history=True, require_contiguous_temporal_span=True)
         return self.selection(tuple(self.minimum_state.items))
 
     def selection(self, items: tuple[TemporalHistoryItem, ...],
@@ -350,6 +367,25 @@ class TemporalCoverageProblem:
         items = _TemporalRefinement(self, settings).refine()
         return self.selection(tuple(items))
 
+    def include_visible_records(self, selected: TemporalCoverageSelection,
+                                visible_ids: set[int]) -> TemporalCoverageSelection:
+        """Credit already-rendered evidence even when its coarser DP unit was omitted."""
+        missing = set(selected.omitted_feature_ids)
+        if not missing:
+            return selected
+        for record_id in visible_ids:
+            candidate = self.graph.candidates_by_id.get(record_id)
+            if candidate is None:
+                continue  # A sparse recollection supplies recall, not a contiguous interval.
+            if candidate.is_feature:
+                missing.discard(record_id)
+            else:
+                missing.difference_update(candidate.item.covered_feature_ids)
+        return replace(selected,
+            covered_feature_ids=tuple(item.record_id for item in self.graph.features if item.record_id not in missing),
+            omitted_feature_ids=tuple(item.record_id for item in self.graph.features if item.record_id in missing),
+            omitted_record_ids=tuple(key for key in selected.omitted_record_ids if key not in visible_ids))
+
     def omit_least_relevant_units(self, max_tokens: int) -> TemporalCoverageSelection:
         if max_tokens < 0 or max_tokens >= self.minimum_state.total_tokens:
             raise ValueError("Temporal omissions require a nonnegative budget below the cheapest complete cover.")
@@ -358,6 +394,8 @@ class TemporalCoverageProblem:
         for priority in self.omission_order:
             if total_tokens <= max_tokens:
                 break
+            if self.graph.candidates_by_id[priority.record_id].tokens == 0:
+                continue
             omitted.append(priority.record_id)
             total_tokens -= self.graph.candidates_by_id[priority.record_id].tokens
         omitted_ids = set(omitted)
@@ -369,34 +407,32 @@ class TemporalCoverageProblem:
         candidates_by_start = self.graph.candidates_by_start
         # Diagnostic-only DP: ignore utility entirely and compute the cheapest exact
         # gapless cover that exists in the current candidate graph.
-        best_tokens = [0] * (len(features) + 1)
-        best_feature_tokens = [0] * (len(features) + 1)
-        best_items: list[list[TemporalHistoryItem]] = [[] for _ in range(len(features) + 1)]
-
+        best_tokens = self.minimum_suffix_tokens
+        # Store one next step per position. Copying each suffix's entire list
+        # requires quadratic memory when most of an older home is still raw.
+        next_choice: list[_Candidate | None] = [None] * len(features)
         for start_index in range(len(features) - 1, -1, -1):
-            chosen_total_tokens: int | None = None
-            chosen_feature_tokens = 0
-            chosen_items: list[TemporalHistoryItem] = []
+            chosen: _Candidate | None = None
             for candidate in candidates_by_start[start_index]:
                 next_index = candidate.end_index + 1
                 total_tokens = candidate.tokens + best_tokens[next_index]
-                if chosen_total_tokens is not None and total_tokens >= chosen_total_tokens:
-                    continue
-                chosen_total_tokens = total_tokens
-                chosen_feature_tokens = candidate.feature_tokens + best_feature_tokens[next_index]
-                chosen_items = [candidate.item, *best_items[next_index]]
-            if chosen_total_tokens is None:
-                raise Exception("temporal_context: candidate graph is broken and cannot cover the timeline")
-            best_tokens[start_index] = chosen_total_tokens
-            best_feature_tokens[start_index] = chosen_feature_tokens
-            best_items[start_index] = chosen_items
+                if chosen is None or total_tokens < best_tokens[start_index]:
+                    chosen = candidate
+                    best_tokens[start_index] = total_tokens
+            if chosen is None:
+                raise ValueError(f"Temporal graph has no cover starting at feature {features[start_index].record_id}.")
+            next_choice[start_index] = chosen
 
-        return _State(
-            utility=0.0,
-            feature_tokens=best_feature_tokens[0],
-            total_tokens=best_tokens[0],
-            items=best_items[0],
-        )
+        items: list[TemporalHistoryItem] = []
+        raw_tokens = 0
+        position = 0
+        while position < len(features):
+            step = next_choice[position]
+            assert step is not None  # Every start index received a candidate above.
+            items.append(step.item)
+            raw_tokens += step.feature_tokens
+            position = step.end_index + 1
+        return _State(utility=0.0, feature_tokens=raw_tokens, total_tokens=best_tokens[0], items=items)
 
 
 
@@ -524,6 +560,13 @@ class _TemporalRefinement:
         # NumPy-backed exact-cover DP. This keeps the same skyline state model as
         # solve_with_budget_legacy, but vectorizes each candidate x suffix join and
         # stores backpointers instead of copying item lists through every state.
+        # Each suffix must pay for its cheapest complete cover. Index its states
+        # by additional spend so a large mandatory history never inflates the
+        # search table. The per-step differences telescope to the exact cost.
+        minimum = self.problem.minimum_suffix_tokens
+        extra_budget = token_cap - minimum[0]
+        if extra_budget < 0:
+            raise RequiredTemporalCoverageTooLarge(f"The minimum cover costs {minimum[0]} tokens; budget is {token_cap}.")
         empty_int = np.array([], dtype=np.int64)
         empty_float = np.array([], dtype=np.float64)
         best_from_index: list[_BudgetStates] = [
@@ -539,22 +582,23 @@ class _TemporalRefinement:
         )
 
         for start_index in range(len(self.features) - 1, -1, -1):
-            current_utilities = np.full(token_cap + 1, -np.inf, dtype=np.float64)
-            current_feature_tokens = np.zeros(token_cap + 1, dtype=np.int64)
-            current_candidate_indices = np.full(token_cap + 1, -1, dtype=np.int64)
-            current_tail_tokens = np.full(token_cap + 1, -1, dtype=np.int64)
+            current_utilities = np.full(extra_budget + 1, -np.inf, dtype=np.float64)
+            current_feature_tokens = np.zeros(extra_budget + 1, dtype=np.int64)
+            current_candidate_indices = np.full(extra_budget + 1, -1, dtype=np.int64)
+            current_tail_tokens = np.full(extra_budget + 1, -1, dtype=np.int64)
 
             for candidate_index, candidate in enumerate(self.candidates_by_start[start_index]):
                 tail_states = best_from_index[candidate.end_index + 1]
                 if tail_states.tokens.size == 0:
                     continue
 
-                total_tokens = tail_states.tokens + candidate.tokens
-                valid_mask = total_tokens <= token_cap
+                choice_cost = candidate.tokens + minimum[candidate.end_index + 1] - minimum[start_index]
+                extra_tokens = tail_states.tokens + choice_cost
+                valid_mask = extra_tokens <= extra_budget
                 if not np.any(valid_mask):
                     continue
 
-                valid_total_tokens = total_tokens[valid_mask]
+                valid_total_tokens = extra_tokens[valid_mask]
                 utilities = (
                     tail_states.utilities[valid_mask]
                     + candidate.utility_base
@@ -602,22 +646,22 @@ class _TemporalRefinement:
             for index in range(root_states.tokens.size)).index
         items: list[TemporalHistoryItem] = []
         start_index = 0
-        total_tokens = int(root_states.tokens[best_position])
+        remaining_extra = int(root_states.tokens[best_position])
         utility = float(root_states.utilities[best_position])
         feature_token_total = int(root_states.feature_tokens[best_position])
 
         while start_index < len(self.features):
             states = best_from_index[start_index]
-            state_position = int(np.searchsorted(states.tokens, total_tokens))
+            state_position = int(np.searchsorted(states.tokens, remaining_extra))
             candidate = self.candidates_by_start[start_index][int(states.candidate_indices[state_position])]
             items.append(candidate.item)
-            total_tokens = int(states.tail_tokens[state_position])
+            remaining_extra = int(states.tail_tokens[state_position])
             start_index = candidate.end_index + 1
 
         return _State(
             utility=utility,
             feature_tokens=feature_token_total,
-            total_tokens=int(root_states.tokens[best_position]),
+            total_tokens=minimum[0] + int(root_states.tokens[best_position]),
             items=items,
         )
 
@@ -678,21 +722,9 @@ class _TemporalRefinement:
             # redundancy. The intended behavior is to return the raw timeline only.
             result = list(self.features)
             if self.run_final_checks:
-                self.solve_target(999.0)
-                _validate_projection_context(
-                    result=result,
-                    features=self.features,
-                    temporal_summaries=self.temporal_summaries,
-                    ratio=self.ratio,
-                    max_tokens=self.max_tokens,
-                    feature_tokens=self.feature_tokens,
-                    item_token_count=self.item_token_count,
-                    candidates_by_start=self.candidates_by_start,
-                    solved_states=self.solve_target_cache,
-                    feature_bonus=999.0,
+                _validate_temporal_partition(result, self.features, self.candidates_by_start,
                     require_temporal_history=self.require_temporal_history,
-                    require_contiguous_temporal_span=self.require_contiguous_temporal_span,
-                )
+                    require_contiguous_temporal_span=self.require_contiguous_temporal_span)
             return result
 
         # Sweep a small fixed range of ratio-control values and keep the solution whose
@@ -714,7 +746,6 @@ class _TemporalRefinement:
             _validate_projection_context(
                 result=best_state.items,
                 features=self.features,
-                temporal_summaries=self.temporal_summaries,
                 ratio=self.ratio,
                 max_tokens=self.max_tokens,
                 feature_tokens=self.feature_tokens,
@@ -729,93 +760,38 @@ class _TemporalRefinement:
 
 
 def _validate_temporal_partition(result: list[TemporalHistoryItem], features: list[TemporalHistoryItem],
-                                 temporal_summaries: list[TemporalHistoryItem],
                                  candidates_by_start: dict[int, list[_Candidate]], *,
                                  require_temporal_history: bool,
                                  require_contiguous_temporal_span: bool) -> None:
-    all_dialog = [feature for feature in features if feature.feature_type == FeatureType.Dialogue]
-    all_temporal_memories = temporal_summaries
-
     if not result:
-        raise Exception("temporal_context: empty result")
+        raise ValueError("Empty temporal cover for a nonempty timeline.")
 
     spans_by_id: dict[int, _Candidate] = {}
     for candidates in candidates_by_start.values():
         for candidate in candidates:
             spans_by_id[candidate.item.record_id] = candidate
-    spans = [spans_by_id[item.record_id] for item in result]
-    if spans[0].start_index != 0:
-        raise Exception("temporal_context: history does not start at the first causal feature")
-    if spans[-1].end_index != len(features) - 1:
-        raise Exception("temporal_context: history does not end at the last causal feature")
-
-    # The chosen items must form an exact partition over the entire timeline.
-    for previous, current in zip(spans, spans[1:]):
-        if previous.end_index + 1 != current.start_index:
-            raise Exception("temporal_context: history is not gapless")
-
-    if require_contiguous_temporal_span:
-        for previous, current in zip(result, result[1:]):
-            if previous.started_at > current.started_at:
-                raise Exception("temporal_context: output order is not chronological")
-            if previous.ended_at > current.started_at and spans_by_id[previous.record_id].end_index < spans_by_id[current.record_id].start_index:
-                raise Exception("temporal_context: timestamps overlap while spans do not")
-
-    raw_selected_ids = {item.record_id for item in result if item.kind == "feature"}
-    covered_by_summary = [False] * len(features)
-    for item, span in zip(result, spans):
-        start_index = span.start_index
-        end_index = span.end_index
-        if item.kind == "summary":
-            for index in range(start_index, end_index + 1):
-                covered_by_summary[index] = True
-
-    # Every raw feature not emitted directly must still be covered by at least one
-    # selected summary. Otherwise the history has a silent hole.
-    for index, feature in enumerate(features):
-        if feature.record_id in raw_selected_ids:
-            continue
-        if not covered_by_summary[index]:
-            raise Exception("temporal_context: summarized feature is not covered by any selected summary")
-
-    # Mixing a summary with raw items fully inside that summary is redundant and
-    # therefore forbidden.
-    for item, span in zip(result, spans):
-        start_index = span.start_index
-        end_index = span.end_index
+    next_feature = 0
+    for item in result:
+        span = spans_by_id[item.record_id]
+        if span.start_index != next_feature:
+            raise ValueError(f"Temporal record {item.record_id} does not continue at feature index {next_feature}.")
+        next_feature = span.end_index + 1
         if item.kind == "feature":
-            continue
-        for other_item, other_span in zip(result, spans):
-            other_start = other_span.start_index
-            other_end = other_span.end_index
-            if other_item.kind != "feature":
-                continue
-            if start_index <= other_start <= other_end <= end_index:
-                raise Exception("temporal_context: summary overlaps selected raw data")
-
-    if require_temporal_history and len(all_temporal_memories) > 0:
-        # If the memory store exists, selected output should cover dialogue at least
-        # as well as the temporal memory base itself.
-        covered_dialogue_ids: set[int] = set()
-        reference_dialogue_ids: set[int] = set()
-        for dialog in all_dialog:
-            if any(dialog.started_at >= item.started_at
-                   and dialog.ended_at <= item.ended_at for item in result):
-                covered_dialogue_ids.add(dialog.record_id)
-            if any(dialog.started_at >= memory.started_at
-                   and dialog.ended_at <= memory.ended_at for memory in all_temporal_memories):
-                reference_dialogue_ids.add(dialog.record_id)
-        missing_reference_ids = reference_dialogue_ids - covered_dialogue_ids
-        if missing_reference_ids:
-            raise ValueError("temporal_context: output loses dialogue covered by temporal memory: "
-                             f"{sorted(missing_reference_ids)}")
-
-    # Every raw feature start index must have at least one legal continuation.
-    for start_index, candidates in candidates_by_start.items():
-        if not candidates:
-            raise Exception("temporal_context: a feature start index has no candidates")
-        if candidates[0].start_index != start_index:
-            raise Exception("temporal_context: candidate indexing is corrupted")
+            if features[span.start_index].record_id != item.record_id or span.end_index != span.start_index:
+                raise ValueError(f"Raw record {item.record_id} must cover exactly itself.")
+        elif require_temporal_history:
+            members = set(item.covered_feature_ids)
+            for source in features[span.start_index:next_feature]:
+                if source.record_id not in members:
+                    raise ValueError(f"Temporal record {item.record_id} cannot cover unrelated feature {source.record_id}.")
+    if next_feature != len(features):
+        raise ValueError(f"Temporal cover ends at feature index {next_feature} of {len(features)}.")
+    if require_contiguous_temporal_span:
+        # World-time ranges can overlap. Source order breaks ties between
+        # simultaneous events, including two people talking in one tick.
+        for earlier, later in zip(features, features[1:]):
+            if (earlier.started_at, earlier.record_id) > (later.started_at, later.record_id):
+                raise ValueError(f"Temporal features {earlier.record_id}, {later.record_id} are out of order.")
 
 
 
@@ -823,7 +799,6 @@ def _validate_temporal_partition(result: list[TemporalHistoryItem], features: li
 def _validate_projection_context(
     result: list[TemporalHistoryItem],
     features: list[TemporalHistoryItem],
-    temporal_summaries: list[TemporalHistoryItem],
     ratio: float,
     max_tokens: int,
     feature_tokens: list[int],
@@ -841,11 +816,9 @@ def _validate_projection_context(
     for inspecting optimizer behavior, not for graceful runtime recovery. It
     changes nothing, except that it re-runs the solver through ``solve_target``.
 
-    ``features`` and ``temporal_summaries`` are the same filtered lists the
-    solver used. The dialogue coverage check measures against those lists, so a
-    caller that passes a partial pool gets a partial reference.
+    The covered features are the eligible records in this prompt's frozen view.
     """
-    _validate_temporal_partition(result, features, temporal_summaries, candidates_by_start,
+    _validate_temporal_partition(result, features, candidates_by_start,
         require_temporal_history=require_temporal_history,
         require_contiguous_temporal_span=require_contiguous_temporal_span)
     index_by_feature_id = {feature.record_id: index for index, feature in enumerate(features)}
@@ -880,27 +853,38 @@ def _validate_projection_context(
 
 
 def build_temporal_context(features: list[Feature], temporal_summaries: list[MemoryClusterRecord],
-                           embedding: list[float], ratio: float, max_tokens: int, *,
+                           embedding: list[float] | None, ratio: float, max_tokens: int, *,
                            vectors: dict[int, list[float] | None], token_costs: dict[int, int],
+                           membership: ClusterMembership | None = None,
+                           relevance_scores: Mapping[int, float] | None = None,  # pm-lint: allow PM004 -- planner relevance by source ID
                            require_temporal_history: bool = True, require_contiguous_temporal_span: bool = True,
                            run_final_checks: bool = True, allow_coverage_omissions: bool = False) -> list[Feature | MemoryClusterRecord]:
+    """Select an exact or explicitly partial cover over these eligible features.
+
+    A context-plan lane supplies membership for its whole scoped snapshot so a
+    temporal parent can resolve children which belong to another lane.
+    """
     items: list[TemporalHistoryItem] = []
     records: dict[int, Feature | MemoryClusterRecord] = {}
     for feature in features:
         if not feature.causal:
             continue
         records[feature.id] = feature
+        relevance = (relevance_scores[feature.id] if relevance_scores is not None
+                     else _cosine_sim(vectors[feature.id], embedding))
         items.append(TemporalHistoryItem(record_id=feature.id, started_at=feature.timestamp_world_begin,
             ended_at=feature.timestamp_world_end, kind="feature", level=0, content=feature.content,
             source=feature.source, feature_type=feature.feature_type,
-            relevance=_cosine_sim(vectors[feature.id], embedding), token_cost=token_costs[feature.id]))
+            relevance=relevance, token_cost=token_costs[feature.id]))
+    records.update((cluster.id, cluster) for cluster in temporal_summaries)
+    membership = membership or ClusterMembership(records)  # pm-lint: allow PM005 -- visible knoxels indexed by ID
     for summary in temporal_summaries:
-        if summary.cluster_type != ClusterType.Temporal:
+        if summary.cluster_type != ClusterType.Temporal and not is_episode_cluster(summary):
             continue
-        records[summary.id] = summary
         items.append(TemporalHistoryItem(record_id=summary.id, started_at=summary.timestamp_world_begin,
             ended_at=summary.timestamp_world_end, kind="summary", level=summary.level, content=summary.content,
-            source="", feature_type=None, relevance=0.0, token_cost=token_costs[summary.id]))
+            source="", feature_type=None, covered_feature_ids=tuple(sorted(membership.source_ids(summary))),
+            relevance=0.0, token_cost=token_costs[summary.id]))
     problem = TemporalCoverageProblem(TemporalHistoryInput(items=tuple(items)))
     settings = TemporalSelectionSettings(max_tokens=max(0, max_tokens), raw_ratio=ratio, allow_coverage_omissions=allow_coverage_omissions,
         require_temporal_history=require_temporal_history,

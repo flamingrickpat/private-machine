@@ -13,6 +13,7 @@ import zlib
 from datetime import datetime
 from pathlib import Path
 
+from pm.app.character_cli import build_models
 from pm.llm.config import EmbeddingConfig
 from pm.llm.http_client import ModelError
 from pm.llm.prompt_encoding import normalize_turns
@@ -20,7 +21,7 @@ from pm.context_render.turns import Media, Role
 from pm.memory.embeddings import EmbeddingService, embedding_text
 from pm.memory.media_alt import MediaLibrary, complete_alt_text
 from pm.memory.reconsolidation.pipeline import reconsolidate
-from pm.memory.reconsolidation.story import feature_line
+from pm.memory.reconsolidation.story import ImageCatalog, feature_line
 from pm.memory.store import MemoryStore
 from pm.records.cycle_state import PersonaConfig
 from pm.records.enums import FeatureType, InterlocusType
@@ -118,16 +119,21 @@ class AltTextTests(unittest.TestCase):
         self.assertEqual(embedding_text(self.feature.content), expected)
         self.assertNotIn(self.image.data_b64, embedding_text(self.feature.content))
 
-    def test_reconsolidation_reads_images_as_alt_text_and_completes_them_first(self):
+    def test_open_episode_leaves_missing_captions_unpublished(self) -> None:
+        self.store.accept_import()
         stored = self.store.get_knoxel_by_id(self.feature.id)
-        self.assertIn("[image: no description yet]", feature_line(stored, "%H:%M", self.store.find_image))
-        model = ScriptedVision("A grey cat.")
-        report = reconsolidate(self.store, complete=model, embeddings=None, now=stored.timestamp_world_begin)
-        self.assertEqual(len(model.calls), 1)
+        assert isinstance(stored, Feature)
+        images = ImageCatalog(tuple(record_media(stored).images))
+        self.assertIn("[image: no description yet]", feature_line(stored, "%H:%M", images))
+        models = build_models("config.yaml")
+        report = reconsolidate(self.store, complete=models.stage, embeddings=models.embeddings,
+                               force=True, now=stored.timestamp_world_begin)
+        self.assertEqual(models.stage.request_count, 0)
         self.assertEqual(report.created_ids, [])
-        line = feature_line(self.store.get_knoxel_by_id(self.feature.id), "%H:%M", self.store.find_image)
-        self.assertTrue(line.endswith('Jesse says: "what is this?\n[image: A grey cat.]"'))
-        self.assertNotIn("[image:img-", line)
+        reopened = MemoryStore.load(self.root / "ghost.pickle")
+        saved = reopened.find_image(self.image.id)
+        assert saved is not None
+        self.assertEqual(saved.alt_text, "")
 
 
 class ScreenshotRecordTests(unittest.TestCase):

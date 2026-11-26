@@ -11,19 +11,18 @@
 # Cluster and feature type values use the enum .value strings.
 #
 # Lane classification by record kind:
-#   dialogue   - verbatim speech and thoughts (Feature: Dialogue, Thought, InnerMonologue)
+#   dialogue   - recent verbatim speech (Feature: Dialogue)
 #   focus      - GWT attention targets (required ids)
-#   history    - full timeline coverage: temporal summaries + raw features (DP solver)
+#   history    - chronological coverage from raw features, episodes and calendar summaries
 #   facts      - stable world knowledge: facts, preferences, traits, relationships, capabilities
 #   inner      - companion's own mental model: beliefs, active goals
 #   rules      - learned causal patterns: cause-effect, behavioral rules, hazards
 #   narratives - interpretive self-model stories: self-image, relations, psychology
 #
-# The history lane uses the temporal DP solver to cover 100% of the timeline.
-# It mixes raw dialogue features with hierarchical temporal summaries at the
-# configured raw_ratio. Level-1 summaries (first meeting, major epochs) appear
-# at the front. Level-6 summaries fill recent gaps. Raw features fill the most
-# relevant gaps. The solver optimizes total timeline span under the token budget.
+# Story freezes the eligible lifetime sources, then fits them alongside the
+# actual rendered dialogue and evidence. A summary replaces raw events only
+# when its recorded sources form a contiguous interval. The selection receipt
+# names omitted sources when the complete chronological cover exceeds headroom.
 #
 # story: the companion writes prose for the other character to read.
 #   Verbatim speech enters assistant turns. Earlier private thoughts enter

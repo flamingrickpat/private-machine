@@ -157,6 +157,9 @@ def build_messages(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix, 
         managed_runs=render_managed_runs(work.request.managed_runs),
         variants=DECISION_VARIANTS)
     template = prefix.fill(prompts.user_template)
+    assessment = work.request.memory_work
+    if assessment is not None and assessment.external_features:
+        template += "\n\n" + assessment.decision_evidence()
     if exchange_instruction:
         template += "\n\n" + exchange_instruction
     instruction = fit_shard_instruction(template, values,

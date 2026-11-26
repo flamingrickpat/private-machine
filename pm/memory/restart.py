@@ -29,6 +29,7 @@ class RestartLifecycle(BaseModel):
     execution_status: str = ""
     run_id: str = ""
     recovery_outcome: str = ""
+    memory_action_id: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,6 +49,11 @@ def discard_unfinished_work(ghost: MemoryStore) -> RestartSummary:
     for record in view.all_knoxels.values():
         lifecycle = RestartLifecycle.model_validate(record.metadata)
         changed = False
+        if (lifecycle.memory_action_id is not None and record.metadata.get("control_kind") == "inference_wait"
+                and record.metadata["status"] == "waiting"):
+            # The corresponding worker has no execution thread after reopening.
+            batch.set_lifecycle(record.id, status="awake", wake_reason="memory worker discarded on restart")
+            changed = True
         if lifecycle.exchange_status == "pending":
             batch.set_lifecycle(record.id, exchange_status="resolved", recovery_outcome="discarded_on_restart")
             changed = True

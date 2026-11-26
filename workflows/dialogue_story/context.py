@@ -2,9 +2,9 @@
 
 The operator's situation supplies one accepted user input in the trial MemoryStore.
 The ``story`` context plan reads vectors from the shared records. Capability discovery
-runs outside the async loop. The companion's earlier private thoughts can
-appear in the verbatim transcript as ``thinks: *...*`` lines; they guide the
-voice and are never published.
+runs outside the async loop. The renderer places spoken dialogue in assistant
+turns. Earlier private thoughts and derived recollections provide evidence in
+user turns, where they can guide speech.
 
 ``select_story_prompt`` also serves ordinary runtime replies. It preserves the
 required Story layout while the shared selector admits optional retrieval by
@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING
 
 from pm.memory.embeddings import EmbeddingService
 from pm.memory.retrieval import distinctive_terms
-from workflows.dialogue_story.history_rendering import select_story_history, history_turns, history_request
+from workflows.dialogue_story.history_rendering import select_story_history, history_turns, history_request, visible_history_ids
 from pm.memory.temporal_context import TemporalCoverageSelection
 
 from pm.context_render.correction import render_regeneration_feedback
@@ -135,7 +135,7 @@ def select_story_prompt(
     selected.memories = []
     if context is not None and context.temporal_history is not None:
         required_history = tuple(item for item in context.temporal_history.items if item.record_id in required_ids)
-        selected = history_request(selected, required_history)
+        selected = history_request(selected, required_history, visible_history_ids(selected, prompts))
         assert selected.public_context is not None
         selected_evidence = list(selected.public_context.evidence)
         selected_dialogue = list(selected.prior_dialogue)

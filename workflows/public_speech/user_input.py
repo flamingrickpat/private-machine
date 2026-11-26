@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 import threading
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 from pm.records.enums import EntityClass, FeatureType, InterlocusType, SourceKind
 
@@ -20,6 +20,18 @@ if TYPE_CHECKING:
     from pm.memory.store import MemoryStore
 
 
+class IntakeControl(Protocol):
+    """The two cognition boundaries that surround acceptance of a human stimulus."""
+
+    def wake_before_input(self) -> None:
+        """Finish an outstanding sleep checkpoint before the new stimulus exists."""
+        ...
+
+    def register_input(self, source_id: int) -> None:
+        """Mark the accepted stimulus as pending classification."""
+        ...
+
+
 class UserInputProxy(BusModule):
     """Wraps human input and prints public replies."""
 
@@ -33,7 +45,7 @@ class UserInputProxy(BusModule):
         self.emit_reply = emit_reply
         self._intake_lock = threading.RLock()
         self._accepting = True
-        self.register_triage_input: Callable[[int], None] | None = None
+        self.cognitive_control: IntakeControl | None = None
 
     def close_intake(self) -> None:
         """Reject new stimuli after all current submissions finish."""
@@ -90,6 +102,8 @@ class UserInputProxy(BusModule):
         # Intake stores the stimulus before any inference. The cognition worker
         # can prepare its vector after this durable acknowledgment.
         with self.ghost.lock:
+            if self.cognitive_control is not None:
+                self.cognitive_control.wake_before_input()
             batch = self.ghost.begin_batch(new_id(), embed=False)
             batch.preserve_on_recovery()
             batch.depend_on([], manifest={"kind": "stimulus_delivery", "embedding_policy": "deferred"})
@@ -119,8 +133,8 @@ class UserInputProxy(BusModule):
                 )
             self.ghost.commit(batch)
             knoxel_id = feature.id
-            if self.register_triage_input is not None:
-                self.register_triage_input(knoxel_id)
+            if self.cognitive_control is not None:
+                self.cognitive_control.register_input(knoxel_id)
         self.bus.put(new_envelope(
             self.module_id, "data", "user.input",
             correlation_id, {"knoxel_id": knoxel_id},

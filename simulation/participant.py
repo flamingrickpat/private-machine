@@ -30,20 +30,25 @@ from pathlib import Path
 import shutil
 import threading
 import time
+from collections.abc import Sequence
 from types import FrameType
+from typing import TYPE_CHECKING
 
-from pydantic import JsonValue
+from pydantic import JsonValue, TypeAdapter
 
 from pm import vclock
 from pm.app.character_home import CharacterHome
-from pm.app.control import RuntimeControl
+from pm.app.control import OperatorStimulus
 from pm.app.web_chat import WebChatServer
 from pm.bus.envelopes import Envelope
-from pm.host.application import Application
 from pm.host.diagnostics import configure_logging, close_logging
 from pm.host.durable_files import ProcessLock, atomic_json
 from pm.llm.prompt_log import configure_root
+from pm.records.media import RecordImage
 from simulation.client import ParticipantFailure
+
+if TYPE_CHECKING:
+    from workflows.companion import CompanionApplication
 
 
 class Participant:
@@ -53,10 +58,7 @@ class Participant:
         self.home: Path = home.resolve()
         self.failure_file: Path = failure_file
         self.config: str = config
-        # The assembly also attaches ``ghost``, ``user_input``, and
-        # ``cognitive_control`` (see ``workflows.companion.build_app``); the
-        # application class itself does not declare them.
-        self.app: Application | None = None
+        self.app: CompanionApplication | None = None
         self.error: BaseException | None = None
         self.starting: bool = False
         self.closed: threading.Event = threading.Event()
@@ -91,19 +93,13 @@ class Participant:
         if self.app is not None and vclock.active() is not None:
             atomic_json(self.home / "runtime" / "clock.json", self.clock_receipt())
 
-    def submit(self, text: str, **options: JsonValue) -> str:
-        """Deliver ordinary entity input to this process's real companion.
-
-        ``options`` are forwarded unchanged to ``UserInputProxy.submit``. The
-        harness supplies JSON string values such as ``speaker`` and
-        ``delivery_id``; the repeated ``delivery_id`` is what makes a retried
-        delivery reuse its exchange instead of duplicating speech. Returns the
-        exchange correlation ID. Raises ``RuntimeError`` before the runtime is
-        ready.
-        """
+    def submit(self, text: str, *, session: str = "", speaker: str | None = None,
+               images: Sequence[RecordImage] = (), delivery_id: str = "", entity_ref: str = "") -> str:
+        """Accept partner input and return its correlation ID. Repeat deliveries reuse the exchange."""
         if self.app is None or self.starting:
             raise RuntimeError("The participant is not ready.")
-        return self.app.user_input.submit(text, **options)
+        return self.app.runtime_control.intake.submit(text, session=session, speaker=speaker,
+            images=images, delivery_id=delivery_id, entity_ref=entity_ref)
 
     def fail(self, error: BaseException) -> None:
         """Retain a failure and stop runtime work. Keep control evidence readable."""
@@ -222,7 +218,7 @@ class Participant:
             if path == "/control/advance":
                 self.advance(body["to"])
                 from pm.app.transport import public_events
-                events, self.output_cursor = public_events(self.app.ghost, self.output_cursor)
+                events, self.output_cursor = public_events(self.app.runtime_control.ghost, self.output_cursor)
                 outputs = [*self.carry, *[{"output_id": event["output_id"], "virtual_ts": event["timestamp"],
                     "text": event["content"], "kind": "reply" if event["correlation_id"] else "unprompted",
                     "call_ids": [], "call_linkage": "unavailable: contributor gateway IDs are not supplied"}
@@ -231,14 +227,14 @@ class Participant:
                 self.save_clock()
                 return {"outputs": outputs}
             if path == "/control/send":
-                if body.get("ts"):
-                    prior = self.control("/control/advance", {"to": body["ts"]})["outputs"]
+                request = OperatorStimulus.model_validate(body)
+                if request.ts:
+                    prior = self.control("/control/advance", {"to": request.ts})["outputs"]  # pm-lint: allow PM005 -- simulator control request
                     self.carry.extend(prior)
-                stimulus = self.submit(body["text"], speaker=body.get("speaker"),
-                                       delivery_id=body.get("delivery_id", ""))
+                stimulus = self.submit(request.text, speaker=request.speaker, delivery_id=request.delivery_id)
                 return {"ok": True, "stimulus_id": stimulus}
             if path == "/control/snapshot":
-                controller = RuntimeControl(self.app)
+                controller = self.app.runtime_control
                 frozen = self.app.frozen.is_set()
                 if not frozen:
                     controller("/control/freeze", {})
@@ -273,22 +269,32 @@ class Participant:
                 threading.Thread(target=self._start, args=({"clock_start": saved["clock"]["now"]},),
                                  name="participant-restore", daemon=False).start()
                 return {"status": "starting", "name": name}
-            controller = RuntimeControl(self.app)
-            result = controller(path, body)
+            controller = self.app.runtime_control
+            if path in {"/control/state", "/control/status"}:
+                state = controller.state()
+                ghost = controller.ghost
+                cognition = self.app.cognitive_control
+                if cognition is None:
+                    raise RuntimeError("A running simulation participant requires real cognitive control.")
+                deadlines = [datetime.fromisoformat(item["ts"]) for item in self.env_pending]
+                deadline = state["next_due"]
+                if deadline is not None:
+                    deadlines.append(datetime.fromisoformat(deadline))
+                response = TypeAdapter(dict[str, JsonValue]).validate_python(state)
+                response["next_due"] = min(deadlines).isoformat() if deadlines else None
+                response["user_entity_id"] = ghost.get_entity_id(ghost.get_user_name())
+                response["virtual_ts"] = state["clock"]
+                response["cycles"] = len(ghost.states)
+                response["waiting"] = cognition.waiting()
+                response["injects"] = {}
+                response["mental_state"] = ghost.states[-1].mental_state.model_dump(mode="json") if ghost.states else {}  # pm-lint: allow PM007 -- simulator state response
+                response["module_errors_total"] = int(self.app.error is not None)
+                return response
+            receipt = controller(path, body)
             if path == "/control/advance-step":
                 self.deliver_environment()
                 self.save_clock()
-            if path in {"/control/state", "/control/status"}:
-                deadlines = [datetime.fromisoformat(item["ts"]) for item in self.env_pending]
-                if result["next_due"]:
-                    deadlines.append(datetime.fromisoformat(result["next_due"]))
-                result["next_due"] = min(deadlines).isoformat() if deadlines else None
-                result.update(user_entity_id=self.app.ghost.get_entity_id(self.app.ghost.get_user_name()),
-                    virtual_ts=result["clock"], cycles=len(self.app.ghost.states),
-                    waiting=self.app.cognitive_control.waiting(), injects={},
-                    mental_state=self.app.ghost.states[-1].mental_state.model_dump(mode="json") if self.app.ghost.states else {},
-                    module_errors_total=int(self.app.error is not None))
-            return result
+            return TypeAdapter(dict[str, JsonValue]).validate_python(receipt)
 
     @staticmethod
     def _text_option(body: dict[str, JsonValue], key: str) -> str | None:
@@ -349,10 +355,12 @@ class Participant:
         from pm.records.memory_records import new_feature
         from pm.records.enums import FeatureType, SourceKind
         from pm.bus.envelopes import new_envelope
+        if self.app is None:
+            raise RuntimeError("A participant must be running to receive environment events.")
         ids = []
         for item in body["events"]:
             text = item if isinstance(item, str) else item["text"]
-            record = new_feature(self.app.ghost, text, FeatureType.WorldEvent, source="environment",
+            record = new_feature(self.app.runtime_control.ghost, text, FeatureType.WorldEvent, source="environment",
                                  source_kind=SourceKind.System, metadata={"origin": "environment.event"})
             ids.append(record.id)
             self.app.bus.put(new_envelope("environment", "data", "environment.event", "", {"knoxel_id": record.id}))

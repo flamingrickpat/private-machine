@@ -63,7 +63,7 @@ class CoordinatedCheckpointTests(unittest.TestCase):
                 participant = Path(item["home"])
                 store = MemoryStore.from_checkpoint(participant / "ghost.pickle")
                 snapshot = participant / "runtime/snapshots/barrier.pickle"
-                write_checkpoint(snapshot, store.checkpoint_data(), lambda: None)
+                write_checkpoint(snapshot, store.checkpoint_data())
                 atomic_json(snapshot.with_suffix(".json"), {"clock": VirtualClock(plan.start_time).state(), "timers": {"inner_thought": 30}})
                 snapshots[item["id"]] = {"path": str(snapshot)}
                 admit(store, "After the barrier")

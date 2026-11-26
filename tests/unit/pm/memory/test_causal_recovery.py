@@ -249,7 +249,7 @@ class CausalRecoveryTests(unittest.TestCase):
         from pm.memory.checkpoint import write_checkpoint
         action = self.admit()
         legacy = self.ghost.checkpoint_data().model_copy(update={"causal_history": None})
-        write_checkpoint(self.path, legacy, lambda: None)
+        write_checkpoint(self.path, legacy)
         migrated = MemoryStore.from_checkpoint(self.path)
         migrated.save()
         reopened = MemoryStore.from_checkpoint(self.path)

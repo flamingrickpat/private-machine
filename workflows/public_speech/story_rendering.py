@@ -11,10 +11,9 @@ The Story prompt uses a time-ordered layout:
   ...
   user       GWT state + feelings + action + continue directive
 
-Role rule: every dialogue line (both speakers, and the companion's own
-earlier thoughts) is an assistant turn. Every derived artifact (memories,
-summaries, facts, narratives, private state) is a user turn. Adjacent
-same-role runs merge into one turn, so the result alternates strictly.
+Spoken lines from both speakers enter assistant turns. Story supplies
+earlier thoughts, summaries, facts, narratives and private state as artifacts
+in user turns. Adjacent lines with the same role share one turn.
 
 This module is pure. It reads no store, calls no model, and embeds no text.
 The caller supplies rendered text lines with timestamps and lane names.

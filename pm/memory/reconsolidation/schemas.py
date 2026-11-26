@@ -47,16 +47,16 @@ class ReconsolidationConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    trigger_events: int = RECONSOLIDATION_TRIGGER_EVENTS
-    min_events: int = RECONSOLIDATION_MIN_EVENTS
-    context_window: int = RECONSOLIDATION_CONTEXT_WINDOW
-    min_block: int = RECONSOLIDATION_MIN_BLOCK
-    chunk_events: int = RECONSOLIDATION_CHUNK_EVENTS
-    open_topic_minutes: int = RECONSOLIDATION_OPEN_TOPIC_MINUTES
-    summary_token_limit: int = RECONSOLIDATION_SUMMARY_TOKEN_LIMIT
-    narrative_min_tokens: int = RECONSOLIDATION_NARRATIVE_MIN_TOKENS
-    narrative_max_tokens: int = RECONSOLIDATION_NARRATIVE_MAX_TOKENS
-    narrative_first_tokens: int = RECONSOLIDATION_NARRATIVE_FIRST_TOKENS
+    trigger_events: int = Field(default=RECONSOLIDATION_TRIGGER_EVENTS, ge=1)
+    min_events: int = Field(default=RECONSOLIDATION_MIN_EVENTS, ge=1)
+    context_window: int = Field(default=RECONSOLIDATION_CONTEXT_WINDOW, ge=1)
+    min_block: int = Field(default=RECONSOLIDATION_MIN_BLOCK, ge=1)
+    chunk_events: int = Field(default=RECONSOLIDATION_CHUNK_EVENTS, ge=1)
+    open_topic_minutes: int = Field(default=RECONSOLIDATION_OPEN_TOPIC_MINUTES, ge=0)
+    summary_token_limit: int = Field(default=RECONSOLIDATION_SUMMARY_TOKEN_LIMIT, ge=1)
+    narrative_min_tokens: int = Field(default=RECONSOLIDATION_NARRATIVE_MIN_TOKENS, ge=1)
+    narrative_max_tokens: int = Field(default=RECONSOLIDATION_NARRATIVE_MAX_TOKENS, ge=1)
+    narrative_first_tokens: int = Field(default=RECONSOLIDATION_NARRATIVE_FIRST_TOKENS, ge=1)
     cluster_feature_types: list[FeatureType] = [FeatureType.Dialogue, FeatureType.WorldEvent]
     story_feature_types: list[FeatureType] = [
         FeatureType.Dialogue, FeatureType.WorldEvent, FeatureType.Thought, FeatureType.ExternalThought,
@@ -90,7 +90,7 @@ class ReconsolidationPrompts(BaseModel):
     no_previous_narrative: str = ""
     no_recorded_state: str = ""
     narratives: list[NarrativeDefinition] = Field(default_factory=list[NarrativeDefinition])
-    evidence_types: dict[NarrativeTypes, list[FeatureType]] = Field(default_factory=dict[NarrativeTypes, list[FeatureType]])
+    evidence_types: dict[NarrativeTypes, list[FeatureType]] = Field(default_factory=dict[NarrativeTypes, list[FeatureType]])  # pm-lint: allow PM004 -- evidence types by narrative family
 
 
 def load_prompts(path: Path = PROMPTS_FILE) -> ReconsolidationPrompts:
@@ -103,10 +103,32 @@ class FactExtractionValidation(BaseModel):
     line_count: int
 
 
+class FactClaimOption(BaseModel):
+    """An entity-ledger interpretation citing the individual fact's source lines."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    claim_id: str
+    about: str
+    statement: str
+
+
+class CanonicalFactOption(BaseModel):
+    """A current semantic head with the same source authority in this reality."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    head_id: int
+    about: str
+    statement: str
+    record_type: RecordType
+    supported_through: datetime
+
+
 class FactClassificationValidation(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     fact_count: int
     allowed_subjects: tuple[str, ...]
+    claim_options: tuple[tuple[FactClaimOption, ...], ...] = ()
+    canonical_options: tuple[tuple[CanonicalFactOption, ...], ...] = ()
 
 
 # ----------------------------------------------------------------- answers
@@ -114,13 +136,13 @@ class FactClassificationValidation(BaseModel):
 class SummaryAnswer(BaseModel):
     """A topical or temporal summary."""
 
-    summary: str = Field(default="", min_length=20, max_length=8000)
+    summary: str = Field(min_length=20, max_length=8000)
 
 
 class MentalStateAnswer(BaseModel):
     """The state description of one cluster."""
 
-    description: str = Field(default="", min_length=10, max_length=2000)
+    description: str = Field(min_length=10, max_length=2000)
 
 
 class ExtractedFact(BaseModel):
@@ -129,8 +151,8 @@ class ExtractedFact(BaseModel):
     The validation context holds ``lines``: the number of scene lines.
     """
 
-    text: str = Field(default="", min_length=11, max_length=600)
-    lines: list[int] = Field(default_factory=list[int], min_length=1)
+    text: str = Field(min_length=11, max_length=600)
+    lines: list[int] = Field(min_length=1)
 
     @field_validator("lines")
     @classmethod
@@ -148,22 +170,24 @@ class ExtractedFact(BaseModel):
 class FactsAnswer(BaseModel):
     """The facts of one scene. An empty list is valid."""
 
-    facts: list[ExtractedFact] = Field(default_factory=list[ExtractedFact])
+    facts: list[ExtractedFact]
 
 
 class FactFiling(BaseModel):
     """The classification of one fact. The validation context holds ``about``: the allowed subjects."""
 
     index: int = 0
-    about: str = ""
+    about: str
+    entity_claim: str | None = None
+    canonical_id: int | None = None
     record_type: RecordType = RecordType.Fact
     epistemic_status: EpistemicStatus = EpistemicStatus.Observed
     confidence: float = Field(default=0.5, ge=0, le=1)
     object_kind: str = ""
     object_value: str = ""
     topic_card: str = ""
-    essence: str = Field(default="", min_length=5)
-    category: list[str] = Field(default_factory=list[str], min_length=1, max_length=4)
+    essence: str = Field(min_length=5)
+    category: list[str] = Field(min_length=1, max_length=4)
     importance: float = Field(default=0.5, ge=0, le=1)
     time_dependent: float = Field(default=0.5, ge=0, le=1)
     reason: str = ""
@@ -212,13 +236,24 @@ class FilingAnswer(BaseModel):
             raise ValueError(f"Give exactly one entry for each fact index {expected}; got {got}.")
         indexed_facts = {item.index: item for item in self.facts}
         self.facts = [indexed_facts[index] for index in expected]
+        for item in self.facts:
+            if item.canonical_id is not None:
+                candidates = context.canonical_options[item.index - 1] if context.canonical_options else ()
+                if (item.entity_claim is not None or not any(candidate.head_id == item.canonical_id and
+                        candidate.about == item.about for candidate in candidates)):
+                    raise ValueError(f"Fact {item.index} must use a listed canonical ID for its subject alone, or null.")
+            if item.entity_claim is None:
+                continue
+            options = context.claim_options[item.index - 1] if context.claim_options else ()
+            if not any(choice.claim_id == item.entity_claim and choice.about == item.about for choice in options):
+                raise ValueError(f"Fact {item.index} must select a listed claim for its subject or use null.")
         return self
 
 
 class NarrativeAnswer(BaseModel):
     """One complete narrative version."""
 
-    narrative: str = Field(default="", min_length=50, max_length=6000)
+    narrative: str = Field(min_length=50, max_length=6000)
 
 
 # ----------------------------------------------------------------- report
@@ -231,9 +266,10 @@ class ReconsolidationReport(BaseModel):
     ``notes`` explains skipped stages.
     """
 
+    kind: Literal["memory_reconsolidation"] = "memory_reconsolidation"
     run_id: str = ""
     forced: bool = False
-    started_at: datetime = Field(default_factory=naive_utc_now)
+    started_at: datetime = Field(default_factory=naive_utc_now)  # pm-lint: allow PM003 -- Pydantic timestamps each report on creation
     finished_at: datetime | None = None
     unclustered_events: int = 0
     topical_ids: list[int] = Field(default_factory=list[int])

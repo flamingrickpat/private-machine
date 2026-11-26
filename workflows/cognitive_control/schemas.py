@@ -28,6 +28,8 @@ class WaitRequest(BaseModel):
 
     seconds: FiniteFloat = Field(default=1800, ge=1, le=86400, strict=True)
     reason: str = "Wait for a new stimulus."
+    memory_action_id: int | None = Field(default=None, gt=0,
+        description="Accepted action record whose memory worker ends this wait. The wait has no timer.")
 
 
 class FocusProposal(BaseModel):

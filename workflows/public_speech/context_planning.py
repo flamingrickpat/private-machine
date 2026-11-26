@@ -41,6 +41,7 @@ from pm.records.base import RecordBase
 from pm.records.memory_records import ActionSchemaRecord, Feature
 from pm.memory.context_plan import Focus, PlanSpec, WeightedFocusText, WeightedFocusVector, plan_context
 from pm.memory.temporal_context import TemporalHistoryInput, TemporalHistoryItem
+from pm.memory.cluster_membership import ClusterMembership, is_episode_cluster
 from pm.records.memory_records import MemoryClusterRecord
 from pm.records.enums import FeatureType, ClusterType
 from pm.memory.references import referenced_ids
@@ -147,7 +148,9 @@ async def _embed_focus(
 
 def freeze_temporal_history(view: Snapshot, records: dict[int, RecordBase], focus: FocusInput,
                             embedded: EmbeddedFocus) -> TemporalHistoryInput:
+    """Freeze source membership beside citations for the final Story prompt fitter."""
     items: list[TemporalHistoryItem] = []
+    membership = ClusterMembership.from_snapshot(view)
     anchors = set(focus.current_ids)
     intention_ids: set[int] = set()
     direct_causes: set[int] = set()
@@ -166,6 +169,7 @@ def freeze_temporal_history(view: Snapshot, records: dict[int, RecordBase], focu
     for record_id, record in records.items():
         if record_id in focus.current_ids:
             continue
+        covered_feature_ids: tuple[int, ...] = ()
         if isinstance(record, Feature):
             if not record.causal:
                 continue
@@ -179,12 +183,16 @@ def freeze_temporal_history(view: Snapshot, records: dict[int, RecordBase], focu
                 record, MemoryRecordRenderSettings(include_identity=False))
             if memory_kind(record) == "internal_state":
                 content = record_text(record)
-        elif isinstance(record, MemoryClusterRecord) and record.cluster_type == ClusterType.Temporal:
+            evidence_ids = referenced_ids(record)
+        elif isinstance(record, MemoryClusterRecord) and (
+                record.cluster_type == ClusterType.Temporal or is_episode_cluster(record)):
             kind = "summary"
             level = record.level
             feature_type = None
             source = record.type.value
             content = render_memory_record(record, MemoryRecordRenderSettings(include_identity=False))
+            covered_feature_ids = tuple(sorted(membership.source_ids(record)))
+            evidence_ids = membership.evidence_ids(record)
         else:
             continue
         relevance = 0.0
@@ -206,7 +214,7 @@ def freeze_temporal_history(view: Snapshot, records: dict[int, RecordBase], focu
         items.append(TemporalHistoryItem(record_id=record_id, started_at=utc_time(record.timestamp_world_begin),
             ended_at=utc_time(record.timestamp_world_end), kind=kind, level=level, content=content, source=source,
             feature_type=feature_type, evidence_role=evidence_role(view, record),
-            source_ids=tuple(sorted(referenced_ids(record))), relevance=relevance,
+            source_ids=tuple(sorted(evidence_ids)), covered_feature_ids=covered_feature_ids, relevance=relevance,
             token_cost=max(1, text_tokens(content))))
     return TemporalHistoryInput(items=tuple(items))
 
@@ -222,7 +230,10 @@ async def plan_reply_context(view: Snapshot, plan_name: str, focus: FocusInput,
     the prompt shows them as the current line.
     """
     spec = load_plan(plan_name)
-    records, _ = scoped_records(view, scopes=_scopes(view, focus.exclude_ids))
+    # Shard dialogue already on the page belongs in exclude_ids. Only the
+    # current stimuli establish which realities and frames may supply history.
+    scope_ids = focus.current_ids or focus.exclude_ids
+    records, _ = scoped_records(view, scopes=_scopes(view, scope_ids))
     from pm.llm.token_estimate import record_tokens
     token_costs = {key: record_tokens(record_text(record)) for key, record in records.items()}
     vectors = {key: record.embedding or None for key, record in records.items()}

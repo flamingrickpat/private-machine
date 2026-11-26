@@ -233,6 +233,17 @@ class WriteBatch:
             raise ValueError("The evidence is outside the batch view.")
         self._expected[record_id] = revision
 
+    def include_reference(self, source: Snapshot, record_id: int) -> None:
+        """Retain an exact historical link from the owner's frozen source grant.
+
+        A prepared successor can cite a predecessor's old sources without
+        reading them as current evidence. Accept only the frozen identity.
+        """
+        if record_id in self._snapshot.revisions:
+            return
+        self._snapshot.historical_records[record_id] = source.get(record_id)
+        self._snapshot.revisions[record_id] = source.revisions[record_id]
+
     def expect_source(self, dependency: SourceDependency) -> None:
         """Guard captured source meaning at the atomic commit boundary.
 

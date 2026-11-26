@@ -6,7 +6,7 @@ state it. The caller passes the time format (``RECONSOLIDATION_TIME_FORMAT``).
 Image tags in record content always become alt text here
 (``[image: <alt text>]``), never image parts: memory is built from the
 description of an image, so a memory reads "The user says: ... [image: a grey
-cat on a sofa]". ``reconsolidate`` writes the missing alt texts first.
+cat on a sofa]". A prepared unit carries any new captions to publication.
 Token counts use tiktoken (``o200k_base``), like
 ``pm.llm.context_window.estimate_tokens``. They are estimates for budgets.
 """
@@ -62,8 +62,7 @@ def feature_line(feature: Feature, timestamp_format: str, images: ImageCatalog =
     """Return one feature as a dated story line, with images as alt text.
 
     Speech is quoted. A thought is marked as a thought, so a summary never
-    reads it as speech. An event names its source. ``resolve`` finds the
-    image of a tag; reconsolidation passes ``store.find_image``.
+    reads it as speech. A state change stays in the observer's perspective.
     """
     when = feature.timestamp_world_begin.strftime(timestamp_format)
     content = feature_text(feature, images)
@@ -73,6 +72,8 @@ def feature_line(feature: Feature, timestamp_format: str, images: ImageCatalog =
         return f"{when} {feature.source} thinks: *{content}*"
     if feature.feature_type == FeatureType.SubjectiveExperience:
         return f"{when} {feature.source} experiences: {content}"
+    if feature.feature_type == FeatureType.StateUpdate:
+        return f"{when} {feature.source}'s internal state and decisions: {content}"
     return f"{when} (event from {feature.source}) {content}"
 
 

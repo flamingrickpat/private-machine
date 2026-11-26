@@ -218,7 +218,7 @@ class StoryContextBudgetTests(unittest.TestCase):
             "ended_at": moment + timedelta(days=1), "content": "A much longer background memory. " * 500})
         summary = TemporalHistoryItem(record_id=53, started_at=moment, ended_at=later.ended_at, kind="summary",
             level=1, content="A promise and its aftermath.", source="history", feature_type=None,
-            relevance=0.5, token_cost=30)
+            covered_feature_ids=(51, 52), relevance=0.5, token_cost=30)
         assert request.public_context is not None
         request.public_context.temporal_history = TemporalHistoryInput(items=(pinned, later, summary))
         request.required_evidence_ids = (51,)
@@ -229,3 +229,26 @@ class StoryContextBudgetTests(unittest.TestCase):
         self.assertIn(51, fitted.selection.source_ids)
         self.assertIn(53, fitted.selection.source_ids)
         self.assertNotIn(52, fitted.selection.source_ids)
+
+    def test_complete_hierarchical_cover_can_use_real_headroom_above_the_raw_detail_allowance(self) -> None:
+        story_request = self.request([])
+        prompts = load_prompts()
+        moment = datetime(2026, 1, 1, tzinfo=UTC)
+        first = TemporalHistoryItem(record_id=61, started_at=moment, ended_at=moment, kind="feature",
+            level=0, content="The first exchange lasted a long time. " * 1500, source="Jesse",
+            feature_type=FeatureType.Dialogue, relevance=1, token_cost=1)
+        second = TemporalHistoryItem(record_id=62, started_at=moment, ended_at=moment, kind="feature",
+            level=0, content="Another very long exchange. " * 2000, source="Spamuel",
+            feature_type=FeatureType.Dialogue, relevance=1, token_cost=1)
+        summary = TemporalHistoryItem(record_id=63, started_at=moment, ended_at=moment, kind="summary",
+            level=1, content="The two discussed their histories. " * 850, source="history",
+            feature_type=None, covered_feature_ids=(61, 62), relevance=1, token_cost=1)
+        assert story_request.public_context is not None
+        story_request.public_context.temporal_history = TemporalHistoryInput(items=(first, second, summary))
+        story_request.input_budget_tokens = 14000
+        fitted = select_story_prompt(story_request, prompts)
+        assert fitted.history is not None and fitted.history_measurement is not None
+        self.assertGreater(fitted.history_measurement.minimum_cover_prompt_tokens, 4096)
+        self.assertEqual(fitted.history.covered_feature_ids, (61, 62))
+        self.assertIn(63, fitted.selection.source_ids)
+        self.assertLessEqual(fitted.selection.estimated_tokens, story_request.input_budget_tokens)

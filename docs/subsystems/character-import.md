@@ -8,9 +8,8 @@ It creates a character home folder, imports the chat log, and runs memory recons
 Then it adds a few synthetic records, so the companion knows about the move.
 After the import, start the app with `--home <folder> --config <models.yaml>` and chat.
 
-Memory reconsolidation is runtime code in `pm.memory.reconsolidation`.
-It is a port of the memory consolidation of the old generation (`DynamicMemoryConsolidator` in `private-machine-head/pm/memory_consolidation.py`).
-The companion can also start it by itself through the managed workflow `memory_reconsolidation`.
+The importer and the live companion share the same memory reconsolidation pass.
+During conversation the companion can choose when to run it and whether to sleep while it works.
 
 Parent: [experienced memory](experienced-memory.md).
 Related: [experience consolidation](memory-consolidation.md), [structures, attention, and the workspace](workspace.md), and [managed work](managed-work.md).
@@ -96,14 +95,7 @@ Every imported record has an `ImportMark` in `metadata["import_mark"]` (`pm.reco
 The provenance `source_ref` also starts with `chat_import:`.
 The store keeps one consolidation receipt `chat_import:<import id>` with the tick range.
 
-The import works on an in-memory copy of the store.
-Only a completed import saves `ghost.pickle`.
-The import writes a `running` receipt into `import/` at the start.
-On an error, it replaces it with a failed receipt and raises.
-A killed process (for example by a timeout) leaves the `running` receipt.
-`ghost.pickle` then keeps its old content.
-A CSV file that this home already imported fails.
-A log that starts before the newest dialogue of the home also fails.
+The import saves the validated dialogue and a source receipt before it starts memory work. Each complete unit then gets its own checkpoint. On interruption, repeat the import with the same CSV, row limit, and reconsolidation option. The source receipt identifies the original import and prevents duplicate dialogue. The final checkpoint includes the transfer records and completed import receipt. A completed CSV cannot be imported twice. Import older logs before newer dialogue. [Import implementation][pm.app.character_cli.import_chat]
 
 ## Synthetic transfer records
 
@@ -117,99 +109,32 @@ The texts are in `pm.constants` (`TRANSFER_*`). Their wording is neutral.
 
 ## Memory reconsolidation
 
-`pm.memory.reconsolidation.reconsolidate(store, complete=..., embeddings=..., force=...)` runs one pass.
-It reads the accepted store, calls the model outside the commit lock, and commits each group of results through `MemoryStore.commit`.
-A long run keeps the groups that it finished.
-The report is also stored as the consolidation receipt `reconsolidation:<run id>`.
+A shared episode records what happened with Jesse and how Spamuel interpreted it. PM keeps one episode with the participants, time, and links to the original evidence. The source records keep their speaker, addressee, scope, and wording. The calendar hierarchy lets Story reach farther back when the originals exceed its prompt budget. [Episode membership][pm.memory.cluster_membership.ClusterMembership]
 
-### Stages
+### When the companion starts work
 
-1. **Topical clusters.** The unclustered events (causal `Dialogue` and `WorldEvent` features) get contextual embeddings.
-   The clustering finds the topics. Each consecutive topic block becomes a topical `MemoryClusterRecord` (level 100) with a summary and a state description.
-2. **Temporal clusters.** Each closed range with events and without a summary becomes a temporal `MemoryClusterRecord`:
-   time of day (level 6, key `2026-05-01-EVENING`), day (5), week (4, `2026-W17`), month (3), and year (1).
-   A logical day runs from 05:00 to 05:00.
-3. **Facts.** Each topical cluster without facts gives `DeclarativeFactRecord` records.
-   One call extracts the facts with the numbers of the lines that state them. A second call files all facts of the scene.
-   Each new claim gets a canonical `SemanticRecord`. An equal claim (same subject and essence) adds the fact to the existing record.
-4. **Narratives.** Each kept narrative gets a new `Narrative` version when enough new evidence exists.
-   The companion has all eight types. The user has `PsychologicalAnalysis`, as in the old code.
+Main cognition measures the external dialogue and observations still available to file in each visible reality and frame. It estimates their text cost locally. A short recent exchange stays open. During a long continuous conversation, older material can already form episodes. An earlier rendered Story can also report which history actually fitted its prompt. The decision receives a dated cue when there is work. The companion chooses whether and when to act. [Assessment][pm.memory.reconsolidation.assessment.MemoryWorkReader] and [decision prompt][workflows.main_cognition.phases.decide.build_messages]
 
-### Sources
+Both choices use the managed singleton `memory_reconsolidation`. The route supplies `reconsolidation_mode` on its tool call.
 
-| Record | Source fields |
-| --- | --- |
-| Topical cluster | `included_event_ids`, `min/max_event_id`, `min/max_tick_id`, `lineage.source_event_ids` |
-| Temporal cluster | `included_event_ids` (raw range) or `included_cluster_ids` (summary of summaries), `lineage` |
-| Fact | `source_cluster_id`, the cited events in `min/max_event_id` and `lineage.source_event_ids` |
-| Semantic record | `source_knoxel_ids` (the facts), `lineage` (the first fact and its events) |
-| Narrative | `lineage.source_event_ids` (the evidence), `lineage.parent_record_ids` (the previous version) |
-
-The lineage operation is `memory_reconsolidation.<stage>`. The provenance is `System` with `reconsolidation:<run id>`.
-Clusters and facts have `memory_kind: experience_summary`.
-
-### Incremental runs
-
-A second run processes only new work:
-
-- An event is clustered when a consolidated topical cluster holds it. The small per-cycle clusters of main cognition (`experience_summary` without reconsolidation lineage) do not count.
-- A temporal key that exists is skipped. Only closed ranges count.
-- A cluster with `facts_extracted` is skipped. The flag changes in the same batch as the facts.
-- A narrative reads only the evidence after the largest source id of its newest version.
-
-A run without new events makes no model call.
-
-### Trigger
-
-`reconsolidation_due(store)` ports `consolidate_memory_if_needed`: a run is due when 60 unclustered events wait.
-Without `force`, the topical stage waits for that count. With `force` (the CLI and the workflow), three events are enough.
-The other stages always check for work.
-
-### Prompts and calls
-
-The prompts are in `pm/memory/reconsolidation/prompts.yaml`.
-Each call is an unconscious, story-framed process of the character's memory, without an assistant frame.
-The code fills the names from the persona.
-Times in the prompts use `RECONSOLIDATION_TIME_FORMAT` (`Friday, 01 May 2026, 20:10`), not the persona format.
-In the first real run, the numeric format `01.05.26` became "January 5" in a summary.
-Each answer is one JSON object. Pydantic validates it.
-Invalid answers receive repair turns until context space runs out, through the [shared runtime repair loop][pm.llm.structured.complete_json].
-Narratives must contain 50 to 6,000 characters. Length errors receive the same repair turns.
-A provider failure (`ModelError`) repeats the call (at most three times).
-Transport errors and HTTP 429/5xx retry inside `JsonClient`.
-At most four calls of one stage run in parallel.
-
-Images in records reach reconsolidation only as alt text: a tag reads `[image: <alt text>]` in each story line.
-Before the first stage, `reconsolidate` writes the missing alt texts with `complete_alt_text`.
-See [images in records](multimodal-records.md).
-
-### Mapping to the old code
-
-| Old principle (`DynamicMemoryConsolidator`) | New implementation | Change |
+| Mode | While it runs | Publication |
 | --- | --- | --- |
-| `_compute_contextual_embeddings`: weights `log(1+tokens)` and `1/(1+d)`, window 3 | `clustering.contextual_embeddings` | Neighbors in another session do not count. |
-| `_get_optimal_clusters`: agglomerative average linkage, thresholds 1.0 to 0.1, best silhouette for `max(2,n/20) < k < min(n,n/8)` | `clustering.average_linkage`, `cut`, `silhouette`, `optimal_labels` | Pure Python, one dendrogram (nearest-neighbor chain) for all 91 cuts. With too few events, the session numbers are the labels; the old code made no cluster. |
-| Label smoothing, `cluster_blocks_with_min_size`, `split_block_keep_order` (8) | `smooth_labels`, `topic_blocks`, `split_block` | A block also ends at a session change. Windows of 400 events keep the quadratic cost small; the last block of a window moves to the next window. The newest block stays open for 60 minutes. |
-| Topical summary of all causal features of the block's tick range (`SummarizeTopicConversation`) | `_Run.topical` | Reads only story features (dialogue, events, thoughts, experiences), not appraisal records. |
-| `_update_mental_state_of_cluster` (`DescribeMentalStatePeriod`) | `_Run.describe_state` | Reads the cycle states of the tick range (the old code compared ticks with event ids). A neutral imported state counts as "not recorded". The description vector stays on the record and in the checkpoint. |
-| `_generate_missing_closed_temporal_ranges` (05:00 day, TOD/day/week/month/year) | `temporal.closed_ranges`, `_Run.temporal` | Ranges come from the event times, not from every day since 2020. One NIGHT segment 22:00 to 05:00; the old two segments could share a key. A long range reads the nearest finer level (day from times of day, week and month from days, year from months), not always the topical clusters. |
-| `_extract_declarative_memory` + `_categorize_fact` (one call per fact) | `_Run.facts` | Facts come from the raw scene of topical clusters only (the canon facts also come only from topical clusters). Each fact cites its lines. One filing call per scene adds the semantic layer (subject, record type, epistemic status, essence) and the canonical `SemanticRecord`. |
-| `refine_narratives`: rolling buffers of 3000 to 4500 tokens since `last_refined_with_tick` | `_Run._narrative_chain` | The first version needs only 300 tokens, so a small import gets narratives; the old code started from placeholders. The cursor is the largest source id of the newest version. The companion card is shown as background. |
-| `consolidate_memory_if_needed` (60 unclustered events) | `reconsolidation_due`, `reconsolidate(force=False)` | Unchanged threshold. |
-| Graph memory integration (`CognitiveMemoryManager`) | Not ported | Out of scope. |
+| `background` | Conversation and ordinary thought continue. Foreground requests have priority when a model slot opens. | A successful main cycle accepts finished units. |
+| `sleep` | Cognitive control parks routine inference for the approved action. A waking stimulus or the matching worker's terminal result releases the wait. | Wake closes the worker's admission, applies ready units, and saves before the waking input enters memory. |
 
-## Companion-callable workflow
+An active model request can still occupy its slot. The wake boundary can also spend time serializing the character's full checkpoint. Clean shutdown drains finished work. Recovery opens a sleeping character awake when the process that owned preparation is gone. [Managed worker][workflows.memory_reconsolidation.host.ReconsolidationRuntimeOwner], [publication queue][pm.memory.reconsolidation.coordination.ReconsolidationCoordinator], and [cognitive control][workflows.cognitive_control.host.CognitiveControl]
 
-`workflows/memory_reconsolidation/` is a managed workflow.
-`host.build_reconsolidation_tools` binds the live store, the stage model, and the embeddings.
-`steps.run` calls the tool with the run's stop event and writes `outbox/report.yaml`.
-`workflows/companion.py` registers it in `_managed_workflows` as a singleton.
-The route prompt (`workflows/main_cognition/phases/prompts/route.yaml`) uses it with `ToolCall` when the character decides to sort through memories or to sleep on what happened.
-The artifact workflow `memory_consolidation` is a different workflow and stays unchanged.
+### How the pass forms memories
 
-## Limits
+1. **Find an episode.** The worker freezes the accepted history and groups anchors by reality and frame. It uses contextual embeddings and agglomerative clustering in bounded windows. A session gap separates scenes. The last recent topic stays open. Dialogue and world observations usually anchor the scene. A retained private finding or a thought used in a main decision can also anchor one. [Source selection][pm.memory.reconsolidation.membership.EpisodeFrontier] and [clustering][pm.memory.reconsolidation.clustering.topic_blocks]
+2. **Write the episode and file its facts.** The recollection gives named dialogue the most detail. It can describe an interpretation or a consequential train of thought in the third person. Its membership lists the covered events. Its lineage identifies which originals supplied the description. Facts cite individual external source lines. An entity-linked filing carries its observer's accepted claim, subject, scope, and receipt. A later correction or challenge changes its eligibility for current recall. The classifier can link a paraphrase to a prior semantic record for the same subject and source authority. Its new factual occurrence records the new citation. The original occurrences remain available through historical links. [Filing][pm.memory.reconsolidation.facts.EpisodeFacts] and [entity context](entity-context.md)
+3. **Build the calendar hierarchy.** Closed dayparts, days, weeks, months, and years use the character's world timestamps. The logical day starts at 05:00 UTC. A period waits for its eligible episodes. Short periods use original evidence. A longer period can combine verified child summaries with original evidence for the uncovered events. A later source can produce a new version of a previously filed period. [Period selection][pm.memory.reconsolidation.pipeline.ReconsolidationPass.temporal_units] and [calendar ranges][pm.memory.reconsolidation.temporal.closed_ranges]
+4. **Refine narratives.** A narrative draws on completed days and the evidence types for that narrative. It waits for enough new material. The new version records the consumed sources and links to its predecessor. [Narrative refinement][pm.memory.reconsolidation.pipeline.ReconsolidationPass.narrative_units]
 
-- One commit rebuilds the whole store. A very long log takes long to import, also without model calls.
-- A topical block can mix reality scopes. Scoped retrieval then skips the summary but keeps its sources.
-- Events that arrive in a range after its summary exist do not change that summary.
-- Reconsolidation does not build graph memory (`GraphNode`, `GraphEdge`).
+The worker prepares one complete unit at a time in its own working view. An episode and its factual filings become ready together. Publication checks the source heads, filing dependencies, and accepted claim families. A change to the evidence defers the affected unit. Unfinished work stays eligible for a later pass. Completed units and their receipts share a store commit. The offline command checkpoints after each accepted unit. [Preparation and publication][pm.memory.reconsolidation.publication.MemoryPreparation] and [offline command][pm.app.character_cli.reconsolidate_home]
+
+### What Story reads
+
+Story can use a new episode before it has a daily parent. Its planner checks the recorded source IDs. An event between two members of a sparse episode still needs its own representation. The selected history, exact omissions, and estimated prompt cost are available in the renderer capture. Earlier companion speech retains the assistant role. Private material and third-person recollections enter the context as evidence. The recent exchange and current mental context retain their places at generation time. [Temporal history][pm.memory.temporal_context] and [Story rendering][workflows.dialogue_story.history_rendering]
+
+The pass writes episodic and temporal clusters, factual occurrences, semantic records, and narrative versions. Graph nodes and edges have separate owners. The synchronous artifact review workflow also has its own purpose. [Experience consolidation](memory-consolidation.md)

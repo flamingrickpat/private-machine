@@ -1,791 +1,570 @@
-"""Memory reconsolidation over a live or imported memory store.
+"""Prepare episodes at one accepted frontier and publish each finished memory unit.
 
-Port of ``DynamicMemoryConsolidator`` (``private-machine-head/pm/memory_consolidation.py``).
-One run has four stages. Each stage reads the accepted store, makes its
-model calls outside the commit lock, and commits its records in groups
-through ``MemoryStore.commit``, so a long run keeps the work that it finished.
-
-1. Topical clusters: the unclustered events (dialogue and world events) get
-   contextual embeddings, an optimal clustering, and consecutive topic blocks.
-   Each block becomes a topical ``MemoryClusterRecord`` with a summary and a
-   state description.
-2. Temporal clusters: every closed range (time of day, day, week, month,
-   year) that holds events and has no summary yet becomes a temporal
-   ``MemoryClusterRecord``. A short range reads the raw events. A long range
-   reads the summaries of the next finer level.
-3. Facts: every topical cluster without extracted facts gives
-   ``DeclarativeFactRecord`` records with the lines that state them, and a
-   canonical ``SemanticRecord`` for each new claim.
-4. Narratives: each kept narrative gets a new version when enough new
-   evidence exists since its last version.
-
-Every new record names its sources: ``included_event_ids`` or
-``included_cluster_ids`` on clusters, ``source_cluster_id`` and the event
-range on facts, ``source_knoxel_ids`` on semantic records, and
-``lineage.source_event_ids`` on all of them.
-
-The run is incremental. Clustered events, existing temporal keys, clusters
-with ``facts_extracted``, and the evidence of the newest narrative version
-are skipped, so a second run without new events makes no model call.
-
-Cancellation: ``cancel`` reaches every model and embedding call and every
-commit. A cancelled run keeps the groups that it committed before.
+The pass first groups original events in bounded chronological windows. Every
+finished episode carries its evidence, attribution, facts and canonical updates.
+Broader summaries can cite unpublished children through the pass's private view.
+World-time day closure and new evidence govern slower narrative refinement.
+Offline callers checkpoint each unit. Live callers own the publication boundary.
 """
 from __future__ import annotations
 
-import asyncio
-from concurrent.futures import ThreadPoolExecutor
-from contextvars import copy_context
-import hashlib
-import re
-import uuid
-from collections.abc import Sequence
-from dataclasses import dataclass
+from bisect import bisect_left
+from collections.abc import Iterator, Sequence
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from heapq import heappop, heappush
 from threading import Event
-from typing import TYPE_CHECKING, cast
+from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict
-
-from pm.constants import (RECONSOLIDATION_COMMIT_GROUP, RECONSOLIDATION_EMBED_WORKERS,
-                          RECONSOLIDATION_SESSION_GAP_MINUTES, RECONSOLIDATION_TIME_FORMAT)
+from pm import vclock
+from pm.constants import RECONSOLIDATION_SESSION_GAP_MINUTES, RECONSOLIDATION_TIME_FORMAT
 from pm.context_render.budget import TokenEstimator
 from pm.llm.stage_model import LazyStageModel
-from pm.llm.concurrency import wait_model_futures
-from pm.memory.reconsolidation.clustering import (contextual_embeddings, cosine_distances, optimal_labels,
-                                                  smooth_labels, topic_blocks)
+from pm.memory.cluster_membership import ClusterMembership, is_episode_cluster
+from pm.memory.embeddings import EmbeddingService, run_embedding_work
+from pm.memory.media_alt import describe_image
+from pm.memory.reconsolidation import RECEIPT_PREFIX, ReconsolidationProgress, reconsolidate, reconsolidation_due, unclustered_events
+from pm.memory.reconsolidation.clustering import allowed_cluster_counts, contextual_embeddings, cosine_distances, optimal_labels, smooth_labels, topic_blocks
+from pm.memory.reconsolidation.facts import EpisodeFacts, FiledFact
+from pm.memory.reconsolidation.membership import EpisodeFrontier, EpisodeSources, covered_episode_ids, external_event
 from pm.memory.reconsolidation.model_calls import ModelCalls
 from pm.memory.reconsolidation.ordering import chronological_records, newest_narrative_version
-from pm.memory.reconsolidation.schemas import (FactFiling, NarrativeDefinition, ReconsolidationConfig,
-                                               ReconsolidationPrompts, ReconsolidationReport,
-                                               load_prompts, naive_utc_now)
+from pm.memory.reconsolidation.publication import CapturedCaption, MemoryPreparation, MemoryUnitReceipt, PreparedMemoryUnit
+from pm.memory.reconsolidation.rendering import (FactClassificationInput, FactExtractionInput, NarrativeEvidence,
+    NarrativeRenderInput, RecordedStateInput, SceneSummaryInput, TemporalSummaryInput)
+from pm.memory.reconsolidation.schemas import NarrativeDefinition, ReconsolidationConfig, ReconsolidationPrompts, ReconsolidationReport, load_prompts, naive_utc_now
 from pm.memory.reconsolidation.story import ImageCatalog, count_tokens, feature_line, feature_text, render_story, render_summaries
-from pm.memory.media_alt import complete_alt_text
-from pm.records.media import image_ids, RecordImage
-from pm.memory.reconsolidation.rendering import (
-    SceneSummaryInput, TemporalSummaryInput, RecordedStateInput, FactExtractionInput, FactClassificationInput,
-    NarrativeRenderInput, NarrativeEvidence,
-)
-from pm.memory.reconsolidation.temporal import (BUILD_ORDER, CHILD_LEVEL, LEVEL_TOPICAL, TimeRange,
-                                                closed_ranges)
-from pm.records.base import Provenance, RecordBase
-from pm.records.cycle_state import CycleState
+from pm.memory.reconsolidation.temporal import CHILD_LEVEL, LEVEL_DAY, LEVEL_TOPICAL, TimeRange, closed_ranges
+from pm.memory.snapshot import GhostCancelled
+from pm.memory.store import MemoryStore
+from pm.memory.write_batch import WriteBatch
+from pm.records.base import Provenance, RecordScope
 from pm.records.enums import ClusterType, SourceKind
 from pm.records.lineage import RecordLineage
-from pm.records.memory_records import DeclarativeFactRecord, Feature, MemoryClusterRecord, Narrative, SemanticRecord
-from pm.records.taxonomy import MemoryTaxonomy, MemoryVolatility, PmCategory
+from pm.records.media import MEDIA_KEY, RecordImage, image_ids, metadata_media
+from pm.records.memory_records import Entity, Feature, MemoryClusterRecord, Narrative
+from pm.records.taxonomy import PmCategory
 
-if TYPE_CHECKING:
-    from pm.memory.embeddings import EmbeddingService
-    from pm.memory.store import MemoryStore
-    from pm.memory.write_batch import WriteBatch
 
-#: Lineage operations of the records that a run creates.
 OPERATION_TOPICAL = "memory_reconsolidation.topical"
 OPERATION_TEMPORAL = "memory_reconsolidation.temporal"
 OPERATION_FACT = "memory_reconsolidation.fact"
 OPERATION_NARRATIVE = "memory_reconsolidation.narrative"
-#: The key prefix of the run receipts in ``MemoryStore.consolidations``.
-RECEIPT_PREFIX = "reconsolidation:"
 
 
-class RecordMetadataView(BaseModel):
-    """The metadata fields that reconsolidation reads. Other keys are ignored."""
+@dataclass(slots=True, order=True)
+class ScopeEpisodes:
+    """Earliest possible next episode of a scope, before its window has been clustered."""
 
-    model_config = ConfigDict(extra="ignore")
-
-    memory_kind: str = ""
-    dedup_key: str = ""
-
-
-def _metadata(record: RecordBase) -> RecordMetadataView:
-    """Read the few metadata fields that reconsolidation classifies on."""
-    return RecordMetadataView.model_validate(record.metadata)
+    earliest: datetime
+    first_id: int
+    episodes: Iterator[EpisodeSources] = field(compare=False)
+    ready: EpisodeSources | None = field(default=None, compare=False)
 
 
-def is_episode_cluster(cluster: MemoryClusterRecord) -> bool:
-    """Return whether a topical cluster counts as consolidated memory.
+class ReconsolidationPass:
+    """Prepare source-bound deltas with one concrete pipeline for a live or offline Ghost."""
 
-    Main cognition writes one small topical cluster for each cycle
-    (``memory_kind="experience_summary"``, no reconsolidation lineage). Such a
-    cluster does not make its events clustered. Reconsolidation clusters and
-    imported legacy clusters do.
-    """
-    if cluster.cluster_type != ClusterType.Topical:
-        return False
-    if cluster.lineage is not None and cluster.lineage.operation == OPERATION_TOPICAL:
-        return True
-    return _metadata(cluster).memory_kind != "experience_summary"
-
-
-def _ids(text: str | None) -> list[int]:
-    return [int(item) for item in (text or "").split(",") if item.strip()]
-
-
-def unclustered_events(store: MemoryStore, config: ReconsolidationConfig | None = None) -> list[Feature]:
-    """Return the causal events that no consolidated topical cluster holds, oldest first.
-
-    Port of ``_get_unclustered_event_knoxels``.
-    """
-    config = config or ReconsolidationConfig()
-    with store.lock:
-        features = list(store.all_features)
-        clusters = [record for record in store.all_knoxels.values() if isinstance(record, MemoryClusterRecord)]
-    clustered = {key for cluster in clusters if is_episode_cluster(cluster) for key in _ids(cluster.included_event_ids)}
-    events = [feature for feature in features if feature.causal and feature.feature_type in config.cluster_feature_types
-              and feature.id not in clustered]
-    return chronological_records(events)
-
-
-def reconsolidation_due(store: MemoryStore, config: ReconsolidationConfig | None = None) -> bool:
-    """Return whether enough events wait for a run (port of ``consolidate_memory_if_needed``)."""
-    config = config or ReconsolidationConfig()
-    return len(unclustered_events(store, config)) >= config.trigger_events
-
-
-def _chunks[T](items: Sequence[T], size: int) -> list[list[T]]:
-    return [list(items[start:start + size]) for start in range(0, len(items), size)]
-
-
-def _record_id(text: str, moment: datetime) -> str:
-    """Return a stable human-facing record id like ``mem_20260522T15_001b_slug``."""
-    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:4]
-    slug = "_".join(re.findall(r"[a-z0-9]+", text.casefold())[:6])
-    return f"mem_{moment.strftime('%Y%m%dT%H')}_{digest}_{slug}"
-
-
-@dataclass(frozen=True, slots=True)
-class TopicSummaryPlan:
-    features: list[Feature]
-    first_tick: int
-    last_tick: int
-
-
-@dataclass(frozen=True, slots=True)
-class TemporalSummaryPlan:
-    span: TimeRange
-    features: list[Feature]
-    children: list[MemoryClusterRecord]
-    story: str
-
-
-@dataclass(frozen=True, slots=True)
-class SummaryResult:
-    summary: str
-    description: str
-
-
-@dataclass(frozen=True, slots=True)
-class FactExtractionPlan:
-    features: list[Feature]
-
-
-@dataclass(frozen=True, slots=True)
-class FiledFact:
-    text: str
-    filing: FactFiling
-    sources: list[Feature]
-
-
-@dataclass(frozen=True, slots=True)
-class ReconsolidationProgress:
-    enabled: bool = False
-
-    def write(self, message: str) -> None:
-        if self.enabled:
-            print(message, flush=True)
-
-
-class _Run:
-    """The state of one run: the store, the model, the names, and the report."""
-
-    def __init__(self, store: MemoryStore, calls: ModelCalls, embeddings: EmbeddingService,
-                 config: ReconsolidationConfig, prompts: ReconsolidationPrompts,
-                 report: ReconsolidationReport, now: datetime, cancel: Event | None,
-                 progress: ReconsolidationProgress) -> None:
+    def __init__(self, store: MemoryStore, *, complete: LazyStageModel, embeddings: EmbeddingService,
+                 config: ReconsolidationConfig | None = None, force: bool = False, cancel: Event | None = None,
+                 now: datetime | None = None, prompts: ReconsolidationPrompts | None = None,
+                 progress: ReconsolidationProgress = ReconsolidationProgress()) -> None:
         self.store = store
-        self.calls = calls
+        self.model = complete
         self.embeddings = embeddings
-        self.config = config
-        self.prompts = prompts
-        self.report = report
-        self.now = now
-        self.cancel = calls.cancel
+        self.config = config or ReconsolidationConfig()
+        self.prompts = prompts or load_prompts()
+        self.now = now if now is not None else vclock.utcnow()
+        self.cancel = cancel if cancel is not None else Event()
+        self.calls = ModelCalls(complete, cancel=self.cancel)
         self.progress = progress
-        persona = store.ghost_config
-        self.companion = persona.companion_name
-        self.user = persona.user_name
-        self.card = persona.character_card_story
-        # Prompts use an unambiguous time format, not the persona format. In
-        # the first real run, "Friday, 01.05.26" became "January 5" in a summary.
-        self.time_format = RECONSOLIDATION_TIME_FORMAT
+        self.report = ReconsolidationReport(run_id=uuid4().hex[:12], forced=force)
         with store.lock:
-            self.companion_id = store.get_entity_id(self.companion)
-            self.user_id = store.get_entity_id(self.user)
-        self.system = self.fill(prompts.system_prompt)
-        self.intro = self.fill(prompts.story_intro).strip()
-        # Every commit id this run has written, in order. The final receipt commit names
-        # them so one acceptance admits the whole run (see ``reconsolidate``).
-        self.commit_ids: list[str] = []
+            self.view = store.recovery_snapshot(capture=False)
+            self.companion_name = store.ghost_config.companion_name
+            self.user_name = store.ghost_config.user_name
+            self.card = store.ghost_config.character_card_story
+            self.states = {row.tick_id: row for row in store.states if row.tick_id in self.view.gwt_turns}
+        identities = [row for row in self.view.all_knoxels.values() if isinstance(row, Entity)]
+        self.observer_id = next((row.id for row in identities if self.companion_name in (row.content, *row.aliases)), None)
+        self.user_id = next((row.id for row in identities if self.user_name in (row.content, *row.aliases)), None)
+        self.preparation = MemoryPreparation(store, self.view, self.report.run_id, self.cancel)
+        self.frontier = EpisodeFrontier(self.view, self.config, self.now)
+        self.facts = EpisodeFacts(self.view, self.observer_id, self.now)
+        self.system = self.prompts.system_prompt.format(companion_name=self.companion_name, user_name=self.user_name)
+        self.intro = self.prompts.story_intro.format(companion_name=self.companion_name, user_name=self.user_name).strip()
+        self.provenance = Provenance(source_kind=SourceKind.System, source_ref=RECEIPT_PREFIX + self.report.run_id)
+        self.clusters = [row for row in self.view.all_knoxels.values() if isinstance(row, MemoryClusterRecord)]
+        self.membership = ClusterMembership(self.view.all_knoxels)
+        self.clusters_by_source: dict[int, dict[int, MemoryClusterRecord]] = {}  # pm-lint: allow PM004 -- cluster at each level by member ID
+        for level in (LEVEL_TOPICAL, *CHILD_LEVEL.keys()):
+            self.clusters_by_source[level] = {}
+        for cluster in self.clusters:
+            self.index_cluster(cluster)
+        self.published: set[str] = set()
+        self.next_unit = 0
+        self.source_images: dict[str, RecordImage] = {}  # pm-lint: allow PM004 -- captured media by image ID
+        self.captions: dict[str, CapturedCaption] = {}  # pm-lint: allow PM004 -- private descriptions by image ID
 
-    # ------------------------------------------------------------- helpers
+    def check_cancelled(self) -> None:
+        if self.cancel.is_set():
+            raise GhostCancelled(f"Stopped reconsolidation {self.report.run_id}.")
 
-    def fill(self, template: str, character_card: str = "") -> str:
-        """Fill a prompt template. Values are inserted as they are."""
-        return template.format(companion_name=self.companion, user_name=self.user, character_card=character_card)
+    def new_receipt(self, kind: str) -> MemoryUnitReceipt:
+        self.next_unit += 1
+        return MemoryUnitReceipt(run_id=self.report.run_id, unit=f"{kind}-{self.next_unit}")
 
-    def embed(self, texts: Sequence[str]) -> list[list[float]]:
-        """Return one vector for each temporary text through the embedding model."""
-        async def gather():
-            gate = asyncio.Semaphore(RECONSOLIDATION_EMBED_WORKERS)
+    def index_cluster(self, cluster: MemoryClusterRecord) -> None:
+        """Find a period's available children directly by their exact source IDs."""
+        if cluster.cluster_type != ClusterType.Temporal and not is_episode_cluster(cluster):
+            return
+        level = LEVEL_TOPICAL if is_episode_cluster(cluster) else cluster.level
+        if level not in self.clusters_by_source:
+            self.clusters_by_source[level] = {}
+        level_index = self.clusters_by_source[level]
+        for key in self.membership.source_ids(cluster):
+            current = level_index.get(key)
+            if current is None or current.id < cluster.id:
+                level_index[key] = cluster
 
-            async def one(text: str) -> list[float]:
-                async with gate:
-                    return await self.embeddings.embed(text, cancel=self.cancel)
-            return await asyncio.gather(*(one(text) for text in texts))
-        if not texts:
-            return []
-        self.report.embedded_texts += len(texts)
-        return list(asyncio.run(gather()))
+    def seal(self, batch: WriteBatch, receipt: MemoryUnitReceipt) -> PreparedMemoryUnit:
+        """Fill all pending vectors off the Ghost lock before handing the unit to publication."""
+        records = batch.view().all_knoxels
+        missing = [records[key] for key in batch.created_ids if not records[key].embedding
+                   or records[key].embedding_model != self.embeddings.config.model]
+        caption_ids: set[str] = set()
+        for record in records.values():
+            caption_ids.update(image_ids(record.content))
+        for start in range(0, len(missing), 32):
+            group = missing[start:start + 32]
+            texts = [record.content or record.get_story_element() for record in group]
+            keys = {key for text in texts for key in image_ids(text)}
+            catalog = self.image_catalog(keys)
+            vectors = run_embedding_work(self.embeddings.embed_many([catalog.alt_text(text) for text in texts], cancel=self.cancel))
+            for record, vector in zip(group, vectors, strict=True):
+                record.embedding = vector
+                record.embedding_model = self.embeddings.config.model
+        self.report.embedded_texts += len(missing)
+        captions = tuple(self.captions[key] for key in sorted(caption_ids) if key in self.captions)
+        return self.preparation.finish(batch, receipt, captions)
 
-    def lineage(self, operation: str, sources: Sequence[int], parents: Sequence[int] = ()) -> RecordLineage:
-        """Name the run, the stage, and the records a derived record comes from."""
-        return RecordLineage(episode_id=f"{RECEIPT_PREFIX}{self.report.run_id}", operation=operation,
-                             source_event_ids=sorted(set(sources)), parent_record_ids=sorted(set(parents)))
+    def publish(self, unit: PreparedMemoryUnit) -> bool:
+        """Accept one already prepared unit. The boundary owner decides when to save."""
+        with self.store.lock:
+            key = unit.batch.commit_id
+            if key in self.published:
+                return True
+            if unit.receipt.run_id != self.report.run_id:
+                raise ValueError("Cannot publish a unit prepared by another reconsolidation pass.")
+            if not self.preparation.publish(unit):
+                self.report.notes.append(f"Sources changed before {unit.receipt.unit} could be published.")
+                return False
+            self.published.add(key)
+            self.report.topical_ids.extend(unit.receipt.topical_ids)
+            self.report.temporal_ids.extend(unit.receipt.temporal_ids)
+            self.report.fact_ids.extend(unit.receipt.fact_ids)
+            self.report.semantic_ids.extend(unit.receipt.semantic_ids)
+            self.report.semantic_updated_ids.extend(unit.receipt.semantic_updated_ids)
+            self.report.narrative_ids.extend(unit.receipt.narrative_ids)
+            self.progress.write(f"Published {unit.receipt.unit} ({len(unit.batch.created_ids)} records)")
+            return True
 
-    def provenance(self) -> Provenance:
-        """Mark a derived record as system output of this run, not as testimony."""
-        return Provenance(source_kind=SourceKind.System, source_ref=f"{RECEIPT_PREFIX}{self.report.run_id}")
-
-    def begin_batch(self, name: str) -> WriteBatch:
-        return self.store.begin_batch(f"{RECEIPT_PREFIX}{self.report.run_id}:{name}", cancel=self.cancel)
-
-    def finish_batch(self, batch: WriteBatch) -> list[int]:
-        receipt = self.store.commit(batch)
-        self.commit_ids.append(batch.commit_id)
-        return list(receipt.added_ids)
-
-    def image_catalog(self, features: Sequence[Feature]) -> ImageCatalog:
+    def image_catalog(self, keys: set[str]) -> ImageCatalog:
+        """Capture model descriptions privately until a unit using the image publishes."""
+        if keys and not self.source_images:
+            for record in self.view.all_knoxels.values():
+                if MEDIA_KEY in record.metadata:
+                    for media in metadata_media(record.metadata).images:
+                        if media.id not in self.source_images or media.alt_text:
+                            self.source_images[media.id] = media.model_copy()
         images: list[RecordImage] = []
-        seen: set[str] = set()
-        for feature in features:
-            for image_id in image_ids(feature.content):
-                if image_id in seen:
-                    continue
-                image = self.store.find_image(image_id)
-                if image is None:
-                    raise ValueError(f"Reconsolidation source {feature.id} names missing image {image_id}.")
-                images.append(image)
-                seen.add(image_id)
+        for key in sorted(keys):
+            media = self.source_images[key]
+            if not media.alt_text:
+                description = describe_image(media, self.model, cancel=self.cancel)
+                media.alt_text = description
+                media.alt_text_source = "model"
+                self.captions[key] = CapturedCaption(key, description)
+            images.append(media)
         return ImageCatalog(tuple(images))
 
-    def story_features(self) -> list[Feature]:
-        """Return the causal features that summaries read, oldest first."""
-        kinds = set(self.config.story_feature_types)
-        with self.store.lock:
-            features = [item for item in self.store.all_features if item.causal and item.feature_type in kinds]
-        return chronological_records(features)
-
-    def clusters(self) -> list[MemoryClusterRecord]:
-        """Return every accepted cluster, oldest first."""
-        with self.store.lock:
-            records = [item for item in self.store.all_knoxels.values() if isinstance(item, MemoryClusterRecord)]
-        return chronological_records(records)
-
-    def recorded_state(self, min_tick: int, max_tick: int) -> str:
-        """Describe the accepted cycle states of a tick range in plain words.
-
-        Imported cycles carry the neutral default state. Such a range gets
-        the "no inner state was recorded" text, so the model does not read
-        a neutral default as calm.
-        """
-        with self.store.lock:
-            states: list[CycleState] = [state for state in self.store.states if min_tick <= state.tick_id <= max_tick]
-        lines: list[str] = []
-        for state in states:
-            mind = state.mental_state
-            emotions = sorted(((value, name) for name, value in mind.state_emotions.model_dump().items()
-                               if value >= 0.05), reverse=True)[:3]
-            if abs(mind.state_core.valence) < 0.02 and mind.state_core.arousal < 0.02 and not emotions:
-                continue
-            felt = ", ".join(f"{name} {value:.2f}" for value, name in emotions) or "no strong emotion"
-            lines.append(f"- {state.timestamp.strftime(self.time_format)}: valence {mind.state_core.valence:+.2f}, "
-                         f"arousal {mind.state_core.arousal:.2f}; {felt}")
-        return "\n".join(lines) if lines else self.prompts.no_recorded_state
+    def capture_images(self, features: Sequence[Feature]) -> ImageCatalog:
+        return self.image_catalog({key for feature in features for key in image_ids(feature.content)})
 
     def scene_input(self, template: str, story: str) -> SceneSummaryInput:
-        return SceneSummaryInput(self.system, template, self.intro, story, self.companion, self.user)
+        return SceneSummaryInput(self.system, template, self.intro, story, self.companion_name, self.user_name)
 
-    def describe_state(self, story: str, min_tick: int, max_tick: int) -> str:
-        input = RecordedStateInput(self.scene_input(self.prompts.mental_state, story),
-            self.recorded_state(min_tick, max_tick))
+    def state_description(self, features: Sequence[Feature], story: str) -> str:
+        """Describe measured affect at cited ticks. Imported neutral states carry no affect evidence."""
+        lines: list[str] = []
+        for tick in sorted({row.tick_id for row in features}):
+            if tick not in self.states or self.frontier.affect_scopes.get(tick) != features[0].scope:
+                continue
+            state = self.states[tick]
+            core = state.mental_state.state_core
+            emotions = [(value, name) for name, value in state.mental_state.state_emotions
+                        if isinstance(value, float) and value >= .05]
+            if abs(core.valence) < .02 and core.arousal < .02 and not emotions:
+                continue
+            emotions.sort(reverse=True)
+            felt = ", ".join(f"{name} {value:.2f}" for value, name in emotions[:3])
+            lines.append(f"{state.timestamp:%d %b %Y %H:%M}: valence {core.valence:+.2f}, arousal {core.arousal:.2f}, {felt}")
+        if not lines:
+            return ""
+        input = RecordedStateInput(self.scene_input(self.prompts.mental_state, story), "\n".join(lines))
         return self.calls.describe_recorded_state(input).description
 
-    def summarize_topic(self, plan: TopicSummaryPlan) -> SummaryResult:
-        features, low, high = plan.features, plan.first_tick, plan.last_tick
-        story = render_story(features, self.time_format, images=self.image_catalog(features))
-        summary = self.calls.summarize_scene(self.scene_input(self.prompts.topic_summary, story)).summary
-        return SummaryResult(summary, self.describe_state(story, low, high))
-
-    def summarize_temporal(self, plan: TemporalSummaryPlan) -> SummaryResult:
-        span, inside, children, story = plan.span, plan.features, plan.children, plan.story
-        template = self.prompts.temporal_children if children else self.prompts.temporal_raw
-        input = TemporalSummaryInput(self.scene_input(template, story),
-            span.start.strftime(self.time_format), span.end.strftime(self.time_format))
-        summary = self.calls.summarize_temporal(input).summary
-        low, high = min(item.tick_id for item in inside), max(item.tick_id for item in inside)
-        return SummaryResult(summary, self.describe_state(story, low, high))
-
-    def extract_facts(self, plan: FactExtractionPlan) -> list[FiledFact]:
-        scene = plan.features
+    def extract_facts(self, scene: Sequence[Feature], participants: Sequence[int]) -> list[FiledFact]:
+        """Extract from original lines and bind every classification to the same source grant."""
         if not scene:
             return []
-        story = render_story(scene, self.time_format, numbered=True, images=self.image_catalog(scene))
         settings = self.calls.session.renderer_settings_for(self.calls.generation)
-        source_budget = settings.input_ceiling // 4
         estimator = TokenEstimator(estimate_factor=settings.estimate_factor)
+        source_budget = settings.input_ceiling // 4
+        story = render_story(scene, RECONSOLIDATION_TIME_FORMAT, numbered=True, images=self.capture_images(scene))
         if estimator.text_tokens(story) > source_budget:
             if len(scene) > 1:
-                # Re-number each batch locally so every extracted fact keeps the original Feature.
                 middle = len(scene) // 2
-                return [*self.extract_facts(FactExtractionPlan(scene[:middle])),
-                        *self.extract_facts(FactExtractionPlan(scene[middle:]))]
-            summary = self.calls.session.summarize_long_source(story, f"source record {scene[0].id}", source_budget)
-            story = "[1] " + summary
+                first = self.extract_facts(scene[:middle], participants)
+                first.extend(self.extract_facts(scene[middle:], participants))
+                return first
+            story = "[1] " + self.calls.session.summarize_long_source(story, f"source {scene[0].id}", source_budget)
         intro = self.calls.session.summarize_long_source(self.intro, "character introduction", source_budget)
-        input = FactExtractionInput(SceneSummaryInput(self.system, self.prompts.facts_extract,
-            intro, story, self.companion, self.user))
-        found = self.calls.extract_facts(input, len(scene)).facts
-        if not found:
+        source = SceneSummaryInput(self.system, self.prompts.facts_extract, intro, story, self.companion_name, self.user_name)
+        extracted = self.calls.extract_facts(FactExtractionInput(source), len(scene)).facts
+        if not extracted:
             return []
-        classify_input = FactClassificationInput(self.system, self.prompts.facts_classify, self.intro,
-            tuple(fact.text for fact in found), tuple(PmCategory.all()), self.companion, self.user)
-        filings = self.calls.classify_facts(classify_input)
-        return [FiledFact(fact.text, filing, [scene[line - 1] for line in fact.lines])
-            for fact, filing in zip(found, filings, strict=True)]
+        subjects = self.facts.subjects(scene, participants)
+        citations = [tuple(scene[line - 1] for line in fact.lines) for fact in extracted]
+        claims = tuple(self.facts.claim_options(sources) for sources in citations)
+        canonical = tuple(self.facts.canonical_options(fact.text, sources, subjects, participants)
+                          for fact, sources in zip(extracted, citations, strict=True))
+        source_times = tuple(sources[0].timestamp_world_begin for sources in citations)
+        classification = FactClassificationInput(self.system, self.prompts.facts_classify, intro,
+            tuple(fact.text for fact in extracted), tuple(PmCategory.all()), self.companion_name, self.user_name,
+            subjects, claims, canonical, source_times)
+        filings = self.calls.classify_facts(classification)
+        result: list[FiledFact] = []
+        for fact, filing, sources in zip(extracted, filings, citations, strict=True):
+            result.extend(self.facts.attribute(fact.text, filing, sources, participants))
+        return result
 
-    def topical(self, events: list[Feature]) -> None:
-        """Cluster the unclustered events into topic blocks and summarize each block."""
-        texts = [feature_text(event, self.image_catalog((event,))) for event in events]
-        vectors = self.embed(texts)
-        tokens = [count_tokens(text) for text in texts]
-        gap = timedelta(minutes=RECONSOLIDATION_SESSION_GAP_MINUTES)
-        sessions = [0]
-        for previous, event in zip(events, events[1:]):
-            sessions.append(sessions[-1] + (event.timestamp_world_begin - previous.timestamp_world_begin > gap))
-        blocks: list[list[Feature]] = []
+    def topic_blocks(self, anchors: list[Feature]) -> Iterator[list[Feature]]:
+        """Cluster one bounded window at a time and leave the newest open topic alone."""
         start = 0
-        while start < len(events):
-            end = min(len(events), start + self.config.chunk_events)
-            window = slice(start, end)
-            context = contextual_embeddings(vectors[window], tokens[window], self.config.context_window, sessions[window])
-            labels = smooth_labels(optimal_labels(cosine_distances(context), fallback=sessions[window]))
-            index_blocks = topic_blocks(labels, self.config.min_block, sessions[window])
-            if end < len(events) and len(index_blocks) > 1:
-                # The last block can continue in the next window. Start the
-                # next window at its first event, so a topic is not cut.
-                index_blocks, start = index_blocks[:-1], start + index_blocks[-1][0]
+        gap = timedelta(minutes=RECONSOLIDATION_SESSION_GAP_MINUTES)
+        while start < len(anchors):
+            self.check_cancelled()
+            window = anchors[start:start + self.config.chunk_events]
+            sessions = [0]
+            for previous, current in zip(window, window[1:]):
+                sessions.append(sessions[-1] + int(current.timestamp_world_begin - previous.timestamp_world_begin > gap))
+            # The original label search has no admissible cluster count for
+            # small windows. Session labels are its exact result in that case.
+            if len(window) >= self.config.min_events and allowed_cluster_counts(len(window)):
+                images = self.capture_images(window)
+                texts = [feature_text(row, images) for row in window]
+                vectors = run_embedding_work(self.embeddings.embed_many(texts, cancel=self.cancel))
+                self.report.embedded_texts += len(texts)
+                context = contextual_embeddings(vectors, [count_tokens(text) for text in texts], self.config.context_window, sessions)
+                labels = smooth_labels(optimal_labels(cosine_distances(context), fallback=sessions))
             else:
-                start = end
-            blocks.extend([events[window][index] for index in block] for block in index_blocks)
-        if blocks and blocks[-1][-1].timestamp_world_begin > self.now - timedelta(minutes=self.config.open_topic_minutes):
-            self.report.notes.append(f"The newest topic ({len(blocks[-1])} events) is still open and stays unclustered.")
-            blocks.pop()
-        story_features = self.story_features()
-        for group_index, group in enumerate(_chunks(blocks, RECONSOLIDATION_COMMIT_GROUP)):
-            plans: list[TopicSummaryPlan] = []
-            for block in group:
-                low, high = min(item.tick_id for item in block), max(item.tick_id for item in block)
-                features = [item for item in story_features if low <= item.tick_id <= high]
-                plans.append(TopicSummaryPlan(features, low, high))
-
-            if self.calls.model.connection.disable_threading:
-                results = [self.summarize_topic(item) for item in plans]
+                labels = sessions
+            blocks = topic_blocks(labels, self.config.min_block, sessions)
+            if start + len(window) < len(anchors) and len(blocks) > 1:
+                start += blocks[-1][0]
+                blocks.pop()
             else:
-                with ThreadPoolExecutor(max_workers=self.calls.workers, thread_name_prefix="memory") as workers:
-                    futures = [workers.submit(copy_context().run, self.summarize_topic, item) for item in plans]
-                    results = wait_model_futures(futures, self.calls.cancel)
-            self.embed([result.description for result in results])
+                start += len(window)
+            for block in blocks:
+                rows = [window[index] for index in block]
+                if rows[-1].id == anchors[-1].id and rows[-1].timestamp_world_begin > self.now - timedelta(minutes=self.config.open_topic_minutes):
+                    return
+                yield rows
 
-            batch = self.begin_batch(f'topical-{group_index}')
-            for plan, result in zip(plans, results, strict=True):
-                features, low, high = plan.features, plan.first_tick, plan.last_tick
-                summary, description = result.summary, result.description
-                ids = [item.id for item in features]
-                batch.create(MemoryClusterRecord(
-                    content=summary, level=LEVEL_TOPICAL, cluster_type=ClusterType.Topical,
-                    included_event_ids=",".join(map(str, ids)), token=count_tokens(summary),
-                    timestamp_world_begin=features[0].timestamp_world_begin,
-                    timestamp_world_end=max(item.timestamp_world_end for item in features),
-                    min_event_id=min(ids), max_event_id=max(ids), min_tick_id=low, max_tick_id=high,
-                    facts_extracted=False, emotion_description=description,
-                    metadata={"memory_kind": "experience_summary"}, provenance=self.provenance(),
-                    lineage=self.lineage(OPERATION_TOPICAL, ids)))
-            self.report.topical_ids += self.finish_batch(batch)
-            self.progress.write(f"topical clusters: {len(self.report.topical_ids)}")
+    def episode_sources(self, features: Sequence[Feature]) -> Iterator[EpisodeSources]:
+        anchors = [row for row in features if self.frontier.is_anchor(row)]
+        positions = {row.id: index for index, row in enumerate(features)}
+        start = 0
+        for block in self.topic_blocks(anchors):
+            first = positions[block[0].id]
+            while start < first and block[0].timestamp_world_begin - features[start].timestamp_world_begin > timedelta(minutes=RECONSOLIDATION_SESSION_GAP_MINUTES):
+                start += 1
+            end = positions[block[-1].id] + 1
+            while end < len(features) and not self.frontier.is_anchor(features[end]):
+                if features[end].timestamp_world_begin - block[-1].timestamp_world_begin > timedelta(minutes=RECONSOLIDATION_SESSION_GAP_MINUTES):
+                    break
+                if features[end].timestamp_world_begin > self.now - timedelta(minutes=self.config.open_topic_minutes):
+                    break
+                end += 1
+            yield self.frontier.sources(features[start:end], self.observer_id)
+            start = end
 
-    # ------------------------------------------------------------- stage 2
-
-    def temporal(self) -> None:
-        """Summarize every closed time range with events and without a summary."""
-        features = self.story_features()
-        existing = {item.temporal_key for item in self.clusters() if item.cluster_type == ClusterType.Temporal}
-        ranges = [item for item in closed_ranges([feature.timestamp_world_begin for feature in features], self.now)
-                  if item.key not in existing]
-        for level in BUILD_ORDER:
-            level_ranges = [item for item in ranges if item.level == level]
-            for group_index, group in enumerate(_chunks(level_ranges, RECONSOLIDATION_COMMIT_GROUP)):
-                clusters = self.clusters()
-                plans = [self._temporal_plan(item, features, clusters) for item in group]
-
-                if self.calls.model.connection.disable_threading:
-                    results = [self.summarize_temporal(item) for item in plans]
-                else:
-                    with ThreadPoolExecutor(max_workers=self.calls.workers, thread_name_prefix="memory") as workers:
-                        futures = [workers.submit(copy_context().run, self.summarize_temporal, item) for item in plans]
-                        results = wait_model_futures(futures, self.calls.cancel)
-                self.embed([result.description for result in results])
-
-                batch = self.begin_batch(f'temporal-{level}-{group_index}')
-                for plan, result in zip(plans, results, strict=True):
-                    span, inside, children = plan.span, plan.features, plan.children
-                    summary, description = result.summary, result.description
-                    event_ids = [item.id for item in inside]
-                    child_ids = [item.id for item in children]
-                    batch.create(MemoryClusterRecord(
-                        content=summary, level=span.level, cluster_type=ClusterType.Temporal,
-                        temporal_key=span.key, token=count_tokens(summary),
-                        included_event_ids=None if children else ",".join(map(str, event_ids)),
-                        included_cluster_ids=",".join(map(str, child_ids)) if children else None,
-                        timestamp_world_begin=inside[0].timestamp_world_begin,
-                        timestamp_world_end=max(item.timestamp_world_end for item in inside),
-                        min_event_id=min(event_ids), max_event_id=max(event_ids),
-                        min_tick_id=min(item.tick_id for item in inside),
-                        max_tick_id=max(item.tick_id for item in inside),
-                        facts_extracted=False, emotion_description=description,
-                        metadata={"memory_kind": "experience_summary"}, provenance=self.provenance(),
-                        lineage=self.lineage(OPERATION_TEMPORAL, [] if children else event_ids, child_ids)))
-                self.report.temporal_ids += self.finish_batch(batch)
-                self.progress.write(f"temporal clusters: {len(self.report.temporal_ids)}")
-
-    def _temporal_plan(self, span: TimeRange, features: list[Feature],
-                       clusters: list[MemoryClusterRecord],
-                       ) -> TemporalSummaryPlan:
-        """Return ``(range, events, children, story)`` for one range.
-
-        A range whose raw story fits ``summary_token_limit`` reads the raw
-        events. A longer range reads the summaries of its child level
-        (:data:`~pm.memory.reconsolidation.temporal.CHILD_LEVEL`). Topical
-        children overlap the range; temporal children start inside it. When
-        no child exists, the range reads the raw events anyway: the old code
-        raised here, and dropping evidence is worse than a long prompt.
-        """
-        inside = [item for item in features if span.contains(item.timestamp_world_begin)]
-        story = render_story(inside, self.time_format, images=self.image_catalog(inside))
-        if count_tokens(story) < self.config.summary_token_limit:
-            return TemporalSummaryPlan(span, inside, [], story)
-        level = CHILD_LEVEL[span.level]
-        if level == LEVEL_TOPICAL:
-            children = [item for item in clusters if is_episode_cluster(item)
-                        and item.timestamp_world_begin < span.end and item.timestamp_world_end >= span.start]
+    def prepare_episode(self, sources: EpisodeSources, previous: MemoryClusterRecord | None = None) -> PreparedMemoryUnit:
+        self.check_cancelled()
+        members = sources.members
+        evidence = sources.evidence
+        source_ids = [item.id for item in members]
+        if previous is None:
+            story = render_story(evidence, RECONSOLIDATION_TIME_FORMAT, images=self.capture_images(evidence))
+            summary = self.calls.summarize_scene(self.scene_input(self.prompts.topic_summary, story)).summary
+            description = self.state_description(evidence, story)
         else:
-            children = [item for item in clusters if item.cluster_type == ClusterType.Temporal
-                        and item.level == level and span.contains(item.timestamp_world_begin)]
-        if not children:
-            self.report.notes.append(f"Range {span.key} is long and has no child summaries; it reads raw events.")
-            return TemporalSummaryPlan(span, inside, [], story)
-        return TemporalSummaryPlan(span, inside, children, render_summaries(children, self.time_format))
-
-    # ------------------------------------------------------------- stage 3
-
-    def facts(self) -> None:
-        """Extract and file the facts of every topical cluster that has none yet."""
-        pending = [item for item in self.clusters() if is_episode_cluster(item) and not item.facts_extracted]
-        subjects = {self.companion: self.companion_id or 0, self.user: self.user_id or 0, "both": 0, "other": 0}
-        kinds = set(self.config.story_feature_types)
-        with self.store.lock:
-            existing: dict[str, int] = {}
-            for record in self.store.all_knoxels.values():
-                if isinstance(record, SemanticRecord):
-                    existing.setdefault(_metadata(record).dedup_key or record.dedup_key, record.id)
-        for group_index, group in enumerate(_chunks(pending, RECONSOLIDATION_COMMIT_GROUP)):
-            with self.store.lock:
-                sources = [[self.store.get_knoxel_by_id(key) for key in _ids(cluster.included_event_ids)]
-                           for cluster in group]
-            events = [chronological_records([item for item in records if isinstance(item, Feature) and item.feature_type in kinds])
-                for records in sources]
-
-            if self.calls.model.connection.disable_threading:
-                results = [self.extract_facts(FactExtractionPlan(scene)) for scene in events]
-            else:
-                with ThreadPoolExecutor(max_workers=self.calls.workers, thread_name_prefix="memory") as workers:
-                    futures = [workers.submit(copy_context().run, self.extract_facts, FactExtractionPlan(scene)) for scene in events]
-                    results = wait_model_futures(futures, self.calls.cancel)
-
-            batch = self.begin_batch(f'facts-{group_index}')
-            self._stage_facts(batch, group, results, subjects, existing)
-            self.finish_batch(batch)
-            self.progress.write(f"facts: {len(self.report.fact_ids)}")
-
-    def _stage_facts(self, batch: WriteBatch, clusters: list[MemoryClusterRecord],
-                     results: list[list[FiledFact]],
-                     subjects: dict[str, int], existing: dict[str, int]) -> None:
-        """Create the facts and their canonical semantic records in ``batch``.
-
-        A claim with a known ``(subject, essence)`` key adds the fact to the
-        existing semantic record. A new claim gets a new semantic record. The
-        cluster gets ``facts_extracted=True`` in the same batch, so a crash
-        never extracts the same cluster twice. ``existing`` maps dedup keys to
-        semantic record ids; this method adds the new keys.
-        """
-        view = batch.view()
-        open_records: dict[int, SemanticRecord] = {}
-        for cluster, items in zip(clusters, results):
-            for item in items:
-                text, filing, cited = item.text, item.filing, item.sources
-                subject = subjects[filing.about]
-                fact = batch.create(self._fact(cluster, text, filing, subject, cited))
-                key = MemoryTaxonomy.dedup_key(subject, filing.essence)
-                if key in existing:
-                    record_id = existing[key]
-                    if record_id in open_records:
-                        record = open_records[record_id]
-                    else:
-                        # ``existing`` maps dedup keys to SemanticRecord ids only,
-                        # so the shared record under that id is a semantic record.
-                        record = cast(SemanticRecord, view.get(record_id)).copy_for_edit()
-                    record.source_knoxel_ids.append(fact.id)
-                    if text not in record.source_texts and text != record.content:
-                        record.source_texts.append(text)
-                    record.importance = max(record.importance, filing.importance)
-                    if record_id in batch.created_ids:
-                        batch.revise(record)
-                        open_records[record_id] = record
-                    else:
-                        batch.replace(record)
-                        # ``replace`` appends a successor under a new id, so the open
-                        # copies and the dedup map must follow that id. Left on the
-                        # superseded id, the next commit group appends to a record the
-                        # store no longer holds as a head and its commit raises
-                        # GhostConflict. The old id is in ``open_records`` only when this
-                        # same batch read it earlier; a record fetched now never was.
-                        open_records.pop(record_id, None)
-                        open_records[record.id] = record
-                        existing[key] = record.id
-                        if record_id not in self.report.semantic_updated_ids + self.report.semantic_ids:
-                            self.report.semantic_updated_ids.append(record_id)
-                else:
-                    record = batch.create(self._semantic(text, filing, subject, fact.id, cited))
-                    record.semantic_record_id = record.id
-                    batch.revise(record)
-                    existing[key] = record.id
-                    open_records[record.id] = record
-                    self.report.semantic_ids.append(record.id)
-                fact.semantic_record_id = existing[key]
-                batch.revise(fact)
-                self.report.fact_ids.append(fact.id)
-            done = view.get(cluster.id).copy_for_edit()
-            done.facts_extracted = True
-            batch.replace(done)
-
-    def _fact(self, cluster: MemoryClusterRecord, text: str, filing: FactFiling, subject: int,
-              cited: list[Feature]) -> DeclarativeFactRecord:
-        ids = [item.id for item in cited]
-        return DeclarativeFactRecord(
-            content=text, subject_entity_id=subject, record_type=filing.record_type,
-            object_kind=filing.object_kind, object_value=filing.object_value,
-            epistemic_status=filing.epistemic_status, confidence=filing.confidence, topic_card=filing.topic_card,
-            essence=filing.essence, source_cluster_id=cluster.id, reason=filing.reason, category=filing.category,
-            importance=filing.importance, time_dependent=filing.time_dependent,
-            timestamp_world_begin=min(item.timestamp_world_begin for item in cited),
-            timestamp_world_end=max(item.timestamp_world_end for item in cited),
-            min_event_id=min(ids), max_event_id=max(ids),
-            min_tick_id=min(item.tick_id for item in cited), max_tick_id=max(item.tick_id for item in cited),
-            metadata={"memory_kind": "experience_summary"}, provenance=self.provenance(),
-            lineage=self.lineage(OPERATION_FACT, ids, [cluster.id]))
-
-    def _semantic(self, text: str, filing: FactFiling, subject: int, fact_id: int,
-                  cited: list[Feature]) -> SemanticRecord:
-        key = MemoryTaxonomy.dedup_key(subject, filing.essence)
-        label = self.companion if subject and subject == self.companion_id else (
-            self.user if subject and subject == self.user_id else "")
-        return SemanticRecord(
-            content=text, subject_entity_id=subject, record_type=filing.record_type,
-            object_kind=filing.object_kind, object_value=filing.object_value,
-            epistemic_status=filing.epistemic_status, confidence=filing.confidence, topic_card=filing.topic_card,
-            essence=filing.essence, record_id=_record_id(filing.essence, self.now), subject_label=label,
-            importance=filing.importance,
-            volatility=MemoryVolatility.Ephemeral if filing.time_dependent >= 0.7 else MemoryVolatility.Stable,
-            source_knoxel_ids=[fact_id], source_method="consolidation",
-            metadata={"dedup_key": key}, provenance=self.provenance(),
-            lineage=self.lineage(OPERATION_FACT, [item.id for item in cited], [fact_id]))
-
-    # ------------------------------------------------------------- stage 4
-
-    def narratives(self) -> None:
-        """Refine each kept narrative whose evidence grew enough since its newest version."""
-        if self.calls.model.connection.disable_threading:
-            chains = [self._narrative_chain(item) for item in self.prompts.narratives]
+            summary = previous.content
+            description = previous.emotion_description
+        originals = [row for row in evidence if external_event(row, self.config)]
+        facts = self.extract_facts(originals, sources.participant_ids)
+        needed = set(source_ids) | self.facts.prerequisites(facts)
+        needed.update(key for key in sources.participant_ids if key in self.facts.entities)
+        needed.update(item.subject_id for item in facts if item.subject_id in self.facts.entities)
+        if previous is not None:
+            needed.add(previous.id)
+        receipt = self.new_receipt("episode")
+        batch = self.preparation.begin(receipt.unit, needed)
+        family_subjects = {item.subject_id for item in facts}
+        for choice in self.facts.claim_options(originals):
+            family_subjects.add(int(choice.about.removeprefix("entity:")))
+        self.facts.guard_subjects(batch, members[0].scope, sorted(family_subjects))
+        cluster = MemoryClusterRecord(scope=members[0].scope, cluster_type=ClusterType.Topical, level=LEVEL_TOPICAL,
+            content=summary, token=count_tokens(summary), emotion_description=description or None, facts_extracted=True,
+            included_event_ids=",".join(map(str, source_ids)), min_tick_id=min(row.tick_id for row in members),
+            max_tick_id=max(row.tick_id for row in members), min_event_id=min(source_ids), max_event_id=max(source_ids),
+            timestamp_world_begin=members[0].timestamp_world_begin, timestamp_world_end=max(row.timestamp_world_end for row in members),
+            provenance=self.provenance,
+            lineage=RecordLineage(episode_id=batch.commit_id, operation=OPERATION_TOPICAL, source_event_ids=[item.id for item in evidence]))
+        cluster.metadata["memory_kind"] = "experience_summary"
+        cluster.metadata["participant_ids"] = list(sources.participant_ids)
+        if previous is None:
+            batch.create(cluster)
         else:
-            with ThreadPoolExecutor(max_workers=self.calls.workers, thread_name_prefix="narrative") as workers:
-                futures = [workers.submit(copy_context().run, self._narrative_chain, item) for item in self.prompts.narratives]
-                chains = wait_model_futures(futures, self.calls.cancel)
-        for created in chains:
-            self.report.narrative_ids += created
+            self.replace_cluster(batch, previous, cluster)
+        receipt.topical_ids.append(cluster.id)
+        self.facts.stage(batch, cluster, facts, receipt, self.provenance)
+        unit = self.seal(batch, receipt)
+        self.clusters.append(cluster)
+        self.index_cluster(cluster)
+        return unit
 
-    def newest_narrative(self, definition: NarrativeDefinition, entity_id: int) -> Narrative | None:
-        """Return the newest version, ranked like ``MainCogLoop._narrative_ids``."""
-        with self.store.lock:
-            versions = [item for item in self.store.all_narratives
-                        if item.narrative_type == definition.type and item.entity_id == entity_id]
-        if not versions:
-            return None
-        return newest_narrative_version(versions)
+    @staticmethod
+    def replace_cluster(batch: WriteBatch, previous: MemoryClusterRecord, updated: MemoryClusterRecord) -> None:
+        """Give the version a new ID while preserving the represented *event* interval."""
+        begin = updated.timestamp_world_begin
+        end = updated.timestamp_world_end
+        updated.id = previous.id
+        updated.tick_id = previous.tick_id
+        batch.replace(updated)
+        updated.timestamp_world_begin = begin
+        updated.timestamp_world_end = end
 
-    def _narrative_chain(self, definition: NarrativeDefinition) -> list[int]:
-        """Write new versions of one narrative until the new evidence is too small.
+    def temporal_units(self, features: Sequence[Feature]) -> Iterator[PreparedMemoryUnit]:
+        if not features:
+            return
+        scope = features[0].scope
+        current = {cluster.temporal_key: cluster for cluster in self.clusters
+                   if cluster.scope == scope and cluster.cluster_type == ClusterType.Temporal}
+        episodes = self.clusters_by_source[LEVEL_TOPICAL]
+        times = [row.timestamp_world_begin for row in features]
+        for span in closed_ranges(times, self.now):
+            self.check_cancelled()
+            low = bisect_left(times, span.start)
+            high = bisect_left(times, span.end)
+            inside = features[low:high]
+            ids = {row.id for row in inside}
+            if any(self.frontier.is_anchor(row) and row.id not in episodes for row in inside):
+                continue
+            existing = current.get(span.key)
+            if existing is not None and self.membership.source_ids(existing) == frozenset(ids):
+                parents = existing.lineage.parent_record_ids if existing.lineage else ()
+                if all(key in self.view.all_knoxels for key in parents):
+                    continue
+            unit = self.prepare_temporal(span, inside, existing)
+            current[span.key] = self.clusters[-1]
+            yield unit
 
-        Port of ``refine_narratives``. The evidence is the causal features of
-        the narrative's evidence types. New evidence starts after the
-        largest source id of the newest version (lineage), or, for a version
-        without lineage, after its ``last_refined_with_tick``. Each version
-        reads at most the mean of the minimum and maximum token budget.
-        The first version needs only ``narrative_first_tokens``, so a small
-        import still gets narratives. The old code started from placeholders.
-        """
-        companion = definition.target == "companion"
-        entity_id = self.companion_id if companion else self.user_id
-        if entity_id is None:
-            return []
-        target, other = (self.companion, self.user) if companion else (self.user, self.companion)
-        kinds = set(self.prompts.evidence_types[definition.type])
-        with self.store.lock:
-            features = [item for item in self.store.all_features if item.causal and item.feature_type in kinds]
-        features = chronological_records(features)
-        latest = self.newest_narrative(definition, entity_id)
-        if latest is not None and latest.lineage is not None and latest.lineage.source_event_ids:
-            cursor = max(latest.lineage.source_event_ids)
-            evidence = [item for item in features if item.id > cursor]
-        elif latest is not None:
-            evidence = [item for item in features if item.tick_id > (latest.last_refined_with_tick or -1)]
-        else:
-            evidence = features
-        lines = [feature_line(item, self.time_format, self.image_catalog((item,))) for item in evidence]
-        costs = [count_tokens(line) for line in lines]
-        created: list[int] = []
-        limit = (self.config.narrative_min_tokens + self.config.narrative_max_tokens) // 2
-        while evidence:
-            total, size = 0, 0
-            while size < len(evidence) and total <= limit:
-                total += costs[size]
-                size += 1
-            required = self.config.narrative_first_tokens if latest is None else self.config.narrative_min_tokens
-            if total < required:
+    def prepare_temporal(self, span: TimeRange, inside: Sequence[Feature],
+                         previous: MemoryClusterRecord | None) -> PreparedMemoryUnit:
+        ids = {row.id for row in inside}
+        scope = inside[0].scope
+        selected = self.frontier.sources(inside, self.observer_id)
+        evidence = list(selected.evidence)
+        # A closed period that contains only routine private thought still
+        # retains one short recollection instead of disappearing from history.
+        if not evidence:
+            evidence = [inside[-1]]
+        size = 0
+        for feature in evidence:
+            size += count_tokens(feature.content) + 12  # Timestamp and attribution on each original line.
+            if size >= self.config.summary_token_limit:
                 break
-            buffer = evidence[:size]
-            card = self.fill(self.prompts.narrative_card, character_card=self.card) if companion and self.card else ""
-            input = NarrativeRenderInput(self.system, self.prompts.narrative, self.intro, card,
-                definition.label, target, latest.content if latest is not None else self.prompts.no_previous_narrative,
-                definition.goal.format(target=target, other=other), self.companion, self.user,
-                tuple(NarrativeEvidence(item.id, line) for item, line in zip(buffer, lines[:size], strict=True)))
-            refinement = self.calls.refine_narrative(input)
-            answer = refinement.answer
-            selected = set(refinement.selected_ids)
-            buffer = [item for item in buffer if item.id in selected]
-            size = len(buffer)
-            text = answer.narrative
-            record = Narrative(
-                content=text, narrative_type=definition.type, entity_id=entity_id,
-                last_refined_with_tick=max(item.tick_id for item in buffer),
-                timestamp_world_begin=buffer[0].timestamp_world_begin,
-                timestamp_world_end=max(item.timestamp_world_end for item in buffer),
-                provenance=self.provenance(),
-                lineage=self.lineage(OPERATION_NARRATIVE, [item.id for item in buffer],
-                                     [latest.id] if latest is not None else []))
+        children: list[MemoryClusterRecord] = []
+        if size >= self.config.summary_token_limit:
+            covered: set[int] = set()
+            index = self.clusters_by_source[CHILD_LEVEL[span.level]]
+            candidates = {index[key].id: index[key] for key in ids if key in index}
+            for child in chronological_records(list(candidates.values())):
+                if child.scope != scope or child.id not in self.view.all_knoxels:
+                    continue
+                membership = self.membership.source_ids(child)
+                if membership and membership.issubset(ids) and membership.isdisjoint(covered):
+                    children.append(child)
+                    covered.update(membership)
+            evidence = [row for row in evidence if row.id not in covered]
+        catalog = self.capture_images(evidence)
+        passages: list[str] = []
+        for source in chronological_records([*children, *evidence]):
+            if isinstance(source, MemoryClusterRecord):
+                passages.append(render_summaries([source], RECONSOLIDATION_TIME_FORMAT))
+            else:
+                passages.append(feature_line(source, RECONSOLIDATION_TIME_FORMAT, catalog))
+        story = "\n".join(passages)
+        template = self.prompts.temporal_children if children else self.prompts.temporal_raw
+        request = TemporalSummaryInput(self.scene_input(template, story), span.start.strftime(RECONSOLIDATION_TIME_FORMAT),
+                                      span.end.strftime(RECONSOLIDATION_TIME_FORMAT))
+        summary = self.calls.summarize_temporal(request).summary
+        child_ids = [child.id for child in children]
+        needed = ids | set(child_ids)
+        needed.update(key for key in selected.participant_ids if key in self.facts.entities)
+        episodes = self.clusters_by_source[LEVEL_TOPICAL]
+        needed.update(episodes[key].id for key in ids if key in episodes)
+        if previous is not None:
+            needed.add(previous.id)
+        receipt = self.new_receipt("period")
+        batch = self.preparation.begin(receipt.unit, needed)
+        cluster = MemoryClusterRecord(scope=scope, content=summary, cluster_type=ClusterType.Temporal, level=span.level,
+            temporal_key=span.key, token=count_tokens(summary), included_event_ids=",".join(map(str, sorted(ids))),
+            included_cluster_ids=",".join(map(str, child_ids)) or None,
+            min_tick_id=min(row.tick_id for row in inside), max_tick_id=max(row.tick_id for row in inside),
+            min_event_id=min(ids), max_event_id=max(ids), timestamp_world_begin=inside[0].timestamp_world_begin,
+            timestamp_world_end=max(row.timestamp_world_end for row in inside), provenance=self.provenance,
+            lineage=RecordLineage(episode_id=batch.commit_id, operation=OPERATION_TEMPORAL, parent_record_ids=child_ids,
+                                  source_event_ids=[row.id for row in evidence]))
+        cluster.metadata["memory_kind"] = "experience_summary"
+        cluster.metadata["participant_ids"] = list(selected.participant_ids)
+        if previous is None:
+            batch.create(cluster)
+        else:
+            self.replace_cluster(batch, previous, cluster)
+        receipt.temporal_ids.append(cluster.id)
+        unit = self.seal(batch, receipt)
+        self.clusters.append(cluster)
+        self.index_cluster(cluster)
+        return unit
 
-            batch = self.begin_batch(f'narrative-{definition.type.value}-{definition.target}-{len(created)}')
-            batch.create(record)
-            ids = self.finish_batch(batch)
-            created += ids
-            with self.store.lock:
-                latest = self.store.get_knoxel_by_id(ids[0])
-            evidence, lines, costs = evidence[size:], lines[size:], costs[size:]
-            self.progress.write(f"narrative {definition.type.value} of {target}: version {len(created)}")
-        return created
+    def narrative_units(self, definition: NarrativeDefinition, scope: RecordScope,
+                        features: list[Feature]) -> Iterator[PreparedMemoryUnit]:
+        own = definition.target == "companion"
+        target_id = self.observer_id if own else self.user_id
+        if target_id is None:
+            return
+        target, other = (self.companion_name, self.user_name) if own else (self.user_name, self.companion_name)
+        versions = [row for row in self.view.all_knoxels.values() if isinstance(row, Narrative)
+                    and row.scope == scope and row.entity_id == target_id and row.narrative_type == definition.type]
+        latest = newest_narrative_version(versions) if versions else None
+        processed: set[int] = set()
+        legacy_tick = -1
+        for version in versions:
+            if version.lineage is not None:
+                processed.update(version.lineage.source_event_ids)
+            elif version.last_refined_with_tick is not None:
+                legacy_tick = max(legacy_tick, version.last_refined_with_tick)
+        days = self.clusters_by_source[LEVEL_DAY]
+        subject = self.facts.entities[target_id]
+        eligible: list[Feature] = []
+        for row in features:
+            if row.id not in days or row.id in processed or row.tick_id <= legacy_tick:
+                continue
+            if row.feature_type not in self.prompts.evidence_types[definition.type]:
+                continue
+            addressed = target_id in (row.entity_id, row.addressee_entity_id)
+            own_experience = own and row.id in self.frontier.private_actions
+            if addressed or own_experience or self.facts.mentions(subject, row.content):
+                eligible.append(row)
+        position = 0
+        limit = (self.config.narrative_min_tokens + self.config.narrative_max_tokens) // 2
+        while position < len(eligible):
+            self.check_cancelled()
+            buffer: list[NarrativeEvidence] = []
+            cost = 0
+            while position + len(buffer) < len(eligible) and cost <= limit:
+                row = eligible[position + len(buffer)]
+                line = feature_line(row, RECONSOLIDATION_TIME_FORMAT, self.capture_images([row]))
+                buffer.append(NarrativeEvidence(row.id, line))
+                cost += count_tokens(line)
+            minimum = self.config.narrative_min_tokens if latest is not None else self.config.narrative_first_tokens
+            if cost < minimum:
+                break
+            card = self.prompts.narrative_card.format(companion_name=target, character_card=self.card) if own and self.card else ""
+            request = NarrativeRenderInput(self.system, self.prompts.narrative, self.intro, card, definition.label,
+                target, latest.content if latest is not None else self.prompts.no_previous_narrative,
+                definition.goal.format(target=target, other=other), self.companion_name, self.user_name, tuple(buffer))
+            refinement = self.calls.refine_narrative(request)
+            sources = eligible[position:position + len(refinement.selected_ids)]
+            if not sources or tuple(row.id for row in sources) != refinement.selected_ids:
+                raise ValueError("Narrative refinement lost its chronological source prefix.")
+            previous_ids = [latest.id] if latest is not None else []
+            receipt = self.new_receipt("narrative")
+            accepted_days = {days[key].id for key in refinement.selected_ids}
+            batch = self.preparation.begin(receipt.unit, [target_id, *refinement.selected_ids, *previous_ids, *accepted_days])
+            latest = batch.create(Narrative(scope=scope, content=refinement.answer.narrative, narrative_type=definition.type,
+                entity_id=target_id, last_refined_with_tick=max(row.tick_id for row in sources),
+                timestamp_world_begin=sources[0].timestamp_world_begin, timestamp_world_end=sources[-1].timestamp_world_end,
+                provenance=self.provenance, lineage=RecordLineage(episode_id=batch.commit_id, operation=OPERATION_NARRATIVE,
+                    source_event_ids=list(refinement.selected_ids), parent_record_ids=previous_ids)))
+            receipt.narrative_ids.append(latest.id)
+            yield self.seal(batch, receipt)
+            position += len(sources)
 
-    # ------------------------------------------------------------- index
+    def prepare_units(self) -> Iterator[PreparedMemoryUnit]:
+        """Yield complete units progressively without adding any record to the live store."""
+        by_scope: dict[RecordScope, list[Feature]] = {}  # pm-lint: allow PM004 -- chronological features by scope
+        for feature in self.frontier.features:
+            by_scope.setdefault(feature.scope, []).append(feature)
+        covered = covered_episode_ids(self.clusters, self.membership)
+        self.report.unclustered_events = sum(1 for row in self.frontier.features if row.id not in covered
+                                             and external_event(row, self.config))
+        if self.report.forced or self.report.unclustered_events >= self.config.trigger_events:
+            streams: list[ScopeEpisodes] = []
+            for features in by_scope.values():
+                pending = [row for row in features if row.id not in covered]
+                if pending:
+                    first = pending[0]
+                    heappush(streams, ScopeEpisodes(first.timestamp_world_begin, first.id, self.episode_sources(pending)))
+            # Cluster other scopes only after their oldest remaining source can
+            # precede the next ready episode. Initial work stays bounded.
+            while streams:
+                cursor = heappop(streams)
+                if cursor.ready is None:
+                    cursor.ready = next(cursor.episodes, None)
+                    if cursor.ready is None:
+                        continue
+                    boundary = cursor.ready.members[0]
+                else:
+                    yield self.prepare_episode(cursor.ready)
+                    boundary = cursor.ready.members[-1]
+                    cursor.ready = None
+                cursor.earliest = boundary.timestamp_world_begin
+                cursor.first_id = boundary.id
+                heappush(streams, cursor)
+        # Imported topic records can predate fact extraction. Read only
+        # verifiable, original members before replacing such a legacy head.
+        for cluster in chronological_records(list(self.clusters)):
+            if is_episode_cluster(cluster) and not cluster.facts_extracted:
+                ids = self.membership.source_ids(cluster)
+                rows = chronological_records([row for key in ids if isinstance(row := self.view.get(key), Feature)])
+                if rows and all(row.timestamp_world_begin <= self.now for row in rows):
+                    sources = self.frontier.sources(rows, self.observer_id)
+                    yield self.prepare_episode(sources, previous=cluster)
+        for features in by_scope.values():
+            yield from self.temporal_units(features)
+        for scope, features in by_scope.items():
+            for definition in self.prompts.narratives:
+                yield from self.narrative_units(definition, scope, features)
+        self.report.model_calls = self.calls.calls
+        self.report.finished_at = naive_utc_now()
 
-    def prepare_index(self, ids: Sequence[int]) -> None:
-        """Store vectors on the new records and save their complete checkpoint."""
-        missing = [record for record in self.store.snapshot(set(ids)).all_knoxels.values() if not record.embedding]
-        vectors = self.embed([record.content or record.get_story_element() for record in missing])
-        for record, vector in zip(missing, vectors, strict=True):
-            record.embedding = vector
-        self.store.save()
 
-
-def reconsolidate(store: MemoryStore, *, complete: LazyStageModel, embeddings: EmbeddingService,
-                  config: ReconsolidationConfig | None = None,
-                  force: bool = False, cancel: Event | None = None, now: datetime | None = None,
-                  prompts: ReconsolidationPrompts | None = None,
-                  progress: ReconsolidationProgress = ReconsolidationProgress()) -> ReconsolidationReport:
-    """Run one memory reconsolidation and return its report.
-
-    ``complete`` is a text completion (for example ``LazyStageModel.complete``).
-    ``embeddings`` has ``async embed(text, cancel=...)``, for example
-    ``pm.memory.embeddings.EmbeddingService``. Without ``force``, the topical
-    stage runs only when ``config.trigger_events`` events wait (the old
-    trigger rule). With ``force``, it runs for ``config.min_events`` events.
-    The temporal, fact, and narrative stages always check for work; they
-    make no model call when nothing is new. ``now`` is naive UTC; it decides
-    which time ranges are closed.
-
-    The report is also committed as the consolidation receipt
-    ``reconsolidation:<run_id>``. Model errors after the repairs raise
-    ``ReconsolidationOutputError``. Provider, store, and cancellation errors
-    propagate; the groups committed before stay accepted.
-    """
-    config = config or ReconsolidationConfig()
-    prompts = prompts or load_prompts()
-    calls = ModelCalls(complete, cancel=cancel)
-    report = ReconsolidationReport(run_id=uuid.uuid4().hex[:12], forced=force)
-    run = _Run(store, calls, embeddings, config, prompts, report, now or naive_utc_now(), cancel,
-               progress)
-    # Memory reads images only as alt text. Write the missing ones first,
-    # so no "no description yet" reaches a summary, fact, or narrative.
-    complete_alt_text(store, [image_id for feature in run.story_features() for image_id in image_ids(feature.content)],
-                      complete, cancel=cancel)
-    events = unclustered_events(store, config)
-    report.unclustered_events = len(events)
-    if not force and len(events) < config.trigger_events:
-        report.notes.append(f"{len(events)} unclustered events are below the trigger of {config.trigger_events}.")
-    elif len(events) < config.min_events:
-        report.notes.append(f"{len(events)} unclustered events are below the minimum of {config.min_events}.")
-    else:
-        run.topical(events)
-    run.temporal()
-    run.facts()
-    run.narratives()
-    report.model_calls = calls.calls
-    report.finished_at = naive_utc_now()
-
-    # A reconsolidation runs outside a workspace slot, so none of its commits is ever
-    # ``main`` and :meth:`pm.memory.causal.CausalHistory.accepted` would leave the whole
-    # run out of the live memory of the next process. This one receipt commit names every
-    # commit the run made, so accepting the receipt accepts the run. A stage that raised,
-    # or a cancel before here, never writes it and leaves its partial work unaccepted.
-    batch = run.begin_batch("receipt")
-    batch.set_consolidation_receipt(f"{RECEIPT_PREFIX}{report.run_id}",
-        {"run_id": report.run_id, "kind": "memory_reconsolidation", **report.model_dump(mode="json")})
-    batch.depend_on_commits(run.commit_ids)
-    run.finish_batch(batch)
-
-    # The run's single save. It comes after the receipt so the file on disk always carries
-    # the receipt that makes its records live; ``_Run.prepare_index`` commits nothing, it
-    # only puts vectors on records this run already committed.
-    run.prepare_index(report.created_ids)
-    return report
 
 
 __all__ = ["OPERATION_FACT", "OPERATION_NARRATIVE", "OPERATION_TEMPORAL", "OPERATION_TOPICAL", "RECEIPT_PREFIX",
-           "is_episode_cluster", "reconsolidate", "reconsolidation_due", "unclustered_events"]
+           "PreparedMemoryUnit", "ReconsolidationPass", "ReconsolidationProgress", "is_episode_cluster",
+           "reconsolidate", "reconsolidation_due", "unclustered_events"]

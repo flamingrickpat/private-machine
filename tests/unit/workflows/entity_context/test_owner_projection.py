@@ -16,13 +16,15 @@ import unittest
 from pydantic import ValidationError
 
 from pm.memory.dependencies import capture_source
+from pm.memory.reconsolidation.entity_claims import EntityMemoryClaims, outdated_entity_memories
+from pm.memory.retrieval import scoped_records
 from pm.memory.snapshot import GhostConflict
 from pm.memory.store import MemoryStore
 from pm.records.base import Provenance, RecordScope
 from pm.records.cycle_state import PersonaConfig
 from pm.records.enums import EntityClass, FeatureType, FrameEnum, InterlocusType, SourceKind
 from pm.records.global_workspace import GwtTurnRecord
-from pm.records.memory_records import Entity, Feature
+from pm.records.memory_records import Entity, Feature, SemanticRecord
 from workflows.entity_context.owner import EntityContextOwner, active_claims, claim_identity
 from workflows.entity_context.projection import (
     EntityContextChanged, expect_entity_context, project_entity_context,
@@ -70,7 +72,7 @@ class EntityContextStoreTests(unittest.TestCase):
     def proposal(self, source: Feature, proposal_id: str, *, key: EntityContextKey | None = None,
                  claim_key: str = "availability.respond", ability: Literal["can", "cannot", "unknown"] | None = "cannot",
                  statement: str | None = None, review_after_utc: datetime | None = None,
-                 applicable_until_utc: datetime | None = None) -> EntityContextProposal:
+                 applicable_until_utc: datetime | None = None, retract_claim_ids: tuple[str, ...] = ()) -> EntityContextProposal:
         """Hydrate explicit boundary input with real source identities and meaning."""
         selected_key = key if key is not None else self.key
         view = self.store.snapshot(capture=False)
@@ -83,7 +85,8 @@ class EntityContextStoreTests(unittest.TestCase):
             applicable_until_utc=applicable_until_utc, interaction=interaction)
         return EntityContextProposal(proposal_id=proposal_id, key=selected_key,
             parent_receipt_id=self.owner.current_head(view, selected_key), producer="immediate",
-            input_commit_ids=sorted(view.commit_ids), claims=[claim])
+            input_commit_ids=sorted(view.commit_ids), claims=[claim], retract_claim_ids=list(retract_claim_ids),
+            correction_evidence=[evidence] if retract_claim_ids else [])
 
     def accept(self, proposal: EntityContextProposal) -> EntityUpdateResult:
         """Use the actual owner and append-only recovery commit."""
@@ -111,6 +114,7 @@ class EntityContextStoreTests(unittest.TestCase):
         self.assertEqual(result.disposition, "staged")
         assert result.staged_receipt_id is not None
         self.assertEqual(self.accept(proposal).staged_receipt_id, result.staged_receipt_id)
+        self.store.save()
         reopened = MemoryStore.from_checkpoint(self.path)
         claims = active_claims(reopened.snapshot(capture=False), key=self.key)
         self.assertEqual(len(claims), 1)
@@ -140,6 +144,43 @@ class EntityContextStoreTests(unittest.TestCase):
         self.assertEqual(self.store.snapshot(capture=False).get(original.id).content, original.content)
         with self.assertRaises(EntityContextChanged):
             validate_entity_context(self.store, captured, as_of_utc=self.now + timedelta(minutes=1))
+
+    def test_derived_memory_follows_the_accepted_correction_and_preserves_the_speaker(self) -> None:
+        source = self.report("Jesse cannot answer.", speaker=self.peer)
+        self.accept(self.proposal(source, "away"))
+        snapshot = self.store.snapshot(capture=False)
+        claims = EntityMemoryClaims.from_snapshot(snapshot, self.observer.id, self.now)
+        original, = claims.for_sources([source.id], self.key.scope, self.partner.id)
+        self.assertEqual(original.quotes, (source.content,))
+        self.assertEqual(original.status, "current")
+        self.assertEqual(claims.for_sources([source.id], self.key.scope, self.peer.id), ())
+        batch = self.store.begin_batch("file accepted report", embed=False)
+        record = batch.create(SemanticRecord(content=original.statement, subject_entity_id=original.subject_entity_id))
+        record.metadata["entity_claim_id"] = original.claim_id
+        record.metadata["entity_claim_receipt_id"] = original.receipt_id
+        record.metadata["entity_claim_head_id"] = original.head_receipt_id
+        record.metadata["entity_claim_status"] = original.status
+        batch.preserve_on_recovery()
+        self.store.commit(batch)
+        before = self.store.snapshot(capture=False)
+        self.assertNotIn(record.id, outdated_entity_memories(before, before.all_knoxels, self.now))
+        self.assertIn(record.id, scoped_records(before)[0])
+        limited = self.store.snapshot([record.id, original.receipt_id, source.id], capture=False)
+        self.assertIn(record.id, outdated_entity_memories(limited, limited.all_knoxels, self.now))
+
+        update = self.report("I can answer again.", when=self.now + timedelta(minutes=10))
+        correction = self.proposal(update, "back", ability="can", retract_claim_ids=(original.claim_id,))
+        self.assertEqual(self.accept(correction).disposition, "staged")
+        self.store.save()
+        reopened = MemoryStore.from_checkpoint(self.path).snapshot(capture=False)
+        current, rejected = scoped_records(reopened)
+        self.assertEqual(rejected[record.id], "entity_claim_changed")
+        self.assertNotIn(record.id, current)
+        self.assertIn(source.id, current)
+        self.assertEqual(reopened.get(record.id).content, original.statement)
+        later = EntityMemoryClaims.from_snapshot(reopened, self.observer.id, update.timestamp_world_begin)
+        self.assertEqual(later.by_claim_id[original.claim_id].status, "retracted")
+        self.assertEqual(later.for_sources([update.id], self.key.scope, self.partner.id)[0].status, "current")
 
     def test_elapsed_time_weakens_estimate_without_asserting_the_opposite(self) -> None:
         source = self.report("I cannot answer for a while.")
@@ -198,6 +239,7 @@ class EntityContextStoreTests(unittest.TestCase):
             appraisal.metadata["entity_context_results"] = [result.model_dump(mode="json")]
             main_batch.set_gwt(GwtTurnRecord(tick_id=main_batch.tick_id, knoxel_ids=[appraisal.id]))
             self.store.commit(main_batch)
+        self.store.save()
         reopened = MemoryStore.from_checkpoint(self.path)
         persisted = reopened.snapshot(capture=False).get(appraisal.id)
         self.assertEqual(persisted.metadata["entity_context_results"][0]["disposition"], "deferred")
@@ -223,6 +265,7 @@ class EntityContextStoreTests(unittest.TestCase):
         with ThreadPoolExecutor(max_workers=2) as workers:
             results = list(workers.map(worker, range(2)))
         self.assertEqual(sum(results), 1)
+        self.store.save()
         reopened = MemoryStore.from_checkpoint(self.path)
         self.assertEqual(len(active_claims(reopened.snapshot(capture=False), key=self.key)), 1)
 

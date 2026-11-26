@@ -12,41 +12,24 @@ from typing import Literal, Self
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from pm.memory.dependencies import SourceDependency
-from pm.records.base import RecordScope
-from pm.records.enums import SourceKind
 
 
-EntityClaimLayer = Literal["background", "relationship", "pattern", "situation", "perspective", "open_question"]
-EntityEpistemicKind = Literal["observation", "report", "inference", "hypothetical"]
-EntityProducer = Literal["immediate", "main", "thought", "tom", "migration"]
-EntityApplicability = Literal["current", "due_for_review", "expired", "future"]
-ENTITY_CONTEXT_FAMILY = "entity_context_family"
-ENTITY_CONTEXT_RECEIPT = "entity_context_receipt"
-
-
-class EntityContextKey(BaseModel):
-    """One subject as understood by one observer in one reality and frame."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-    subject_entity_id: int = Field(gt=0, description="Identity anchor of the entity this model describes.")
-    observer_entity_id: int = Field(gt=0, description="Identity anchor of the observer holding this interpretation.")
-    scope: RecordScope = Field(description="Reality and frame in which these claims apply.")
-
-
-class EntityClaimEvidence(BaseModel):
-    """Original source meaning and an optional verbatim report quotation."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-    source: SourceDependency
-    exact_quote: str | None = Field(default=None, min_length=1, description="Exact source substring when this evidence is a report.")
-
-
-class InteractionClaim(BaseModel):
-    """An evidence-qualified ability estimate, never permission to contact."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-    dimension: Literal["receive", "respond"]
-    ability: Literal["can", "cannot", "unknown"]
+from pm.memory.entity_history import (
+    ENTITY_CONTEXT_FAMILY as ENTITY_CONTEXT_FAMILY,
+    ENTITY_CONTEXT_RECEIPT as ENTITY_CONTEXT_RECEIPT,
+    EntityApplicability as EntityApplicability,
+    EntityClaimLayer as EntityClaimLayer,
+    EntityEpistemicKind as EntityEpistemicKind,
+    EntityProducer as EntityProducer,
+    EntityContextKey as EntityContextKey,
+    EntityClaimEvidence as EntityClaimEvidence,
+    InteractionClaim as InteractionClaim,
+    EntityContextClaim as EntityContextClaim,
+    EntityContextProposal as EntityContextProposal,
+    EntityContextReceipt as EntityContextReceipt,
+    EntitySourceAttribution as EntitySourceAttribution,
+    EntityClaimView as EntityClaimView,
+)
 
 
 class EntityClaimDraft(BaseModel):
@@ -108,60 +91,6 @@ class PerspectiveRevision(BaseModel):
         description="Model drafts. The host supplies fingerprints, claim IDs, and the family parent later.")
 
 
-class EntityContextClaim(BaseModel):
-    """One attributed claim whose historical truth and current applicability differ."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-    claim_id: str = Field(default="", description="Owner-assigned immutable claim identity; empty only before staging.")
-    layer: EntityClaimLayer
-    claim_key: str = Field(min_length=1, description="Exact proposition key within this observer and subject family.")
-    statement: str = Field(min_length=1, description="The attributed assertion, without promoting inference to observation.")
-    epistemic_kind: EntityEpistemicKind
-    perspective_entity_id: int | None = Field(default=None, gt=0, description="Entity whose knowledge is attributed, distinct from the observer.")
-    confidence: float = Field(ge=0.0, le=1.0, description="Support for this epistemic assertion, not proof of a report's truth.")
-    evidence: list[EntityClaimEvidence] = Field(min_length=1)
-    observed_at_utc: datetime = Field(description="Latest cited source world time, as naive UTC.")
-    applicable_from_utc: datetime = Field(description="Beginning of the asserted applicable interval, as naive UTC.")
-    review_after_utc: datetime | None = Field(default=None, description="Time to weaken current applicability, never infer the opposite.")
-    applicable_until_utc: datetime | None = Field(default=None, description="Explicit end of the asserted interval, if evidence supplies one.")
-    interaction: InteractionClaim | None = None
-
-    @model_validator(mode="after")
-    def valid_times(self) -> Self:
-        """Reject mixed clock conventions and impossible explicit intervals."""
-        if not self.claim_key.strip() or not self.statement.strip():
-            raise ValueError("Entity claims require a nonempty proposition key and assertion.")
-        for timestamp in (self.observed_at_utc, self.applicable_from_utc, self.review_after_utc, self.applicable_until_utc):
-            if timestamp is not None and timestamp.tzinfo is not None:
-                raise ValueError("Entity-context timestamps must use naive UTC world time.")
-        if self.applicable_until_utc is not None and self.applicable_until_utc < self.applicable_from_utc:
-            raise ValueError("An entity claim cannot end before its applicable interval starts.")
-        return self
-
-
-class EntityContextProposal(BaseModel):
-    """Frozen host-hydrated interpretation with an explicit expected family parent."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-    proposal_id: str = Field(min_length=1)
-    key: EntityContextKey
-    parent_receipt_id: int | None
-    producer: EntityProducer
-    input_commit_ids: list[str] = Field(default_factory=list[str])
-    claims: list[EntityContextClaim] = Field(default_factory=list[EntityContextClaim], max_length=4)
-    retract_claim_ids: list[str] = Field(default_factory=list[str])
-    challenge_claim_ids: list[str] = Field(default_factory=list[str])
-    correction_evidence: list[EntityClaimEvidence] = Field(default_factory=list[EntityClaimEvidence])
-
-
-class EntityContextReceipt(BaseModel):
-    """Validated payload of one append-only private state-update feature."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-    schema_version: Literal["pm.entity-context.v1"] = "pm.entity-context.v1"
-    proposal: EntityContextProposal
-
-
 class EntityUpdateResult(BaseModel):
     """Explicit staging outcome that lets valid main appraisal survive stale proposals."""
 
@@ -181,27 +110,6 @@ class EntityUpdateResult(BaseModel):
         elif self.reason == "accepted" or self.staged_receipt_id is not None:
             raise ValueError("A deferred or rejected entity update cannot carry an accepted receipt.")
         return self
-
-
-class EntitySourceAttribution(BaseModel):
-    """The actual source speaker and addressee, independent of the claim's subject."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-    record_id: int
-    source_kind: SourceKind | None
-    speaker_entity_id: int | None
-    speaker: str
-    addressee_entity_id: int | None
-
-
-class EntityClaimView(BaseModel):
-    """A retained claim with time-sensitive applicability and competing-claim state."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-    claim: EntityContextClaim
-    applicability: EntityApplicability
-    contested: bool
-    attributions: list[EntitySourceAttribution] = Field(default_factory=list[EntitySourceAttribution])
 
 
 class EntityProjectionQuery(BaseModel):

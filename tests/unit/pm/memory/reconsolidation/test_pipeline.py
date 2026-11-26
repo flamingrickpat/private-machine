@@ -1,141 +1,124 @@
-"""A reconsolidation run over a small imported store, with a scripted model.
+"""Real source selection and entity filing at a frozen Ghost frontier, without model inference."""
+from __future__ import annotations
 
-The real store, the real commit path, and the real stages run. Only the
-model and the embeddings are replaced: the scripted model answers by the
-task phrase of each prompt, and the embeddings hash topic words into small
-vectors. A second run over the same store must make no model call.
-"""
-import re
-import unittest
 from datetime import datetime, timedelta
+import unittest
 
-from pm.app.chat_import import ChatRow, add_transfer_records, group_exchanges, import_exchanges
-from pm.context_render.turns import Role
-from pm.memory.reconsolidation import reconsolidate, unclustered_events
-from pm.memory.reconsolidation.pipeline import OPERATION_NARRATIVE
+from pm.app.character_cli import build_models
+from pm.memory.cluster_membership import ClusterMembership
+from pm.memory.dependencies import capture_source
+from pm.memory.entity_history import EntityClaimEvidence, EntityContextClaim, EntityContextKey, EntityContextProposal
+from pm.memory.reconsolidation.facts import EpisodeFacts
+from pm.memory.reconsolidation.membership import eligible_external_features
+from pm.memory.reconsolidation.pipeline import ReconsolidationPass, reconsolidate
+from pm.memory.reconsolidation.schemas import FactClassificationValidation, FactFiling, ReconsolidationConfig
 from pm.memory.store import MemoryStore
-from pm.llm.prompt_encoding import normalize_turns
+from pm.records.base import Provenance, RecordScope
 from pm.records.cycle_state import PersonaConfig
-from pm.records.enums import ClusterType
-from pm.records.memory_records import DeclarativeFactRecord, MemoryClusterRecord, Narrative, SemanticRecord
-from pm.records.mental_state import PersonalityProfile
+from pm.records.enums import ClusterType, EntityClass, FeatureType, FrameEnum, InterlocusType, SourceKind
+from pm.records.memory_records import Entity, Feature, MemoryClusterRecord
+from pm.records.taxonomy import EpistemicStatus, PmCategory
+from workflows.entity_context.owner import EntityContextOwner
 
-TOPICS = {"pizza": ["pizza", "cheese", "oven", "dough"], "train": ["train", "station", "ticket", "delay"]}
-
-
-class FakeEmbeddings:
-    """Hash topic words into a four-dimensional vector."""
-
-    async def embed(self, text, cancel=None):
-        words = text.casefold()
-        vector = [0.05, 0.05, 0.05, 0.05]
-        for index, topic in enumerate(TOPICS.values()):
-            vector[index] += sum(words.count(word) for word in topic)
-        return vector
-
-
-class ScriptedModel:
-    """Answer each prompt by its task phrase. ``calls`` lists the phrases."""
-
-    def __init__(self):
-        self.calls: list[str] = []
-
-    def __call__(self, turns, **generation):
-        text = normalize_turns(turns)[-1].content.text
-        if normalize_turns(turns)[-1].role != Role.User:
-            raise AssertionError("The last turn must be the task.")
-        if "keeps this scene as one episode" in text:
-            return self.answer("topic", '{"summary": "Bob and Ava talk about one topic in detail."}')
-        if "keeps how this episode felt" in text:
-            return self.answer("state", '{"description": "Ava seems relaxed; read from the words."}')
-        if "keeps this period as one memory" in text or "joins these memories" in text:
-            return self.answer("temporal", '{"summary": "Between the start and the end, Bob and Ava talked."}')
-        if "turns this scene into lasting knowledge" in text:
-            return self.answer("extract", '{"facts": [{"text": "Bob says that he likes pizza.", "lines": [1]}]}')
-        if "files each fact" in text:
-            count = len(re.findall(r"^\d+\. ", text.split("### BEGIN FACTS")[1].split("### END FACTS")[0], re.M))
-            items = ",".join(
-                f'{{"index": {i}, "about": "Bob", "record_type": "preference", "epistemic_status": "asserted", '
-                f'"confidence": 0.9, "object_kind": "food", "object_value": "pizza", "topic_card": "food", '
-                f'"essence": "Bob likes pizza.", "category": ["people_preferences"], "importance": 0.6, '
-                f'"time_dependent": 0.2, "reason": "A stated preference."}}' for i in range(1, count + 1))
-            return self.answer("file", f'{{"facts": [{items}]}}')
-        if "narrative" in text:
-            return self.answer("narrative", '{"narrative": "The character is steady and curious, and the story '
-                                            'shows a calm, teasing rhythm with Bob over food and travel."}')
-        raise AssertionError(f"Unknown prompt: {text[-300:]}")
-
-    def answer(self, phase: str, text: str) -> str:
-        self.calls.append(phase)
-        return text
-
-
-def _rows() -> list[ChatRow]:
-    start = datetime(2026, 5, 1, 19, 0)
-    rows, number = [], 0
-    for day, topic in ((0, "pizza"), (1, "train")):
-        for step in range(14):
-            number += 1
-            words = " ".join(TOPICS[topic])
-            rows.append(ChatRow(row=number, speaker="user" if step % 2 == 0 else "companion",
-                                message=f"message {number} about {words}",
-                                timestamp=start + timedelta(days=day, minutes=2 * step)))
-    return rows
+NOW = datetime(2026, 11, 20, 9)
 
 
 class PipelineTests(unittest.TestCase):
-    def setUp(self):
-        self.store = MemoryStore(PersonaConfig(user_name="Bob", companion_name="Ava", character_card_story="Ava."))
-        self.now = datetime(2026, 6, 10, 12, 0)
-        import_exchanges(self.store, group_exchanges(_rows()), import_id="import-t", source_sha256="abc",
-                         personality=PersonalityProfile(), imported_at=self.now)
-        self.model = ScriptedModel()
+    def setUp(self) -> None:
+        self.store = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"))
+        batch = self.store.begin_batch("identities")
+        self.observer = batch.create(Entity(content="Spamuel", entity_class=EntityClass.Self, aliases=[]))
+        self.peer = batch.create(Entity(content="Mara", entity_class=EntityClass.AI, aliases=[]))
+        self.partner = batch.create(Entity(content="Jesse", entity_class=EntityClass.Human, aliases=[]))
+        self.store.commit(batch)
 
-    def run_once(self):
-        return reconsolidate(self.store, complete=self.model, embeddings=FakeEmbeddings(), force=True, now=self.now)
+    def add_feature(self, text: str, when: datetime, speaker: Entity, recipient: Entity,
+                    kind: FeatureType = FeatureType.Dialogue, scope: RecordScope = RecordScope(),
+                    retained: bool = False) -> Feature:
+        batch = self.store.begin_batch(f"source-{self.store.current_knoxel_id + 1}")
+        row = Feature(content=text, feature_type=kind, entity_id=speaker.id, addressee_entity_id=recipient.id,
+                      causal=not retained, scope=scope, timestamp_world_begin=when, timestamp_world_end=when,
+                      interlocus=InterlocusType.Public if kind == FeatureType.Dialogue else InterlocusType.PrivateInternal,
+                      provenance=Provenance(source_kind=SourceKind.Agent))
+        if retained:
+            row.metadata["private_inquiry_finding"] = True
+        batch.create(row)
+        self.store.commit(batch)
+        return row
 
-    def test_run_cites_sources_and_a_second_run_does_nothing(self):
-        report = self.run_once()
-        records = {key: self.store.get_knoxel_by_id(key) for key in report.created_ids}
-        topical = [records[key] for key in report.topical_ids]
-        temporal = [records[key] for key in report.temporal_ids]
-        self.assertGreaterEqual(len(topical), 2)
-        self.assertTrue(all(isinstance(item, MemoryClusterRecord) and item.cluster_type == ClusterType.Topical
-                            and item.included_event_ids and item.lineage.source_event_ids for item in topical))
-        self.assertEqual(unclustered_events(self.store), [])
-        keys = sorted(item.temporal_key for item in temporal)
-        self.assertIn("2026-05-01-EVENING", keys)
-        self.assertIn("2026-05-01", keys)
-        self.assertIn("2026-W17", keys)
-        self.assertIn("2026-05", keys)
-        self.assertTrue(all(item.included_event_ids or item.included_cluster_ids for item in temporal))
-        facts = [records[key] for key in report.fact_ids]
-        self.assertTrue(facts and all(isinstance(item, DeclarativeFactRecord) and item.source_cluster_id
-                                      and item.lineage.source_event_ids for item in facts))
-        self.assertEqual(len(report.semantic_ids), 1, "Equal claims merge into one semantic record.")
-        semantic = records[report.semantic_ids[0]]
-        self.assertIsInstance(semantic, SemanticRecord)
-        self.assertEqual(sorted(semantic.source_knoxel_ids), sorted(report.fact_ids))
-        self.assertEqual(semantic.lineage.parent_record_ids, [min(report.fact_ids)])
-        self.assertTrue(all(item.semantic_record_id == semantic.id for item in facts))
-        # Fact extraction appends a successor cluster, so the accepted head carries
-        # the flag and the created id stays as superseded history.
-        live_topical = [item for item in self.store.all_knoxels.values()
-                        if isinstance(item, MemoryClusterRecord) and item.cluster_type == ClusterType.Topical]
-        self.assertTrue(live_topical and all(item.facts_extracted for item in live_topical))
-        narratives = [records[key] for key in report.narrative_ids]
-        self.assertEqual(len(narratives), 9)
-        self.assertTrue(all(isinstance(item, Narrative) and item.lineage.operation == OPERATION_NARRATIVE
-                            and item.lineage.source_event_ids for item in narratives))
+    def test_episode_selection_separates_participation_citation_and_membership(self) -> None:
+        old = NOW - timedelta(days=2)
+        speech = self.add_feature("Talk to me after lunch.", old, self.peer, self.partner)
+        routine = self.add_feature("Maybe later.", old + timedelta(minutes=1), self.peer, self.peer, FeatureType.Thought)
+        finding = self.add_feature("I worked out where the keys went.", old + timedelta(hours=9), self.observer,
+                                   self.observer, FeatureType.InnerMonologue, retained=True)
+        self.add_feature("A future dialogue.", NOW + timedelta(hours=1), self.observer, self.partner)
+        self.store.accept_import()
+        models = build_models("config.yaml")
+        work = ReconsolidationPass(self.store, complete=models.stage, embeddings=models.embeddings, force=True, now=NOW)
+        episodes = list(work.episode_sources(work.frontier.features))
+        self.assertEqual(len(episodes), 2)
+        self.assertEqual(episodes[0].members, (speech, routine))
+        self.assertEqual(episodes[0].evidence, (speech,))
+        self.assertEqual(set(episodes[0].participant_ids), {self.partner.id, self.peer.id})
+        self.assertEqual(episodes[1].evidence, (finding,))
+        self.assertEqual(episodes[1].participant_ids, (self.observer.id,))
+
+    def test_scope_mismatch_and_future_inputs_never_hide_an_external_event(self) -> None:
+        feature = self.add_feature("Our boat is blue.", NOW - timedelta(days=1), self.partner, self.observer)
+        future = self.add_feature("Tomorrow's news.", NOW + timedelta(days=1), self.partner, self.observer)
+        batch = self.store.begin_batch("malformed-legacy-cluster")
+        legacy = batch.create(MemoryClusterRecord(content="Imported summary.", level=100, cluster_type=ClusterType.Topical,
+            scope=RecordScope(frame=FrameEnum.Meta), included_event_ids=str(feature.id)))
+        self.store.commit(batch)
+        self.store.accept_import()
+        view = self.store.recovery_snapshot(capture=False)
+        due = eligible_external_features([feature, future], [legacy], NOW, ReconsolidationConfig(), ClusterMembership(view.all_knoxels))
+        self.assertEqual([item.id for item in due], [feature.id])
+
+    def test_newest_open_episode_makes_no_model_call(self) -> None:
+        self.add_feature("This conversation is ongoing.", NOW, self.partner, self.observer)
+        self.store.accept_import()
+        models = build_models("config.yaml")
+        report = reconsolidate(self.store, complete=models.stage, embeddings=models.embeddings, force=True, now=NOW)
+        self.assertEqual(report.created_ids, [])
+        self.assertEqual(report.model_calls, 0)
         self.assertIn(f"reconsolidation:{report.run_id}", self.store.consolidations)
 
-        add_transfer_records(self.store, import_id="import-t", imported_at=self.now)
-        calls = len(self.model.calls)
-        second = self.run_once()
-        self.assertEqual(len(self.model.calls), calls)
-        self.assertEqual(second.model_calls, 0)
-        self.assertEqual(second.created_ids, [])
-
-
-if __name__ == "__main__":
-    unittest.main()
+    def test_two_claims_and_an_independent_report_can_share_one_line(self) -> None:
+        source = self.add_feature("Jesse likes tea, plays guitar and starts at four.", NOW, self.peer, self.observer)
+        self.store.accept_import()
+        view = self.store.recovery_snapshot(capture=False)
+        key = EntityContextKey(subject_entity_id=self.partner.id, observer_entity_id=self.observer.id, scope=source.scope)
+        claims: list[EntityContextClaim] = []
+        for name, quote in (("drink", "likes tea"), ("instrument", "plays guitar")):
+            evidence = EntityClaimEvidence(source=capture_source(view, source.id, current_head=True), exact_quote=quote)
+            claims.append(EntityContextClaim(layer="background", claim_key=name, statement=f"Mara said Jesse {quote}.",
+                epistemic_kind="report", confidence=.8, evidence=[evidence], observed_at_utc=NOW, applicable_from_utc=NOW))
+        owner = EntityContextOwner(self.store)
+        append = self.store.begin_batch("two-claims")
+        proposal = EntityContextProposal(proposal_id="preferences", key=key, parent_receipt_id=None, producer="immediate", claims=claims)
+        outcome = owner.stage_update(append, proposal)
+        self.assertEqual(outcome.disposition, "staged")
+        append.preserve_on_recovery()
+        self.store.commit(append)
+        view = self.store.recovery_snapshot(capture=False)
+        facts = EpisodeFacts(view, self.observer.id, NOW)
+        options = facts.claim_options((source,))
+        self.assertEqual({item.statement for item in options}, {item.statement for item in claims})
+        subject = f"entity:{self.partner.id}"
+        validation = FactClassificationValidation(fact_count=1, allowed_subjects=(subject,), claim_options=(options,))
+        filing = FactFiling.model_validate({"about": subject, "essence": "Jesse starts at four.",  # pm-lint: allow PM005 -- model response wire validation
+            "category": [PmCategory.PEOPLE_PREFERENCES]}, context=validation)
+        independent = facts.attribute("Jesse starts at four.", filing, (source,), (self.peer.id, self.observer.id))
+        self.assertEqual(len(independent), 1)
+        self.assertEqual(independent[0].text, "Mara reported: Jesse starts at four.")
+        self.assertEqual(independent[0].filing.epistemic_status, EpistemicStatus.ReportedByOther)
+        self.assertIsNone(independent[0].claim)
+        filing.entity_claim = options[0].claim_id
+        matched = facts.attribute("Jesse enjoys tea.", filing, (source,), (self.peer.id, self.observer.id))
+        self.assertEqual(len(matched), 1)
+        self.assertEqual(matched[0].text, claims[0].statement)
+        self.assertEqual(matched[0].subject_id, self.partner.id)
+        self.assertEqual(matched[0].sources, (source,))
+        self.assertEqual(matched[0].claim.receipt_id if matched[0].claim else None, outcome.staged_receipt_id)

@@ -169,6 +169,11 @@ class WorkflowModule(BusModule):
         self.mailbox.wake()
 
     @property
+    def parked(self) -> bool:
+        """Return whether this invocation is waiting for a managed answer."""
+        return self._pending is not None
+
+    @property
     def parked_path(self) -> Path:
         """Return this module's durable wait receipt path."""
         return self.runtime_root / "parked" / f"{self.module_id}.json"

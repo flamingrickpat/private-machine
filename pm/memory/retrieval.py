@@ -12,19 +12,23 @@ semantic scoring, then evidence attribution in :func:`candidate`.
 """
 from __future__ import annotations
 
-from collections import Counter
+from collections import Counter, deque
 from collections.abc import Iterable
 from datetime import datetime, timezone
+from itertools import chain
 import math
 import re
 from threading import Event
-from typing import TYPE_CHECKING, Any, TypedDict, Literal
+from typing import TYPE_CHECKING, Any, NamedTuple, TypedDict, Literal
 from pydantic import BaseModel, ConfigDict
 
+from pm import vclock
 from pm.memory.references import referenced_ids
+from pm.memory.cluster_membership import ClusterMembership, cluster_source_links, episode_participant_ids, is_episode_cluster
 from pm.memory.evidence import memory_kind as memory_kind, evidence_role as evidence_role
 from pm.records.base import RecordBase
-from pm.records.memory_records import Feature, Narrative, Stimulus
+from pm.records.memory_records import DeclarativeFactRecord, Entity, Feature, MemoryClusterRecord, Narrative, SemanticRecord, Stimulus
+from pm.records.enums import ClusterType
 from pm.records.cognitive_records import Intention, BeliefRecord, ExpectationRecord, OntologyBindingRecord
 from pm.memory.evidence import EvidenceItem, EvidenceScoreComponents
 from pm.records.graph_records import GraphNode, GraphEdge, ConceptNode
@@ -92,18 +96,43 @@ def record_text(raw: RecordBase) -> str:
     return "\n".join(dict.fromkeys(text for text in fields if text))
 
 
+def episode_search_text(view: Snapshot, cluster: MemoryClusterRecord, frontier: tuple[int, int] | None) -> str:
+    """Index a shared episode under visible participant identities, including their aliases."""
+    terms = [record_text(cluster)]
+    for participant_id in episode_participant_ids(cluster):
+        participant = view.get_knoxel_by_id(participant_id)
+        if not isinstance(participant, Entity) or participant.scope != cluster.scope:
+            continue
+        if frontier is not None and (participant.tick_id, participant.sub_tick_id) > frontier:
+            continue
+        terms.append(participant.content)
+        terms.extend(participant.aliases)
+    return "\n".join(terms)
+
+
+class ScopedRecords(NamedTuple):
+    """Current candidates and exclusion reasons for the granted records."""
+
+    records: dict[int, RecordBase]  # pm-lint: allow PM004 -- admitted records keyed by knoxel ID
+    rejected: dict[int, str]  # pm-lint: allow PM004 -- exclusion reasons keyed by knoxel ID
+
+
 def scoped_records(view: Snapshot, *, frontier: tuple[int, int] | None = None,
                    scopes: set[tuple[int, str]] | None = None,
-                   record_types: Iterable[str] = MEMORY_TYPES) -> tuple[dict[int, RecordBase], dict[int, str]]:
+                   record_types: Iterable[str] = MEMORY_TYPES) -> ScopedRecords:
     """Filter before indexing. A scope contains a reality ID and a frame name.
 
     Linked summaries are eligible only when every original record is visible
     and within the frontier. This prevents a summary from exposing hidden data.
     """
-    all_records = view.all_knoxels
-    eligible: dict[int, RecordBase] = {}
-    rejected: dict[int, str] = {}
-    for key, raw in all_records.items():
+    # A current claim cites prior occurrences. Their canonical back-pointers
+    # still name the exact version published with each occurrence. Historical
+    # records in this grant can validate those links without entering results.
+    requested_types = frozenset(record_types)
+    evidence_types = MEMORY_TYPES | requested_types
+    eligible: dict[int, RecordBase] = {}  # pm-lint: allow PM004 -- visible source records keyed by knoxel ID
+    rejected: dict[int, str] = {}  # pm-lint: allow PM004 -- exclusion reason by knoxel ID
+    for key, raw in chain(view.all_knoxels.items(), view.historical_records.items()):
         position = (raw.tick_id, raw.sub_tick_id)
         scope = raw.scope
         if frontier is not None and position > frontier:
@@ -112,29 +141,44 @@ def scoped_records(view: Snapshot, *, frontier: tuple[int, int] | None = None,
             rejected[key] = "different_scope"
         else:
             eligible[key] = raw
-    records: dict[int, RecordBase] = {}
+    from pm.memory.reconsolidation.entity_claims import outdated_entity_memories
+    outdated = outdated_entity_memories(view, eligible, vclock.utcnow())  # pm-lint: allow PM005 -- granted sources indexed by ID
+    records: dict[int, RecordBase] = {}  # pm-lint: allow PM004 -- eligible current results by knoxel ID
+    dependents: dict[int, set[int]] = {}  # pm-lint: allow PM004 -- derived records keyed by their source ID
     for key, raw in eligible.items():
-        if raw.type.value not in record_types or not record_text(raw).strip():
+        if key in outdated:
+            rejected[key] = "entity_claim_changed"
+            continue
+        if raw.type.value not in evidence_types:
             continue
         # Legacy references can be incomplete. Such abstractions cannot supply
         # evidence in this invocation, but their visible originals still can.
-        refs = referenced_ids(view.get(key))
+        refs = referenced_ids(raw)
         if not refs.issubset(eligible):
             rejected[key] = "unavailable_evidence"
             continue
-        records[key] = raw
-    # A summary of another summary must retain the same evidence boundary.
-    # Propagate rejected abstractions until no remaining link can expose one.
-    unavailable = set(rejected)
-    while True:
-        invalid = {key for key in records if referenced_ids(view.get(key)) & unavailable}
-        if not invalid:
-            break
-        for key in invalid:
-            records.pop(key)
+        if isinstance(raw, MemoryClusterRecord) and (raw.cluster_type == ClusterType.Temporal or is_episode_cluster(raw)):
+            if any(eligible[link].scope != raw.scope for link in cluster_source_links(raw)):
+                rejected[key] = "different_source_scope"
+                continue
+        for source_id in refs:
+            if source_id == raw.supersedes_id:
+                continue
+            if isinstance(raw, DeclarativeFactRecord) and source_id == raw.semantic_record_id:
+                continue  # The canonical owner is a back-pointer, not evidence for the occurrence.
+            dependents.setdefault(source_id, set()).add(key)
+        if key in view.all_knoxels and raw.type.value in requested_types and record_text(raw).strip():
+            records[key] = raw
+    unavailable = deque(rejected.keys())
+    while unavailable:
+        for key in dependents.get(unavailable.popleft(), ()):
+            if key in rejected:
+                continue
+            records.pop(key, None)
             rejected[key] = "unavailable_evidence"
-        unavailable.update(invalid)
-    return records, rejected
+            unavailable.append(key)
+    rejected_heads = {key: reason for key, reason in rejected.items() if key in view.all_knoxels}
+    return ScopedRecords(records, rejected_heads)  # pm-lint: allow PM005 -- named result contains two knoxel ID indexes
 
 
 def excerpt(text: str, terms: Iterable[str], limit: int = 1200) -> str:
@@ -156,18 +200,42 @@ class CandidateMetadata(BaseModel):
     deception_intent_id: int | None = None
 
 
+def evidence_sources(view: Snapshot, raw: RecordBase) -> set[int]:
+    """Resolve evidence through canonical claims without treating an entire episode as support for one fact."""
+    membership = ClusterMembership.from_snapshot(view)
+    source_ids: set[int] = set()
+    visited = {raw.id}
+    pending = [raw]
+    while pending:
+        current = pending.pop()
+        if isinstance(current, MemoryClusterRecord) and (
+                current.cluster_type == ClusterType.Temporal or is_episode_cluster(current)):
+            source_ids.update(membership.evidence_ids(current))
+            continue
+        if isinstance(current, DeclarativeFactRecord):
+            if current.lineage is not None and current.lineage.source_event_ids:
+                source_ids.update(current.lineage.source_event_ids)
+            elif current.source_cluster_id is not None and current.source_cluster_id > 0:
+                # A legacy filing may cite only its parent topic. Its whole
+                # cast of participants cannot substantiate this specific fact.
+                source_ids.add(current.source_cluster_id)
+            continue
+        if isinstance(current, SemanticRecord):
+            links = set(current.source_knoxel_ids)
+        else:
+            links = referenced_ids(current)
+        for source_id in links - visited:
+            visited.add(source_id)
+            source_ids.add(source_id)
+            if source_id in view.revisions:
+                pending.append(view.get(source_id))
+    return source_ids
+
+
 def candidate(view: Snapshot, key: int, raw: RecordBase, *, terms: Iterable[str] | None = None,
               score: float = 0.0, reasons: Iterable[str] = (), passage: str | None = None) -> EvidenceItem:
     metadata = CandidateMetadata.model_validate(raw.metadata)
-    source_ids: set[int] = set()
-    pending = list(referenced_ids(view.get(key)))
-    while pending:
-        source_id = pending.pop()
-        if source_id == key or source_id in source_ids:
-            continue
-        source_ids.add(source_id)
-        if source_id in view.revisions:
-            pending.extend(referenced_ids(view.get(source_id)) - source_ids)
+    source_ids = evidence_sources(view, raw)
     stale = key not in view.all_knoxels or metadata.stale
     if isinstance(raw, (Intention, BeliefRecord, OntologyBindingRecord)):
         stale = stale or not raw.active
@@ -282,7 +350,12 @@ async def retrieve(view: Snapshot, query: str, embeddings: EmbeddingService | No
         # The older cognition path retains its broad-context word filter.
         terms = list(dict.fromkeys(match.group(0).casefold() for match in _WORD.finditer(query)
                                    if match.group(0).casefold() not in _STOPWORDS))
-    texts = {key: record_text(raw) for key, raw in records.items()}
+    texts: dict[int, str] = {}  # pm-lint: allow PM004 -- indexed search text by visible knoxel ID
+    for key, raw in records.items():
+        if isinstance(raw, MemoryClusterRecord) and is_episode_cluster(raw):
+            texts[key] = episode_search_text(view, raw, frontier)
+        else:
+            texts[key] = record_text(raw)
     # Inverse document frequency over the visible set, so a term that appears
     # everywhere adds almost nothing and a rare term dominates the lexical leg.
     frequency = Counter(term for term in terms for text in texts.values() if term in text.casefold())

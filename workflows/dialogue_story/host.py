@@ -18,6 +18,7 @@ from __future__ import annotations
 from workflows.public_speech.public_context import order_dialogue
 
 from pm import vclock
+from pm.memory.reconsolidation.assessment import MemoryWorkReader
 
 from collections.abc import Sequence
 
@@ -36,6 +37,7 @@ class StoryDialogue(PublicDialogue):
     DATA_TOPICS = frozenset({"action.request"})
     WORKFLOW_NAME = "dialogue_story"
     _story_guidance: StoryGuidance | None = None
+    memory_work_reader: MemoryWorkReader | None = None
 
     def reply_context(self, request: ActionRequest, late_ids: Sequence[int] = ()) -> PlannedContext:
         """Keep the original main frame and all speech that followed its snapshot."""
@@ -121,6 +123,10 @@ class StoryDialogue(PublicDialogue):
 
     def publish_output(self, report: dict[str, object], batch: list[Envelope]) -> None:
         story = StoryReport.model_validate(report)
+        if self.memory_work_reader is not None:
+            for attempt in story.attempts:
+                if attempt.history_observation is not None:
+                    self.memory_work_reader.observe_story(attempt.history_observation)
         review = story.speech_review
         if not story.accepted:
             from workflows.public_speech.speech_review import block_reason

@@ -28,6 +28,7 @@ class InferenceRole(StrEnum):
     Interaction = "interaction"
     Cognition = "cognition"
     Private = "private"
+    Reconsolidation = "reconsolidation"
 
 
 _ROLE: ContextVar[InferenceRole] = ContextVar("inference_role", default=InferenceRole.Cognition)
@@ -64,8 +65,8 @@ class InferenceAdmission:
     """Fill configured endpoint slots in queued role priority order.
 
     Triage, critical, interaction, then ordinary work receive the next free
-    slot. Calls already in flight are never preempted. No workflow reserves
-    the whole endpoint between requests. Capacity is process-local.
+    slot before memory reconsolidation. In-flight requests keep their slots
+    until they finish or cancel. Capacity is process-local.
     """
 
     def __init__(self, max_concurrent_requests: int = 8) -> None:
@@ -86,6 +87,9 @@ class InferenceAdmission:
             for ticket in self._waiting:
                 if ticket.role == role:
                     return ticket
+        for ticket in self._waiting:
+            if ticket.role != InferenceRole.Reconsolidation:
+                return ticket
         return self._waiting[0] if self._waiting else None
 
     @asynccontextmanager

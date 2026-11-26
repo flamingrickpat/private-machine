@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 from pm_workflows.runtime import WorkflowRuntime
 from pm.llm.session import ModelSession
 from pm.memory.embeddings import EmbeddingService
@@ -9,6 +10,9 @@ from pm.llm.mcp_config import ToolCallConfig
 from pm.memory.store import MemoryStore
 from pm.runs.memory_context import ManagedMemoryContext
 from pm.host.cognition_profiler import CognitionProfiler
+
+if TYPE_CHECKING:
+    from pm.memory.reconsolidation.coordination import ReconsolidationCoordinator
 
 
 @dataclass
@@ -22,3 +26,4 @@ class PMWorkflowRuntime(WorkflowRuntime):
     tool_call_config: ToolCallConfig | None = None
     memory_store: MemoryStore | None = None
     memory_context: ManagedMemoryContext | None = None
+    reconsolidation: ReconsolidationCoordinator | None = None

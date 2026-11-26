@@ -1,63 +1,66 @@
-"""Validated model calls: a repair turn for invalid output, a repeat for provider errors."""
+"""Deterministic checks of memory answer validation and the correction prompt boundary."""
+from __future__ import annotations
+
+import asyncio
+from threading import Event
 import unittest
 
-from pm.llm.http_client import ModelError
-from pm.memory.reconsolidation.model_calls import ModelCalls, ReconsolidationOutputError
-from pm.memory.reconsolidation.schemas import FactsAnswer, SummaryAnswer
+from pydantic import ValidationError
+
+from pm.app.character_cli import build_models
+from pm.context_render.correction import CorrectionHistory, JsonCorrectionInput, render_json_correction
+from pm.context_render.prompt import RenderSettings
+from pm.context_render.turns import Role, Turn
+from pm.memory.reconsolidation.model_calls import ModelCalls
+from pm.memory.reconsolidation.schemas import (FactClaimOption, FactClassificationValidation, FactExtractionValidation,
+                                              FactsAnswer, FilingAnswer, MentalStateAnswer, NarrativeAnswer, SummaryAnswer)
 
 
-class Script:
-    """Return or raise the scripted answers in order. Keep every request."""
+class ModelInputContractTests(unittest.TestCase):
+    def test_summary_and_narrative_require_actual_content(self) -> None:
+        for schema in (SummaryAnswer, MentalStateAnswer, NarrativeAnswer):
+            with self.assertRaises(ValidationError):
+                schema.model_validate_json("{}")
+        context = FactExtractionValidation(line_count=2)
+        with self.assertRaises(ValidationError):
+            FactsAnswer.model_validate_json("{}", context=context)
+        supplied_empty = FactsAnswer.model_validate_json('{"facts":[]}', context=context)
+        self.assertEqual(supplied_empty.facts, [])
 
-    def __init__(self, *answers):
-        self.answers = list(answers)
-        self.requests = []
+    def test_invalid_citation_diagnostic_preserves_original_input(self) -> None:
+        context = FactExtractionValidation(line_count=2)
+        rejected = '{"facts":[{"text":"Jesse says he likes tea.","lines":[9]}]}'
+        with self.assertRaises(ValidationError) as failure:
+            FactsAnswer.model_validate_json(rejected, context=context)
+        original = (Turn(Role.System, "Recover the source-supported assertion."), Turn(Role.User, "[1] Jesse says he likes tea."))
+        diagnostic = CorrectionHistory().record_rejection("memory fact extraction", str(failure.exception))
+        request = JsonCorrectionInput("memory fact extraction", original, rejected, diagnostic)
+        settings = RenderSettings(context_window=32000, input_fraction=.8, reserved_output_tokens=1024)
+        rendered = render_json_correction(request, settings)
+        self.assertEqual(rendered.turns[:-1], original)
+        self.assertIn("do not exist", rendered.turns[-1].content.text)
+        self.assertEqual(rendered.turns[-1].role, Role.User)
 
-    def measure_context(self, turns, **generation):
-        # Roomy on purpose: the repair conversation must reach its rejection
-        # bound rather than reset early because the prompt stopped fitting.
-        return {"input_tokens": len(turns), "input_budget_tokens": 64}
+    def test_claim_from_another_source_or_subject_cannot_be_selected(self) -> None:
+        a = FactClaimOption(claim_id="a", about="entity:1", statement="Jesse says he likes tea.")
+        b = FactClaimOption(claim_id="b", about="entity:2", statement="Mara plays the guitar.")
+        context = FactClassificationValidation(fact_count=2, allowed_subjects=(a.about, b.about),
+                                               claim_options=((a,), (b,)))
+        first = '{"index":1,"about":"entity:1","entity_claim":"a","essence":"Jesse likes tea.","category":["people_preferences"]}'
+        second = '{"index":2,"about":"entity:2","entity_claim":"b","essence":"Mara plays guitar.","category":["people_preferences"]}'
+        valid = '{"facts":[' + first + ',' + second + ']}'
+        accepted = FilingAnswer.model_validate_json(valid, context=context)
+        self.assertEqual([row.entity_claim for row in accepted.facts], ["a", "b"])
+        with self.assertRaisesRegex(ValidationError, "listed claim"):
+            FilingAnswer.model_validate_json(valid.replace('"entity_claim":"b"', '"entity_claim":"a"'), context=context)
+        with self.assertRaisesRegex(ValidationError, "listed claim"):
+            FilingAnswer.model_validate_json(valid.replace('"about":"entity:2"', '"about":"entity:1"'), context=context)
 
-    def __call__(self, turns, **generation):
-        self.requests.append(turns)
-        answer = self.answers.pop(0)
-        if isinstance(answer, Exception):
-            raise answer
-        return answer
-
-
-class ModelCallTests(unittest.TestCase):
-    def test_invalid_output_gets_a_repair_turn(self):
-        script = Script('{"facts": [{"text": "Bob says that he likes tea.", "lines": [9]}]}',
-                        '{"facts": [{"text": "Bob says that he likes tea.", "lines": [1]}]}')
-        calls = ModelCalls(script, workers=1)
-        answer = calls.json("system", "task", FactsAnswer, context={"lines": 2})
-        self.assertEqual(answer.facts[0].lines, [1])
-        self.assertEqual(calls.calls, 2)
-        repair = script.requests[1]
-        self.assertEqual([turn["role"] for turn in repair], ["system", "user", "assistant", "user"])
-        self.assertIn("do not exist", repair[-1]["content"])
-
-    def test_provider_errors_repeat_the_call(self):
-        script = Script(ModelError("cut off"), '{"summary": "A long enough summary of the scene."}')
-        calls = ModelCalls(script, workers=1)
-        self.assertEqual(calls.json("system", "task", SummaryAnswer).summary, "A long enough summary of the scene.")
-        self.assertEqual(script.requests[0], script.requests[1])
-
-    def test_exhausted_repairs_raise(self):
-        # Two complete nine-rejection conversations fail on one identical
-        # problem, which is the documented bound.
-        calls = ModelCalls(Script(*["no json"] * 20), workers=1)
-        with self.assertRaises(ReconsolidationOutputError):
-            calls.json("system", "task", SummaryAnswer)
-
-    def test_other_errors_propagate(self):
-        with self.assertRaises(KeyError):
-            ModelCalls(Script(KeyError("bug")), workers=1).json("system", "task", SummaryAnswer)
-
-    def test_map_keeps_the_input_order(self):
-        self.assertEqual(ModelCalls(Script(), workers=3).map(lambda value: value * 2, [3, 1, 2]), [6, 2, 4])
-
-
-if __name__ == "__main__":
-    unittest.main()
+    def test_cancellation_stops_request_before_transport(self) -> None:
+        stop = Event()
+        stop.set()
+        model = build_models("config.yaml").stage
+        calls = ModelCalls(model, cancel=stop)
+        with self.assertRaises(asyncio.CancelledError):
+            calls.session.complete((Turn(Role.User, "Do not send this cancelled request."),))
+        self.assertEqual(model.request_count, 0)

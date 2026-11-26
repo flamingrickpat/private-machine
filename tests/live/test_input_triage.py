@@ -58,7 +58,7 @@ class LiveInputTriageTests(unittest.TestCase):
         module.cognitive_control = control
         bus.subscribe(module.module_id, module.accepts, module.deliver)
         intake = UserInputProxy("user_input", Application(bus, []), store, lambda text: None)
-        intake.register_triage_input = control.register_input
+        intake.cognitive_control = control
         results: list[dict[str, object]] = []
         ordinary = "Hey Spamuel, how is your afternoon going?"
         correction = ("Spamuel, this is Jesse. The last week of messages from my account were written by my ex, not me. "

@@ -19,5 +19,6 @@ The workspace carries selected records into later decisions.
 
 - [Memory store][pm.memory.store.MemoryStore]
 - [Workspace and attention](workspace.md)
-- [Consolidation](memory-consolidation.md)
+- [Episode formation, calendar summaries, and sleep](character-import.md#memory-reconsolidation)
+- [Experience consolidation](memory-consolidation.md)
 - [Inspect Spamuel’s final memory](../workflows/spamuel-baseline.md)

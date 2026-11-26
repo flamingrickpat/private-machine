@@ -7,19 +7,17 @@ rejection is logged with its attempt number. A provider failure
 call. Rejected answers retry with bounded correction feedback until cancellation. Transport errors and HTTP 429/5xx already retry inside
 ``pm.llm.http_client.JsonClient``. Other errors and cancellation propagate.
 
-Calls of one stage can run in parallel with :meth:`ModelCalls.map`. The
-number of workers is bounded. A failed call stops the calls that did not
-start yet, and the first error propagates after all workers end.
+Each episode finishes its own requests before the next episode starts.
 """
 from __future__ import annotations
 
-from threading import Event, Lock
+from threading import Event
 from dataclasses import dataclass, replace
 from pm.context_render.budget import TokenEstimator
 from pm.llm.generation import GenerationSettings
 from typing import TypeVar
 from pydantic import BaseModel, ValidationError
-from pm.constants import RECONSOLIDATION_TEMPERATURE, RECONSOLIDATION_WORKERS
+from pm.constants import RECONSOLIDATION_TEMPERATURE
 from pm.llm.stage_model import LazyStageModel
 from pm.llm.session import ModelSession
 from pm.context_render.prompt import RenderedPrompt, RendererCapture, RendererInput
@@ -42,22 +40,19 @@ class NarrativeRefinement:
 class ModelCalls:
     """Make validated model calls and count them.
 
-    ``complete`` is a ``TextCompletion``, for example
-    ``LazyStageModel.complete``. ``cancel`` reaches every call, so a stopped
+    ``complete`` is the configured stage model. ``cancel`` reaches each call, so a stopped
     run also stops the calls in flight. ``calls`` counts every request that
     this object sent, repairs and repeats included.
     """
 
     def __init__(self, complete: LazyStageModel, *, cancel: Event | None = None,
-                 temperature: float = RECONSOLIDATION_TEMPERATURE, workers: int = RECONSOLIDATION_WORKERS) -> None:
+                 temperature: float = RECONSOLIDATION_TEMPERATURE) -> None:
         self.model = complete
         self.cancel = cancel if cancel is not None else Event()
         self.session = ModelSession(complete, self.cancel)
         self.temperature = temperature
         self.generation = GenerationSettings(temperature=temperature, enable_thinking=False)
-        self.workers = workers
         self.calls = 0
-        self._lock = Lock()
 
     def json(self, rendered: RenderedPrompt, schema: type[T], *, context: BaseModel | None = None) -> T:
         original = rendered.turns
@@ -65,8 +60,7 @@ class ModelCalls:
         corrections = CorrectionHistory()
         settings = self.session.renderer_settings_for(self.generation)
         while True:
-            with self._lock:
-                self.calls += 1
+            self.calls += 1
             raw = self.session.complete(rendered.turns, settings=self.generation)
             try:
                 return parse_response(raw, schema, validation_context=context)
@@ -120,12 +114,19 @@ class ModelCalls:
         estimator = TokenEstimator(estimate_factor=settings.estimate_factor)
         # The answer has one sizable schema entry per fact. Batch both sides of the request.
         maximum_facts = max(1, settings.reserved_output_tokens // 400)
-        listing = "\n".join(input.facts)
+        evidence = list(input.facts)
+        for options in input.claim_options:
+            evidence.extend(option.statement for option in options)
+        for priors in input.canonical_options:
+            evidence.extend(prior.statement for prior in priors)
+        listing = "\n".join(evidence)
         if len(input.facts) > 1 and (len(input.facts) > maximum_facts
                 or estimator.text_tokens(listing) > settings.input_ceiling // 3):
             middle = len(input.facts) // 2
-            first = self.classify_facts(replace(input, facts=input.facts[:middle]))
-            second = self.classify_facts(replace(input, facts=input.facts[middle:]))
+            first = self.classify_facts(replace(input, facts=input.facts[:middle], claim_options=input.claim_options[:middle],
+                canonical_options=input.canonical_options[:middle], source_times=input.source_times[:middle]))
+            second = self.classify_facts(replace(input, facts=input.facts[middle:], claim_options=input.claim_options[middle:],
+                canonical_options=input.canonical_options[middle:], source_times=input.source_times[middle:]))
             for filing in second:
                 filing.index += middle
             return [*first, *second]
@@ -134,7 +135,11 @@ class ModelCalls:
         with RendererCapture(self.session.capture_settings("memory.fact_classification"), RendererInput("memory.fact_classification", input, settings)) as capture:
             rendered = render_fact_classification(input, settings)
             capture.save_output(rendered)
-        return self.json(rendered, FilingAnswer, context=FactClassificationValidation(fact_count=len(input.facts), allowed_subjects=(input.companion_name, input.user_name, "both", "other"))).facts
+        subjects = tuple(subject.identity for subject in input.subjects)
+        allowed = subjects or (input.companion_name, input.user_name, "both", "other")
+        return self.json(rendered, FilingAnswer, context=FactClassificationValidation(
+            fact_count=len(input.facts), allowed_subjects=allowed, claim_options=input.claim_options,
+            canonical_options=input.canonical_options)).facts
 
     def refine_narrative(self, input: NarrativeRenderInput) -> NarrativeRefinement:
         settings = self.session.renderer_settings_for(self.generation)

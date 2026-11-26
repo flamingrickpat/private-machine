@@ -365,7 +365,7 @@ class MemoryStore(RecordIndex):
                 "causal_history": history})
             # Validate the projection before publishing a clean artifact.
             cleaned = self._restore(data, None)
-            write_checkpoint(destination, cleaned.checkpoint_data(), lambda: None)
+            write_checkpoint(destination, cleaned.checkpoint_data())
         return destination
 
     def _recovery_records(self, accepted: set[str]) -> _RecoveryRecords:
@@ -619,7 +619,7 @@ class MemoryStore(RecordIndex):
         """Save all records and vectors. Filesystem errors propagate."""
         with self.lock:
             if self.checkpoint is not None:
-                write_checkpoint(self.checkpoint, self.checkpoint_data(), lambda: None)
+                write_checkpoint(self.checkpoint, self.checkpoint_data())
 
     def backup(self) -> Path | None:
         """Save full history beside the ghost. Default loading opens its accepted view.
@@ -639,7 +639,7 @@ class MemoryStore(RecordIndex):
             stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
             path = self.checkpoint.with_name(f"ghost_{self.current_tick_id}_{stamp}_{uuid4().hex[:8]}.pickle")
             data = self.checkpoint_data()
-            write_checkpoint(path, data, lambda: None)
+            write_checkpoint(path, data)
         logging.getLogger(__name__).info("Memory backup tick=%s path=%s", data.current_tick_id, path)
         return path
 
@@ -984,14 +984,15 @@ class MemoryStore(RecordIndex):
             if batch._authority is None:
                 batch.depend_on([item.id for item in parked], authority=parked[-1].id)
 
-    def annotate_alt_text(self, image_id: str, alt_text: str, source: str) -> list[int]:
+    def annotate_alt_text(self, image_id: str, alt_text: str, source: str, *, checkpoint: bool = True) -> list[int]:
         """Store an alt text in every accepted record that holds the image, and save.
 
         The alt text is a derived description, like an embedding: it does not
         change what the record says. The write therefore keeps the record
         revisions, so open write batches that read these records stay valid.
         Their later replacements keep this alt text (see ``commit``). An
-        image that already has an alt text keeps it. Returns the changed ids.
+        image that already has an alt text keeps it. A publication already
+        holding the Ghost lock can include the change in its own checkpoint.
         """
         changed = []
         with self.lock:
@@ -1008,7 +1009,7 @@ class MemoryStore(RecordIndex):
                     object.__setattr__(record, "metadata", {**record.metadata, MEDIA_KEY: media.model_dump(mode="json")})
                     freeze_record(record)
                     changed.append(record_id)
-            if changed and self.checkpoint is not None:
+            if changed and checkpoint and self.checkpoint is not None:
                 self.save()
         return changed
 

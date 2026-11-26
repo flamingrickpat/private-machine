@@ -10,8 +10,8 @@ import json
 import pickle
 import tempfile
 from abc import ABC, abstractmethod
-from collections.abc import Callable
 from pathlib import Path
+from threading import Event
 from typing import BinaryIO, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -20,6 +20,7 @@ from pm.records.global_workspace import GwtTurnRecord
 from pm.records.cycle_state import CycleStateModel
 from pm.memory.yaml_codec import ghost_state_from_dict, ghost_state_to_dict
 from pm.memory.causal import CausalHistory
+from pm.memory.snapshot import GhostCancelled
 
 
 class CommitReceipt(BaseModel):
@@ -126,7 +127,7 @@ class PickleCheckpointSerializer(CheckpointSerializer):
 PICKLE_SERIALIZER = PickleCheckpointSerializer()
 
 
-def write_checkpoint(path: Path, checkpoint: Checkpoint, check_cancelled: Callable[[], None], *,
+def write_checkpoint(path: Path, checkpoint: Checkpoint, cancel: Event | None = None, *,
                      serializer: CheckpointSerializer = PICKLE_SERIALIZER) -> None:
     """Write and sync the file before atomic replacement. Cancellation preserves the old file."""
     path = Path(path)
@@ -138,7 +139,8 @@ def write_checkpoint(path: Path, checkpoint: Checkpoint, check_cancelled: Callab
             serializer.dump(checkpoint, stream)
             stream.flush()
             OperatingSystem.sync_file(stream.fileno())
-        check_cancelled()
+        if cancel is not None and cancel.is_set():
+            raise GhostCancelled(f"Checkpoint write to {path} was cancelled before replacement.")
         OperatingSystem.replace_file(temporary, path)
     finally:
         if temporary is not None:

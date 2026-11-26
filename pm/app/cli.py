@@ -37,7 +37,7 @@ from typing import Protocol
 from pydantic import BaseModel
 
 from pm.constants import INSPECTOR_PORT, WEB_CHAT_PORT
-from pm.host.application import Application
+from pm.app.control import OperatorApplication
 from pm.memory.store import MemoryStore
 
 
@@ -65,7 +65,7 @@ class TerminalAssembly(Protocol):
         emit_reply: Callable[[str], None], ghost: MemoryStore | None = None,
         checkpoint_path: str | Path | None = None, cognition: str = "dummy",
         config_path: str | None = None,
-    ) -> Application:
+    ) -> OperatorApplication:
         """Construct the real application without starting its services."""
         ...
 
@@ -165,7 +165,7 @@ def launch_plan(argv: Sequence[str] | None, default_seed: Path) -> LaunchPlan:
     )
 
 
-def build_from_plan(plan: LaunchPlan, *, assembly: TerminalAssembly) -> Application:
+def build_from_plan(plan: LaunchPlan, *, assembly: TerminalAssembly) -> OperatorApplication:
     """Build the application of ``plan`` without starting it.
 
     With a home, the character home opens the store; it raises
@@ -246,7 +246,7 @@ def _run_session(plan: LaunchPlan, *, assembly: TerminalAssembly) -> int:
             for line in sys.stdin:
                 text = line.rstrip("\n")
                 if text.strip():
-                    app.user_input.submit(text)
+                    app.runtime_control.intake.submit(text)
         except (EOFError, ValueError):
             pass
         finally:
@@ -274,9 +274,9 @@ def _run_session(plan: LaunchPlan, *, assembly: TerminalAssembly) -> int:
     try:
         if plan.web:
             from pm.app.web_chat import WebChatServer
-            from pm.app.control import RuntimeControl
-            web = WebChatServer(app.ghost, app.user_input.submit, port=plan.web_port, on_error=app.on_error,
-                                control=RuntimeControl(app))
+            operator = app.runtime_control
+            web = WebChatServer(operator.ghost, operator.intake.submit, port=plan.web_port, on_error=app.on_error,
+                                control=operator)
         app.run()
         if web is not None:
             web.start()

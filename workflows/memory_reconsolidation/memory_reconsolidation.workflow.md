@@ -23,9 +23,9 @@ phases:
 
 # Memory reconsolidation
 
-The companion sorts through its memories: the character decided to "sleep on
-it" or to go through what happened. The Python role calls
-`pm.memory.reconsolidation.reconsolidate` on the live memory store. It builds
-topical and temporal summaries, extracts facts, and refines the narratives.
-Each finished group commits through the normal store path, so the live loop
-sees the new memory at its next cycle. The report lists the created record ids.
+The character can sort through earlier experiences during conversation or
+sleep while the work runs. The worker prepares complete memory units.
+Main cognition publishes the ready units when it commits a cycle. During
+memory sleep, a waking event or the end of this task publishes the units
+and saves the character. The report counts prepared units awaiting or
+already past that boundary.

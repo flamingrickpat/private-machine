@@ -9,9 +9,8 @@ Commands (run with ``uv run --locked python -m pm.app.character_cli <command>``)
   a receipt into ``import/``.
 - ``reconsolidate``: run memory reconsolidation on the saved home.
 
-``import`` works on an in-memory copy of the store. Only a completed import
-saves ``ghost.pickle``. Any error writes a failed receipt and then raises, so
-no half-built checkpoint replaces the old one.
+The import checkpoints validated source exchanges before reconsolidation.
+Repeating an interrupted import resumes its durable work from those sources.
 
 The module is runtime code. It never imports ``workflows``.
 """
@@ -27,7 +26,7 @@ import time
 import traceback
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, NamedTuple
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
@@ -86,8 +85,8 @@ class ImportReceipt(BaseModel):
     exchanges: int = 0
     first_tick: int = 0
     last_tick: int = 0
-    imported_feature_ids: list[int] = Field(default_factory=list)
-    transfer_ids: list[int] = Field(default_factory=list)
+    imported_feature_ids: list[int] = Field(default_factory=list[int])
+    transfer_ids: list[int] = Field(default_factory=list[int])
     reconsolidation: ReconsolidationReport | None = None
     model_requests: int = 0
     # Receipts record naive UTC, the same convention as the world-time fields
@@ -99,17 +98,44 @@ class ImportReceipt(BaseModel):
     traceback: str = ""
 
 
+class ImportedSourceReceipt(BaseModel):
+    """Validated input on disk that can resume without duplicating dialogue."""
+
+    kind: Literal["import_sources"] = "import_sources"
+    run_id: str
+    source_sha256: str
+    reconsolidate: bool
+    receipt: ImportReceipt
+
+
+class CompletedImport(BaseModel):
+    kind: Literal["chat_import"] = "chat_import"
+    run_id: str
+    source_sha256: str
+    rows: int
+    exchanges: int
+    first_tick: int
+    last_tick: int
+    imported_at: datetime
+    transfer_ids: list[int]
+
+
+class CharacterModels(NamedTuple):
+    stage: LazyStageModel
+    embeddings: EmbeddingService
+
+
 class _CardDumper(yaml.SafeDumper):
     """Write multi-line texts as YAML block literals, so the card stays readable and editable."""
 
 
-def _represent_text(dumper: yaml.SafeDumper, value: str) -> yaml.nodes.ScalarNode:
+def _represent_text(_dumper: yaml.SafeDumper, value: str) -> yaml.nodes.ScalarNode:
     """Write one string, as a YAML block literal when it holds a newline."""
     style = "|" if "\n" in value else None
-    return dumper.represent_scalar("tag:yaml.org,2002:str", value, style=style)
+    return yaml.nodes.ScalarNode("tag:yaml.org,2002:str", value, style=style)
 
 
-_CardDumper.add_representer(str, _represent_text)
+_CardDumper.add_representer(str, _represent_text)  # pm-lint: allow PM003 -- PyYAML registry adapts multiline card text
 
 
 def fill_names(text: str, companion: str, user: str) -> str:
@@ -147,20 +173,21 @@ def init_home(home: CharacterHome, *, companion_name: str, user_name: str, card:
                                              user_name).strip() + "\n") if assistant_card is not None else None,
         supported_capabilities=[fill_names(item, companion_name, user_name) for item in caps.supported_capabilities],
         unsupported_capabilities=[fill_names(item, companion_name, user_name) for item in caps.unsupported_capabilities],
-        capability_notes=[fill_names(item, companion_name, user_name) for item in caps.capability_notes],
-        **({"timestamp_format": timestamp_format} if timestamp_format else {}))
+        capability_notes=[fill_names(item, companion_name, user_name) for item in caps.capability_notes])
+    if timestamp_format:
+        character.timestamp_format = timestamp_format
     traits = parse_personality(json.loads(personality.read_text(encoding="utf-8-sig"))) if personality else None
     root.mkdir(parents=True, exist_ok=True)
     home.runtime_root.mkdir(exist_ok=True)
     home.import_dir.mkdir(exist_ok=True)
-    home.character_yaml.write_text(yaml.dump(character.model_dump(mode="json"), Dumper=_CardDumper, sort_keys=False,
-                                             allow_unicode=True, width=120), encoding="utf-8")
+    card_data = character.model_dump(mode="json")  # pm-lint: allow PM007 -- character YAML serialization
+    home.character_yaml.write_text(yaml.dump(card_data, Dumper=_CardDumper, sort_keys=False, allow_unicode=True, width=120), encoding="utf-8")
     if traits is not None:
-        home.personality_json.write_text(json.dumps(traits.model_dump(), indent=2), encoding="utf-8")
+        home.personality_json.write_text(traits.model_dump_json(indent=2), encoding="utf-8")  # pm-lint: allow PM007 -- persona file serialization
     home.create_store()
 
 
-def build_models(config_path: str) -> "tuple[LazyStageModel, EmbeddingService]":
+def build_models(config_path: str) -> CharacterModels:
     """Return ``(stage_model, embeddings)`` for a model config file.
 
     The stage model activates on its first call. Embedding vectors stay on
@@ -172,12 +199,9 @@ def build_models(config_path: str) -> "tuple[LazyStageModel, EmbeddingService]":
     from pm.memory.embeddings import EmbeddingService
 
     config = load_config(config_path)
-    # Parallel model calls belong to the pipeline, which passes RECONSOLIDATION_WORKERS
-    # to ModelCalls. The stage model only gates requests by the connection's
-    # max_concurrent_requests, so this call takes no concurrency argument.
     stage = LazyStageModel(resolve_connection(config), ModelActivation(),
                            capture_options=config.renderer_capture)
-    return stage, EmbeddingService(config.embedding)
+    return CharacterModels(stage, EmbeddingService(config.embedding))
 
 
 def _print(message: str) -> None:
@@ -188,53 +212,75 @@ def import_chat(home: CharacterHome, csv_path: Path, config_path: str, *, limit:
                 do_reconsolidate: bool = True, now: datetime | None = None) -> ImportReceipt:
     """Import one chat log into the home. Return the completed receipt.
 
-    The steps: copy the CSV into ``import/``, read and check it, write the
-    exchanges, run reconsolidation, add the transfer records, embed the new
-    records, and save ``ghost.pickle``. Any error writes the failed receipt
-    and raises again; ``ghost.pickle`` keeps its old content then.
+    Checkpoint the source exchanges as a group. A retry of the same file and
+    options continues its recorded import. Every completed memory unit survives
+    an interruption before the final transfer.
     """
     from pm.app.chat_import import (add_transfer_records, file_sha256, group_exchanges, import_exchanges,
                                     read_chat_csv, synthesize_times)
     started = time.monotonic()
     now = now or vclock.utcnow()
     sha = file_sha256(csv_path)
-    import_id = f"import-{now.strftime('%Y%m%dT%H%M%S')}-{sha[:8]}"
+    store = home.open_store()
+    pending: ImportedSourceReceipt | None = None
+    for value in store.consolidations.values():
+        stored = StoredImportReceipt.model_validate(value)
+        if stored.source_sha256 != sha:
+            continue
+        if stored.kind == "chat_import":
+            raise ValueError(f"{csv_path} was already imported into this home.")
+        if stored.kind == "import_sources":
+            pending = ImportedSourceReceipt.model_validate(value)
     home.import_dir.mkdir(parents=True, exist_ok=True)
-    copy = home.import_dir / f"{import_id}-{csv_path.name}"
-    shutil.copyfile(csv_path, copy)
-    receipt = ImportReceipt(import_id=import_id, home=str(home.root.resolve()), csv_source=str(csv_path.resolve()),
-                            csv_copy=str(copy), source_sha256=sha, limit=limit, started_at=now)
+    if pending is None:
+        import_id = f"import-{now.strftime('%Y%m%dT%H%M%S')}-{sha[:8]}"
+        copy = home.import_dir / f"{import_id}-{csv_path.name}"
+        shutil.copyfile(csv_path, copy)
+        receipt = ImportReceipt(import_id=import_id, home=str(home.root.resolve()), csv_source=str(csv_path.resolve()),
+                                csv_copy=str(copy), source_sha256=sha, limit=limit, started_at=now)
+    else:
+        receipt = pending.receipt
+        if receipt.limit != limit or pending.reconsolidate != do_reconsolidate:
+            raise ValueError("Resume this import with its original row limit and reconsolidation option.")
+        import_id = receipt.import_id
+        now = receipt.started_at
     path = home.import_dir / f"{import_id}.json"
     # A killed process (for example by a timeout) runs no handler below.
     # The early "running" receipt then stays as evidence of the attempt.
-    path.write_text(receipt.model_dump_json(indent=2), encoding="utf-8")
+    path.write_text(receipt.model_dump_json(indent=2), encoding="utf-8")  # pm-lint: allow PM007 -- initial import attempt receipt
     stage = None
     try:
-        store = home.open_store()
-        for value in store.consolidations.values():
-            stored = StoredImportReceipt.model_validate(value)
-            if stored.kind == "chat_import" and stored.source_sha256 == sha:
-                raise ValueError(f"{csv_path} was already imported into this home.")
-        persona = store.ghost_config
-        rows = read_chat_csv(csv_path, companion_name=persona.companion_name, user_name=persona.user_name)
-        receipt.rows_read = len(rows)
-        rows = rows[:limit] if limit is not None else rows
-        receipt.synthesized_timestamps = bool(rows) and rows[0].timestamp is None
-        rows = synthesize_times(rows, now)
-        receipt.rows_imported = len(rows)
-        with store.lock:
-            lived = [item.timestamp_world_begin for item in store.all_features if item.feature_type == FeatureType.Dialogue]
-        if rows and lived and rows[0].timestamp < max(lived):
-            raise ValueError("The log starts before the newest dialogue of this home. Import older logs first.")
-        # Work in memory. Only the final commit below writes ghost.pickle.
-        store.checkpoint = None
-        exchanges = group_exchanges(rows)
-        _print(f"{len(rows)} rows, {len(exchanges)} exchanges")
-        imported = import_exchanges(store, exchanges, import_id=import_id, source_sha256=sha,
-                                    personality=home.load_personality(), imported_at=now)
-        receipt.exchanges = len(exchanges)
-        receipt.first_tick, receipt.last_tick = (imported.ticks[0], imported.ticks[-1]) if imported.ticks else (0, 0)
-        receipt.imported_feature_ids = imported.feature_ids
+        if pending is None:
+            persona = store.ghost_config
+            rows = read_chat_csv(csv_path, companion_name=persona.companion_name, user_name=persona.user_name)
+            receipt.rows_read = len(rows)
+            rows = rows[:limit] if limit is not None else rows
+            receipt.synthesized_timestamps = bool(rows) and rows[0].timestamp is None
+            rows = synthesize_times(rows, now)
+            receipt.rows_imported = len(rows)
+            with store.lock:
+                lived = [item.timestamp_world_begin for item in store.all_features if item.feature_type == FeatureType.Dialogue]
+            if rows:
+                start = rows[0].timestamp
+                if start is None:
+                    raise ValueError("Postprocessing left the first imported row without a world timestamp.")
+                if lived and start < max(lived):
+                    raise ValueError("The log starts before the newest dialogue of this home. Import older logs first.")
+            exchanges = group_exchanges(rows)
+            _print(f"{len(rows)} rows, {len(exchanges)} exchanges")
+            imported = import_exchanges(store, exchanges, import_id=import_id, source_sha256=sha,
+                                        personality=home.load_personality(), imported_at=now)
+            receipt.exchanges = len(exchanges)
+            if imported.ticks:
+                receipt.first_tick = imported.ticks[0]
+                receipt.last_tick = imported.ticks[-1]
+            receipt.imported_feature_ids = imported.feature_ids
+            sources = ImportedSourceReceipt(run_id=import_id, source_sha256=sha, reconsolidate=do_reconsolidate, receipt=receipt)
+            checkpoint = store.begin_batch(f"{import_id}-sources", embed=False)
+            checkpoint.depend_on(receipt.imported_feature_ids)
+            checkpoint.set_consolidation_receipt(f"import_sources:{import_id}", sources.model_dump(mode="json"))  # pm-lint: allow PM007 -- raw import checkpoint receipt
+            store.commit(checkpoint)
+            store.save()
         stage, embeddings = build_models(config_path)
         store.initialize_embeddings(embeddings)
         if do_reconsolidate:
@@ -246,13 +292,14 @@ def import_chat(home: CharacterHome, csv_path: Path, config_path: str, *, limit:
         receipt.model_requests = stage.request_count
         receipt.finished_at = vclock.utcnow()
         receipt.wall_seconds = round(time.monotonic() - started, 1)
-        store.checkpoint = home.ghost_pickle
         batch = store.begin_batch(f"{import_id}-save")
-        batch.set_consolidation_receipt(f"chat_import:{import_id}", {
-            "run_id": import_id, "kind": "chat_import", "source_sha256": sha, "rows": len(rows),
-            "exchanges": len(exchanges), "first_tick": receipt.first_tick, "last_tick": receipt.last_tick,
-            "imported_at": now.isoformat(), "transfer_ids": receipt.transfer_ids})
+        result = CompletedImport(run_id=import_id, source_sha256=sha, rows=receipt.rows_imported,
+            exchanges=receipt.exchanges, first_tick=receipt.first_tick, last_tick=receipt.last_tick,
+            imported_at=now, transfer_ids=receipt.transfer_ids)
+        batch.depend_on(receipt.transfer_ids)
+        batch.set_consolidation_receipt(f"chat_import:{import_id}", result.model_dump(mode="json"))  # pm-lint: allow PM007 -- completed import checkpoint receipt
         store.commit(batch)
+        store.save()
     except BaseException as error:
         receipt.status = "failed"
         receipt.error = f"{type(error).__name__}: {error}"
@@ -260,9 +307,9 @@ def import_chat(home: CharacterHome, csv_path: Path, config_path: str, *, limit:
         receipt.model_requests = stage.request_count if stage is not None else 0
         receipt.finished_at = vclock.utcnow()
         receipt.wall_seconds = round(time.monotonic() - started, 1)
-        path.write_text(receipt.model_dump_json(indent=2), encoding="utf-8")
+        path.write_text(receipt.model_dump_json(indent=2), encoding="utf-8")  # pm-lint: allow PM007 -- import failure receipt
         raise
-    path.write_text(receipt.model_dump_json(indent=2), encoding="utf-8")
+    path.write_text(receipt.model_dump_json(indent=2), encoding="utf-8")  # pm-lint: allow PM007 -- completed import receipt
     return receipt
 
 
@@ -273,13 +320,7 @@ def _embed_records(store: "MemoryStore", embeddings: "EmbeddingService", ids: li
 
 
 def reconsolidate_home(home: CharacterHome, config_path: str) -> ReconsolidationReport:
-    """Run reconsolidation on the saved home, then write ``ghost.pickle`` once.
-
-    The pipeline keeps its work in memory and persists it at the end. ``reconsolidate``
-    first commits the run's consolidation receipt, which is what admits the run's records
-    into live memory on the next open, then ``prepare_index`` puts vectors on every record
-    the run created and writes the one checkpoint. Stopping early leaves the previous
-    ``ghost.pickle`` untouched.
+    """Run reconsolidation on an offline home and checkpoint each complete unit.
 
     The report goes to ``runtime/reconsolidation-<run_id>.json``.
     """
@@ -288,8 +329,8 @@ def reconsolidate_home(home: CharacterHome, config_path: str) -> Reconsolidation
     store.initialize_embeddings(embeddings)
     report = reconsolidate(store, complete=stage, embeddings=embeddings, force=True, progress=ReconsolidationProgress(enabled=True))
     home.runtime_root.mkdir(parents=True, exist_ok=True)
-    (home.runtime_root / f"reconsolidation-{report.run_id}.json").write_text(report.model_dump_json(indent=2),
-                                                                             encoding="utf-8")
+    path = home.runtime_root / f"reconsolidation-{report.run_id}.json"
+    path.write_text(report.model_dump_json(indent=2), encoding="utf-8")  # pm-lint: allow PM007 -- offline report serialization
     return report
 
 

@@ -52,7 +52,7 @@ class InteractionBoundaryTests(unittest.TestCase):
         self.control = CognitiveControl("control", Application(self.bus, []), None, ghost=self.store)
         self.control.enable_input_triage()
         self.input = UserInputProxy("user_input", Application(self.bus, []), self.store, lambda text: None)
-        self.input.register_triage_input = self.control.register_input
+        self.input.cognitive_control = self.control
         self.target = MemoryBashTarget(self.store, recovery_only=True)
         self.module = Interaction("interaction", Application(self.bus, []), None,
             ghost=self.store, working_target=self.target,

@@ -72,7 +72,7 @@ class ImmediateEntityUpdateTests(unittest.TestCase):
         self.replies: list[str] = []
         self.input: UserInputProxy = UserInputProxy("input", Application(self.bus, []),
             self.store, self.replies.append)
-        self.input.register_triage_input = self.control.register_input
+        self.input.cognitive_control = self.control
 
     def runtime_error(self, error: BaseException) -> None:
         """Preserve any actual bus-module error as a failing boundary check."""

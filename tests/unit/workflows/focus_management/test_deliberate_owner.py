@@ -512,7 +512,7 @@ class DeliberateControlFenceTests(DeliberateOwnerCase):
         self.control.enable_input_triage()
         self.input: UserInputProxy = UserInputProxy("user_input", Application(self.bus, []), self.store,
                                                     lambda text: None)
-        self.input.register_triage_input = self.control.register_input
+        self.input.cognitive_control = self.control
         self.module.cognitive_control = self.control
 
     def submit(self, text: str) -> int:

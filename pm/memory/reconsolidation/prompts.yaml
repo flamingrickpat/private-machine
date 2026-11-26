@@ -25,10 +25,11 @@ topic_summary: |
   {story}
   ### END SCENE
 
-  Your task: act as the memory mechanism that keeps this scene as one episode. Summarize what happens in it. Be
-  neutral, descriptive, and concise. Name who says or does what. Keep concrete details such as food, plans, names,
-  numbers, and times. Make the summary shorter than the scene. Do not invent facts, feelings, or motives that the
-  scene does not show. A thought of a character is a thought, not speech.
+  Recall this shared episode in the third person. Give the exchanges between participants the most detail.
+  Name who said what and preserve consequential decisions, corrections, names, numbers, and times.
+  Briefly describe an internal train of thought when it affected an interpretation or action.
+  Keep imagined outcomes attributed to the thinker. Explain attention or emotion only to the extent that the
+  recorded evidence supports the connection. Condense repeated deliberation.
 
   Answer with only this JSON object and nothing else:
   {{"summary": "..."}}
@@ -50,7 +51,7 @@ temporal_raw: |
 
 temporal_children: |
   {intro}
-  Here are the memories of the shorter periods between {start} and {end}, in time order:
+  Here are shorter memories and any additional original observations between {start} and {end}, in time order:
   ### BEGIN MEMORIES
   {story}
   ### END MEMORIES
@@ -108,7 +109,16 @@ facts_classify: |
 
   Your task: act as the memory mechanism that files each fact. For every fact, give:
   - "index": the number of the fact.
-  - "about": who the fact is about: "{companion_name}", "{user_name}", "both", or "other".
+  - "about": copy the identity of the subject from this list: {subjects}.
+    Use the group's identity for a shared agreement and the world's identity for a general observation.
+  - "entity_claim": when a candidate under this fact states the same proposition about the same subject, copy its
+    exact claim ID. A fact about a different preference, action, or person needs its own filing. Shared source
+    or topic alone is insufficient. Use null for a distinct fact or when there is no matching candidate.
+  - "canonical_id": when no entity claim matches, compare the fact with the filed memories listed beneath it.
+    If one says the same thing about the same subject, return its numeric ID. Word order, pronouns, synonyms and
+    reporting verbs can change while the underlying claim stays the same. Preserve changes of owner, speaker,
+    object, polarity, uncertainty, quantity, or applicable time as distinct claims. Shared vocabulary alone
+    does not establish equivalence. Resolve relative times against the source date. Use null for a new claim.
   - "record_type": one of fact, preference, goal, belief, trait, relationship, capability, procedure, rule, location,
     resource, hazard, event_outcome.
   - "epistemic_status": "asserted" (a character states it about themself or as their view), "observed" (it happens
@@ -128,7 +138,7 @@ facts_classify: |
   - "reason": one sentence on why you chose these values.
 
   Answer with only this JSON object and nothing else, with one entry for every fact:
-  {{"facts": [{{"index": 1, "about": "...", "record_type": "fact", "epistemic_status": "asserted",
+  {{"facts": [{{"index": 1, "about": "...", "entity_claim": null, "canonical_id": null, "record_type": "fact", "epistemic_status": "asserted",
   "confidence": 0.9, "object_kind": "...", "object_value": "...", "topic_card": "...", "essence": "...",
   "category": ["..."], "importance": 0.5, "time_dependent": 0.5, "reason": "..."}}]}}
 

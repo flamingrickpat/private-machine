@@ -51,6 +51,8 @@ from typing import TYPE_CHECKING, Any, NamedTuple, TypedDict
 
 from pm.constants import Sampler
 from pm.memory.store import MemoryStore
+from pm.app.control import OperatorApplication
+from pm.memory.reconsolidation.coordination import ReconsolidationCoordinator
 from workflows.dialogue_assistant.host import AssistantDialogue
 from workflows.demo.host import CheckSubprocess, DummyDialogue, DummyMainCogLoop, ScheduleSubprocesses, TaskTable, ToolPlusDialogue
 from workflows.main_cognition.host import InnerThoughtLoop, MainCogLoop
@@ -75,6 +77,7 @@ from workflows.cognitive_control.schemas import ControlConfig
 from pm.llm.mcp_config import MinecraftConfig, ToolCallConfig
 
 if TYPE_CHECKING:
+    from workflows.cognitive_control.host import CognitiveControl
     from workflows.minecraft_body.mcp_client import MinecraftTransport
     from pm.introspection.capabilities import CapabilityOverlay
     from pm.llm.config import ModelConfig
@@ -93,22 +96,30 @@ REAL_BANNER = "REAL COGNITION \u2014 model activates on first request\n"
 DEFAULT_SEED = REPO_ROOT / "test_data" / "personas" / "spamuel" / "canon.yaml"
 
 
-class CompanionApplication(Application):
+class CompanionApplication(OperatorApplication):
     """The assembled companion owns the supervisor used by task selection and dispatch."""
 
     supervisor: ManagedRunSupervisor
+    memory_work: ReconsolidationCoordinator
+    cognitive_control: CognitiveControl | None = None
+    user_input: UserInputProxy
+
+    def request_shutdown(self) -> None:
+        """Stop optional memory preparation before draining ordinary conversation."""
+        self.memory_work.close_preparation()
+        super().request_shutdown()
 
 
 def _managed_workflows(
     stage_model: LazyStageModel | None = None,
     embeddings: EmbeddingService | None = None,
-    ghost: MemoryStore | None = None,
     tool_call: ToolCallConfig | None = None,
     minecraft_endpoint: str | None = None,
     *,
     enable_minecraft: bool = True,
     shutdown: Event | None = None,
     minecraft_config: MinecraftConfig | None = None,
+    memory_work: ReconsolidationCoordinator | None = None,
 ) -> dict[str, WorkflowSpec]:
     """Return the managed workflow specifications, keyed by workflow name.
 
@@ -144,7 +155,10 @@ def _managed_workflows(
     if body_suite is not None:
         body_runtime.transport.headers = body_suite.resolved_headers()
         logging.getLogger(__name__).info("Minecraft MCP suite %s shares its body lease with minecraft and minecraft_project", body_suite.name)
-    from workflows.memory_reconsolidation.host import build_reconsolidation_tools
+    from workflows.memory_reconsolidation.host import ReconsolidationRuntimeOwner
+
+    memory_runtime = (ReconsolidationRuntimeOwner(memory_work, embeddings)
+                      if memory_work is not None and embeddings is not None else None)
 
     base = PROJECT_ROOT / "workflows" / "local_task"
     optional: dict[str, WorkflowSpec] = {}
@@ -171,7 +185,7 @@ def _managed_workflows(
         "memory_reconsolidation": WorkflowSpec(
             PROJECT_ROOT / "workflows" / "memory_reconsolidation" / "memory_reconsolidation.workflow.md",
             namespace="memory_reconsolidation",
-            runtime_owner=build_reconsolidation_tools(ghost, stage_model, embeddings),
+            runtime_owner=memory_runtime,
             singleton=True,
         ),
         "minecraft": WorkflowSpec(
@@ -197,6 +211,8 @@ def _managed_workflows(
     if not enable_minecraft:
         result.pop("minecraft")
         result.pop("minecraft_project")
+    if memory_runtime is None:
+        result.pop("memory_reconsolidation")
     return result
 
 
@@ -293,6 +309,7 @@ def _cognition_modules(
             stage_model=stage_model,
             ghost=ghost,
         )
+        story.memory_work_reader = main_cog.memory_work_reader
         assistant = AssistantDialogue(
             "speech_recovery", application, None,
             working_target=target,
@@ -434,11 +451,13 @@ def build_app(
     bus = BusSystem()
     bus.observer = bus_observer
     app = CompanionApplication(bus, [], clock=clock)
+    app.memory_work = ReconsolidationCoordinator(ghost, app.clock)
     tasks = TaskTable(app.clock.monotonic)
 
     on_error = app.on_error
     runtime_root = Path(runtime_root)
-    app.runtime_root = runtime_root
+    user_input = UserInputProxy("user_input", app, ghost, emit_reply)
+    app.bind_operator(ghost, user_input, runtime_root)
 
     consolidator = Consolidator(ghost, clock=app.clock)
     context_embeddings = None
@@ -464,8 +483,9 @@ def build_app(
             minecraft_endpoint = minecraft_config.mcp_url
         if enable_minecraft and minecraft_endpoint is None and tool_call is not None:
             minecraft_endpoint = next((server.url for server in tool_call.mcp_servers if server.name == "minecraft"), None)
-    specs = _managed_workflows(stage_model, context_embeddings, ghost, tool_call, minecraft_endpoint,
-                               enable_minecraft=enable_minecraft, shutdown=app.shutdown_event, minecraft_config=minecraft_config)
+    specs = _managed_workflows(stage_model, context_embeddings, tool_call, minecraft_endpoint,
+                               enable_minecraft=enable_minecraft, shutdown=app.shutdown_event, minecraft_config=minecraft_config,
+                               memory_work=app.memory_work)
     from workflows.minecraft.host import MinecraftRuntimeOwner
     body_runtime = next((spec.runtime_owner for spec in specs.values()
                          if isinstance(spec.runtime_owner, MinecraftRuntimeOwner)), None)
@@ -530,7 +550,6 @@ def build_app(
             "ghost": ghost,
         }
 
-    user_input = UserInputProxy("user_input", app, ghost, emit_reply)
     main_cog, dialogue, assistant, self_management, inner_thought, focus_management = _cognition_modules(
         cognition, ghost=ghost, target=target, application=app, consolidator=consolidator,
         runtime_root=runtime_root, workflow_paths=workflow_paths,
@@ -569,12 +588,15 @@ def build_app(
         user_input, main_cog, dialogue, inner_thought,
         scheduler, status, tool_dialogue,
     ]
+    control: CognitiveControl | None = None
     if cognition == "real":
         from workflows.cognitive_control.host import CognitiveControl
 
+        assert isinstance(main_cog, MainCogLoop)
         control = CognitiveControl(
             "cognitive_control", app, 1.0, ghost=ghost,
             config=ControlConfig.model_validate(cognitive_control_config or {}),
+            reconsolidation=app.memory_work,
         )
         control.workflow_catalogue = WorkflowCatalogue(supervisor, None)
         from workflows.entity_context.owner import EntityContextOwner
@@ -592,7 +614,7 @@ def build_app(
             inner_thought.cancel_run()
         control.cancel_critical_private = cancel_critical_private
         control.enable_input_triage()
-        user_input.register_triage_input = control.register_input
+        user_input.cognitive_control = control
         dialogue.cognitive_control = control.publication_control()
         if assistant is not None:
             assistant.cognitive_control = control.publication_control()
@@ -688,6 +710,8 @@ def build_app(
             from workflows.tool_call.catalogue import ToolCatalogue
             catalogue = ToolCatalogue(tool_call)
             main_cog.workflow_catalogue_owner = WorkflowCatalogue(supervisor, catalogue)
+        else:
+            main_cog.workflow_catalogue_owner = control.workflow_catalogue
         from workflows.main_cognition.retrieval_query import QueryRewriter
         main_cog.retrieval_query_provider = QueryRewriter(stage_model)
         dialogue.capability_owner = capability_owner
@@ -732,7 +756,6 @@ def build_app(
     app.status = status
     app.tool_dialogue = tool_dialogue
     app.steward_module = steward_module
-    app.ghost = ghost
     app.bus = bus
     app.tasks = tasks
     app.supervisor = supervisor
@@ -741,6 +764,8 @@ def build_app(
     def finish_workers() -> None:
         """Join all owned work before recording a successful clean stop."""
         supervisor.shutdown(preserve_parked=app.drained.is_set())
+        if control is not None and app.error is None:
+            control.finish_memory_work_on_shutdown()
         if record_lifecycle and app.error is None:
             from pm.app.lifecycle_records import record_shutdown
             record_shutdown(ghost, boot_id=app.lifecycle_boot["boot_id"])

@@ -2,6 +2,7 @@
 import json
 from pathlib import Path
 import tempfile
+from threading import Event
 import unittest
 
 from pm.memory.checkpoint import JSON_SERIALIZER, PICKLE_SERIALIZER, read_checkpoint, write_checkpoint
@@ -22,11 +23,11 @@ class SerializerTests(unittest.TestCase):
         checkpoint = store.checkpoint_data()
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "ghost.pickle"
-            write_checkpoint(path, checkpoint, lambda: None)
+            write_checkpoint(path, checkpoint)
             self.assertTrue(path.read_bytes().startswith(b"\x80"))
             self.assertEqual(read_checkpoint(path).state.knoxels[0].embedding, [1.0, 0.5])
             legacy = Path(directory) / "ghost.pickle"
-            write_checkpoint(legacy, checkpoint, lambda: None, serializer=JSON_SERIALIZER)
+            write_checkpoint(legacy, checkpoint, serializer=JSON_SERIALIZER)
             self.assertEqual(json.loads(legacy.read_bytes())["state"]["knoxels"][0]["__type__"], "Feature")
             restored = MemoryStore.from_checkpoint(legacy, raw=True)
             self.assertEqual(restored.state_dict(), store.state_dict())
@@ -37,8 +38,8 @@ class SerializerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "ghost.pickle"
             path.write_bytes(b"previous checkpoint")
-            def cancelled():
-                raise RuntimeError("cancelled before replacement")
+            cancelled = Event()
+            cancelled.set()
             with self.assertRaisesRegex(RuntimeError, "cancelled before replacement"):
                 write_checkpoint(path, checkpoint, cancelled)
             self.assertEqual(path.read_bytes(), b"previous checkpoint")

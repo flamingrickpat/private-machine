@@ -34,8 +34,8 @@
     {
       "id": 9,
       "title": "Gamma G02: memory reconsolidation and sleep",
-      "description": "Owner note 2026-11-14: this will probably be the second gamma item. No scope, design, or requirements yet. Record: dev/work_items/gamma.md.\nOwner release sequence: After the personal trial, integrate sleep with hierarchical dialogue and thought reconsolidation. Track memory fragmentation, preserve provenance and corrections, test interrupted sleep and existing persona continuation.",
-      "status": "backlog"
+      "description": "Owner moved this into the beta trial. Incremental background memory work and interruptible sleep are implemented and exercised on disposable local character homes. The overnight Story represented 1,291 originals in a 24k input. Explicitly requested sleep, natural and input wake, recovery, scoped corrections and paraphrase deduplication passed. One short chat produced a weak one-word response. Evidence and remaining beta observations: dev/work_items/gamma.md.",
+      "status": "done"
     },
     {
       "id": 10,

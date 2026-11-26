@@ -53,7 +53,7 @@ class EarlyTriageBoundaryTests(unittest.TestCase):
         self.store = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"))
         self.control = self.controller(self.store)
         self.input = UserInputProxy("user_input", Application(self.bus, []), self.store, lambda text: None)
-        self.input.register_triage_input = self.control.register_input
+        self.input.cognitive_control = self.control
 
     def controller(self, store: MemoryStore) -> CognitiveControl:
         """Construct the real owner and rebuild its accepted control evidence."""

@@ -73,7 +73,7 @@ class WorkflowCatalogue:
         descriptions: dict[str, str] = {
             'local_task': 'Control worker. Writes task telemetry; cannot execute arbitrary instructions or create a requested note.',
             'note_task': 'Exact UTF-8 note writer with independent byte verification. Optional arguments.note_spec has path and text; path stays in outbox/.',
-            'memory_reconsolidation': 'Sort through memories and sleep on them: builds topic and day summaries, facts, and updated self and relationship narratives from the stored history. Slow; runs in the background. Use ToolCall when the character decides to sort through memories, sleep on what happened, or reflect on the past days.',
+            'memory_reconsolidation': 'Sort through past experiences while awake (background), or sleep while sorting them (sleep). Choose reconsolidation_mode on the memory ToolCall. During sleep an incoming message or the end of the memory work wakes the character.',
             'minecraft': 'One sustained survival specialist leaf. Standalone completion requires an explicit supported verifier, currently wood_return. Use minecraft_project for other goals that need verified completion.',
             'minecraft_project': 'Generic Minecraft project planner. Durable subtasks, verified prerequisites, fresh specialists, and independent world verification. Use for multi-step goals.',
         }

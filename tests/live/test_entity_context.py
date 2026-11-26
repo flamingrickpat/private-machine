@@ -120,7 +120,7 @@ class LiveEntityContextTests(unittest.TestCase):
         module.entity_context_owner = owner
         bus.subscribe(module.module_id, module.accepts, module.deliver)
         intake = UserInputProxy("user_input", Application(bus, []), store, lambda text: None)
-        intake.register_triage_input = control.register_input
+        intake.cognitive_control = control
         observer_id = store.get_entity_id(store.get_companion_name())
         user_id = store.get_entity_id(store.get_user_name())
         assert observer_id is not None and user_id is not None

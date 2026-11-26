@@ -15,6 +15,7 @@ from pm.llm.generation import GenerationSettings
 from pydantic import BaseModel, ConfigDict, Field, with_config
 from pm.context_render.budget import SelectionReceipt
 from pm.memory.dependencies import SourceDependency
+from pm.memory.reconsolidation.assessment import StoryHistoryObservation
 from workflows.public_speech.public_context import DialogueTurn, MemoryLaneTemplate, PublicContext, TimeTemplates
 from workflows.public_speech.story_rendering import DialogueTemplates
 from workflows.public_speech.speech_review import SpeechReview
@@ -155,6 +156,8 @@ class StoryAttempt(BaseModel):
     blocked: bool = False
     message_roles: list[str] = Field(default_factory=list)
     generation_error: str = ""
+    history_observation: StoryHistoryObservation | None = Field(default=None,
+        description="Temporal coverage measured on this generation attempt, before speech review.")
     context_selection: SelectionReceipt | None = Field(default=None, description="Actual optional memory selection for this completion, including repair turns.")
     review_context_selection: SelectionReceipt | None = Field(default=None, description="Actual optional memory selection for the review layout and complete generated draft.")
 

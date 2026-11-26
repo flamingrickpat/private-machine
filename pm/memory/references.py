@@ -35,6 +35,8 @@ def referenced_ids(record: BaseModel) -> set[int]:
     for name, value in record:
         if name not in type(record).model_fields:
             continue
+        if name == "embedding":
+            continue  # A dense list of float coordinates cannot contain memory links.
         if name in REFERENCE_FIELDS:
             values = value if isinstance(value, list) else [value]
             result.update(item for item in values if item not in (None, 0, -1))

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from pm.context_render.budget import TokenEstimator, evidence_excerpt
 from pm.context_render.prompt import RenderedPrompt, RenderSettings, EvidenceDecision, require_rendered_prompt
 from pm.context_render.turns import Turn, Role
+from pm.memory.reconsolidation.schemas import CanonicalFactOption, FactClaimOption
 
 if TYPE_CHECKING:
     from pm.memory.media_alt import AltTextRenderInput
@@ -76,12 +78,36 @@ class FactClassificationInput:
     categories: tuple[str, ...]
     companion_name: str
     user_name: str
+    subjects: tuple[FactSubject, ...] = ()
+    claim_options: tuple[tuple[FactClaimOption, ...], ...] = ()
+    canonical_options: tuple[tuple[CanonicalFactOption, ...], ...] = ()
+    source_times: tuple[datetime, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class FactSubject:
+    """One identity visible in the original episode, including peer speakers."""
+
+    identity: str
+    label: str
 
 
 def render_fact_classification(input: FactClassificationInput, settings: RenderSettings) -> RenderedPrompt:
-    listing = "\n".join(f"{index}. {fact}" for index, fact in enumerate(input.facts, 1))
+    entries: list[str] = []
+    for index, fact in enumerate(input.facts, 1):
+        timestamp = f" (source {input.source_times[index - 1]:%Y-%m-%d %H:%M})" if input.source_times else ""
+        entries.append(f"{index}. {fact}{timestamp}")
+        if input.claim_options:
+            for option in input.claim_options[index - 1]:
+                entries.append(f"   Candidate {option.claim_id} about {option.about}: {option.statement}")
+        if input.canonical_options:
+            for prior in input.canonical_options[index - 1]:
+                entries.append(f"   Filed memory ID {prior.head_id} about {prior.about} ({prior.record_type.value}, "
+                               f"supported through {prior.supported_through:%Y-%m-%d %H:%M}): {prior.statement}")
+    listing = "\n".join(entries)
+    subjects = ", ".join(f"{item.identity} ({item.label})" for item in input.subjects)
     user = input.template.format(intro=input.intro, facts=listing, categories=", ".join(input.categories),
-        companion_name=input.companion_name, user_name=input.user_name)
+        subjects=subjects, companion_name=input.companion_name, user_name=input.user_name)
     return require_rendered_prompt("memory fact classification", (Turn(Role.System, input.system), Turn(Role.User, user)), settings)
 
 

@@ -45,6 +45,7 @@ import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
 from pm.memory.embeddings import valid_vector
+from pm.memory.cluster_membership import ClusterMembership, is_episode_cluster
 from pm.records.base import RecordBase
 from pm.records.memory_records import Feature, MemoryClusterRecord, DeclarativeFactRecord, SemanticRecord, Narrative
 from pm.memory.retrieval import distinctive_terms, record_text, utc_time
@@ -421,10 +422,7 @@ def _run_pass(records: dict[int, RecordBase], spec: PlanSpec, budgets: dict[str,
 def _run_preserve_history_lane(lane: LaneSpec, pool: list[int], records: dict[int, RecordBase],
                                scorer: _Scorer, token_costs: dict[int, int],
                                plan: LanePlan) -> list[int]:
-    """Select records for a preserve_history lane using the temporal DP solver.
-
-    Falls back to greedy score selection when the solver cannot cover the timeline.
-    """
+    """Spend this lane's allowance on verified chronological coverage and score useful detail."""
     from pm.memory.temporal_context import build_temporal_context
     from pm.records.memory_records import Feature, MemoryClusterRecord
     from pm.records.enums import ClusterType
@@ -435,36 +433,23 @@ def _run_preserve_history_lane(lane: LaneSpec, pool: list[int], records: dict[in
         record = records[key]
         if isinstance(record, Feature) and record.causal:
             features.append(record)
-        elif isinstance(record, MemoryClusterRecord) and record.cluster_type == ClusterType.Temporal:
-            summaries.append(record)
+        elif isinstance(record, MemoryClusterRecord):
+            if record.cluster_type == ClusterType.Temporal or is_episode_cluster(record):
+                summaries.append(record)
     if not features:
         plan.exhausted = True
         return []
-    # Use the first focus vector as the relevance query for the DP solver.
-    embedding: list[float] | None = None
-    if scorer.focus.vectors:
-        embedding = scorer.focus.vectors[0].vector
-    if embedding is None:
-        # No embedding available: fall back to greedy score selection.
-        plan.scores = {key: scorer.score(key, lane.weights) for key in pool}
-        ranked = sorted(pool, key=lambda key: (-plan.scores[key], -key))
-        chosen: list[int] = []
-        for key in ranked:
-            cost = token_costs[key]
-            if plan.used + cost > plan.budget:
-                break
-            chosen.append(key)
-            plan.used += cost
-        plan.exhausted = len(chosen) >= len(pool)
-        return chosen
+    plan.scores = {key: scorer.score(key, lane.weights) for key in pool}
     selected = build_temporal_context(
         features=features,
         temporal_summaries=summaries,
-        embedding=embedding,
+        embedding=None,
         ratio=lane.raw_ratio,
         max_tokens=plan.budget,
         vectors=scorer.vectors,
         token_costs=token_costs,
+        membership=ClusterMembership(records),
+        relevance_scores=plan.scores,
         require_temporal_history=True,
         require_contiguous_temporal_span=True,
         run_final_checks=True, allow_coverage_omissions=True,
@@ -498,7 +483,23 @@ def plan_context(records: dict[int, RecordBase], spec: PlanSpec, focus: Focus, *
             raise ValueError(f"Plan {spec.name} names unknown lane {name}.")
     scorer = _Scorer(records, focus, vectors, now)
     total = total_tokens if total_tokens is not None else spec.total_tokens
-    budgets = {lane.name: min(int(total * lane.budget_share), lane.max_tokens) if lane.max_tokens else int(total * lane.budget_share) for lane in spec.lanes}
+    # A zero-share focus lane holds explicit pins on demand. Charge their
+    # measured cost once before dividing the remainder among optional lanes.
+    remaining = total
+    unassigned_pins = set(focus.required_ids).intersection(records).difference(focus.exclude_ids)
+    budgets: dict[str, int] = {}  # pm-lint: allow PM004 -- per-lane token allowances keyed by lane name
+    for focus_lane in spec.lanes:
+        if focus_lane.select == "focus" and focus_lane.budget_share == 0:
+            pins = {key for key in unassigned_pins if _matches(records[key], focus_lane)}
+            pin_cost = sum(token_costs[key] for key in pins)
+            budget = min(pin_cost, remaining, focus_lane.max_tokens or total)
+            budgets[focus_lane.name] = budget
+            remaining -= budget
+            unassigned_pins.difference_update(pins)
+    for lane in spec.lanes:
+        if lane.name not in budgets:
+            share = int(remaining * lane.budget_share)
+            budgets[lane.name] = min(share, lane.max_tokens) if lane.max_tokens is not None else share
     rounds: list[BudgetRedistribution] = []
     lanes = _run_pass(records, spec, budgets, scorer, token_costs)
     for round_index in range(spec.redistribution_rounds):

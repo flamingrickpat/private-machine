@@ -13,16 +13,39 @@ idle runtime, because a snapshot taken during work would not match its cursor.
 from __future__ import annotations
 
 from datetime import datetime
+from collections.abc import Sequence
 from pathlib import Path
 import re
 import threading
-from typing import TypedDict
+from typing import Protocol, TypedDict
 
-from pydantic import JsonValue
+from pydantic import BaseModel, JsonValue
+from pm.host.application import Application
 
 from pm import vclock
 from pm.app.transport import event_cursor
 from pm.memory.checkpoint import write_checkpoint
+from pm.memory.store import MemoryStore
+from pm.records.media import RecordImage
+from pm.runs.workflow_module import WorkflowModule
+
+
+class OperatorIntake(Protocol):
+    """The public input operations exposed to terminal and simulation controllers."""
+
+    def close_intake(self) -> None: ...
+    def open_intake(self) -> None: ...
+    def submit(self, text: str, *, session: str = "", speaker: str | None = None,
+               images: Sequence[RecordImage] = (), delivery_id: str = "", entity_ref: str = "") -> str: ...
+
+
+class OperatorStimulus(BaseModel):
+    """One HTTP control stimulus, optionally delivered at a requested world time."""
+
+    text: str
+    speaker: str | None = None
+    delivery_id: str = ""
+    ts: str | None = None
 
 
 class ModuleActivity(TypedDict):
@@ -57,7 +80,7 @@ class RuntimeState(TypedDict):
 
 
 class DeliveryState(TypedDict):
-    """Whether one delivered stimulus is present and causally accepted."""
+    """Whether a stimulus exists and its retained history confirms acceptance."""
 
     present: bool
     accepted: bool
@@ -95,23 +118,26 @@ class RuntimeControl:
     require quiescence. Restoring a process belongs to its external controller.
     """
 
-    def __init__(self, app) -> None:
+    def __init__(self, app: Application, ghost: MemoryStore, intake: OperatorIntake, runtime_root: Path) -> None:
         self.app = app
+        self.ghost = ghost
+        self.intake = intake
+        self.runtime_root = runtime_root
         self._lock = threading.RLock()
 
     def state(self) -> RuntimeState:
         """Return runnable activity, lifecycle state, and the latest event cursor."""
         app = self.app
-        cursor = event_cursor(app.ghost)
+        cursor = event_cursor(self.ghost)
         return {"status": "failed" if app.error else "stopped" if app.shutdown_event.is_set()
                 else "draining" if app.draining.is_set() else "frozen" if app.frozen.is_set() else "running",
-                "idle": app.idle(), "tick_id": app.ghost.current_tick_id,
+                "idle": app.idle(), "tick_id": self.ghost.current_tick_id,
                 "clock": vclock.now_aware().isoformat(), "virtual": vclock.active() is not None,
                 "output_cursor": cursor,
                 "next_due": self.next_due(),
                 "error": repr(app.error) if app.error else None,
                 "modules": [{"id": item.module_id, "working": item.working,
-                             "queued": item.mailbox.pending(), "parked": getattr(item, "_pending", None) is not None,
+                             "queued": item.mailbox.pending(), "parked": isinstance(item, WorkflowModule) and item.parked,
                              "next_tick": item.next_tick_seconds} for item in app.modules]}
 
     def next_due(self) -> str | None:
@@ -122,21 +148,29 @@ class RuntimeControl:
         """
         from datetime import timedelta
         now = vclock.now_aware()
-        control = getattr(self.app, "cognitive_control", None)
-        if control is not None and control.waiting():
-            waits = [item for item in self.app.ghost.all_features
-                     if item.metadata.get("control_kind") == "inference_wait"
-                     and item.metadata.get("status") == "waiting"]
-            if waits:
-                return datetime.fromisoformat(waits[-1].metadata["wake_at"]).replace(tzinfo=now.tzinfo).isoformat()
-            return None
+        with self.ghost.lock:
+            wait = next((item for item in reversed(self.ghost.all_features)
+                         if item.metadata.get("control_kind") == "inference_wait"), None)
+            if wait is not None and wait.metadata["status"] == "waiting":
+                if wait.metadata.get("memory_action_id") is not None:
+                    return None
+                return datetime.fromisoformat(wait.metadata["wake_at"]).replace(tzinfo=now.tzinfo).isoformat()
         due = [now + timedelta(seconds=max(0, item.next_tick_seconds - self.app.clock.monotonic()))
                for item in self.app.modules if item.next_tick_seconds is not None and not item.draining
                and item.module_id not in {"scheduler", "cognitive_control"}]
         return min(due).isoformat() if due else None
 
+    def advance_clock(self, timestamp: str) -> None:
+        """Advance the simulation clock and let each module notice an overdue timer."""
+        clock = vclock.active()
+        if clock is None:
+            raise ValueError("This process has no virtual clock.")
+        clock.set(datetime.fromisoformat(timestamp))
+        for module in self.app.modules:
+            module.mailbox.wake()
+
     def __call__(
-        self, path: str, body: dict,
+        self, path: str, body: dict[str, JsonValue],  # pm-lint: allow PM004 -- HTTP control request body
     ) -> RuntimeState | DeliveryState | StimulusReceipt | SnapshotReceipt | TraceReceipt:
         """Apply one control and return its JSON response.
 
@@ -154,7 +188,7 @@ class RuntimeControl:
             if path == "/control/freeze":
                 if app.draining.is_set() or app.shutdown_event.is_set():
                     raise ValueError("A stopping application cannot enter a checkpoint barrier.")
-                app.user_input.close_intake()
+                self.intake.close_intake()
                 app.frozen.set()
                 for module in app.modules:
                     module.draining = True
@@ -168,57 +202,65 @@ class RuntimeControl:
                         module.draining = False
                         module.mailbox.wake()
                     app.frozen.clear()
-                    app.user_input.open_intake()
+                    self.intake.open_intake()
                 return self.state()
             if path == "/control/delivery":
-                record = next((item for item in app.ghost.all_features
-                               if item.metadata.get("delivery_id") == body["delivery_id"]), None)
-                history = app.ghost.causal_history
-                producer = history.producers().get(record.id) if record is not None else None
-                accepted = record is not None and (record.id in history.baseline_ids or producer in history.accepted())
-                return {"present": record is not None, "accepted": accepted,
-                        "record_id": record.id if record is not None else None}
+                with self.ghost.lock:
+                    record = next((item for item in self.ghost.all_features
+                                   if item.metadata.get("delivery_id") == body["delivery_id"]), None)
+                    history = self.ghost.causal_history
+                    accepted = False
+                    if record is not None and history is not None:
+                        producer = history.producers().get(record.id)
+                        accepted = record.id in history.baseline_ids or producer in history.accepted()
+                return DeliveryState(present=record is not None, accepted=accepted,
+                                     record_id=record.id if record is not None else None)
             if path in {"/control/advance", "/control/advance-step"}:
-                clock = vclock.active()
-                if clock is None:
-                    raise ValueError("This process has no virtual clock.")
-                # Real time does not pause while a mind finishes a cycle. The
-                # clock therefore keeps moving while work is still running, and
-                # a deadline that comes due is served late instead of holding
-                # time still. ``set`` already rejects a backward move. Only the
-                # mailbox wake is needed to let an overdue module notice; its
-                # own loop decides whether it is due.
-                clock.set(datetime.fromisoformat(body["to"]))
-                for module in app.modules:
-                    module.mailbox.wake()
+                timestamp = body["to"]
+                if not isinstance(timestamp, str):
+                    raise ValueError("Clock advancement requires an ISO timestamp.")
+                self.advance_clock(timestamp)
                 return self.state()
             if path == "/control/send":
-                if body.get("ts"):
-                    self("/control/advance", {"to": body["ts"]})
-                stimulus_id = app.user_input.submit(body["text"], speaker=body.get("speaker"),
-                                                    delivery_id=body.get("delivery_id", ""))
-                return {"status": "accepted", "stimulus_id": stimulus_id}
+                stimulus = OperatorStimulus.model_validate(body)
+                if stimulus.ts:
+                    self.advance_clock(stimulus.ts)
+                stimulus_id = self.intake.submit(stimulus.text, speaker=stimulus.speaker, delivery_id=stimulus.delivery_id)
+                return StimulusReceipt(status="accepted", stimulus_id=stimulus_id)
             if path == "/control/snapshot":
                 name = body["name"]
                 if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9_.-]+", name) or name in {".", ".."}:
                     raise ValueError("Use a simple snapshot name.")
                 if not app.idle():
                     raise ValueError("The runtime must be idle before a snapshot.")
-                root = Path(app.runtime_root) / "snapshots"
+                root = self.runtime_root / "snapshots"
                 target = root / f"{name}.pickle"
                 if target.exists():
                     raise ValueError("This snapshot name already exists. Choose a new name.")
-                with app.ghost.lock:
-                    write_checkpoint(target, app.ghost.checkpoint_data(), lambda: None)
-                return {"name": name, "path": str(target), "clock": vclock.now_aware().isoformat()}
+                with self.ghost.lock:
+                    write_checkpoint(target, self.ghost.checkpoint_data())
+                return SnapshotReceipt(name=name, path=str(target), clock=vclock.now_aware().isoformat())
             if path.startswith("/control/trace/"):
                 record_id = int(path.rsplit("/", 1)[1])
-                record = app.ghost.get_knoxel_by_id(record_id)
-                if record is None:
-                    raise ValueError("Unknown output ID.")
-                history = app.ghost.causal_history
-                producer = history.producers().get(record_id)
-                return {"record": record.as_payload(include_embedding=False),
-                        "transaction": history.transactions[producer].model_dump(mode="json") if producer else None,
-                        "calls": [], "call_linkage": "unavailable: contributor gateway IDs are not supplied"}
+                with self.ghost.lock:
+                    record = self.ghost.get_knoxel_by_id(record_id)
+                    if record is None:
+                        raise ValueError("Unknown output ID.")
+                    history = self.ghost.causal_history
+                    transaction = None
+                    if history is not None:
+                        producer = history.producers().get(record_id)
+                        if producer is not None:
+                            transaction = history.transactions[producer].model_dump(mode="json")  # pm-lint: allow PM007 -- HTTP trace response
+                    return TraceReceipt(record=record.as_payload(include_embedding=False), transaction=transaction,
+                        calls=[], call_linkage="unavailable: contributor gateway IDs are not supplied")
             raise ValueError(f"Unsupported runtime control: {path}")
+
+
+class OperatorApplication(Application):
+    """An assembled runtime has one operator for its store, input channel and snapshots."""
+
+    def bind_operator(self, ghost: MemoryStore, intake: OperatorIntake, runtime_root: Path) -> None:
+        self.ghost = ghost
+        self.runtime_root = runtime_root
+        self.runtime_control = RuntimeControl(self, ghost, intake, runtime_root)

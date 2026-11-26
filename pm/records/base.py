@@ -98,6 +98,10 @@ class RecordScope(BaseModel):
     reality_id: int = Field(default=REAL_REALITY_ID, description="RealityKnoxel id; REAL_REALITY_ID sentinel = the real world.")
     frame: FrameEnum = Field(default=FrameEnum.InWorld)
 
+    def __hash__(self) -> int:
+        """Use the frozen reality and frame as one lookup key."""
+        return hash((self.reality_id, self.frame))
+
 
 class Provenance(BaseModel):
     """

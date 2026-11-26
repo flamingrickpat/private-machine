@@ -66,6 +66,7 @@ from workflows.main_cognition.schemas import (
 )
 from workflows.public_speech.public_context import PublicContext
 from workflows.main_cognition.interval_review import IntervalReview
+from pm.memory.reconsolidation.assessment import MemoryWorkAssessment
 from workflows.public_speech.situational_guidance import SituationalGuidance
 
 
@@ -109,6 +110,8 @@ class CycleRequest(BaseModel):
     state_summary: str = ""
     previous_state: CycleState | None = None
     cycle_time: datetime = Field(default_factory=vclock.utcnow)
+    memory_work: MemoryWorkAssessment | None = Field(default=None,
+        description="Closed external experience available for reconsolidation in the admitted reality and frame.")
     state_history: list[MentalStateSample] = Field(default_factory=list[MentalStateSample])
     appraised_partner_input_ids: list[int] = Field(default_factory=list[int],
         description="This request's partner inputs already claimed by an earlier accepted main cycle.")

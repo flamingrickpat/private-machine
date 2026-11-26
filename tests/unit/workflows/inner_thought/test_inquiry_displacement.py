@@ -542,7 +542,7 @@ class ControlDisplacementTests(DisplacementFixture):
         self.control.enable_input_triage()
         self.input: UserInputProxy = UserInputProxy("user_input", Application(self.bus, []), self.store,
                                                     lambda text: None)
-        self.input.register_triage_input = self.control.register_input
+        self.input.cognitive_control = self.control
         self.old_epoch = self.control.publication_epoch()
         self.grant = self.capture(self.old_epoch)
         #: The control generation the current private opportunity captured.

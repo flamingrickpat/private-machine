@@ -83,11 +83,10 @@ user_template: |
     person's or agent's habits, knowledge, motives, or likely reaction before acting. Write one bounded question
     into arguments.instruction. It thinks about the one this part of the story is about; it never contacts anyone.
     Asking them is a separate Reply decision.
-  - If memory_reconsolidation is available, use it with ToolCall when {companion_name} decides to sort through
-    memories, to go over the past days, or to sleep on what happened. It runs slowly in the background and builds
-    summaries, facts, and narratives from the stored history; it does not answer a question now. A wish to stop
-    thinking until something new happens is Sleep, not memory_reconsolidation. Write the reason into
-    arguments.instructions.
+  - When {companion_name} decides to organize earlier experiences, choose ToolCall with memory_reconsolidation
+    if available. Only that workflow's start takes arguments.reconsolidation_mode. Choose "background" to continue ordinary conversation and thought.
+    Choose "sleep" when {companion_name} decides to rest while sorting memories. A waking event or completion
+    returns attention to the present. For a simple timed rest, choose Sleep.
   - For a recall task, name the specific supported episode and its original evidence ids in the instructions, and
     what that evidence establishes. Recent generated replies cannot establish an older event. If no supplied record
     supports the requested event, say so in the instructions. A question or a recall request does not prove that the

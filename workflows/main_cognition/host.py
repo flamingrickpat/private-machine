@@ -65,10 +65,13 @@ batch; :mod:`~workflows.main_cognition.expectations` and
 lifecycle; the ``phases`` package holds the cognitive work of each phase.
 """
 from __future__ import annotations
+
+from workflows.cognitive_control.schemas import WaitRequest
 from contextlib import AbstractContextManager, nullcontext
 from pm.host.cognition_profiler import ProfileEvent, SpanEvidence, SpanKind
 
 from pm.memory.retrieval import RetrievalTrace
+from pm.memory.reconsolidation.assessment import MemoryWorkReader
 
 from workflows.minecraft_body.capabilities import CapabilitySnapshotOwner
 
@@ -307,6 +310,7 @@ class MainCogLoop(CognitiveWorkflow):
             working_target=working_target, workflow=workflow, tools_factory=None,
             runtime_root=runtime_root, stage_model=stage_model, workflow_models=options.workflow_models)
         self.consolidator = consolidator
+        self.memory_work_reader = MemoryWorkReader()
         self.codelet_embeddings = options.codelet_embeddings
         workflow_catalogue = options.workflow_catalogue
         embedding_config_path = options.embedding_config_path
@@ -805,6 +809,10 @@ class MainCogLoop(CognitiveWorkflow):
         missing_images = required_image_ids - captured_images.keys()
         if missing_images:
             raise ValueError(f"Main cognition frozen input references missing images: {sorted(missing_images)}")
+        available_workflows = self.available_workflow_options()
+        memory_work = None
+        if any(option.name == "memory_reconsolidation" for option in available_workflows):
+            memory_work = self.memory_work_reader.assess(memory_view, source_scopes, cycle_time)
         request = CycleRequest(
             images=tuple(captured_images[key] for key in sorted(captured_images)),
             interaction_source_ids=interaction_sources,
@@ -819,6 +827,7 @@ class MainCogLoop(CognitiveWorkflow):
             state_summary=_state_summary(self.ghost),
             previous_state=previous,
             cycle_time=cycle_time,
+            memory_work=memory_work,
             state_history=history,
             appraised_partner_input_ids=sorted({source_id for state in self.ghost.read_cycles()
                 if state.tick_id in memory_view.gwt_turns
@@ -842,7 +851,7 @@ class MainCogLoop(CognitiveWorkflow):
                                      if world else ""),
             runtime_orientation=capabilities.runtime_orientation if capabilities else "",
             capabilities=_capabilities(self.ghost),
-            available_workflows=self.available_workflow_options(),
+            available_workflows=available_workflows,
             public_context=public,
             situational_guidance=situational_guidance,
             managed_runs=[ManagedRunView.model_validate(run)
@@ -1417,7 +1426,14 @@ class MainCogLoop(CognitiveWorkflow):
                 if control is None:
                     receipt = self.ghost.commit(changes)
                 else:
-                    receipt = control.commit(changes, work.wait_request, self._control_generation,
+                    # Only a released dispatch can arm a worker-owned wait.
+                    # Conflict resolution, duplicate detection and entity deferral
+                    # have all completed by this point.
+                    wait = work.wait_request
+                    for dispatch, action_id, _ in published:
+                        if dispatch.starts_memory_sleep():
+                            wait = WaitRequest(memory_action_id=action_id, reason=dispatch.content)
+                    receipt = control.commit(changes, wait, self._control_generation,
                         envelope_ids={item.id for item in batch},
                         wake_ids=[KnoxelPayload.model_validate(item.payload).knoxel_id
                                   for item in batch if item.topic == "cognition.wake"],

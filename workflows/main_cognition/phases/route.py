@@ -52,7 +52,7 @@ from workflows.inference_settings import DECISION_WORKERS
 from workflows.main_cognition import expectations
 from workflows.main_cognition.csm_view import Embedder
 from workflows.main_cognition.rendering import render_managed_runs, render_goal_changes
-from workflows.main_cognition.cycle_work import CycleWork
+from workflows.main_cognition.cycle_work import CycleWork, provisional_tick
 from workflows.main_cognition.dispatch import resolve_prerequisites, resolve_same_cycle
 from workflows.main_cognition.prompt_config import PhasePrompts
 from workflows.main_cognition.phases.decide import available_workflows, group_part
@@ -178,7 +178,7 @@ def routed_decisions(work: CycleWork, answers: list[RouteAnswer]) -> list[Routed
     return routed
 
 
-def action_dispatches(routes: list[RoutedDecision]) -> list[ActionDispatch]:
+def action_dispatches(routes: list[RoutedDecision], decision_tick: int) -> list[ActionDispatch]:
     """Return one dispatch proposal for each route that is not quiet, without external effects.
 
     ``content`` is the decision text, unchanged. Quiet routes stay in the
@@ -196,6 +196,10 @@ def action_dispatches(routes: list[RoutedDecision]) -> list[ActionDispatch]:
             presentation=pickle_copy(answer.presentation),
             group=item.group, stimulus_ids=list(item.stimulus_ids), correlation_id=item.correlation_id)
         dispatch.action_id = stable_action_id(dispatch, index)
+        if dispatch.workflow_name == "memory_reconsolidation" and not dispatch.arguments.run_id:
+            # The same sleep intention can recur when new history builds up.
+            # Replays of this particular decision still address the same run.
+            dispatch.action_id += f"-{decision_tick}"
         dispatches.append(dispatch)
     return dispatches
 
@@ -250,6 +254,7 @@ def resolve_conflicts(dispatches: list[ActionDispatch], groups: list[StimulusGro
                                                                      order[dispatches[index].group], index))
     resolved = list(dispatches)
     acting: dict[tuple[ShardKey, bool], str] = {}
+    sleep_action: str | None = None
     leases: dict[str, str] = {}
     updates: set[str] = set()
     for index in by_priority:
@@ -259,7 +264,12 @@ def resolve_conflicts(dispatches: list[ActionDispatch], groups: list[StimulusGro
         lease = body_lease(dispatch, workflows)
         reason = ""
         channel = (dispatch.group, dispatch.workflow_name == "assistant")
-        if channel in acting:
+        starts_sleep = dispatch.starts_memory_sleep()
+        if sleep_action is not None:
+            reason = f"higher-priority action {sleep_action} puts the character to sleep"
+        elif starts_sleep and acting:
+            reason = "a higher-priority action needs the character awake this cycle"
+        elif channel in acting:
             reason = f"group {dispatch.group.kind}:{dispatch.group.ref} already acts through {acting[channel]}"
         elif lease and lease in leases:
             reason = f"body lease {lease} already claimed by {leases[lease]}"
@@ -274,6 +284,8 @@ def resolve_conflicts(dispatches: list[ActionDispatch], groups: list[StimulusGro
             resolved[index] = rejected
             continue
         acting[channel] = dispatch.action_id
+        if starts_sleep:
+            sleep_action = dispatch.action_id
         if updating:
             updates.add(dispatch.arguments.run_id)
         if lease:
@@ -320,7 +332,8 @@ def select_routes(context: RoleContext, work: CycleWork) -> CycleWork:
                        for decision in work.state.decisions]
             answers = wait_model_futures(futures, stop)
     work.routes = routed_decisions(work, answers)
-    dispatches = resolve_prerequisites(resolve_same_cycle(action_dispatches(work.routes)), {})
+    proposals = action_dispatches(work.routes, provisional_tick(work))
+    dispatches = resolve_prerequisites(resolve_same_cycle(proposals), {})  # pm-lint: allow PM005 -- no prerequisite action IDs have completed at this stage
     dispatches = resolve_conflicts(dispatches, work.state.stimulus_groups, work.request.available_workflows or None)
     work.dispatches = dispatches
     return work

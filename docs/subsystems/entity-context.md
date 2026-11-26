@@ -14,6 +14,8 @@ Sustained character quality remains review work.
 Parent: [cognition](cognition.md).
 Related: [situational guidance](situational-guidance.md), [ordinary interaction](ordinary-interaction.md), and [public dialogue](public-dialogue.md).
 
+Memory reconsolidation reads the same receipt chain when it files an assertion about an entity. The episode retains its original source. Current retrieval consults the claim's present applicability and any explicit retraction or dispute. [Shared claim history][pm.memory.entity_history] and [reconsolidation](character-import.md#how-the-pass-forms-memories)
+
 ## One accepted model for each observer
 
 [`EntityContextOwner`][workflows.entity_context.owner.EntityContextOwner] stages accepted interpretations in the existing memory store.

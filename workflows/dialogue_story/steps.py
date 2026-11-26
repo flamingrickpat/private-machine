@@ -52,6 +52,7 @@ from pydantic import TypeAdapter
 
 from pm_workflows.python_role import RoleContext
 from pm.context_render.turns import Turn
+from pm import vclock
 from pm.context_render.prompt import RendererCapture, RendererInput
 from pm.llm.session import ModelSession
 from pm.llm.generation import GenerationSettings
@@ -62,6 +63,7 @@ from pm.host.durable_files import atomic_json
 
 from pm.utils import yaml_util
 from pm.memory.retrieval import utc_time
+from pm.memory.reconsolidation.assessment import StoryHistoryObservation
 from pm.records.enums import FeatureType
 from workflows.public_speech.public_context import (
     ability_lines, memory_sections, plain_memory_text, task_lines, time_lines,
@@ -603,7 +605,16 @@ def generate_reviewed(request: StoryRequest, prompts: StoryPrompts, generate: Mo
             if contains_tool_protocol(candidate):
                 error = "The completion contains serialized tool calls instead of speech."
                 candidate = ""
-            attempt = StoryAttempt(raw_completion=raw, candidate=candidate,
+            coverage = rendered.temporal_history
+            measurement = rendered.temporal_history_measurement
+            observation = None
+            if coverage is not None and measurement is not None:
+                observation = StoryHistoryObservation(observed_at=vclock.utcnow(),
+                    current_message_id=request.current_message_id, covered_features=len(coverage.covered_feature_ids),
+                    omitted_features=len(coverage.omitted_feature_ids),
+                    minimum_cover_prompt_tokens=measurement.minimum_cover_prompt_tokens,
+                    selected_prompt_tokens=rendered.estimated_tokens, available_history_tokens=measurement.available_history_tokens)
+            attempt = StoryAttempt(raw_completion=raw, candidate=candidate, history_observation=observation,
                 message_roles=[message.role.value for message in messages],
                 context_selection=selection,
                 generation_error=error or ("" if candidate else "The completion contains no new public speech."))

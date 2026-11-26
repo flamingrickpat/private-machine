@@ -10,6 +10,7 @@ The request and the shared phase state are in
 from __future__ import annotations
 
 from pm.memory.evidence import EvidenceItem as MemoryCandidate
+from pm.memory.reconsolidation.coordination import ReconsolidationMode
 
 from enum import StrEnum
 from typing import Literal, Self
@@ -79,6 +80,7 @@ class ActionArguments(BaseModel):
     instruction: str = ""
     constraints: list[str] = Field(default_factory=list[str])
     minecraft_read: Literal["", "inventory", "state"] = ""
+    reconsolidation_mode: ReconsolidationMode = ReconsolidationMode.Background
     timeout_seconds: float | None = Field(default=None, strict=True)
 
     @model_serializer(mode="wrap")
@@ -147,6 +149,12 @@ class ActionDispatch(BaseModel):
     stimulus_ids: list[int] = Field(default_factory=list[int])
     correlation_id: str = ""
     expectations: list[ExpectationDraft] = Field(default_factory=list[ExpectationDraft])
+
+    def starts_memory_sleep(self) -> bool:
+        """Identify the private start that parks ordinary cognition for this worker."""
+        return (self.workflow_name == "memory_reconsolidation" and self.action_type == "ToolCall"
+                and self.arguments.reconsolidation_mode is ReconsolidationMode.Sleep
+                and not self.arguments.run_id and self.arguments.operation in {"", "start"})
 
 
 class RequestShard(BaseModel):
@@ -1063,6 +1071,11 @@ class RouteAnswer(RouteChoice):
         if not isinstance(check, RouteCheck):
             raise TypeError("Route validation requires RouteCheck.")
         args = self.arguments
+        if "reconsolidation_mode" in args.model_fields_set:
+            if self.workflow_name != "memory_reconsolidation" or args.operation not in {"", "start"} or args.run_id:
+                raise ValueError("Choose the memory_reconsolidation workflow to start memory work in either mode.")
+            if args.reconsolidation_mode is ReconsolidationMode.Sleep and self.action_type != "ToolCall":
+                raise ValueError("Sorting memories while asleep requires a private ToolCall.")
         if args.related_run_id and (self.workflow_name not in {"assistant", "tool_call"}
                                     or args.related_run_id not in check.visible_run_ids):
             raise ValueError("A related tool inquiry needs a run ID from the supplied receipts.")
