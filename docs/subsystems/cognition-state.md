@@ -127,16 +127,15 @@ durable identity.
 
 ## Lifecycle evidence
 
-[`pm.app.lifecycle_records.record_startup`][] writes one `SystemMessage` Feature.
-The Feature records the boot identity, the last known activity, and the gap.
-When a clean shutdown exists, the gap text says so.
-When no clean shutdown exists, the gap is uncertain.
-[`pm.app.lifecycle_records.record_shutdown`][] writes the clean shutdown event.
-The worker-join callback in [`workflows.companion.build_app`][] calls it after all owned workers stop.
-[`pm.host.application.Application.join`][] waits for that callback.
-An application error or abrupt exit leaves no clean shutdown marker.
-The next startup then reports an uncertain end interval.
-A repeated boot identity or shutdown identity reuses the accepted event.
+Startup saves a `SystemMessage` Feature before the first cognition cycle.
+The Feature records the boot identity, the last known activity, and the offline gap.
+If the immediately preceding boot has a clean shutdown record, the startup Feature includes its ID.
+If that boot has no clean shutdown record, the startup Feature reports an uncertain ending.
+[Startup record][pm.app.lifecycle_records.record_startup]
+
+After worker cleanup, PM records the clean shutdown as a `SystemMessage` Feature for the current boot.
+The final checkpoint includes this Feature. Repeated boot or shutdown requests reuse the same record for that boot.
+[Shutdown record][pm.app.lifecycle_records.record_shutdown]
 
 At construction, [`workflows.companion.build_app`][] records the boot event.
 For real cognition it also puts a `system.lifecycle` envelope on the bus.
@@ -156,7 +155,7 @@ A failure before the commit leaves accepted state unchanged.
 A stale revision raises `GhostConflict`, so no partial update lands.
 The completed main cycle writes the checkpoint before action publication.
 Ordinary memory commits stay in memory. A crash can lose messages received after the last checkpoint.
-Restart discards unfinished inputs, publications, and workers instead of resuming old conversation work.
+Restart loads accepted memory, including pending message records. The new process starts with fresh execution state.
 The [wait controller](inference-wait.md) can accept a pause in that same commit.
 Its generation fence prevents a late sleep decision from hiding newer input.
 
@@ -173,8 +172,6 @@ A queued prerequisite is not retried inside this item.
 A12 owns publication recovery and requeue.
 The current model still returns `DEFAULT_WORKFLOWS` when no configuration
 catalogue is supplied.
-Only a successful application join records a clean shutdown.
-A hard process kill leaves the interval uncertain by design.
 
 ## Go deeper
 

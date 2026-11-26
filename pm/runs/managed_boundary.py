@@ -54,6 +54,9 @@ class ManagedRunBoundary:
     def milestone(self, key: str, summary: str, evidence: str, observed_at: datetime | None = None) -> None:
         self.supervisor.milestone(self.run_id, self.epoch, key, summary, evidence, observed_at)
 
+    def wait_for_stop(self) -> None:
+        self.supervisor.wait_for_stop(self.cancel)
+
     def cancelled(self) -> bool:
         return self.supervisor.cancelled_at_boundary(self.run_id, self.epoch)
 

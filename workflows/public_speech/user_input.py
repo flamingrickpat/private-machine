@@ -5,6 +5,7 @@ from collections.abc import Callable, Sequence
 import threading
 from typing import TYPE_CHECKING, Protocol
 
+from pm.app.control import IntakeClosed
 from pm.records.enums import EntityClass, FeatureType, InterlocusType, SourceKind
 
 from pm.bus.envelopes import Envelope, new_id
@@ -66,7 +67,7 @@ class UserInputProxy(BusModule):
         """
         with self._intake_lock:
             if not self._accepting:
-                raise RuntimeError("Stimulus intake is closed.")
+                raise IntakeClosed("Stimulus intake is closed.")
             if delivery_id:
                 for record in self.ghost.all_features:
                     if record.metadata.get("delivery_id") == delivery_id:

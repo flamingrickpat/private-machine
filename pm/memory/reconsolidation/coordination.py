@@ -84,7 +84,7 @@ class ReconsolidationCoordinator:
         self.worker: MemoryWorker | None = None
         self.ready: deque[ReadyMemory] = deque()
         self.sleep: MemorySleep | None = None
-        self.closing = False
+        self.closing = Event()
 
     def arm_sleep(self, action_record_id: int) -> None:
         """Bind a committed inference wait to its approved action record."""
@@ -100,7 +100,7 @@ class ReconsolidationCoordinator:
 
         worker = MemoryWorker(request, cancel, MemoryWorkProgress(run_id=request.run_id))
         with self.store.lock:
-            if self.closing or cancel.is_set():
+            if self.closing.is_set() or cancel.is_set():
                 cancel.set()
                 raise GhostCancelled(f"Memory preparation {request.run_id} stopped before admission.")
             if request.reconsolidation_mode is ReconsolidationMode.Sleep:
@@ -128,6 +128,8 @@ class ReconsolidationCoordinator:
                             raise GhostCancelled(f"Memory preparation {request.run_id} stopped before handoff.")
                         self.ready.append(ReadyMemory(preparation, unit, worker.progress))
                         worker.progress.prepared += 1
+                    if self.closing.is_set():
+                        break
             with self.store.lock:
                 return worker.progress.model_copy()
         finally:
@@ -158,8 +160,5 @@ class ReconsolidationCoordinator:
         return published
 
     def close_preparation(self) -> None:
-        """Keep finished units available for a quiescent shutdown checkpoint."""
-        with self.store.lock:
-            self.closing = True
-            if self.worker is not None:
-                self.worker.cancel.set()
+        """Fence preparation without interrupting the current worker."""
+        self.closing.set()

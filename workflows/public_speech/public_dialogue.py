@@ -313,6 +313,8 @@ class PublicDialogue(CognitiveWorkflow):
                     control.validate_selection(request.interaction_selection_id)
                     stop_source = request.task_receipt.stop_source_id if request.task_receipt else None
                     if not control.wait_for_reconsideration(self.stop_event, stop_source):
+                        if self.application.draining.is_set() and not self.stop_event.is_set():
+                            self.supersede_reply(envelope, "Shutdown left required reconsideration pending.")
                         return
                 with self.ghost.lock:
                     if control is not None:
@@ -370,6 +372,8 @@ class PublicDialogue(CognitiveWorkflow):
         request = ActionRequest.model_validate(envelope.payload)
         if self.cognitive_control is not None:
             if not self.cognitive_control.wait_for_classification(self.stop_event):
+                if self.application.draining.is_set() and not self.stop_event.is_set():
+                    self.supersede_reply(envelope, "Shutdown left required input classification pending.")
                 return
         try:
             if self.capability_owner is not None:

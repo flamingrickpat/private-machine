@@ -13,7 +13,7 @@ Code: [`pm.app.web_chat`][], [`pm.app.cli`][], and [`workflows.public_speech.use
 
 ## Start
 
-You need a character home folder with a `ghost.json` checkpoint.
+You need a character home folder with a `ghost.pickle` checkpoint.
 `character init` creates this folder.
 
 1. Start the app with the home folder and your model settings:
@@ -27,7 +27,7 @@ You need a character home folder with a `ghost.json` checkpoint.
 4. Type a message. Push Enter to send it. Push Shift+Enter for a new line.
    To send images, select **+**, paste an image, or drop image files on the chat.
    Each image shows a preview chip. Select its **×** to remove it.
-5. To stop the app, push Ctrl+C in the terminal.
+5. To finish a conversation, wait for the reply. Select **Shut down** and confirm.
 
 `--web-port <port>` changes the port. The default is `WEB_CHAT_PORT` in `pm/constants.py`.
 `--cognition dummy` runs the labeled fixture without model calls.
@@ -38,7 +38,7 @@ The home folder supplies the persona and the runtime root:
 | Path | Use |
 | --- | --- |
 | `<home>/character.yaml` and `<home>/personality.json` | Persona. The app reads them at each start. |
-| `<home>/ghost.json` | Accepted memory. The app loads it and saves every commit to it. It must exist. |
+| `<home>/ghost.pickle` | Memory checkpoint. The app loads it at startup and updates it at save boundaries. |
 | `<home>/runtime/` | Runtime root: kernel folders, logs, and model call logs. |
 
 `--home` excludes `--seed`, `--checkpoint`, `--ephemeral`, and `--runtime-root`.
@@ -70,9 +70,10 @@ All bodies are JSON. The models are in [`pm.app.web_chat`][].
 
 | Request | Result |
 | --- | --- |
-| `GET /api/session` | [`ChatSession`][pm.app.web_chat.ChatSession]: companion name, user name, poll interval |
+| `GET /api/session` | [`ChatSession`][pm.app.web_chat.ChatSession]: companion name, user name, poll interval, and shutdown availability |
 | `GET /api/messages?after=<id>` | [`MessagePage`][pm.app.web_chat.MessagePage]: messages with an ID above `after`, `last_id`, and `thinking` |
 | `POST /api/messages` with `{"name": ..., "text": ..., "images": [...]}` | [`PostResult`][pm.app.web_chat.PostResult]: the exchange correlation ID |
+| `POST /control/shutdown?after=<id>` with `{}` | Shut down the app and return the final `MessagePage`. |
 | `GET /api/media/<record_id>/<image_id>` | The bytes of one image of one public dialogue record, with its MIME type |
 
 Each [`ChatMessage`][pm.app.web_chat.ChatMessage] has `id`, `speaker`, `text`, `timestamp` (UTC), `from_companion`, `exchange_status`, and `images`.
@@ -96,7 +97,7 @@ An exception in a request is a runtime bug: the server passes it to the applicat
 ## Reads and writes
 
 [`read_messages`][pm.app.web_chat.read_messages] holds the store lock while it copies the dialogue lines.
-A commit holds the same lock while it validates, writes `ghost.json`, and installs the new records.
+A commit holds the same lock while it validates and installs the new records.
 So a read sees the state before or after a commit, never a part of one.
 
 A POST calls `UserInputProxy.submit(text, speaker=name, images=[...])`.
@@ -106,24 +107,24 @@ The page polls every `WEB_CHAT_POLL_MS` milliseconds and once directly after a s
 
 ## Persistence and restart
 
-Every accepted commit writes `ghost.json` atomically: a temporary file, then a replacement.
-This includes each user message, each cycle, each reply, and each delivery mark.
-A crash or a kill keeps the last complete checkpoint.
+PM saves `ghost.pickle` at checkpoint boundaries, including after a main cognition cycle and at shutdown.
+The writer replaces the checkpoint atomically. If the process stops abruptly, the last complete checkpoint remains available.
 
-Ctrl+C, SIGTERM, and Ctrl+Break stop the app in this order:
+**Shut down**, Ctrl+C, SIGTERM, and Ctrl+Break request the same shutdown.
 
-1. The web server stops and waits for running requests.
-2. The modules stop and join.
-3. The managed runs stop.
-4. A clean shutdown event commits to `ghost.json`.
+1. PM closes message intake and stops the admission of new work.
+2. Active modules finish their cycles. Active main cognition can complete the public reply it selects.
+3. PM joins the workers, saves parked workflow state, and finalizes memory.
+4. PM records the clean shutdown and writes the final checkpoint.
+5. The chat shows any final reply and **PM shut down.** The server closes and the app exits.
 
-Closing the browser tab changes nothing on the server.
-A cycle that did not commit before the stop is not accepted state, and the restart does not show it.
+If main cognition is idle or waiting for stimulus, PM leaves it idle and waits for other active work.
+The terminal shows which modules still have work and prints the checkpoint path after the save.
+Closing the browser tab leaves the app running. [Application shutdown][pm.host.application.Application.request_shutdown]
 
-At the next start, the app loads `ghost.json`.
-The tick counter, the cycle states, the GWT turns, and the dialogue continue from the saved values.
-The next main cycle receives the last saved cycle state as `previous_state`.
-The startup event records the offline gap.
+At the next startup, PM loads the checkpoint and uses the saved cycle state.
+The startup event records the offline gap and whether the preceding session ended cleanly.
+See [lifecycle evidence](cognition-state.md#lifecycle-evidence).
 
 ## Limits
 
@@ -132,6 +133,6 @@ The startup event records the offline gap.
 - `thinking` is an estimate. A spontaneous companion line ends it before the reply comes. A message that cognition chooses not to answer keeps it until the next companion line.
 - The dummy fixture does not resolve exchanges. Its messages stay `pending`, but its reply still ends `thinking`.
 - Each poll scans all features under the store lock. A very large store makes each poll slower.
-- A closed console window gives Windows about 5 seconds for the stop. A long model call can cut it; the last commit still survives.
+- If you close the console window, Windows can interrupt the stop. The last complete checkpoint remains available.
 - The page shows only public dialogue. It does not show thoughts, tasks, or workflow events.
 - Images in companion replies are not supported. Only human messages carry images.

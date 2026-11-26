@@ -30,6 +30,10 @@ from pm.records.media import RecordImage
 from pm.runs.workflow_module import WorkflowModule
 
 
+class IntakeClosed(RuntimeError):
+    """A stimulus arrived after the operator closed intake."""
+
+
 class OperatorIntake(Protocol):
     """The public input operations exposed to terminal and simulation controllers."""
 
@@ -186,23 +190,27 @@ class RuntimeControl:
                 app.request_shutdown()
                 return self.state()
             if path == "/control/freeze":
-                if app.draining.is_set() or app.shutdown_event.is_set():
-                    raise ValueError("A stopping application cannot enter a checkpoint barrier.")
-                self.intake.close_intake()
-                app.frozen.set()
-                for module in app.modules:
-                    module.draining = True
-                    module.mailbox.wake()
+                with app.shutdown_request_lock:
+                    if app.draining.is_set() or app.shutdown_event.is_set():
+                        raise ValueError("A stopping application cannot enter a checkpoint barrier.")
+                    self.intake.close_intake()
+                    with app.admission_lock:
+                        app.frozen.set()
+                        for module in app.modules:
+                            module.draining = True
+                            module.mailbox.wake()
                 return self.state()
             if path == "/control/thaw":
-                if app.draining.is_set() or app.shutdown_event.is_set():
-                    raise ValueError("A stopping application cannot reopen intake.")
-                if app.frozen.is_set():
-                    for module in app.modules:
-                        module.draining = False
-                        module.mailbox.wake()
-                    app.frozen.clear()
-                    self.intake.open_intake()
+                with app.shutdown_request_lock:
+                    if app.draining.is_set() or app.shutdown_event.is_set():
+                        raise ValueError("A stopping application cannot reopen intake.")
+                    if app.frozen.is_set():
+                        with app.admission_lock:
+                            for module in app.modules:
+                                module.draining = False
+                                module.mailbox.wake()
+                            app.frozen.clear()
+                        self.intake.open_intake()
                 return self.state()
             if path == "/control/delivery":
                 with self.ghost.lock:
@@ -215,6 +223,10 @@ class RuntimeControl:
                         accepted = record.id in history.baseline_ids or producer in history.accepted()
                 return DeliveryState(present=record is not None, accepted=accepted,
                                      record_id=record.id if record is not None else None)
+            if path in {"/control/advance", "/control/advance-step", "/control/send", "/control/snapshot"}:
+                if app.draining.is_set() or app.shutdown_event.is_set():
+                    raise ValueError("PM is shutting down.")
+
             if path in {"/control/advance", "/control/advance-step"}:
                 timestamp = body["to"]
                 if not isinstance(timestamp, str):
@@ -259,6 +271,9 @@ class RuntimeControl:
 
 class OperatorApplication(Application):
     """An assembled runtime has one operator for its store, input channel and snapshots."""
+
+    def close_shutdown_intake(self) -> None:
+        self.runtime_control.intake.close_intake()
 
     def bind_operator(self, ghost: MemoryStore, intake: OperatorIntake, runtime_root: Path) -> None:
         self.ghost = ghost

@@ -118,7 +118,16 @@ function addFiles(files) {
   }
 }
 
+let shutdownRequested = false;
+let shutdownFinished = false;
+
 function setThinking(thinking) {
+  if (shutdownRequested) {
+    state.typing.hidden = true;
+    $("status").textContent = shutdownFinished ? "PM shut down." : "Shutting down?";
+    $("status").classList.remove("thinking");
+    return;
+  }
   const companion = state.session.companion_name;
   state.typing.hidden = !thinking;
   $("status").textContent = thinking ? companion + " is thinking…" : "logged in as " + state.name;
@@ -127,6 +136,7 @@ function setThinking(thinking) {
 
 async function poll() {
   clearTimeout(state.timer);
+  if (shutdownFinished) return;
   if (state.polling) { state.again = true; return; }
   state.polling = true;
   const gen = state.gen;
@@ -134,25 +144,61 @@ async function poll() {
     const response = await fetch("/api/messages?after=" + state.lastId, { cache: "no-store" });
     if (!response.ok) throw new Error("HTTP " + response.status);
     const page = await response.json();
-    if (gen !== state.gen) return;
+    if (shutdownFinished || gen !== state.gen) return;
     const stick = state.lastId === 0 || nearBottom();
     page.messages.forEach(addMessage);
     state.lastId = page.last_id;
     setThinking(page.thinking);
     if (stick && (page.messages.length || page.thinking)) scrollDown();
   } catch (error) {
+    if (shutdownRequested) return;
     $("status").textContent = "Connection lost. Retrying…";
   } finally {
     state.polling = false;
-    if (!$("chat").hidden) {
+    if (!shutdownFinished && !$("chat").hidden) {
       if (state.again) { state.again = false; poll(); }
       else state.timer = setTimeout(poll, state.session.poll_ms);
     }
   }
 }
 
+async function shutdown() {
+  if (shutdownRequested || !window.confirm("Shut down PM?")) return;
+  shutdownRequested = true;
+  $("shutdown").disabled = true;
+  $("send").disabled = true;
+  $("attach").disabled = true;
+  $("text").disabled = true;
+  $("logout").disabled = true;
+  setThinking(false);
+  try {
+    const response = await fetch("/control/shutdown?after=" + state.lastId, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error);
+    shutdownFinished = true;
+    clearTimeout(state.timer);
+    result.messages.filter((message) => message.id > state.lastId).forEach(addMessage);
+    state.lastId = result.last_id;
+    setThinking(false);
+    scrollDown();
+  } catch (error) {
+    shutdownRequested = false;
+    $("shutdown").disabled = false;
+    $("send").disabled = false;
+    $("attach").disabled = false;
+    $("text").disabled = false;
+    $("logout").disabled = false;
+    $("status").textContent = "Shutdown request failed: " + error.message;
+  }
+}
+
 async function send(event) {
   event.preventDefault();
+  if (shutdownRequested) return;
   const box = $("text");
   const text = box.value.trim();
   if (!text && !state.images.length) return;
@@ -175,7 +221,7 @@ async function send(event) {
   } catch (error) {
     $("status").textContent = "Not sent: " + error.message;
   } finally {
-    $("send").disabled = false;
+    $("send").disabled = shutdownRequested;
     box.focus();
   }
 }
@@ -232,6 +278,8 @@ async function start() {
     clearTimeout(state.timer);
     showLogin();
   });
+  $("shutdown").hidden = !state.session.can_shutdown;
+  $("shutdown").addEventListener("click", shutdown);
   $("composer").addEventListener("submit", send);
   $("attach").addEventListener("click", () => $("file").click());
   $("file").addEventListener("change", () => { addFiles($("file").files); $("file").value = ""; });

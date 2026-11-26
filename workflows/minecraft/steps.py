@@ -246,8 +246,9 @@ def _run_boundary_check(context: RoleContext) -> dict[str, Any]:
     ))
     environment.move("scratch/report.yaml", "outbox/report.yaml")
     if request.wait_for_cancel:
-        context.runtime.stop_event.wait()
-        context.runtime.check_cancelled()
+        assert runtime.managed_boundary is not None
+        runtime.managed_boundary.wait_for_stop()
+        runtime.check_cancelled()
     return {"status": "done", "summary": "minecraft body finished with recorded tool evidence"}
 
 

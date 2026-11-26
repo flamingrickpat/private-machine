@@ -1457,7 +1457,7 @@ class MainCogLoop(CognitiveWorkflow):
                 # the new batch. Resolve the accepted action by durable identity and
                 # tick so the published id is always committed.
                 committed_id = self._committed_action_id(dispatch, tick) or created_id
-                self.bus.put(new_envelope(
+                self.publish_cycle_action(new_envelope(
                     self.module_id, "data", "action.request", dispatch.correlation_id,
                     action_request.model_copy(update={"knoxel_id": committed_id, "gwt_tick": tick}).payload(),
                     target=dispatch.workflow_name,

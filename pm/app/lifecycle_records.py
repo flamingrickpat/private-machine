@@ -5,7 +5,7 @@ clean stop that never happened. This module records two system events:
 
 - a startup event with the boot identity, the last known activity, and the
   elapsed gap;
-- a clean shutdown event, written only when the module terminates normally.
+- a clean shutdown event, added to the final checkpoint after worker cleanup.
 
 An abrupt exit leaves no clean shutdown event, so the next startup reports an
 uncertain end interval. Replaying the same boot identity or shutdown identity
@@ -73,7 +73,7 @@ def _find_system_event(ghost: MemoryStore, event: str, boot_id: str = "") -> Fea
     ]
     if not matches:
         return None
-    matches.sort(key=lambda item: (item.timestamp_creation, item.id))
+    matches.sort(key=lambda item: item.id)
     return matches[-1]
 
 
@@ -122,7 +122,12 @@ def record_startup(ghost: MemoryStore, *, boot_id: str | None = None,
     now = now or vclock.utcnow()
     activity = last_known_activity(ghost)
     gap_seconds = max(0.0, (now - activity).total_seconds()) if activity else 0.0
-    shutdown = last_completed_shutdown(ghost)
+    previous_boot = _find_system_event(ghost, "startup")
+    previous_boot_id = previous_boot.metadata.get("boot_id") if previous_boot is not None else None
+    shutdown = (
+        _find_system_event(ghost, "clean_shutdown", previous_boot_id)
+        if isinstance(previous_boot_id, str) and previous_boot_id else None
+    )
     gap_text = _describe_gap(gap_seconds)
     if shutdown is not None:
         end_kind = CLEAN_END
@@ -143,7 +148,12 @@ def record_startup(ghost: MemoryStore, *, boot_id: str | None = None,
         last_activity=activity.isoformat() if activity else "",
         clean_shutdown_id=int(shutdown.id) if shutdown is not None else None,
     )
-    stored = ghost.store_knoxel(feature)
+    batch = ghost.begin_batch(f"startup:{boot_id}", embed=False)
+    batch.preserve_on_recovery()
+    stored = batch.create(feature)
+    ghost.commit(batch)
+    # Persist the boot even if the process exits before the first main cycle.
+    ghost.save()
     return {
         "knoxel_id": int(stored.id),
         "text": str(stored.content),
@@ -165,18 +175,19 @@ def record_shutdown(ghost: MemoryStore, *, boot_id: str | None = None,
     if boot_id is None:
         startup = _find_system_event(ghost, "startup")
         boot_id = str(startup.metadata.get("boot_id", "")) if startup is not None else ""
-    existing = _find_system_event(ghost, "clean_shutdown", boot_id) if boot_id else None
+    if not boot_id:
+        return None
+    existing = _find_system_event(ghost, "clean_shutdown", boot_id)
     if existing is not None:
         return int(existing.id)
     now = now or vclock.utcnow()
-    text = f"I stopped cleanly at {now.isoformat()}."
+    text = "PM shut down cleanly after all active work finished."
     feature = _system_feature(text, event="clean_shutdown", boot_id=boot_id, stopped_at=now.isoformat())
-    batch = ghost.begin_batch(f"clean-shutdown:{boot_id}")
-    turns = [turn for turn in ghost.gwt_turns.values() if turn.slot_id == "main" and turn.decision_id is not None]
-    if turns:
-        latest = max(turns, key=lambda turn: turn.tick_id)
-        batch.depend_on([latest.decision_id], authority=latest.decision_id,
-                        manifest={"kind": "clean_shutdown", "boot_id": boot_id})
+    batch = ghost.begin_batch(f"clean-shutdown:{boot_id}", embed=False)
+    batch.preserve_on_recovery()
+    startup = _find_system_event(ghost, "startup", boot_id)
+    if startup is not None:
+        batch.depend_on([startup.id], manifest={"kind": "clean_shutdown", "boot_id": boot_id})
     record = batch.create(feature)
     ghost.commit(batch)
     return record.id

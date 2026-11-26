@@ -121,6 +121,7 @@ class ManagedRunSupervisor:
         workflow_models: WorkflowModels | None = None,
         stage_model: LazyStageModel | None = None,
         profiler: CognitionProfiler | None = None,
+        admission_closed: threading.Event | None = None,
     ) -> None:
         self.ghost = ghost
         self.runtime_root = Path(runtime_root)
@@ -138,9 +139,11 @@ class ManagedRunSupervisor:
         self.profiler: CognitionProfiler | None = profiler
         self._lock = threading.RLock()
         self._stopping = threading.Event()
+        self._admission_closed = admission_closed if admission_closed is not None else threading.Event()
         self._updates = threading.Condition(self._lock)
         self._cancels: dict[str, threading.Event] = {}
         self._threads: dict[str, threading.Thread] = {}
+        self._retiring_threads: dict[threading.Thread, str] = {}
         self._pending: dict[str, ParkedRunPointer] = {}
         self._worker_locks: dict[str, ProcessLock] = {}
         for run_id, row in ghost.managed_runs.items():
@@ -178,6 +181,22 @@ class ManagedRunSupervisor:
         with self._lock:
             return all(not thread.is_alive() or run_id in self._pending
                        for run_id, thread in self._threads.items())
+
+    def wait_for_stop(self, cancel: threading.Event) -> None:
+        """Release a worker that explicitly waits at a stop boundary."""
+        while not cancel.wait(.1):
+            if self._admission_closed.is_set():
+                cancel.set()
+                return
+
+    def active_worker_ids(self) -> list[str]:
+        """Include workers still releasing resources after a terminal receipt."""
+        with self._lock:
+            self._retiring_threads = {thread: run_id for thread, run_id in self._retiring_threads.items()
+                                      if thread.is_alive()}
+            running = {run_id for run_id, thread in self._threads.items() if thread.is_alive()}
+            running.update(self._retiring_threads.values())
+            return sorted(running)
 
     def get(self, run_id: str) -> dict:
         """Return one row, preferring a newer accepted receipt from another process."""
@@ -374,6 +393,8 @@ class ManagedRunSupervisor:
             existing = self._find_by_action(action_id)
             if existing is not None:
                 return ManagedRunReceipt.from_dict(existing).to_dict()
+            if self._admission_closed.is_set():
+                raise ManagedRunError("PM is shutting down and cannot start a new workflow.")
             if workflow_name not in self.workflows:
                 receipt = ManagedRunReceipt(
                     run_id=run_id or uuid.uuid4().hex,
@@ -463,8 +484,11 @@ class ManagedRunSupervisor:
             daemon=True,
         )
         with self._lock:
+            previous = self._threads.get(receipt.run_id)
+            if previous is not None and previous.is_alive():
+                self._retiring_threads[previous] = receipt.run_id
             self._threads[receipt.run_id] = thread
-        thread.start()
+            thread.start()
 
     # ----------------------------------------------------------- worker
 
@@ -683,8 +707,10 @@ class ManagedRunSupervisor:
                 self._transition(run_id, state="waiting_for_input", latest_event=f"waiting for answer: {result.question}", changes=RunTransitionChanges(question_id=str(result.question_id or ""), resume_phase=str(result.resume_phase or ""), parked_state=TypeAdapter[dict[str, JsonValue]](dict[str, JsonValue]).validate_python(saved)))
                 self._emit(run_id, "waiting_for_input", fields=RunEventFields(question_id=result.question_id, question=result.question))
                 parked = ManagedRunReceipt.from_dict(self.get(run_id))
-                if spec.resumable and parked.revision > max(parked.applied_revision, started_revision):
-                    self._resume_with_answer(parked, parked.question_id, parked.instructions)
+                if (not self._admission_closed.is_set() and spec.resumable
+                        and parked.revision > max(parked.applied_revision, started_revision)):
+                    self._resume_with_answer(parked, parked.question_id, parked.instructions,
+                                             automatic=True)
                 return
             if result.status is WorkflowStatus.Completed:
                 # The report summary travels with the terminal event, so a
@@ -819,6 +845,9 @@ class ManagedRunSupervisor:
                 while (not self._cancels[run_id].is_set()
                        and self.get(run_id)["state"] != "cancelled"
                        and self.get(run_id)["revision"] <= self.get(run_id)["applied_revision"]):
+                    if self._admission_closed.is_set():
+                        self._cancels[run_id].set()
+                        break
                     self._updates.wait(0.1)
             if self._cancels[run_id].is_set():
                 raise WorkflowTerminated()
@@ -876,6 +905,8 @@ class ManagedRunSupervisor:
             current = ManagedRunReceipt.from_dict(self.get(run_id))
             if request_id and request_id in current.resume_requests:
                 return current.to_dict()
+            if self._admission_closed.is_set():
+                raise ManagedRunError("PM is shutting down and cannot resume a workflow.")
             spec = self.workflows.get(current.workflow_name)
             retained_dispatch = spec is not None and spec.dispatch_reservation is not None and spec.dispatch_reservation.owner() == run_id
             if spec is None or not (spec.resumable or retained_dispatch):
@@ -926,8 +957,13 @@ class ManagedRunSupervisor:
             current = ManagedRunReceipt.from_dict(self.get(run_id))
             return self._resume_with_answer(current, question_id, answer)
 
-    def _resume_with_answer(self, current: ManagedRunReceipt, question_id: str, answer: str) -> dict:
+    def _resume_with_answer(self, current: ManagedRunReceipt, question_id: str, answer: str,
+                            *, automatic: bool = False) -> dict:
         """Commit the answer and any new instruction together while holding the supervisor lock."""
+        if self._admission_closed.is_set():
+            if automatic:
+                return current.to_dict()
+            raise ManagedRunError("PM is shutting down and cannot resume a parked workflow.")
         run_id = current.run_id
         pending = self._pending.get(run_id)
         if current.state != "waiting_for_input" or pending is None:
@@ -997,8 +1033,16 @@ class ManagedRunSupervisor:
 
     def join_all(self, timeout: float | None = None) -> None:
         """Wait for every managed worker that this process started."""
-        for run_id in list(self._threads):
+        with self._lock:
+            retiring = list(self._retiring_threads)
+            run_ids = list(self._threads)
+        for run_id in run_ids:
             self.join(run_id, timeout)
+        for thread in retiring:
+            if timeout is None:
+                join_thread(thread)
+            else:
+                thread.join(timeout)
 
     def stop(self) -> None:
         """Fence new workers and signal cancellation without waiting for I/O.

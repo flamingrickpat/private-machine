@@ -33,6 +33,7 @@ from urllib.parse import parse_qs, urlparse
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
+from pm.host.application import Application
 from pm.constants import (WEB_CHAT_HOST, WEB_CHAT_MAX_BODY_BYTES, WEB_CHAT_MAX_IMAGE_BODY_BYTES, WEB_CHAT_MAX_IMAGE_BYTES,
                           WEB_CHAT_MAX_IMAGES, WEB_CHAT_MAX_NAME_CHARS, WEB_CHAT_POLL_MS)
 from pm.memory.store import MemoryStore
@@ -93,11 +94,12 @@ class MessagePage(BaseModel):
 
 
 class ChatSession(BaseModel):
-    """The names and the poll interval that the page needs before login."""
+    """The names, poll interval, and shutdown control available to the page."""
 
     companion_name: str
     user_name: str
     poll_ms: int
+    can_shutdown: bool
 
 
 class PostImage(BaseModel):
@@ -205,8 +207,8 @@ class WebChatServer:
     ``submit`` must commit the message before it returns, so the next poll
     shows it. ``port`` 0 takes a free port; ``url`` names the real one.
     The constructor binds the socket and raises ``OSError`` when the port
-    is in use. ``stop`` closes the socket and joins the thread; a request
-    that runs at that moment finishes first.
+    is in use. ``stop`` lets the browser receive its final shutdown response,
+    then closes the socket and joins the server thread.
 
     An exception inside a request is a bug in the runtime, not a bad
     request. The handler passes it to ``on_error`` (the application's crash
@@ -215,14 +217,18 @@ class WebChatServer:
 
     def __init__(self, store: MemoryStore | None, submit: Submit, *, port: int,
                  on_error: Callable[[BaseException], None], host: str = WEB_CHAT_HOST,
-                 control: Callable[[str, dict], dict] | None = None) -> None:
+                 control: Callable[[str, dict], dict] | None = None,
+                 shutdown_application: Application | None = None) -> None:
         self.store = store
         self.submit = submit
         self.on_error = on_error
         self.control = control
         self.stopping = threading.Event()
-        # Request threads are not daemon threads, so ``server_close`` joins
-        # them: a message that is being committed finishes before shutdown.
+        self.shutdown_application = shutdown_application
+        self.shutdown_responses = threading.Condition()
+        self.pending_shutdown_responses = 0
+        # Only wait for the browser's final shutdown response. Other HTTP
+        # clients can hold a connection open without taking part in shutdown.
         self._httpd = ThreadingHTTPServer((host, port), _handler(self))
         self._thread = threading.Thread(target=self._httpd.serve_forever, name="web_chat", daemon=True)
 
@@ -240,6 +246,9 @@ class WebChatServer:
     def stop(self) -> None:
         """Stop serving. New messages cannot arrive after this returns."""
         self.stopping.set()
+        with self.shutdown_responses:
+            while self.pending_shutdown_responses:
+                self.shutdown_responses.wait()
         if self._thread.is_alive():
             self._httpd.shutdown()
         self._httpd.server_close()
@@ -248,7 +257,8 @@ class WebChatServer:
 
     def session(self) -> ChatSession:
         return ChatSession(companion_name=self.store.get_companion_name(),
-                           user_name=self.store.get_user_name(), poll_ms=WEB_CHAT_POLL_MS)
+                           user_name=self.store.get_user_name(), poll_ms=WEB_CHAT_POLL_MS,
+                           can_shutdown=self.shutdown_application is not None)
 
     def names_the_companion(self, name: str) -> bool:
         """Return True when ``name`` is the companion's name or an alias of its entity.
@@ -347,6 +357,8 @@ def _handler(chat: WebChatServer) -> type[BaseHTTPRequestHandler]:
             if path.path == "/v1/events":
                 from pm.app.transport import serve_events
                 return serve_events(self, chat)
+            if path.path in {"/control/shutdown", "/control/stop"}:
+                return self._json_error("Use POST to shut down PM.", 405)
             if path.path.startswith("/control/"):
                 return self._control(path.path, {key: values[0] for key, values in parse_qs(path.query).items()})
             if chat.store is None and path.path.startswith("/api/"):
@@ -393,7 +405,13 @@ def _handler(chat: WebChatServer) -> type[BaseHTTPRequestHandler]:
                 images = [chat.image(item) for item in message.images]
             except ValueError as exc:
                 return self._json(ErrorResult(error=f"Invalid image: {exc}"), 400)
-            return self._json(PostResult(correlation_id=chat.submit(message.text, speaker=message.name, images=images)))
+            from pm.app.control import IntakeClosed
+
+            try:
+                correlation_id = chat.submit(message.text, speaker=message.name, images=images)
+            except IntakeClosed as error:
+                return self._json_error(str(error), 503)
+            return self._json(PostResult(correlation_id=correlation_id))
 
         def _stimulus_or_control(self, path: str) -> None:
             from pm.app.transport import CompletionStimulus, StimulusAccepted
@@ -406,6 +424,12 @@ def _handler(chat: WebChatServer) -> type[BaseHTTPRequestHandler]:
                 body = json.loads(self.rfile.read(int(length)))
                 if not isinstance(body, dict):
                     raise ValueError("The request must be a JSON object.")
+                if path in {"/control/shutdown", "/control/stop"}:
+                    after = parse_qs(urlparse(self.path).query).get("after")
+                    if after is not None:
+                        if not after[0].isdigit():
+                            raise ValueError("after must be a non-negative integer.")
+                        return self._shutdown_with_messages(int(after[0]))
                 if path.startswith("/control/"):
                     return self._control(path, body)
                 if chat.store is None:
@@ -425,5 +449,28 @@ def _handler(chat: WebChatServer) -> type[BaseHTTPRequestHandler]:
             except RuntimeError as error:
                 return self._json_error(str(error), 503)
             return self._json(StimulusAccepted(stimulus_id=stimulus_id), 202)
+
+        def _shutdown_with_messages(self, after: int) -> None:
+            """Return final committed messages to the tab that requested shutdown."""
+            app = chat.shutdown_application
+            store = chat.store
+            with chat.shutdown_responses:
+                if chat.stopping.is_set() or app is None or store is None:
+                    return self._json_error("Runtime control is unavailable.", 503)
+                chat.pending_shutdown_responses += 1
+            try:
+                app.request_shutdown()
+                app.shutdown_event.wait()
+                # Bound delivery time if the requesting tab stops reading.
+                self.connection.settimeout(5)
+                if app.error is not None or not app.drained.is_set():
+                    return self._json_error("PM shutdown did not complete. See its terminal output.", 500)
+                return self._json(read_messages(store, after=after))
+            except (ConnectionError, TimeoutError):
+                return
+            finally:
+                with chat.shutdown_responses:
+                    chat.pending_shutdown_responses -= 1
+                    chat.shutdown_responses.notify_all()
 
     return Handler

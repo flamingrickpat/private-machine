@@ -168,7 +168,7 @@ class DummyMainCogLoop(CognitiveWorkflow):
             self.module_id, "data", "gwt.updated", "", {"gwt_tick": tick},
         ))
         for index, decision in enumerate(decisions):
-            self.bus.put(new_envelope(
+            self.publish_cycle_action(new_envelope(
                 self.module_id, "data", f"action.{decision['route']}",
                 decision["correlation_id"],
                 {"knoxel_id": action_ids[index], "gwt_tick": tick},

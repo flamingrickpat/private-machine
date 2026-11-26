@@ -246,10 +246,15 @@ class CognitiveControl(BusModule):
         """Wait for early classification without holding a store or model slot."""
         while not cancel.is_set():
             with self.ghost.lock:
-                if not self.input_triage_enabled or all(
-                    key in self._assessments for key in source_ids
-                ):
+                if not self.input_triage_enabled:
                     return True
+                missing_sources = set(source_ids).difference(self._assessments)
+                if not missing_sources:
+                    return True
+                if self.application.draining.is_set() and not self.application.shutdown_can_finish_cognition(
+                    missing_sources
+                ):
+                    return False
             cancel.wait(0.05)
         return False
 
@@ -283,8 +288,13 @@ class CognitiveControl(BusModule):
     def wait_for_reconsideration(self, cancel: Event, stop_source: int | None = None) -> bool:
         """Defer ordinary work until required cognition is accepted or stopped."""
         while not cancel.is_set():
-            if not self.reconsideration_required(stop_source):
-                return True
+            with self.ghost.lock:
+                if not self.reconsideration_required(stop_source):
+                    return True
+                if self.application.draining.is_set() and not self.application.shutdown_can_finish_cognition(
+                    self._pending_triage
+                ):
+                    return False
             cancel.wait(0.05)
         return False
 
@@ -294,6 +304,10 @@ class CognitiveControl(BusModule):
             with self.ghost.lock:
                 if not self._pending_triage:
                     return True
+                if self.application.draining.is_set() and not self.application.shutdown_can_finish_cognition(
+                    self._pending_triage
+                ):
+                    return False
             cancel.wait(0.05)
         return False
 
@@ -520,7 +534,7 @@ class CognitiveControl(BusModule):
                                  and record.metadata.get("wake_status") == "pending"}
                 armed = (generation == self.generation and not (self._pending_inputs - handled)
                          and not (pending_wakes - set(wake_ids)))
-                if wait.memory_action_id is not None and (self.reconsolidation.closing or self._pending_triage - set(source_ids)):
+                if wait.memory_action_id is not None and (self.reconsolidation.closing.is_set() or self._pending_triage - set(source_ids)):
                     armed = False
                 paused_sources = set(source_ids)
                 if armed:
@@ -593,7 +607,9 @@ class CognitiveControl(BusModule):
                 if not self._pending_triage:
                     raise GhostCancelled("Private work predates accepted Critical reconsideration.")
                 batch.check_cancelled()
-                if self.stop_event.is_set():
+                if (self.stop_event.is_set()
+                        or self.application.draining.is_set()
+                        and not self.application.shutdown_can_finish_cognition(self._pending_triage)):
                     raise GhostCancelled("Private work stopped while its input awaited classification.")
                 # The timeout bounds how late a cancellation or stop is noticed.
                 self._classification_changed.wait(0.05)

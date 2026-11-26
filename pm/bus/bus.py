@@ -34,7 +34,6 @@ class Mailbox:
     def __init__(self) -> None:
         self._items: deque[Envelope] = deque()
         self._condition = threading.Condition()
-        self._claimed = False
 
     def put(self, envelope: Envelope) -> None:
         """Queue one envelope and wake a waiting reader."""
@@ -50,27 +49,25 @@ class Mailbox:
     def pending(self) -> int:
         """Return queued envelopes without removing them."""
         with self._condition:
-            return len(self._items) + int(self._claimed)
+            return len(self._items)
 
-    def take_batch(self, stop_event: threading.Event, timeout: float | None, *, claim: bool = False) -> list[Envelope]:
-        """Return and clear the queued envelopes after at most ``timeout`` seconds.
+    def wait_for_items(self, stop: threading.Event, drain: threading.Event, timeout: float | None) -> None:
+        """Wait for delivery or a lifecycle change without claiming work."""
+        with self._condition:
+            if not self._items and not stop.is_set():
+                if drain.is_set():
+                    self._condition.wait(.05)
+                else:
+                    self._condition.wait(timeout)
 
-        ``claim`` marks the module as mid-delivery, so ``pending`` keeps
-        reporting the work until ``release`` runs after synchronous publication.
-        """
+    def take_batch(self, stop_event: threading.Event, timeout: float | None) -> list[Envelope]:
+        """Return and clear the queued envelopes after at most ``timeout`` seconds."""
         with self._condition:
             if not self._items and not stop_event.is_set():
                 self._condition.wait(timeout)
             items = list(self._items)
             self._items = deque()
-            if claim and items:
-                self._claimed = True
             return items
-
-    def release(self) -> None:
-        """End a module's claimed delivery after all synchronous publication."""
-        with self._condition:
-            self._claimed = False
 
 
 class BusSystem:

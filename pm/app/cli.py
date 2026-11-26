@@ -27,7 +27,6 @@ from pm.utils.operating_system import OperatingSystem
 import argparse
 import sys
 import threading
-import time
 import logging
 from pathlib import Path
 from types import FrameType
@@ -235,6 +234,8 @@ def _run_session(plan: LaunchPlan, *, assembly: TerminalAssembly) -> int:
     again after draining. Individual commits usually stay in memory until
     a checkpoint boundary.
     """
+    from pm.app.control import IntakeClosed
+
     app = build_from_plan(plan, assembly=assembly)
     print(assembly.BANNER if plan.cognition == "dummy" else assembly.REAL_BANNER, flush=True)
     if plan.home is not None:
@@ -247,7 +248,7 @@ def _run_session(plan: LaunchPlan, *, assembly: TerminalAssembly) -> int:
                 text = line.rstrip("\n")
                 if text.strip():
                     app.runtime_control.intake.submit(text)
-        except (EOFError, ValueError):
+        except (EOFError, ValueError, IntakeClosed):
             pass
         finally:
             # Without the web chat, the end of stdin ends the session. With
@@ -260,14 +261,15 @@ def _run_session(plan: LaunchPlan, *, assembly: TerminalAssembly) -> int:
     # Windows ends the process about 5 seconds after
     # a console window closes, so a long model call can still cut the stop.
     stop_signals = 0
+    stop_requested = False
 
     def stop_on_signal(signum: int, frame: FrameType | None) -> None:
-        nonlocal stop_signals
+        nonlocal stop_signals, stop_requested
         stop_signals += 1
         if stop_signals > 1:
             from pm.host.diagnostics import exit_after_repeated_signal
             exit_after_repeated_signal()
-        app.request_shutdown()
+        stop_requested = True
 
     previous = OperatingSystem.register_stop_signals(stop_on_signal, console_break=True)
 
@@ -276,7 +278,7 @@ def _run_session(plan: LaunchPlan, *, assembly: TerminalAssembly) -> int:
             from pm.app.web_chat import WebChatServer
             operator = app.runtime_control
             web = WebChatServer(operator.ghost, operator.intake.submit, port=plan.web_port, on_error=app.on_error,
-                                control=operator)
+                                control=operator, shutdown_application=app)
         app.run()
         if web is not None:
             web.start()
@@ -284,11 +286,14 @@ def _run_session(plan: LaunchPlan, *, assembly: TerminalAssembly) -> int:
         reader = threading.Thread(target=read_stdin, name="stdin", daemon=True)
         reader.start()
         while not app.shutdown_event.is_set():
-            time.sleep(0.1)
+            if stop_requested:
+                app.request_shutdown()
+            app.shutdown_event.wait(0.1)
     except KeyboardInterrupt:
         pass
     finally:
-        app.shutdown()
+        if not app.drained.is_set():
+            app.shutdown()
         try:
             if web is not None:
                 web.stop()

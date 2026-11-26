@@ -171,7 +171,10 @@ class Interaction(CognitiveWorkflow):
                 has_guidance = any(turn.slot_id == "main" for turn in view.gwt_turns.values())
             if has_guidance:
                 break
-            self.stop_event.wait(0.05)
+            if self.application.draining.is_set() and not self.application.shutdown_can_finish_cognition(set()):
+                return
+            if self.stop_event.wait(0.05):
+                return
         remaining = self.remaining_inputs(batch)
         if not remaining:
             return
@@ -280,7 +283,7 @@ class Interaction(CognitiveWorkflow):
         receipt = InteractionMetadata.model_validate(record.metadata).interaction_receipt
         if receipt.action_request is not None:
             request = receipt.action_request
-            self.bus.put(new_envelope(self.module_id, "data", "action.request",
+            self.publish_cycle_action(new_envelope(self.module_id, "data", "action.request",
                 self._request.cycle.correlation_id, request.payload(), target=request.workflow_name,
                 causation_id=batch[0].id))
         if receipt.outcome == InteractionOutcome.Reconsider or receipt.decision.guidance_disposition != GuidanceDisposition.Follow:

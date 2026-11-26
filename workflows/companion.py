@@ -55,7 +55,7 @@ from pm.app.control import OperatorApplication
 from pm.memory.reconsolidation.coordination import ReconsolidationCoordinator
 from workflows.dialogue_assistant.host import AssistantDialogue
 from workflows.demo.host import CheckSubprocess, DummyDialogue, DummyMainCogLoop, ScheduleSubprocesses, TaskTable, ToolPlusDialogue
-from workflows.main_cognition.host import InnerThoughtLoop, MainCogLoop
+from workflows.main_cognition.host import InnerThoughtLoop, KnoxelPayload, MainCogLoop
 from workflows.self_management.host import SelfManagement
 from workflows.steward.host import StewardModule
 from workflows.dialogue_story.host import StoryDialogue
@@ -65,7 +65,7 @@ from pm.bus.envelopes import Envelope, new_id
 from workflows.memory_consolidation.artifact_consolidation import Consolidator
 from pm.runs.supervisor import ManagedRunSupervisor
 from pm.runs.workflow_spec import WorkflowSpec
-from pm.host.application import Application
+from pm.host.application import AdmittedCycle, Application, BusModule
 from workflows.steward.gate import Steward
 from pm.llm.workflow_sessions import WorkflowModels
 from pm.memory.bash_view import MemoryBashTarget
@@ -83,6 +83,9 @@ if TYPE_CHECKING:
     from pm.llm.config import ModelConfig
     from pm.llm.stage_model import LazyStageModel
     from pm.memory.embeddings import EmbeddingService
+    from pm.app.lifecycle_records import StartupEvidence
+    from workflows.input_triage.host import InputTriage
+    from workflows.interaction.host import Interaction
     from workflows.focus_management.host import FocusManagement
     from workflows.tool_call.catalogue import ToolCatalogue
 
@@ -104,10 +107,70 @@ class CompanionApplication(OperatorApplication):
     cognitive_control: CognitiveControl | None = None
     user_input: UserInputProxy
 
-    def request_shutdown(self) -> None:
-        """Stop optional memory preparation before draining ordinary conversation."""
+    main_cog: MainCogLoop | DummyMainCogLoop
+    dialogue: StoryDialogue | DummyDialogue | None
+    assistant: AssistantDialogue | None
+    input_triage: InputTriage | None = None
+    interaction: Interaction | None = None
+    lifecycle_boot: StartupEvidence | None
+    shutdown_triage_sources: frozenset[int] = frozenset()
+    shutdown_main_cycle: AdmittedCycle | None = None
+    shutdown_interaction_cycle: AdmittedCycle | None = None
+
+    def capture_shutdown_admissions(self) -> None:
+        self.shutdown_main_cycle = self.main_cog.active_cycle
+        if self.shutdown_main_cycle is not None:
+            self.shutdown_triage_sources = frozenset(
+                KnoxelPayload.model_validate(item.payload).knoxel_id
+                for item in self.shutdown_main_cycle.envelopes if item.topic == "user.input"
+            )
+        if self.interaction is not None:
+            self.shutdown_interaction_cycle = self.interaction.active_cycle
         self.memory_work.close_preparation()
-        super().request_shutdown()
+
+    def shutdown_can_finish_cognition(self, pending_sources: set[int]) -> bool:
+        with self.admission_lock:
+            return self.main_cog.working and pending_sources.issubset(self.shutdown_triage_sources)
+
+    def shutdown_batch(self, module: BusModule, batch: list[Envelope]) -> list[Envelope]:
+        if module is self.input_triage and self.main_cog.working:
+            return [item for item in batch if item.topic == "user.input"
+                    and KnoxelPayload.model_validate(item.payload).knoxel_id in self.shutdown_triage_sources]
+        if module is self.dialogue or module is self.assistant:
+            requests: set[str] = set()
+            if self.shutdown_main_cycle is not None:
+                requests.update(self.shutdown_main_cycle.dispatch_ids)
+            if self.shutdown_interaction_cycle is not None:
+                requests.update(self.shutdown_interaction_cycle.dispatch_ids)
+            return [item for item in batch if item.id in requests]
+        if module is self.user_input:
+            return [item for item in batch if item.topic == "dialogue.reply"]
+        return []
+
+    def background_work_idle(self) -> bool:
+        return self.supervisor.idle()
+
+    def active_worker_ids(self) -> list[str]:
+        return self.supervisor.active_worker_ids()
+
+    def cancel_workers(self) -> None:
+        self.supervisor.stop()
+
+    def finish_workers(self, *, graceful: bool) -> None:
+        self.supervisor.shutdown(preserve_parked=graceful)
+        if graceful:
+            for module in self.modules:
+                if isinstance(module, WorkflowModule):
+                    module.save_parked()
+
+    def finish_shutdown_memory(self) -> None:
+        from pm.app.lifecycle_records import record_shutdown
+
+        if self.cognitive_control is not None:
+            self.cognitive_control.finish_memory_work_on_shutdown()
+        if self.lifecycle_boot is not None:
+            assert self.ghost is not None
+            record_shutdown(self.ghost, boot_id=self.lifecycle_boot["boot_id"])
 
 
 def _managed_workflows(
@@ -498,6 +561,7 @@ def build_app(
     supervisor = ManagedRunSupervisor(
         ghost,
         profiler=app.profiler,
+        admission_closed=app.draining,
         runtime_root=runtime_root,
         workflows=specs,
         clock=app.clock.monotonic,
@@ -654,6 +718,7 @@ def build_app(
         interaction.embedding_service = context_embeddings
         interaction.cognitive_control = control
         control.interaction = interaction
+        app.interaction = interaction
         control.main_cognition = main_cog
         interaction.main_cognition = main_cog
         main_cog.interaction_enabled = True
@@ -759,18 +824,6 @@ def build_app(
     app.bus = bus
     app.tasks = tasks
     app.supervisor = supervisor
-    app.stop_workers = supervisor.stop
-
-    def finish_workers() -> None:
-        """Join all owned work before recording a successful clean stop."""
-        supervisor.shutdown(preserve_parked=app.drained.is_set())
-        if control is not None and app.error is None:
-            control.finish_memory_work_on_shutdown()
-        if record_lifecycle and app.error is None:
-            from pm.app.lifecycle_records import record_shutdown
-            record_shutdown(ghost, boot_id=app.lifecycle_boot["boot_id"])
-
-    app.join_workers = finish_workers
     app.consolidator = consolidator
     app.steward = steward
     app.workflow_models = workflow_models

@@ -53,21 +53,14 @@ Read [experience consolidation](memory-consolidation.md) for evidence attributio
 
 ## Application shutdown
 
-The companion assembly registers worker hooks on [`pm.host.application.Application`][].
-Application shutdown stops bus modules and calls [`pm.runs.supervisor.ManagedRunSupervisor.stop`][].
-That method fences new worker launches, signals every owned cancellation event, and wakes instruction waiters.
-It does not join a worker from the worker's own error callback.
+A normal shutdown closes admission to new managed runs and parked-run resumptions.
+Active workers finish their current work. If a workflow asks for input, the supervisor can retain its parked receipt.
+PM joins the worker threads and saves the final memory checkpoint after cleanup.
+[Application shutdown][pm.host.application.Application.request_shutdown]
 
-Application join first waits for bus modules.
-It then calls [`pm.runs.supervisor.ManagedRunSupervisor.shutdown`][].
-That method records cancellation for remaining active or waiting runs and joins every worker.
-The caller must keep Minecraft and other external services available until join returns.
-This order lets uncertain calls finish their cleanup before the body lease becomes available.
-Cancellation cannot reverse a completed world effect.
-
-The assembly records a clean shutdown only after worker cleanup succeeds and the application has no recorded error.
-An abrupt process exit or application fault cannot manufacture a clean ending.
-Repeated cleanup calls preserve terminal receipts and the original boot identity.
+If a runtime fault stops the application, the supervisor signals cancellation and then joins the workers.
+Keep Minecraft and other external services available until the workers finish their cleanup.
+Cancellation cannot reverse a completed world effect. [Managed-run shutdown][pm.runs.supervisor.ManagedRunSupervisor.shutdown]
 
 Worker faults keep their traceback even when a cancellation signal exists.
 Only an explicit cancellation exception with the matching signal counts as expected cancellation.

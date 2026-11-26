@@ -393,6 +393,24 @@ class EventOriginTests(unittest.TestCase):
 
 
 class LifecycleTests(unittest.TestCase):
+    def test_checkpoint_distinguishes_clean_stop_from_later_interrupted_boot(self) -> None:
+        with TemporaryDirectory() as directory:
+            checkpoint = Path(directory) / "ghost.pickle"
+            ghost = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"), checkpoint=checkpoint)
+            record_startup(ghost, boot_id="clean-boot")
+            first = record_shutdown(ghost, boot_id="clean-boot")
+            self.assertIsNotNone(first)
+            self.assertEqual(first, record_shutdown(ghost, boot_id="clean-boot"))
+            ghost.save()
+
+            clean = MemoryStore.from_checkpoint(checkpoint)
+            restart = record_startup(clean, boot_id="interrupted-boot")
+            self.assertEqual(restart["end_kind"], CLEAN_END)
+
+            interrupted = MemoryStore.from_checkpoint(checkpoint)
+            newest = record_startup(interrupted, boot_id="next-boot")
+            self.assertEqual(newest["end_kind"], UNCERTAIN_END)
+
     def test_abrupt_startup_reports_uncertain_gap(self):
         ghost = _small_ghost()
         boot = record_startup(ghost, boot_id="boot-a")
