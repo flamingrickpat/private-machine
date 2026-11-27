@@ -9,6 +9,7 @@ This file records milestone decisions and verification.
 | --- | --- | --- |
 | G01 | Accepted as the first gamma work item | Reflective inquiry work deferred from B05 |
 | G02 | Implemented and exercised on disposable beta homes | Memory reconsolidation and sleep |
+| G03 | Owner requested a live experimental attempt during Gamma | [Unconscious valence, attraction, avoidance, and reflective inference](gamma/relationship-qualia.md#g03-unconscious-simulation-and-reflective-inference) |
 
 ## G01: reflective inquiry work deferred from B05
 
