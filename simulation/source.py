@@ -36,6 +36,7 @@ class SimulationConfigOverrides:
     model_url: str | None = None
     body_url: str | None = None
     prompt_directory: Path | None = None
+    overnight: bool = False
 
 
 def copy_simulation_config(source: Path, destination: Path,
@@ -56,6 +57,21 @@ def copy_simulation_config(source: Path, destination: Path,
     })
     if overrides.profile:
         settings.profile_cognition = True
+    if overrides.overnight:
+        settings.ghost_backups = False
+        settings.inference_io = settings.inference_io.model_copy(update={"prompt_log": True})  # pm-lint: allow PM005 -- Pydantic settings update
+        settings.minecraft = None
+        settings.tool_call = settings.tool_call.model_copy(update={"mcp_servers": []})  # pm-lint: allow PM005 -- Pydantic settings update
+        for preset, connection in settings.chat.items():
+            if connection.base_url != "https://openrouter.ai/api/v1" or connection.startup_script is not None:
+                raise ValueError("Scenario 5 requires remote OpenRouter chat routes.")
+            settings.chat[preset] = connection.model_copy(update={  # pm-lint: allow PM005 -- Pydantic settings update
+                "model": "deepseek/deepseek-v4.1-flash-1017", "override_context": 65536,
+                "context_window": None, "provider": None, "max_concurrent_requests": 0, "require_reasoning": False,
+            })
+        if settings.embedding.base_url != "https://openrouter.ai/api/v1":
+            raise ValueError("Scenario 5 requires the configured OpenRouter embedding route.")
+        settings.embedding = settings.embedding.model_copy(update={"max_concurrent_requests": 0})  # pm-lint: allow PM005 -- Pydantic settings update
     if overrides.model_url is not None:
         default = settings.chat[LlmPreset.Default]
         settings.chat[LlmPreset.Default] = default.model_copy(update={"base_url": overrides.model_url.rstrip("/")})

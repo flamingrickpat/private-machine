@@ -24,6 +24,7 @@ from enum import StrEnum
 from pydantic import BaseModel, Field, JsonValue, ValidationError
 
 from pm.llm.activation import ModelActivation
+from pm.llm.generation import GenerationSettings
 from pm.llm.http_client import ModelError
 from pm.llm.config import LlmPreset, load_config, resolve_connection
 from pm.llm.stage_model import LazyStageModel
@@ -74,6 +75,8 @@ class SimulationOperation(StrEnum):
     DayPlan = "plan_day"
     Stage = "stage_director"
     Rating = "conversation_rating"
+    Observation = "run_observation"
+    AssessGoal = "assess_run_goal"
 
 
 class ActorContext(BaseModel):
@@ -183,6 +186,7 @@ class Agents:
     def prompt_input(self, operation: SimulationOperation, instruction: str, payload: BaseModel,
                      schema: str) -> rendering.SimulationPromptInput:
         from simulation.analysis import RatingInput
+        from simulation.observer import Observation
         from simulation.templates import DayRequest
         match operation:
             case SimulationOperation.Actor:
@@ -209,10 +213,14 @@ class Agents:
             case SimulationOperation.Rating:
                 assert isinstance(payload, RatingInput)
                 return rendering.rating_input(payload, instruction, schema)
+            case SimulationOperation.Observation | SimulationOperation.AssessGoal:
+                assert isinstance(payload, Observation)
+                return rendering.observation_input(payload, instruction, schema)
 
     def validate_result(self, operation: SimulationOperation, result: BaseModel, payload: BaseModel) -> BaseModel:
         from pm.llm.structured import JsonOutputError
         from simulation.analysis import RatingInput, SectionRating
+        from simulation.observer import GoalAssessment, Observation, ObservationFinding
         from simulation.templates import DayRequest
         match operation:
             case SimulationOperation.Plan:
@@ -253,6 +261,20 @@ class Agents:
                             raise JsonOutputError(f"{delivery_id!r} was not delivered at {at.isoformat()}.")
             case SimulationOperation.Actor | SimulationOperation.ActorReview | SimulationOperation.Facts | SimulationOperation.PlanReview:
                 pass
+            case SimulationOperation.Observation:
+                assert isinstance(result, ObservationFinding) and isinstance(payload, Observation)
+                supplied = {item.id for item in payload.evidence}
+                cited = set(result.evidence_ids)
+                if not cited.issubset(supplied):
+                    raise JsonOutputError("Only cite evidence IDs supplied in the observation.")
+            case SimulationOperation.AssessGoal:
+                assert isinstance(result, GoalAssessment) and isinstance(payload, Observation)
+                quote = result.evidence_quote
+                if result.satisfied:
+                    if not quote or not quote.strip() or quote not in payload.evidence[-1].text:
+                        raise JsonOutputError("A satisfied goal needs an exact quote from the final evidence item.")
+                elif quote is not None:
+                    raise JsonOutputError("Return a null quote when the goal is unmet.")
         return result
 
     def call(self, role: SimulationOperation, instruction: str, payload: BaseModel, *, schema: type[T]) -> T:
@@ -277,6 +299,9 @@ class Agents:
         rejected_answer = ""
         rejected_diagnostics: list[str] = []
         failure_delay = AGENT_RETRY_DELAY_SECONDS
+        generation = GenerationSettings()
+        if role in {SimulationOperation.Observation, SimulationOperation.AssessGoal}:
+            generation = GenerationSettings(enable_thinking=False, max_tokens=1024)
         while True:
             call_id = uuid4().hex
             captured_input = replace(prompt_input, correction=correction, rejected_answer=rejected_answer)
@@ -294,7 +319,7 @@ class Agents:
             try:
                 from pm.llm.prompt_log import invocation_scope
                 with log_scope(self.evidence / "model-logs"), invocation_scope(role, call_id):
-                    output = self.session.complete(turns)
+                    output = self.session.complete(turns, settings=generation)
                 result = schema.model_validate(extract_json(output))
                 if isinstance(result, ActorTurn) and result.content.strip() in rejected_diagnostics:
                     raise JsonOutputError(

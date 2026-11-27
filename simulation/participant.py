@@ -34,7 +34,7 @@ from collections.abc import Sequence
 from types import FrameType
 from typing import TYPE_CHECKING
 
-from pydantic import JsonValue, TypeAdapter
+from pydantic import BaseModel, JsonValue, TypeAdapter
 
 from pm import vclock
 from pm.app.character_home import CharacterHome
@@ -44,11 +44,61 @@ from pm.bus.envelopes import Envelope
 from pm.host.diagnostics import configure_logging, close_logging
 from pm.host.durable_files import ProcessLock, atomic_json
 from pm.llm.prompt_log import configure_root
+from pm.memory.reconsolidation.coordination import MemoryWorkProgress
+from pm.memory.reconsolidation.publication import MemoryUnitReceipt
+from pm.memory.store import MemoryStore
 from pm.records.media import RecordImage
 from simulation.client import ParticipantFailure
+from workflows.interaction.records import MainSelectionMetadata, interaction_receipts
+from workflows.interaction.schemas import InteractionOutcome
 
 if TYPE_CHECKING:
     from workflows.companion import CompanionApplication
+
+
+class PreparedMemoryStatus(BaseModel):
+    commit_id: str
+    receipt: MemoryUnitReceipt
+
+
+class MemoryWorkStatus(BaseModel):
+    sleep_action_id: int | None
+    active: MemoryWorkProgress | None
+    ready: list[PreparedMemoryStatus]
+
+    @property
+    def busy(self) -> bool:
+        return self.sleep_action_id is not None or self.active is not None or bool(self.ready)
+
+
+class ParticipantClockStart(BaseModel):
+    clock_start: str
+    utc_offset_hours: float | None = None
+
+
+class SourceCycleStatus(BaseModel):
+    interaction_outcome: InteractionOutcome | None = None
+    interaction_selection_id: str | None = None
+    main_tick_id: int | None = None
+
+    @property
+    def complete(self) -> bool:
+        return self.interaction_selection_id is not None or self.main_tick_id is not None
+
+
+def source_cycle_status(store: MemoryStore, source_id: int) -> SourceCycleStatus:
+    """Read the first accepted decision that owned this public input."""
+    view = store.snapshot(capture=False)
+    receipt = interaction_receipts(view).get(source_id)
+    if receipt is not None:
+        return SourceCycleStatus(interaction_outcome=receipt.outcome, interaction_selection_id=receipt.selection_id)
+    for turn in view.gwt_turns.values():
+        if turn.slot_id != "main" or source_id not in turn.stimulus_ids or turn.decision_id is None:
+            continue
+        selected = MainSelectionMetadata.model_validate(view.get(turn.decision_id).metadata)
+        if source_id not in selected.interaction_source_ids:
+            return SourceCycleStatus(main_tick_id=turn.tick_id)
+    return SourceCycleStatus()
 
 
 class Participant:
@@ -67,7 +117,7 @@ class Participant:
         self._home_lock: ProcessLock = ProcessLock(self.home / ".simulation-process.lock")
         self._home_lock.acquire()
         self.server: WebChatServer = WebChatServer(None, self.submit, port=port, on_error=self.fail, control=self.control)
-        self.clock_start: str | None = None
+        self.record_lifecycle: bool = False
         # The one Minecraft body this participant holds, or None for no body.
         self.minecraft_mcp_url: str | None = None
         self.ready: threading.Event = threading.Event()
@@ -128,18 +178,17 @@ class Participant:
         with self._telemetry_lock, path.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(row, ensure_ascii=False) + "\n")
 
-    def _start(self, body: dict[str, JsonValue]) -> None:
+    def _start(self, request: ParticipantClockStart) -> None:
         try:
             from workflows.companion import build_app
-            self.clock_start = body["clock_start"]
             saved_clock = self.home / "runtime" / "clock.json"
             saved = json.loads(saved_clock.read_text(encoding="utf-8")) if saved_clock.exists() else None
-            start = datetime.fromisoformat(self.clock_start)
+            start = datetime.fromisoformat(request.clock_start)
             if saved and datetime.fromisoformat(saved["clock"]["now"]) == start:
                 clock = vclock.VirtualClock.from_state(saved["clock"])
             else:
                 saved = None
-                clock = vclock.VirtualClock(start, body.get("utc_offset_hours"))
+                clock = vclock.VirtualClock(start, request.utc_offset_hours)
             vclock.install(clock)
             configure_root(self.home / "logs" / "prompts")
             configure_logging(self.home)
@@ -150,7 +199,7 @@ class Participant:
             app = build_app(None, self.home / "runtime", ghost=store, cognition="real",
                             config_path=self.config, enable_minecraft=self.minecraft_mcp_url is not None,
                             emit_reply=lambda text: None,
-                            bus_observer=self.observe, record_lifecycle=False)
+                            bus_observer=self.observe, record_lifecycle=self.record_lifecycle)
             self.app = app
             self.server.store = store
             from pm.app.transport import event_cursor
@@ -188,6 +237,11 @@ class Participant:
                     raise ValueError("Simulation participants require real cognition.")
                 if self.app is not None or self.starting:
                     return self.control("/control/state", {})
+                record_lifecycle = body.get("record_lifecycle", False)
+                if not isinstance(record_lifecycle, bool):
+                    raise ValueError("record_lifecycle must be a boolean.")
+                clock_start = ParticipantClockStart.model_validate(body)
+                self.record_lifecycle = record_lifecycle
                 base_url = self._text_option(body, "base_url")
                 minecraft_mcp_url = self._text_option(body, "minecraft_mcp_url")
                 if base_url is not None or minecraft_mcp_url is not None:
@@ -198,13 +252,29 @@ class Participant:
                     self.config = str(selected)
                 self.minecraft_mcp_url = minecraft_mcp_url
                 self.starting = True
-                threading.Thread(target=self._start, args=(body,), name="participant-start", daemon=False).start()
+                threading.Thread(target=self._start, args=(clock_start,), name="participant-start", daemon=False).start()
                 return {"status": "starting", "home": str(self.home)}
             if path in {"/control/state", "/control/status"} and (self.app is None or self.starting or self.error):
                 return {"status": "failed" if self.error else "starting" if self.starting else "ready",
                         "idle": False, "error": repr(self.error) if self.error else None}
             if self.app is None:
                 raise ValueError("Start this participant first.")
+            if path == "/control/source-cycle":
+                source_id = TypeAdapter(int).validate_python(body["source_id"])
+                status = source_cycle_status(self.app.runtime_control.ghost, source_id)
+                return TypeAdapter(dict[str, JsonValue]).validate_python(  # pm-lint: allow PM004 -- HTTP response shape
+                    status.model_dump(mode="json"))  # pm-lint: allow PM007 -- HTTP response serialization
+            if path == "/control/memory-work":
+                memory = self.app.memory_work
+                with memory.store.lock:
+                    sleep = memory.sleep
+                    worker = memory.worker
+                    ready = [PreparedMemoryStatus(commit_id=item.unit.batch.commit_id, receipt=item.unit.receipt)
+                             for item in memory.ready]
+                    status = MemoryWorkStatus(sleep_action_id=sleep.action_record_id if sleep else None,
+                                              active=worker.progress if worker else None, ready=ready)
+                    return TypeAdapter(dict[str, JsonValue]).validate_python(  # pm-lint: allow PM004 -- HTTP response shape
+                        status.model_dump(mode="json"))  # pm-lint: allow PM007 -- HTTP response serialization
             if path == "/control/env":
                 for item in body["events"]:
                     item = {"text": item} if isinstance(item, str) else dict(item)
@@ -266,7 +336,8 @@ class Participant:
                 self.app = None
                 self.server.store = None
                 self.starting = True
-                threading.Thread(target=self._start, args=({"clock_start": saved["clock"]["now"]},),
+                clock_start = ParticipantClockStart(clock_start=saved["clock"]["now"])
+                threading.Thread(target=self._start, args=(clock_start,),
                                  name="participant-restore", daemon=False).start()
                 return {"status": "starting", "name": name}
             controller = self.app.runtime_control

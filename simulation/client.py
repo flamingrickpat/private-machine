@@ -18,13 +18,12 @@ import json
 from pathlib import Path
 import queue
 import subprocess
-import sys
 import threading
 import time
 from typing import IO
 
 import httpx
-from pydantic import BaseModel, JsonValue
+from pydantic import BaseModel, JsonValue, TypeAdapter
 from websockets.exceptions import ConnectionClosed
 from websockets.sync.client import connect
 
@@ -39,6 +38,20 @@ class ParticipantFailure(BaseModel):
 
     def save(self, path: Path) -> None:
         atomic_json(path, self.model_dump(mode="json"))
+
+
+class ParticipantExit(BaseModel):
+    """The control acknowledgment and actual exit of one participant process."""
+
+    pid: int
+    exit_code: int
+    shutdown_status: str
+    clock: str
+
+
+class ShutdownRequest(BaseModel):
+    status: str
+    clock: str
 
 
 class PMProcess:
@@ -69,7 +82,7 @@ class PMProcess:
         self.http: httpx.Client = httpx.Client(timeout=None, trust_env=False)
         self._log: IO[bytes] | None = None
 
-    def launch(self, clock: str) -> None:
+    def launch(self, clock: str, *, record_lifecycle: bool = False) -> None:
         """Start a hidden participant process and request real runtime startup.
 
         The child writes its ready file with the bound URL. This method waits for
@@ -90,9 +103,13 @@ class PMProcess:
         while not self.endpoint_file.exists():
             self.check_process()
             time.sleep(.05)
-        self.url = json.loads(self.endpoint_file.read_text(encoding="utf-8"))["url"].rstrip("/")
-        self.post("/control/start", {"clock_start": clock, "cognition": "real", "character": str(self.home),
-                                     "minecraft_mcp_url": self.minecraft_mcp_url})
+        ready_url = TypeAdapter(str).validate_python(read_json(self.endpoint_file)["url"])
+        self.url = ready_url.rstrip("/")
+        start: dict[str, JsonValue] = {"clock_start": clock, "cognition": "real", "character": str(self.home),  # pm-lint: allow PM004 -- HTTP start request
+                                       "minecraft_mcp_url": self.minecraft_mcp_url}
+        if record_lifecycle:
+            start["record_lifecycle"] = True
+        self.post("/control/start", start)  # pm-lint: allow PM005 -- HTTP request
         while self.state()["status"] == "starting":
             self.check_process()
             time.sleep(.1)
@@ -172,8 +189,33 @@ class PMProcess:
         self.reader = threading.Thread(target=read, name=f"speech-{self.id}", daemon=False)
         self.reader.start()
 
+    def request_shutdown(self) -> ShutdownRequest:
+        """Request a clean drain while keeping the controller available to observe it."""
+        if self.process is None or not self.url:
+            raise RuntimeError(f"Participant {self.id} did not start.")
+        if self.process.poll() is not None:
+            self.raise_recorded_failure()
+            raise RuntimeError(f"Participant {self.id} already exited with code {self.process.returncode}.")
+        self.reader_stop.set()
+        receipt = self.post("/control/shutdown", {})  # pm-lint: allow PM005 -- HTTP request
+        return ShutdownRequest.model_validate(receipt)
+
+    def wait_for_exit(self, request: ShutdownRequest, *, timeout_seconds: float) -> ParticipantExit | None:
+        process = self.process
+        if process is None:
+            raise RuntimeError(f"Participant {self.id} did not start.")
+        try:
+            exit_code = process.wait(timeout=timeout_seconds)
+        except subprocess.TimeoutExpired:
+            return None
+        if exit_code:
+            self.raise_recorded_failure()
+            raise RuntimeError(f"Participant {self.id} exited with code {exit_code} during shutdown.")
+        return ParticipantExit(pid=process.pid, exit_code=exit_code,
+                               shutdown_status=request.status, clock=request.clock)
+
     def close(self) -> None:
-        """Drain approved work, then wait for normal process exit."""
+        """Drain approved work and release the local stream and process handles."""
         self.reader_stop.set()
         try:
             if self.process is not None and self.process.poll() is None and self.url:

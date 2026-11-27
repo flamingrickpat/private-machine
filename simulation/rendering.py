@@ -17,6 +17,7 @@ from simulation.plans import Fact, ScenarioPlan, Step
 if TYPE_CHECKING:
     from simulation.agents import ActorContext, DraftRequest, PlanRequest, PlanningRequest, ReviewRequest, StageContext
     from simulation.analysis import RatingInput
+    from simulation.observer import Observation
     from simulation.templates import DayRequest
 
 
@@ -218,6 +219,13 @@ def stage_input(context: StageContext, instruction: str, schema: str) -> Simulat
                                   1 + index / max(1, len(context.conversation)), index)
                     for index, turn in enumerate(context.conversation) if turn.timestamp < context.stage.at)
     return SimulationPromptInput("simulation stage judgment", instruction, schema, required, earlier)
+
+
+def observation_input(request: Observation, instruction: str, schema: str) -> SimulationPromptInput:
+    required = (f"Trigger: {request.trigger}\nSituation: {request.situation}\nGoal: {request.goal}"
+                f"\nVirtual time: {request.world_time.isoformat()}\nEvidence:\n")
+    required += "\n".join(f"[{row.id}] {row.text}" for row in request.evidence)
+    return SimulationPromptInput("simulation run observation", instruction, schema, required)
 
 
 def rating_input(request: RatingInput, instruction: str, schema: str) -> SimulationPromptInput:
