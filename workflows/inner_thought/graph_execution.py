@@ -800,10 +800,6 @@ def run_graph_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner,
             if perspective.evidence_source_ids:
                 execution_grant = extend_inquiry_grant(step_view, execution_grant,
                                                        perspective.evidence_source_ids)
-                for source in execution_grant.sources:
-                    # The recall branch rebuilds the grant from this dict, so
-                    # the extended perspective sources must be seeded here.
-                    dependencies[source.record_id] = source
                 request = request.model_copy(deep=True)
                 supplied_ids = citable_ids(request)
                 for source_id in perspective.evidence_source_ids:
@@ -862,14 +858,8 @@ def run_graph_opportunity(request: InnerRequest, *, owner: PrivateInquiryOwner,
         if memory_access is None:
             raise RuntimeError("An admitted memory search requires the host's actual frozen-view retrieval.")
         recalled = memory_access.recall(supplied.origin.question)
-        for source in recalled.sources:
-            dependencies.setdefault(source.record_id, source)
-        execution_grant = InquiryGrant(
-            observer_entity_id=execution_grant.observer_entity_id,
-            scope=execution_grant.scope,
-            sources=tuple((dependencies[key] for key in sorted(dependencies))),
-            critical_epoch=execution_grant.critical_epoch,
-        )
+        recalled_ids = tuple(source.record_id for source in recalled.sources)
+        execution_grant = extend_inquiry_grant(memory_access.view, execution_grant, recalled_ids)
         supplied = GraphThoughtRequest(
             stage_kind=supplied.stage_kind,
             request=supplied.request,
